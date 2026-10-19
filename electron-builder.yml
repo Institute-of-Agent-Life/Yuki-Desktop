@@ -1,0 +1,67 @@
+appId: life.yuki.desktop
+productName: Yuki
+directories:
+  output: dist
+  buildResources: resources
+asar: true
+files:
+  - out/main/**
+  - out/preload/**
+  - out/renderer/**
+  - package.json
+  - LICENSE
+  - '!**/*.map'
+  - '!**/docs{,/**}'
+  - '!assets{,/**}'
+  - '!**/scripts{,/**}'
+  - '!**/third-party{,/**}'
+  - '!**/tests{,/**}'
+  - '!**/AGENTS.md'
+  - '!**/LOCAL-README.md'
+  - '!**/INTEGRATION.md'
+  - '!**/NOTICE.md'
+  - '!**/._*'
+  - '!**/*.log'
+protocols:
+  name: Yuki 配對連結
+  schemes: [yuki]
+publish:
+  provider: github
+  owner: Institute-of-Agent-Life
+  repo: Yuki-Desktop
+  releaseType: draft
+mac:
+  category: public.app-category.productivity
+  minimumSystemVersion: '13.0.0'
+  target: [dmg, zip]
+  hardenedRuntime: true
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
+win:
+  target: [nsis]
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+linux:
+  category: Utility
+  target: [AppImage, deb, rpm]
+  desktop:
+    entry:
+      MimeType: x-scheme-handler/yuki;
+      StartupWMClass: Yuki
+deb:
+  depends:
+    [libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libsecret-1-0, fonts-noto-cjk]
+rpm:
+  depends:
+    [
+      gtk3,
+      libnotify,
+      nss,
+      libXScrnSaver,
+      libXtst,
+      xdg-utils,
+      libsecret,
+      google-noto-sans-cjk-ttc-fonts,
+    ]
