@@ -70,6 +70,7 @@ export class Connections {
     return { connections: this.list().length, subscriptions: this.streams.size, messages }
   }
   onProfile?: (id: string, profile: Profile) => void
+  onIdentity?: (id: string, name: string) => void
   executorNative?: (id: string) => NativeSubmissions
   onExecutorActivity?: (id: string, task: ExecutorTask, active: boolean) => void
   private readonly executorStores = new Map<
@@ -953,12 +954,22 @@ export class Connections {
     if (!compatible) throw new ApiError('client_upgrade_required')
     return meta
   }
+  private rememberName(id: string, name: string) {
+    if (this.connection(id).name === name) return
+    this.store.set(
+      'connections',
+      this.list().map((item) => (item.characterId === id ? { ...item, name } : item)),
+    )
+    this.emit(id, 'connection-name', { name })
+  }
   private identify(id: string) {
     let pending = this.identified.get(id)
     if (!pending) {
       pending = this.meta(this.connection(id).baseUrl)
         .then((meta) => {
           if (meta.character.id !== id) throw new ApiError('different_character')
+          this.rememberName(id, meta.character.display_name)
+          this.onIdentity?.(id, meta.character.display_name)
         })
         .catch((error) => {
           this.identified.delete(id)
@@ -1038,6 +1049,7 @@ export class Connections {
       ...this.list().filter((item) => item.characterId !== characterId),
       connection,
     ])
+    this.onIdentity?.(characterId, meta.character.display_name)
     this.start(characterId)
     return connection
   }
@@ -1100,7 +1112,10 @@ export class Connections {
       await this.identify(id)
       const value = await this.client(id).get<T>(path)
       if (!['me', 'request', 'proactive-route'].includes(route.kind)) box.cache(path, value)
-      if (route.kind === 'character') this.onProfile?.(id, value as Profile)
+      if (route.kind === 'character') {
+        this.rememberName(id, (value as Profile).display_name)
+        this.onProfile?.(id, value as Profile)
+      }
       return value
     } catch (error) {
       if (error instanceof ApiError) {

@@ -30,6 +30,10 @@ export class NativeShell {
     this.selected = value
     this.updateDecoration()
   }
+  characterName(id: string, name: string) {
+    this.desired.set(id, { key: this.desired.get(id)?.key ?? 'identity', name })
+    this.updateActivity()
+  }
   prepareCharacter(id: string, profile: Profile) {
     const key = `${profile.revision}/${profile.avatar_revision}/${profile.avatar?.sha256 ?? 'letter'}`
     this.desired.set(id, { key, name: profile.display_name })
@@ -90,7 +94,11 @@ export class NativeShell {
       Menu.buildFromTemplate([
         ...activities.map((label) => ({ label, enabled: false })),
         ...(activities.length ? [{ type: 'separator' as const }] : []),
-        { label: '開啟 Yuki', click: this.reveal },
+        ...[...this.desired].map(([characterId, { name }]) => ({
+          label: `開啟 ${name}`,
+          click: () => this.open({ characterId, view: 'chat' }),
+        })),
+        { label: '顯示視窗', click: this.reveal },
         { type: 'separator' },
         { label: '結束', click: () => app.quit() },
       ]),
@@ -150,8 +158,9 @@ export class NativeShell {
   }
   async submitNotification(characterId: string, title: string, body: string): Promise<boolean> {
     if (!Notification.isSupported()) return false
+    const name = this.desired.get(characterId)?.name ?? 'Yuki'
     const notification = new Notification({
-      title,
+      title: title === name ? name : `${name} · ${title}`,
       body,
       icon:
         this.decorations.get(characterId)?.notification ??

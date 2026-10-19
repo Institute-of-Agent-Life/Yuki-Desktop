@@ -114,5 +114,5 @@ export async function pairUI(page: Page, base: string, code: string, label?: str
   if (label) await page.getByLabel('裝置名稱').fill(label)
   await page.getByRole('button', { name: '配對', exact: true }).click()
   await page.getByRole('button', { name: '進入', exact: true }).click()
-  await expect(page.getByText('已連線', { exact: true })).toBeVisible()
+  await expect(page.getByText('已連線', { exact: true }).filter({ visible: true })).toBeVisible()
 }

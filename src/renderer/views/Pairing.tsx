@@ -14,16 +14,20 @@ export function Pairing({
   reconnect = false,
   onDone,
   onResumeLogout,
+  startAtServer = false,
+  onCancel,
 }: {
   label: string
   initialLink: string | null
   initialServer?: string
   reconnect?: boolean
+  startAtServer?: boolean
+  onCancel?(): void
   onDone(connection: Connection): void
   onResumeLogout(characterId: string): Promise<void>
 }) {
   const [step, setStep] = useState<'welcome' | 'server' | 'code' | 'person'>(
-    initialServer ? 'server' : 'welcome',
+    initialServer || startAtServer ? 'server' : 'welcome',
   )
   const [server, setServer] = useState(initialServer),
     [codeInput, setCodeInput] = useState(''),
@@ -105,7 +109,7 @@ export function Pairing({
           {step === 'welcome'
             ? '和她聊聊，一起把事情做好。無論從哪裡回來，都是同一個她。'
             : step === 'server'
-              ? '輸入 Yuki 伺服器位址，或貼上你收到的綁定連結。'
+              ? '輸入角色的伺服器位址，或貼上你收到的綁定連結。'
               : step === 'code'
                 ? '確認這是你要連接的角色，再輸入綁定碼。'
                 : '你在其他入口的對話與工作，也能在這裡接續。'}
@@ -143,8 +147,12 @@ export function Pairing({
             />
             <small>可包含角色的路徑前綴。</small>
             <div className={styles.actions}>
-              <Button variant="plain" onClick={() => setStep('welcome')} type="button">
-                返回
+              <Button
+                variant="plain"
+                onClick={() => (onCancel ? onCancel() : setStep('welcome'))}
+                type="button"
+              >
+                {onCancel ? '取消' : '返回'}
               </Button>
               <Button variant="primary" type="submit" loading={busy} disabled={!server.trim()}>
                 繼續

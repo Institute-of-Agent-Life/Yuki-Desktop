@@ -6,6 +6,8 @@ export function keyboardCommand(
 ): Command | undefined {
   if (!(platform === 'darwin' ? input.meta : input.control)) return
   const key = input.key.toLowerCase()
+  if (input.shift && ['[', '{', ']', '}'].includes(key))
+    return ['[', '{'].includes(key) ? 'previous-character' : 'next-character'
   return input.shift && key === 'e'
     ? 'focus-mode'
     : key === 's' && (platform === 'darwin' ? input.control : input.shift)

@@ -71,6 +71,7 @@ export function WorkList({
   selected?: string
   open(workId: string): void
 }) {
+  const workspace = useWorkspace()
   const { zone, group: dateGroup } = useDisplayTime()
   const [origin, setOrigin] = useState<'all' | 'this_entry' | 'other'>('all')
   const query = useQueryClient()
@@ -123,7 +124,7 @@ export function WorkList({
         onClick={() => open(work.work_id)}
         onDoubleClick={() => {
           open(work.work_id)
-          useWorkspace.setState({ focusMode: true })
+          workspace.patch({ focusMode: true })
         }}
       >
         <span className={styles.state}>

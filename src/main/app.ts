@@ -166,6 +166,7 @@ else {
         active,
       )
     }
+    connections.onIdentity = (id, name) => native.characterName(id, name)
     const decorations = new Map<string, Promise<void>>()
     connections.onProfile = (id, profile) => {
       const key = native.prepareCharacter(id, profile),
@@ -695,7 +696,10 @@ else {
     clientAction('outbox', (id: string) => connections.box(id).list())
     clientAction('verify', (id: string, requestId: string) => connections.verify(id, requestId))
     clientAction('draft', (id: string, text?: string) => connections.box(id).draft(text))
-    for (const connection of connections.list()) connections.start(connection.characterId)
+    for (const connection of connections.list()) {
+      native.characterName(connection.characterId, connection.name)
+      connections.start(connection.characterId)
+    }
     const appearance = () => ({
       dark: nativeTheme.shouldUseDarkColors,
       reducedTransparency: nativeTheme.prefersReducedTransparency,

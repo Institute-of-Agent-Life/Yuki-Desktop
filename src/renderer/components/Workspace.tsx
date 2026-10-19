@@ -25,6 +25,7 @@ import { requestNavigation } from '../state/navigation'
 interface Props {
   name: string
   avatar?: ReactNode
+  roleSwitcher?: ReactNode
   status: string
   presence?: 'running' | 'waiting' | 'done' | 'offline'
   owner: boolean
@@ -131,13 +132,16 @@ export function Workspace(props: Props) {
   )
   const sidebarContent = (
     <>
-      <PresenceCard
-        name={props.name}
-        status={props.status}
-        color={props.presence}
-        avatar={props.avatar}
-        open={() => state.setView('about')}
-      />
+      <div className={props.roleSwitcher ? styles.presenceRow : undefined}>
+        <PresenceCard
+          name={props.name}
+          status={props.status}
+          color={props.presence}
+          avatar={props.avatar}
+          open={() => state.setView('about')}
+        />
+        {props.roleSwitcher}
+      </div>
       <div className={styles.group}>對話</div>
       {views
         .filter(([view]) => view === 'chat')

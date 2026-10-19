@@ -82,6 +82,7 @@ export function CharacterAvatar({
     <Avatar
       name={name ?? context.name}
       size={size}
+      accent={context.profile?.accent}
       src={url}
       loading={allowed && result.isPending}
     />

@@ -57,7 +57,9 @@ export function Settings({
   onConnection,
   about,
   onLoggedOut,
+  serverRequest = false,
   folderRequest = false,
+  onAddCharacter,
 }: {
   boot: BootInfo
   preferences: Preferences
@@ -68,9 +70,17 @@ export function Settings({
   about(): void
   onLoggedOut(): Promise<void>
   folderRequest?: boolean
+  serverRequest?: boolean
+  onAddCharacter(): void
 }) {
   const [category, setCategory] = useState<Category>(
-      connection?.logout ? 'security' : folderRequest ? 'local' : 'general',
+      connection?.logout
+        ? 'security'
+        : folderRequest
+          ? 'local'
+          : serverRequest
+            ? 'server'
+            : 'general',
     ),
     [error, setError] = useState(''),
     [notice, setNotice] = useState('')
@@ -321,6 +331,7 @@ export function Settings({
                 connection={connection}
                 onConnection={onConnection}
                 about={about}
+                onAddCharacter={onAddCharacter}
               />
             ) : (
               <p className={styles.notice}>配對角色後可查看伺服器與主動訊息設定。</p>

@@ -64,7 +64,7 @@
   overflow: hidden;
   position: relative;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--avatar-accent-light, var(--accent));
   color: var(--accent-on);
   font-weight: 600;
   flex-shrink: 0;
@@ -237,4 +237,8 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+:global([data-theme='dark']) .avatar {
+  background: var(--avatar-accent-dark, var(--accent));
 }

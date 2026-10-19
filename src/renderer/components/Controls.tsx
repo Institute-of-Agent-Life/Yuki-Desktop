@@ -1,3 +1,4 @@
+import { useSessionActive } from '../state/workspace'
 import {
   useEffect,
   useId,
@@ -72,16 +73,26 @@ export function Avatar({
   size = 36,
   src,
   loading = false,
+  accent,
 }: {
   name: string
   size?: number
   src?: string | null
   loading?: boolean
+  accent?: { light: string; dark: string }
 }) {
   return (
     <span
       className={`${styles.avatar} ${src ? styles.photo : ''}`}
-      style={{ width: size, height: size, fontSize: size * 0.42 }}
+      style={
+        {
+          width: size,
+          height: size,
+          fontSize: size * 0.42,
+          '--avatar-accent-light': accent?.light,
+          '--avatar-accent-dark': accent?.dark,
+        } as React.CSSProperties
+      }
       aria-label={name}
       role="img"
       aria-busy={loading}
@@ -220,18 +231,25 @@ export function Sheet({
   onDragOver?: DragEventHandler<HTMLDialogElement>
   onKeyDown?: KeyboardEventHandler<HTMLDialogElement>
 }) {
+  const active = useSessionActive()
   const titleId = useId()
   const ref = useRef<HTMLDialogElement>(null)
   const previous = useRef<Element | null>(null)
+  const requested = useRef(false)
   useEffect(() => {
-    if (open) {
-      previous.current = document.activeElement
+    if (open && active) {
+      if (!requested.current) previous.current = document.activeElement
+      requested.current = true
       ref.current?.showModal()
     } else {
       ref.current?.close()
-      if (previous.current instanceof HTMLElement) previous.current.focus()
+      if (!open) {
+        if (requested.current && active && previous.current instanceof HTMLElement)
+          previous.current.focus()
+        requested.current = false
+      }
     }
-  }, [open])
+  }, [open, active])
   return (
     <dialog
       ref={ref}

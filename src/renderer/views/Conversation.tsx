@@ -24,7 +24,7 @@ import { useDisplayTime } from '../state/time'
 import { Copy, Reply } from 'lucide-react'
 import { Workspace } from '../components/Workspace'
 import { unwrap, problemText, hidesPrivateData, ClientProblem } from '../queries/client'
-import { useWorkspace } from '../state/workspace'
+import { useWorkspace, useSessionActive } from '../state/workspace'
 import { useCommands } from '../state/commands'
 import styles from './Conversation.module.css'
 import { parseMessage, referencedMessage, type MessageReference } from '../../shared/message'
@@ -48,17 +48,19 @@ export function Conversation({
   connection,
   platform,
   preferences,
-  save,
   onSettings,
   onPairAgain,
+  roleSwitcher,
 }: {
   connection: Connection
   platform: string
   preferences: Preferences
-  save(patch: Partial<Preferences>): void
   onSettings(target?: 'folder'): void
   onPairAgain(): void
+  roleSwitcher?: React.ReactNode
 }) {
+  const workspace = useWorkspace()
+  const active = useSessionActive()
   const id = connection.characterId,
     query = useQueryClient(),
     view = useWorkspace((state) => state.view)
@@ -80,8 +82,8 @@ export function Conversation({
     [recording, setRecording] = useState(false)
   const finishRecording = useRef<(() => void) | undefined>(undefined)
   useEffect(() => {
-    void window.yuki.client.selected(id)
-  }, [id])
+    if (active) void window.yuki.client.selected(id)
+  }, [id, active])
   useEffect(() => {
     if (target?.characterId === id && target.conversationId) {
       setAnchor(null)
@@ -181,13 +183,13 @@ export function Conversation({
     if (view === 'files') {
       setSelectedWork(undefined)
       setPreview(undefined)
-      useWorkspace.setState({ inspector: false })
+      workspace.patch({ inspector: false })
     }
   }, [view])
   useEffect(() => {
     if (target?.characterId === id && target.workId) {
       setSelectedWork(target.workId)
-      useWorkspace.setState({ inspector: true })
+      workspace.patch({ inspector: true })
     }
   }, [id, target])
   const accessLost = hidesPrivateData(new ClientProblem(connectionProblem))
@@ -246,7 +248,7 @@ export function Conversation({
     setArtifact(undefined)
     setSelectedWork(undefined)
     setPreview(source)
-    useWorkspace.setState({ inspector: true })
+    workspace.patch({ inspector: true })
   }
   useEffect(() => {
     const wake = () => {
@@ -310,13 +312,16 @@ export function Conversation({
     [id, refresh],
   )
   useEffect(() => {
+    if (!active) return
     const search = () => setPalette(true)
     window.addEventListener('yuki:search', search)
     return () => window.removeEventListener('yuki:search', search)
-  }, [])
+  }, [active])
   useCommands((command) => {
     if (command === 'focus-composer')
-      document.querySelector<HTMLTextAreaElement>('textarea')?.focus()
+      document
+        .querySelector<HTMLTextAreaElement>(`[data-character-session="${id}"] textarea`)
+        ?.focus()
     if (command === 'search') setPalette(true)
     if (command === 'find' && !promptEditing) {
       if (view === 'chat') setSearch('')
@@ -353,19 +358,32 @@ export function Conversation({
   }, [jump, conversation, events.data])
   useEffect(() => {
     const accent = profileData?.accent
-    if (!accent) return
+    if (!active || !accent) return
     const root = document.documentElement
-    root.style.setProperty(
-      '--accent',
-      preferences.theme === 'dark' ||
-        (preferences.theme === 'system' && root.dataset.theme === 'dark')
-        ? accent.dark
-        : accent.light,
-    )
-    return () => {
-      root.style.removeProperty('--accent')
+    const update = () => {
+      const dark = root.dataset.theme === 'dark'
+      root.style.setProperty('--accent', dark ? accent.dark : accent.light)
+      root.style.setProperty(
+        '--accent-strong',
+        `color-mix(in srgb, ${dark ? accent.dark : accent.light} 85%, ${dark ? 'white' : 'black'})`,
+      )
+      root.style.setProperty(
+        '--accent-subtle',
+        `color-mix(in srgb, ${dark ? accent.dark : accent.light} 10%, transparent)`,
+      )
     }
-  }, [profileData?.accent, preferences.theme])
+    update()
+    const observer = new MutationObserver(update)
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => {
+      observer.disconnect()
+      for (const key of ['--accent', '--accent-strong', '--accent-subtle'])
+        root.style.removeProperty(key)
+    }
+  }, [profileData?.accent, preferences.theme, active])
+  useEffect(() => {
+    if (!active) setPalette(false)
+  }, [active])
   const choose = (next: string) => {
     needsEarlier.current = false
     setAnchor(null)
@@ -374,7 +392,7 @@ export function Conversation({
     setConversation(next)
     setSelection(undefined)
     bottom.current = true
-    useWorkspace.getState().setView('chat')
+    workspace.setView('chat')
   }
   const updateDraft = (value: string) => {
     currentDraft.current = value
@@ -456,14 +474,14 @@ export function Conversation({
     setSearch(null)
     bottom.current = false
     setJump(reference)
-    useWorkspace.getState().setView('chat')
+    workspace.setView('chat')
     setMessageStage(stage ? reference : undefined)
     if (stage) {
       setSelectedWork(undefined)
       setArtifact(undefined)
       setPreview(undefined)
       query.setQueryData([id, 'reference', reference.conversationId, reference.eventId], event)
-      useWorkspace.setState({ inspector: true, focusMode: true })
+      workspace.patch({ inspector: true, focusMode: true })
     }
     return true
   }
@@ -515,14 +533,14 @@ export function Conversation({
     setArtifact(undefined)
     setPreview(undefined)
     setSelectedWork(workId)
-    useWorkspace.setState({ inspector: true })
+    workspace.patch({ inspector: true })
   }
   const openArtifact = (source: ArtifactSource) => {
     setMessageStage(undefined)
     setArtifact(source)
     setSelectedWork(undefined)
     setPreview(undefined)
-    useWorkspace.setState({ inspector: true })
+    workspace.patch({ inspector: true })
   }
   const selectArtifact = (source: ArtifactSource) => {
     setMessageStage(undefined)
@@ -533,7 +551,7 @@ export function Conversation({
   const answerWork = (work: Work) => {
     setReplyWork(work)
     choose(connection.conversationId)
-    useWorkspace.setState({ inspector: false, focusMode: false })
+    workspace.patch({ inspector: false, focusMode: false })
   }
   const entry = homeData?.entries.find((item) => item.conversation_id === conversation)
   const pending = isMain
@@ -561,16 +579,16 @@ export function Conversation({
       if (alive.current) paletteNavigate(() => applyJump(reference, event, stage))
     } else if (item.kind === 'work')
       paletteNavigate(() => {
-        useWorkspace.getState().setView(stage ? 'chat' : 'works')
+        workspace.setView(stage ? 'chat' : 'works')
         openWork(item.work.work_id)
-        if (stage) useWorkspace.setState({ focusMode: true })
+        if (stage) workspace.patch({ focusMode: true })
       })
     else
       paletteNavigate(() => {
-        useWorkspace.getState().setView(stage ? 'chat' : 'files')
+        workspace.setView(stage ? 'chat' : 'files')
         if (stage) {
           openArtifact(item.source)
-          useWorkspace.setState({ focusMode: true })
+          workspace.patch({ focusMode: true })
         } else selectArtifact(item.source)
       })
   }
@@ -578,22 +596,22 @@ export function Conversation({
     ...(['chat', 'works', 'files', 'about'] as const).map((view, index) => ({
       id: `command/${view}`,
       title: ['開啟對話', '開啟工作', '開啟檔案與成果', '開啟角色資料'][index]!,
-      run: () => paletteNavigate(() => useWorkspace.getState().setView(view)),
+      run: () => paletteNavigate(() => workspace.setView(view)),
     })),
     {
       id: 'command/inspector',
       title: '開合檢視器',
-      run: () => paletteNavigate(() => useWorkspace.getState().toggle('inspector')),
+      run: () => paletteNavigate(() => workspace.toggle('inspector')),
     },
     {
       id: 'command/sidebar',
       title: '開合側邊欄',
-      run: () => paletteNavigate(() => useWorkspace.getState().toggle('sidebar')),
+      run: () => paletteNavigate(() => workspace.toggle('sidebar')),
     },
     {
       id: 'command/stage',
       title: '展開或收合工作區',
-      run: () => paletteNavigate(() => useWorkspace.getState().toggle('focusMode')),
+      run: () => paletteNavigate(() => workspace.toggle('focusMode')),
     },
     { id: 'command/settings', title: '開啟設定', run: () => paletteNavigate(onSettings) },
     {
@@ -608,8 +626,8 @@ export function Conversation({
             title: `觀看 ${name} 的電腦`,
             run: (stage: boolean) =>
               paletteNavigate(() => {
-                useWorkspace.getState().setView('computer')
-                if (stage) useWorkspace.setState({ focusMode: true, inspector: true })
+                workspace.setView('computer')
+                if (stage) workspace.patch({ focusMode: true, inspector: true })
               }),
           },
           {
@@ -617,8 +635,8 @@ export function Conversation({
             title: `喚醒 ${name} 的電腦`,
             run: (stage: boolean) =>
               paletteNavigate(() => {
-                useWorkspace.getState().setView('computer')
-                if (stage) useWorkspace.setState({ focusMode: true, inspector: true })
+                workspace.setView('computer')
+                if (stage) workspace.patch({ focusMode: true, inspector: true })
                 void window.yuki.client
                   .computerCommand(id, { action: 'wake' })
                   .then(unwrap)
@@ -647,14 +665,19 @@ export function Conversation({
             <div className={styles.promptToolbar} ref={setPromptToolbar} />
           ) : undefined
         }
+        roleSwitcher={roleSwitcher}
         name={name}
         avatar={<CharacterAvatar />}
         status={presence.text}
         presence={presence.color}
         owner={profileData?.viewer.is_owner ?? false}
         platform={platform}
-        preferences={preferences}
-        savePreferences={save}
+        preferences={{
+          ...preferences,
+          sidebarWidth: workspace.sidebarWidth,
+          inspectorWidth: workspace.inspectorWidth,
+        }}
+        savePreferences={(patch) => workspace.patch(patch)}
         onSettings={onSettings}
         entries={
           <>
@@ -712,7 +735,7 @@ export function Conversation({
               key={`${artifact.artifactId}/${artifact.version}`}
               id={id}
               source={artifact}
-              library={() => useWorkspace.getState().setView('files')}
+              library={() => workspace.setView('files')}
             />
           ) : selectedWork && !accessLost ? (
             <WorkDetail
@@ -726,7 +749,7 @@ export function Conversation({
               computer={
                 profileData?.viewer.is_owner
                   ? () => {
-                      const state = useWorkspace.getState()
+                      const state = workspace
                       state.setView('computer')
                       if (!state.focusMode) state.toggle('focusMode')
                     }

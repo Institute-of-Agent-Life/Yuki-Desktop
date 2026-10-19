@@ -18,6 +18,8 @@ export type Command =
   | 'focus-mode'
   | 'back'
   | 'forward'
+  | 'previous-character'
+  | 'next-character'
 
 export interface Preferences {
   theme: Theme

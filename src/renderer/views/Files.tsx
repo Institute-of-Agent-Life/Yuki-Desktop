@@ -41,6 +41,7 @@ export function Files({
   work(workId: string): void
   onSelect(source: ArtifactSource): void
 }) {
+  const workspace = useWorkspace()
   const { date, group: dateGroup } = useDisplayTime()
   const query = useQueryClient(),
     [category, setCategory] = useState<'all' | 'image' | 'document' | 'code'>('all'),
@@ -125,7 +126,7 @@ export function Files({
       jump({ conversationId: ref.conversation_id, eventId: ref.ref.event_id })
     else if (ref.work_id) {
       work(ref.work_id)
-      useWorkspace.getState().setView('works')
+      workspace.setView('works')
     } else setProblem('這個原入口的紀錄無法在桌面讀取。')
   }
   const label = (ref: Reference) =>
@@ -177,7 +178,7 @@ export function Files({
             )}
             <div
               data-selected={selected?.artifactId === item.artifact_id}
-              onDoubleClick={() => useWorkspace.setState({ focusMode: true })}
+              onDoubleClick={() => workspace.patch({ focusMode: true })}
             >
               <FileRow
                 selected={selected?.artifactId === item.artifact_id}

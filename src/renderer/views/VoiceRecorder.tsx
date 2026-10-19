@@ -1,3 +1,4 @@
+import { useSessionActive } from '../state/workspace'
 import { useEffect, useRef, useState } from 'react'
 import { Button, Banner } from '../components/Controls'
 import { unwrap } from '../queries/client'
@@ -14,6 +15,15 @@ export function VoiceRecorder({
   cancel(): void
   finish: { current: (() => void) | undefined }
 }) {
+  const active = useSessionActive()
+  const visible = useRef(active)
+  visible.current = active
+  useEffect(() => {
+    if (!active) {
+      if (finish.current) finish.current()
+      else cancel()
+    }
+  }, [active, cancel, finish])
   const [seconds, setSeconds] = useState(0),
     [levels, setLevels] = useState<number[]>([]),
     [error, setError] = useState(''),
@@ -30,7 +40,7 @@ export function VoiceRecorder({
       cancel()
     }
     const keyboard = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (visible.current && event.key === 'Escape') {
         event.preventDefault()
         abort()
       }

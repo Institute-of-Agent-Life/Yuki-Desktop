@@ -14,6 +14,7 @@ import { PromptCode } from '../components/PromptCode'
 import { unwrap, ClientProblem, problemText } from '../queries/client'
 import { guardNavigation, requestNavigation, type NavigationAttempt } from '../state/navigation'
 import styles from './PromptEditor.module.css'
+import { useSessionActive } from '../state/workspace'
 import { useDisplayTime } from '../state/time'
 
 const keys: PromptKey[] = ['system_prompt', 'persona']
@@ -43,6 +44,7 @@ export function PromptEditor({
   platform: string
 }) {
   const { timeLabel } = useDisplayTime()
+  const active = useSessionActive()
   const [drafts, setDrafts] = useState<PromptDraft[]>([])
   const current = useRef(drafts)
   const versions = useRef({ system_prompt: 0, persona: 0 })
@@ -177,26 +179,28 @@ export function PromptEditor({
   }, [savedAt])
   useEffect(
     () =>
-      guardNavigation((attempt) => {
-        if (denied) return false
-        if (busyRef.current) {
-          attempt.cancel()
-          return true
-        }
-        const draft =
-          current.current.find((item) => item.key === keyRef.current && dirty(item)) ??
-          current.current.find(dirty)
-        if (!draft || !dirty(draft)) return false
-        if (leavingRef.current) {
-          attempt.cancel()
-          return true
-        }
-        leavingRef.current = attempt
-        setKey(draft.key)
-        setLeaving(attempt)
-        return true
-      }),
-    [denied],
+      active
+        ? guardNavigation((attempt) => {
+            if (denied) return false
+            if (busyRef.current) {
+              attempt.cancel()
+              return true
+            }
+            const draft =
+              current.current.find((item) => item.key === keyRef.current && dirty(item)) ??
+              current.current.find(dirty)
+            if (!draft || !dirty(draft)) return false
+            if (leavingRef.current) {
+              attempt.cancel()
+              return true
+            }
+            leavingRef.current = attempt
+            setKey(draft.key)
+            setLeaving(attempt)
+            return true
+          })
+        : undefined,
+    [denied, active],
   )
   useEffect(() => {
     if (!denied) return
@@ -367,7 +371,7 @@ export function PromptEditor({
       {toolbar ? createPortal(header, toolbar) : header}
       <div className={styles.explanation}>
         <p>
-          儲存後，Yuki
+          儲存後，{name}
           下一次開始新的回覆或恢復工作時採用新版；正在進行的那一段用原本的內容做完。記憶與歷史不變。
         </p>
         {!commands.some((item) => item.command.kind === 'save') && (

@@ -217,3 +217,25 @@ it('keeps other-role notifications actionable while the current role is focused'
   shell.close()
   expect(native.closed).toBe(true)
 })
+
+it('uses the identified role name before its private profile or avatar has loaded', async () => {
+  os.trays.length = 0
+  os.notices.length = 0
+  const open = vi.fn(),
+    shell = new NativeShell(
+      () => undefined,
+      () => {},
+      open,
+    )
+  shell.update(defaultPreferences)
+  shell.characterName('mika-id', 'Mika')
+  shell.activity('mika-id', 'first-op', '讀取 Mika 的資料夾', true)
+  expect((os.notices[0] as FakeNotice).options.title).toBe('Mika')
+  expect(await shell.submitNotification('mika-id', '作業提醒', '原通知內容')).toBe(true)
+  expect((os.notices[1] as FakeNotice).options.title).toBe('Mika · 作業提醒')
+  const tray = os.trays[0] as FakeTray
+  expect(tray.tooltip).toContain('Mika 正在讀取')
+  tray.menu.find((item) => item.label === '開啟 Mika')!.click!()
+  expect(open).toHaveBeenCalledWith({ characterId: 'mika-id', view: 'chat' })
+  shell.close()
+})

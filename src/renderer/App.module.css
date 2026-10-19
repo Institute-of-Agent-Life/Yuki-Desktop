@@ -313,3 +313,15 @@
   height: auto;
   min-height: 52px;
 }
+.roleSession {
+  display: contents;
+}
+.roleSession[hidden] {
+  display: none;
+}
+.presenceRow {
+  position: relative;
+}
+.presenceRow .presence {
+  padding-right: 34px;
+}
