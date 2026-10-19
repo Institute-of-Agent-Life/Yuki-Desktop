@@ -1,0 +1,24 @@
+.DS_Store
+._*
+node_modules/
+dist/
+out/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+*.sqlite
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Local planning and prototype materials: do not publish.
+/docs/
+/assets/
+/scripts/
+/third-party/
+/AGENTS.md
+/INTEGRATION.md
+/NOTICE.md
+/LOCAL-README.md
