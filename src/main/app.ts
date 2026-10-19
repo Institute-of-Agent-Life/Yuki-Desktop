@@ -273,6 +273,9 @@ else {
       })
     }
     action('connections', () => connections.publicList())
+    action('issue-link-code', (id: string) => connections.issueLinkCode(id))
+    action('link-code-requests', (id: string) => connections.linkCodes(id).list())
+    action('verify-link-code', (id: string, request: string) => connections.verifyLinkCode(id, request))
     action('server-info', (id: string) => connections.serverInfo(id))
     action('change-address', (id: string, server: string) => connections.changeAddress(id, server))
     action('export-diagnostics', async () => {

@@ -3,6 +3,9 @@ import type { BootInfo, Command, DesktopBridge } from '../shared/desktop'
 
 const bridge: DesktopBridge = {
   client: {
+    issueLinkCode: (id) => ipcRenderer.invoke('yuki:issue-link-code', id),
+    linkCodeRequests: (id) => ipcRenderer.invoke('yuki:link-code-requests', id),
+    verifyLinkCode: (id, request) => ipcRenderer.invoke('yuki:verify-link-code', id, request),
     serverInfo: (id) => ipcRenderer.invoke('yuki:server-info', id),
     changeAddress: (id, server) => ipcRenderer.invoke('yuki:change-address', id, server),
     promptDocuments: (id) => ipcRenderer.invoke('yuki:prompt-documents', id),

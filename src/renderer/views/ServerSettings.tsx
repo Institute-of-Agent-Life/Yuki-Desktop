@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Connection, Me, ProactiveRoute, CharacterCommandItem } from '../../shared/api'
 import { Banner, Button, Sheet, TextField } from '../components/Controls'
-import { unwrap, problemText } from '../queries/client'
+import { unwrap, problemText, hidesPrivateData } from '../queries/client'
 import { Row } from './Settings'
 import styles from './Settings.module.css'
 
@@ -123,6 +123,8 @@ export function ServerSettings({
       setBusy(false)
     }
   }
+  if (hidesPrivateData(me.error) || hidesPrivateData(route.error))
+    return <Banner status="failed">{(me.error ?? route.error)?.message}</Banner>
   return (
     <>
       <div className={styles.group}>

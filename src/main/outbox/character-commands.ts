@@ -15,11 +15,15 @@ const terminal = new Set([
   'precondition_failed',
   'validation_error',
 ])
-export function characterRequest(
-  command: CharacterCommand,
-  characterId: string,
-  personId: string,
-) {
+export function characterRequest(command: CharacterCommand, characterId: string, personId: string) {
+  if (command.kind === 'device-revoke')
+    return {
+      operation: 'client.revoke',
+      target: command.deviceId,
+      path: `devices/${command.deviceId}`,
+      method: 'DELETE' as const,
+      payload: {},
+    }
   if (command.kind === 'proactive-route')
     return {
       operation: 'client.proactive_route',
@@ -112,6 +116,14 @@ export class CharacterCommands {
         typeof command.bio !== 'string' ||
         !/^#[0-9a-f]{6}$/i.test(command.accent?.light) ||
         !/^#[0-9a-f]{6}$/i.test(command.accent?.dark)
+      )
+        throw new ApiError('validation_error')
+    } else if (command.kind === 'device-revoke') {
+      if (
+        typeof command.deviceId !== 'string' ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          command.deviceId,
+        )
       )
         throw new ApiError('validation_error')
     } else if (command.kind === 'proactive-route') {

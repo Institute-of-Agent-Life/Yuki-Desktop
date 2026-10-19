@@ -28,6 +28,7 @@ import { ComputerCommands } from './outbox/computer-commands'
 import { CharacterCommands } from './outbox/character-commands'
 import { AvatarCommands } from './outbox/avatar-commands'
 import { Prompts } from './outbox/prompts'
+import { LinkCodes } from './outbox/link-codes'
 import { ComputerTickets } from './computer-tickets'
 import type { LocalStore } from './store'
 import { Uploads } from './media/uploads'
@@ -73,6 +74,7 @@ export class Connections {
   private readonly avatarStores = new Map<Outbox, AvatarCommands>()
   private readonly avatarReads = new Map<string, Promise<Uint8Array>>()
   private readonly promptStores = new Map<Outbox, Prompts>()
+  private readonly linkCodeStores = new Map<Outbox, LinkCodes>()
   private readonly promptReads = new Set<Promise<unknown>>()
   readonly computerTickets = new ComputerTickets()
   private closed = false
@@ -341,6 +343,27 @@ export class Connections {
     const item = commands.prepare(command)
     const result = await commands.run(this.client(id), item.requestId, true)
     this.emit(id, 'character-command', {})
+    return result
+  }
+  linkCodes(id: string) {
+    const box = this.box(id)
+    let store = this.linkCodeStores.get(box)
+    if (!store) {
+      store = new LinkCodes(box)
+      this.linkCodeStores.set(box, store)
+    }
+    return store
+  }
+  async issueLinkCode(id: string) {
+    await this.identify(id)
+    const codes = this.linkCodes(id),
+      item = codes.prepare()
+    return this.verifyLinkCode(id, item.requestId)
+  }
+  async verifyLinkCode(id: string, requestId: string) {
+    await this.identify(id)
+    const result = await this.linkCodes(id).run(this.client(id), uuid(requestId))
+    this.emit(id, 'link-code', {})
     return result
   }
   async verifyCharacterCommand(id: string, requestId: string) {
@@ -814,6 +837,10 @@ export class Connections {
                 ['transport_unknown', 'unavailable', 'unknown'].includes(item.problem)),
           )
         void Promise.all([
+          ...this.linkCodes(id)
+            .list()
+            .filter((item) => item.state !== 'result')
+            .map((item) => this.verifyLinkCode(id, item.requestId).catch(() => {})),
           ...work.map((item) => this.verify(id, item.requestId).catch(() => {})),
           ...this.commands(id)
             .list()
@@ -839,6 +866,10 @@ export class Connections {
             this.emit(id, 'connection', { state: 'online' })
           }
           if (['sync', 'conversation', 'work'].includes(kind)) {
+            for (const item of this.linkCodes(id)
+              .list()
+              .filter((item) => item.state !== 'result'))
+              void this.verifyLinkCode(id, item.requestId).catch(() => {})
             for (const item of this.prompts(id)
               .list()
               .filter((item) => item.state !== 'result'))
@@ -913,6 +944,7 @@ export class Connections {
       ...[...this.characterStores.values()].map((commands) => commands.settle()),
       ...[...this.avatarStores.values()].map((commands) => commands.settle()),
       ...[...this.promptStores.values()].map((prompts) => prompts.settled()),
+      ...[...this.linkCodeStores.values()].map((codes) => codes.settled()),
     ]).then(() => this.outboxes.forEach((box) => box.db.close()))
   }
 }

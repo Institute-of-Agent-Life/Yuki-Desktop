@@ -17,6 +17,9 @@ import '../../src/renderer/tokens.css'
 
 window.yuki = {
   client: {
+    issueLinkCode: async () => ({ ok: false, code: 'fixture_only' }),
+    linkCodeRequests: async () => ({ ok: true, value: [] }),
+    verifyLinkCode: async () => ({ ok: false, code: 'fixture_only' }),
     serverInfo: async () => ({ ok: false, code: 'fixture_only' }),
     changeAddress: async () => ({ ok: false, code: 'fixture_only' }),
     promptDocuments: async () => ({ ok: false, code: 'fixture_only' }),

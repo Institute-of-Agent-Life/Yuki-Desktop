@@ -98,13 +98,14 @@ export async function yukiFixture(
     },
   }
 }
-export async function pairUI(page: Page, base: string, code: string) {
+export async function pairUI(page: Page, base: string, code: string, label?: string) {
   const start = page.getByRole('button', { name: '開始', exact: true })
   await expect(start.or(page.getByLabel('伺服器位址'))).toBeVisible()
   if (await start.isVisible()) await start.click()
   await page.getByLabel('伺服器位址').fill(base)
   await page.getByRole('button', { name: '繼續', exact: true }).click()
   await page.getByLabel('綁定碼或完整回覆').fill(code)
+  if (label) await page.getByLabel('裝置名稱').fill(label)
   await page.getByRole('button', { name: '配對', exact: true }).click()
   await page.getByRole('button', { name: '進入', exact: true }).click()
   await expect(page.getByText('已連線', { exact: true })).toBeVisible()

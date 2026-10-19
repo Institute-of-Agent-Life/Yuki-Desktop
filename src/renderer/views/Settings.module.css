@@ -125,6 +125,27 @@
   align-items: center;
   margin: 12px 0;
 }
+.qr {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 16px auto;
+  background: #fff;
+  border-radius: 8px;
+}
+.secret {
+  font: 13px/20px var(--font-mono);
+  text-align: center;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.link {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
 @media (max-width: 1000px) {
   .pane {
     padding: 8px 24px 24px;

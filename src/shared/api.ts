@@ -6,6 +6,17 @@ export const REQUIRED_API_REVISION = 4
 export type Meta = components['schemas']['Meta']
 export type Me = components['schemas']['Me']
 export type ProactiveRoute = components['schemas']['ProactiveRoute']
+export interface LinkCodeRequest {
+  requestId: string
+  payloadHash: string
+  state: 'submitted' | 'result'
+  problem: string | null
+  result: { code_id: string; expires_at: string } | null
+}
+export interface LinkCodeReply {
+  request: LinkCodeRequest
+  code: string | null
+}
 export type Home = components['schemas']['Home']
 export type Profile = components['schemas']['CharacterProfile']
 export type CharacterStatus = components['schemas']['CharacterStatus']
@@ -58,6 +69,7 @@ export type Automation = components['schemas']['AutomationView']
 export type AutomationPage = components['schemas']['AutomationPage']
 export type Capabilities = components['schemas']['CharacterCapabilities']
 export type CharacterCommand =
+  | { kind: 'device-revoke'; deviceId: string }
   | { kind: 'proactive-route'; expectedRevision: number; bindingId: string }
   | {
       kind: 'profile'
@@ -201,6 +213,9 @@ export type ApiRead =
   | { kind: 'activity'; conversationId: string }
 
 export interface ConversationBridge {
+  issueLinkCode(characterId: string): Promise<ApiReply<LinkCodeReply>>
+  linkCodeRequests(characterId: string): Promise<ApiReply<LinkCodeRequest[]>>
+  verifyLinkCode(characterId: string, requestId: string): Promise<ApiReply<LinkCodeReply>>
   serverInfo(characterId: string): Promise<ApiReply<Meta>>
   changeAddress(characterId: string, server: string): Promise<ApiReply<Connection>>
   promptDocuments(

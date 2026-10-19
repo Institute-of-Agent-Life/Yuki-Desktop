@@ -1,8 +1,17 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, SlidersHorizontal, Palette, Bell, Wrench, Server } from 'lucide-react'
+import {
+  ArrowLeft,
+  SlidersHorizontal,
+  Palette,
+  Bell,
+  Wrench,
+  Server,
+  ShieldCheck,
+} from 'lucide-react'
 import type { Connection } from '../../shared/api'
 import { ServerSettings } from './ServerSettings'
+import { DeviceSecurity } from './DeviceSecurity'
 import type { BootInfo, Preferences } from '../../shared/desktop'
 import { Banner, Button, Segmented, Spinner, Toggle } from '../components/Controls'
 import { unwrap } from '../queries/client'
@@ -12,6 +21,7 @@ const categories = [
   { id: 'general', label: '一般', icon: SlidersHorizontal },
   { id: 'look', label: '外觀', icon: Palette },
   { id: 'notify', label: '通知', icon: Bell },
+  { id: 'security', label: '裝置與安全', icon: ShieldCheck },
   { id: 'server', label: '伺服器與角色', icon: Server },
   { id: 'advanced', label: '進階', icon: Wrench },
 ] as const
@@ -269,6 +279,12 @@ export function Settings({
                 </Row>
               ))}
             </div>
+          ) : category === 'security' ? (
+            connection ? (
+              <DeviceSecurity key={connection.characterId} connection={connection} />
+            ) : (
+              <p className={styles.notice}>配對角色後可管理本人的裝置。</p>
+            )
           ) : category === 'server' ? (
             connection ? (
               <ServerSettings
