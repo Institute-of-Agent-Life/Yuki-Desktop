@@ -76,10 +76,9 @@ export function Pairing({
   return (
     <div className={styles.welcome}>
       <div className={styles.welcomeInner}>
-        {meta ? (
-          <Avatar name={meta.character.display_name} size={80} />
-        ) : (
-          <Snowflake className={styles.welcomeMark} size={120} strokeWidth={1} />
+        {meta && <Avatar name={meta.character.display_name} size={step === 'person' ? 80 : 36} />}
+        {step === 'welcome' && (
+          <Snowflake className={styles.welcomeMark} size={160} strokeWidth={1} />
         )}
         <h1>
           {step === 'welcome'
@@ -146,14 +145,30 @@ export function Pairing({
               在 QQ／Telegram 私聊角色傳送 /ai link，將整則回覆貼上。綁定碼區分大小寫，10 分鐘有效。
             </p>
             <label htmlFor="pair-code">綁定碼或完整回覆</label>
-            <TextField
-              id="pair-code"
-              autoFocus
-              autoComplete="off"
-              spellCheck={false}
-              value={codeInput}
-              onChange={(event) => setCodeInput(event.target.value)}
-            />
+            <div className={styles.codeRow}>
+              <TextField
+                id="pair-code"
+                autoFocus
+                autoComplete="off"
+                spellCheck={false}
+                className={styles.codeInput}
+                value={codeInput}
+                onChange={(event) => setCodeInput(event.target.value)}
+              />
+              <Button
+                variant="plain"
+                type="button"
+                onClick={() =>
+                  void window.yuki.client
+                    .paste()
+                    .then(unwrap)
+                    .then(setCodeInput)
+                    .catch((error) => setError(error.message))
+                }
+              >
+                貼上
+              </Button>
+            </div>
             <small role="status">
               {parsed
                 ? `已辨識：${parsed.code.slice(0, 6)}…${parsed.code.slice(-4)}（32 字元）`

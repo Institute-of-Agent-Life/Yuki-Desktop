@@ -20,6 +20,12 @@ export interface Preferences {
   highContrast: boolean
   sidebarWidth: number
   inspectorWidth: number
+  keepInTray: boolean
+  sendKey: 'enter' | 'command-enter'
+  notifyProactive: boolean
+  notifyWaiting: boolean
+  notifyCompleted: boolean
+  notifyHelp: boolean
 }
 
 export const defaultPreferences: Preferences = {
@@ -29,6 +35,18 @@ export const defaultPreferences: Preferences = {
   highContrast: false,
   sidebarWidth: 260,
   inspectorWidth: 380,
+  keepInTray: true,
+  sendKey: 'enter',
+  notifyProactive: true,
+  notifyWaiting: true,
+  notifyCompleted: true,
+  notifyHelp: true,
+}
+export interface NavigationTarget {
+  characterId: string
+  view: View
+  conversationId?: string
+  workId?: string
 }
 
 export interface BootInfo {
@@ -40,6 +58,7 @@ export interface BootInfo {
   highContrast: boolean
   preferences: Preferences
   pairLink: string | null
+  openTarget: NavigationTarget | null
 }
 
 export interface DesktopBridge {
@@ -51,6 +70,7 @@ export interface DesktopBridge {
     callback: (theme: Pick<BootInfo, 'dark' | 'reducedTransparency' | 'highContrast'>) => void,
   ): () => void
   onPairLink(callback: (link: string) => void): () => void
+  onOpenTarget(callback: (target: NavigationTarget) => void): () => void
 }
 
 declare global {

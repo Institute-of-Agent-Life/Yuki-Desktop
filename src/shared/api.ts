@@ -1,4 +1,5 @@
 import type { components } from './contract.gen'
+import type { NavigationTarget } from './desktop'
 
 export const REQUIRED_API_REVISION = 3
 
@@ -6,6 +7,7 @@ export type Meta = components['schemas']['Meta']
 export type Me = components['schemas']['Me']
 export type Home = components['schemas']['Home']
 export type Profile = components['schemas']['CharacterProfile']
+export type Activity = components['schemas']['Activity']
 export type EventsPage = components['schemas']['EventsPage']
 export type PublicEvent = components['schemas']['PublicEvent']
 export type OriginalRequest = components['schemas']['OriginalRequest']
@@ -65,6 +67,8 @@ export type ApiRead =
   | { kind: 'me' | 'home' | 'character' }
   | { kind: 'events'; conversationId: string; after?: number; before?: number; limit?: 1 | 50 }
   | { kind: 'request'; requestId: string }
+  | { kind: 'work'; workId: string }
+  | { kind: 'activity'; conversationId: string }
 
 export interface ConversationBridge {
   connections(): Promise<ApiReply<Connection[]>>
@@ -87,4 +91,13 @@ export interface ConversationBridge {
   onHint(callback: (characterId: string, kind: string, data: unknown) => void): () => void
   reconnect(): Promise<ApiReply<void>>
   external(url: string): Promise<ApiReply<void>>
+  copy(text: string): Promise<ApiReply<void>>
+  paste(): Promise<ApiReply<string>>
+  selected(characterId: string): Promise<ApiReply<void>>
+  acknowledgeTarget(target: NavigationTarget): Promise<ApiReply<void>>
+  contextMenu(options: {
+    text: string
+    link?: string
+    save?: boolean
+  }): Promise<ApiReply<'save' | null>>
 }

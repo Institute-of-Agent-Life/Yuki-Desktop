@@ -15,7 +15,14 @@ walk(root)
 if (!archives.length) throw new Error('No packaged app.asar found')
 for (const archive of archives) {
   const entries = listPackage(archive)
-  for (const file of ['out/main/app.js', 'out/preload/index.cjs', 'out/renderer/index.html']) {
+  for (const file of [
+    'out/main/app.js',
+    'out/preload/index.cjs',
+    'out/renderer/index.html',
+    'resources/icons/trayTemplate.png',
+    'resources/icons/trayTemplate@2x.png',
+    ...[16, 32, 64, 128, 256, 512, 1024].map((size) => `resources/icons/app/${size}x${size}.png`),
+  ]) {
     if (!entries.includes('/' + file)) throw new Error(`Missing product entry: ${file}`)
   }
   const html = extractFile(archive, 'out/renderer/index.html').toString('utf8')
@@ -33,7 +40,15 @@ for (const archive of archives) {
   }
   for (const entry of entries) {
     const path = entry.replace(/^\//, '')
-    if (!/^(out|node_modules)(\/|$)|^(package\.json|LICENSE)$/.test(path))
+    const icon =
+      /^resources\/icons\/app\/(16|32|64|128|256|512|1024)x\1\.png$/.test(path) ||
+      /^resources\/icons\/trayTemplate(?:@2x)?\.png$/.test(path)
+    const iconDirectory = /^resources(?:\/icons(?:\/app)?)?$/.test(path)
+    if (
+      !/^(out|node_modules)(\/|$)|^(package\.json|LICENSE)$/.test(path) &&
+      !icon &&
+      !iconDirectory
+    )
       throw new Error(`Unexpected package content: ${path}`)
     if (/^(docs|assets|scripts|third-party|tests)\//.test(path) || /(^|\/)\._/.test(path))
       throw new Error(`Local material in package: ${path}`)

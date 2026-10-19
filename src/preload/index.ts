@@ -5,6 +5,11 @@ const bridge: DesktopBridge = {
   client: {
     reconnect: () => ipcRenderer.invoke('yuki:reconnect'),
     external: (url) => ipcRenderer.invoke('yuki:external', url),
+    copy: (text) => ipcRenderer.invoke('yuki:copy', text),
+    paste: () => ipcRenderer.invoke('yuki:paste'),
+    selected: (id) => ipcRenderer.invoke('yuki:selected', id),
+    acknowledgeTarget: (target) => ipcRenderer.invoke('yuki:acknowledge-target', target),
+    contextMenu: (options) => ipcRenderer.invoke('yuki:context-menu', options),
     connections: () => ipcRenderer.invoke('yuki:connections'),
     meta: (server) => ipcRenderer.invoke('yuki:meta', server),
     pair: (server, code, label) => ipcRenderer.invoke('yuki:pair', server, code, label),
@@ -58,6 +63,21 @@ const bridge: DesktopBridge = {
     const listener = (_event: Electron.IpcRendererEvent, link: string) => callback(link)
     ipcRenderer.on('yuki:pair-link', listener)
     return () => ipcRenderer.removeListener('yuki:pair-link', listener)
+  },
+  onOpenTarget(callback) {
+    let active = true
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      target: import('../shared/desktop').NavigationTarget,
+    ) => callback(target)
+    ipcRenderer.on('yuki:open-target', listener)
+    void ipcRenderer.invoke('yuki:open-target').then((result) => {
+      if (active && result.ok && result.value) callback(result.value)
+    })
+    return () => {
+      active = false
+      ipcRenderer.removeListener('yuki:open-target', listener)
+    }
   },
 }
 contextBridge.exposeInMainWorld('yuki', bridge)

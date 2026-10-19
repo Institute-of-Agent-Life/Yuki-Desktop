@@ -57,6 +57,7 @@ export function MessageAttachment({
     image = attachment.kind === 'image'
   const content = useContent(id, source, image && available && !attachment.artifact_id),
     url = useBlob(content.error || !available ? undefined : content.data)
+  const [menuError, setMenuError] = useState('')
   if (voice)
     return (
       <div className={styles.voice}>
@@ -78,6 +79,20 @@ export function MessageAttachment({
       className={`${styles.attachment} ${image ? styles.image : ''}`}
       disabled={!available || !!content.error || !!attachment.artifact_id}
       onClick={() => open(source)}
+      onContextMenu={(click) => {
+        click.preventDefault()
+        click.stopPropagation()
+        void window.yuki.client
+          .contextMenu({
+            text: attachment.filename ?? '附件',
+            save: available && !attachment.artifact_id,
+          })
+          .then(unwrap)
+          .then((action) => {
+            if (action === 'save') return window.yuki.client.saveContent(id, source).then(unwrap)
+          })
+          .catch((error) => setMenuError(error instanceof Error ? error.message : '操作未完成。'))
+      }}
     >
       {image && url ? (
         <img src={url} alt={attachment.filename ?? '圖片附件'} />
@@ -94,6 +109,7 @@ export function MessageAttachment({
         </div>
       )}
       {image && status && <small>{status}</small>}
+      {menuError && <small role="alert">{menuError}</small>}
       {attachment.artifact_id && <small>請從「檔案與成果」讀取</small>}
     </button>
   )

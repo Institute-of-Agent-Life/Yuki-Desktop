@@ -54,18 +54,21 @@ export class Connections {
     return this.store.get<Connection[]>('connections') ?? []
   }
   publicList() {
-    return this.list().map((connection) => {
-      try {
-        return {
-          ...connection,
-          needsPairing: !this.credentials.get(
-            `device/${connection.characterId}/${connection.personId}`,
-          ),
+    const selected = this.store.get<string>('selectedCharacterId')
+    return this.list()
+      .sort((a, b) => Number(b.characterId === selected) - Number(a.characterId === selected))
+      .map((connection) => {
+        try {
+          return {
+            ...connection,
+            needsPairing: !this.credentials.get(
+              `device/${connection.characterId}/${connection.personId}`,
+            ),
+          }
+        } catch {
+          return { ...connection, needsPairing: true, credentialProblem: 'credentials_unavailable' }
         }
-      } catch {
-        return { ...connection, needsPairing: true, credentialProblem: 'credentials_unavailable' }
-      }
-    })
+      })
   }
   connection(id: string) {
     const connection = this.list().find((item) => item.characterId === id)
@@ -305,11 +308,14 @@ export class Connections {
     this.start(characterId)
     return connection
   }
-  async read<T>(id: string, route: ApiRead): Promise<T> {
+  async read<T>(id: string, route: ApiRead, offlineCache = true): Promise<T> {
     let path: string
     if (route.kind === 'me' || route.kind === 'character') path = route.kind
     else if (route.kind === 'home') path = 'home?works=active'
     else if (route.kind === 'request') path = `requests/${uuid(route.requestId)}`
+    else if (route.kind === 'work') path = `works/${uuid(route.workId)}`
+    else if (route.kind === 'activity')
+      path = `activity?conversation_id=${uuid(route.conversationId)}`
     else if (route.kind === 'events') {
       const query = new URLSearchParams({ limit: route.limit === 1 ? '1' : '50' })
       if (route.after !== undefined) query.set('after', String(route.after))
@@ -330,7 +336,7 @@ export class Connections {
         }
         if (['transport_unknown', 'unavailable'].includes(error.code)) {
           this.emit(id, 'connection', { state: 'offline', code: error.code })
-          const cached = box.cached<T>(path)
+          const cached = offlineCache ? box.cached<T>(path) : undefined
           if (cached !== undefined) return cached
         }
       }

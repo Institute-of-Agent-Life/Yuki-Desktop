@@ -1,9 +1,11 @@
 import {
   app,
+  clipboard,
   BrowserWindow,
   dialog,
   ipcMain,
   nativeTheme,
+  Menu,
   net,
   powerMonitor,
   protocol,
@@ -14,13 +16,15 @@ import {
 import { hostname } from 'node:os'
 import { basename, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { createWindow } from './windows'
+import { createWindow, setWindowMode } from './windows'
 import { installMenu } from './menu'
 import { LocalStore } from './store'
-import type { BootInfo, Preferences } from '../shared/desktop'
+import type { BootInfo, Preferences, NavigationTarget } from '../shared/desktop'
 import type { ApiRead, ApiReply, AttachmentSource } from '../shared/api'
 import { Connections } from './connections'
 import { ApiError } from './api/client'
+import { NativeShell } from './native'
+import { ClientNotifications } from './notifications'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -31,12 +35,14 @@ app.setAppUserModelId('life.yuki.desktop')
 
 let win: BrowserWindow | undefined
 let pairLink: string | null = null
+let reveal: (() => void) | undefined
+let openTarget: NavigationTarget | null = null
 const receiveLink = (link: string) => {
-  if (!link.startsWith('yuki://pair?')) return
+  if (!/^yuki:\/\/pair\?/i.test(link)) return
   pairLink = link
+  openTarget = null
   if (win && !win.isDestroyed()) win.webContents.send('yuki:pair-link', link)
-  win?.show()
-  win?.focus()
+  reveal?.()
 }
 app.on('open-url', (event, url) => {
   event.preventDefault()
@@ -46,12 +52,10 @@ const lock = app.requestSingleInstanceLock()
 if (!lock) app.quit()
 else {
   app.on('second-instance', (_event, argv) => {
-    argv.filter((arg) => arg.startsWith('yuki://')).forEach(receiveLink)
-    if (win?.isMinimized()) win.restore()
-    win?.show()
-    win?.focus()
+    argv.filter((arg) => /^yuki:\/\//i.test(arg)).forEach(receiveLink)
+    reveal?.()
   })
-  process.argv.filter((arg) => arg.startsWith('yuki://')).forEach(receiveLink)
+  process.argv.filter((arg) => /^yuki:\/\//i.test(arg)).forEach(receiveLink)
   void app.whenReady().then(() => {
     const store = new LocalStore(join(app.getPath('userData'), 'desktop.sqlite3'))
     nativeTheme.themeSource = store.preferences().theme
@@ -99,8 +103,24 @@ else {
       store,
       app.getPath('userData'),
       app.getVersion(),
-      (id, kind, data) => win?.webContents.send('yuki:hint', id, kind, data),
+      (id, kind, data) => {
+        win?.webContents.send('yuki:hint', id, kind, data)
+        if (['sync', 'conversation', 'work', 'character', 'work_steps'].includes(kind))
+          void notifications.wake(id).catch(() => {})
+      },
     )
+    const native = new NativeShell(
+      () => win,
+      () => reveal?.(),
+      (target) => {
+        openTarget = target
+        win?.webContents.send('yuki:open-target', target)
+      },
+    )
+    const notifications = new ClientNotifications(store, connections, (notice) =>
+      native.show(notice),
+    )
+    native.update(store.preferences())
     const action = <A extends unknown[], T>(name: string, run: (...args: A) => T | Promise<T>) => {
       ipcMain.handle(`yuki:${name}`, async (event, ...args: A): Promise<ApiReply<T>> => {
         authorize(event)
@@ -116,6 +136,49 @@ else {
       })
     }
     action('connections', () => connections.publicList())
+    action('copy', (text: string) => clipboard.writeText(text))
+    action('paste', () => clipboard.readText())
+    action('context-menu', (options: { text: string; link?: string; save?: boolean }) => {
+      if (
+        typeof options.text !== 'string' ||
+        (options.link !== undefined && typeof options.link !== 'string')
+      )
+        throw new ApiError('validation_error')
+      return new Promise<'save' | null>((resolve) => {
+        const menu = Menu.buildFromTemplate([
+          {
+            label: '複製',
+            click: () => {
+              clipboard.writeText(options.text)
+              resolve(null)
+            },
+          },
+          ...(options.link
+            ? [
+                {
+                  label: '複製連結文字',
+                  click: () => {
+                    clipboard.writeText(options.link!)
+                    resolve(null)
+                  },
+                },
+              ]
+            : []),
+          ...(options.save ? [{ label: '存成檔案', click: () => resolve('save') }] : []),
+        ])
+        menu.popup({ window: win!, callback: () => resolve(null) })
+      })
+    })
+    action('selected', (id: string) => {
+      connections.connection(id)
+      store.set('selectedCharacterId', id)
+      native.selectedCharacter = id
+      if (win) setWindowMode(win, false)
+    })
+    action('open-target', () => openTarget)
+    action('acknowledge-target', (target: NavigationTarget) => {
+      if (JSON.stringify(openTarget) === JSON.stringify(target)) openTarget = null
+    })
     action('subscribe', () => connections.publishStates())
     action('reconnect', () => connections.reconnect())
     powerMonitor.on('resume', () => connections.reconnect())
@@ -198,20 +261,33 @@ else {
         ...appearance(),
         preferences: store.preferences(),
         pairLink,
+        openTarget,
       }
     })
     ipcMain.handle('yuki:preferences', (event, patch: Partial<Preferences>) => {
       authorize(event)
       const current = store.preferences()
-      for (const key of ['opaque', 'reducedMotion', 'highContrast'] as const) {
+      for (const key of [
+        'opaque',
+        'reducedMotion',
+        'highContrast',
+        'keepInTray',
+        'notifyProactive',
+        'notifyWaiting',
+        'notifyCompleted',
+        'notifyHelp',
+      ] as const) {
         if (typeof patch[key] === 'boolean') current[key] = patch[key]
       }
       if (['system', 'light', 'dark'].includes(patch.theme ?? '')) current.theme = patch.theme!
+      if (patch.sendKey === 'enter' || patch.sendKey === 'command-enter')
+        current.sendKey = patch.sendKey
       if (typeof patch.sidebarWidth === 'number' && Number.isFinite(patch.sidebarWidth))
         current.sidebarWidth = Math.max(220, Math.min(320, patch.sidebarWidth))
       if (typeof patch.inspectorWidth === 'number' && Number.isFinite(patch.inspectorWidth))
         current.inspectorWidth = Math.max(320, Math.min(560, patch.inspectorWidth))
       store.set('appearance', current)
+      native.update(current)
       nativeTheme.themeSource = current.theme
       if (process.platform === 'darwin')
         win?.setVibrancy(
@@ -221,7 +297,10 @@ else {
     })
     nativeTheme.on('updated', () => win?.webContents.send('yuki:theme', appearance()))
     const openWindow = () => {
-      const created = createWindow(store)
+      const created = createWindow(
+        store,
+        !connections.publicList().some((connection) => !connection.needsPairing),
+      )
       win = created
       created.once('closed', () => {
         if (win === created) win = undefined
@@ -229,17 +308,28 @@ else {
       installMenu(() => win)
     }
     openWindow()
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
+    reveal = () => {
+      if (!win) {
         openWindow()
-      } else win?.show()
+        return
+      }
+      if (win.isMinimized()) win.restore()
+      win.show()
+      win.focus()
+    }
+    app.on('activate', () => {
+      reveal?.()
+    })
+    app.on('browser-window-focus', () => connections.reconnect())
+    app.on('window-all-closed', () => {
+      if (!store.preferences().keepInTray) app.quit()
     })
     app.on('will-quit', () => {
-      connections.close()
-      store.db.close()
+      native.close()
+      void notifications.close().then(() => {
+        connections.close()
+        store.db.close()
+      })
     })
   })
 }
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
-})

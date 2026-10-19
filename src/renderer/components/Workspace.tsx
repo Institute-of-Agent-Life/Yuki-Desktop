@@ -44,6 +44,11 @@ const views = [
 export function Workspace(props: Props) {
   const state = useWorkspace()
   const [width, setWidth] = useState(window.innerWidth)
+  const [overlaySidebar, setOverlaySidebar] = useState(false)
+  const toggleSidebar = () => {
+    if (width < 1100) setOverlaySidebar((value) => !value)
+    else state.toggle('sidebar')
+  }
   const root = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const resize = () => setWidth(window.innerWidth)
@@ -51,7 +56,8 @@ export function Workspace(props: Props) {
     return () => window.removeEventListener('resize', resize)
   }, [])
   useCommands((command) => {
-    if (command === 'sidebar' || command === 'inspector') state.toggle(command)
+    if (command === 'sidebar') toggleSidebar()
+    else if (command === 'inspector') state.toggle(command)
     else if (command === 'focus-mode') state.toggle('focusMode')
     else if (views.some(([view]) => view === command)) state.setView(command as View)
   })
@@ -62,10 +68,7 @@ export function Workspace(props: Props) {
     state.sidebar,
     state.inspector,
   )
-  useEffect(() => {
-    if (width < 1100) useWorkspace.setState({ sidebar: false })
-  }, [width < 1100])
-  const sidebar = state.sidebar
+  const sidebar = layout.overlaySidebar ? overlaySidebar : state.sidebar
   const drag = (
     kind: 'sidebarWidth' | 'inspectorWidth',
     event: React.PointerEvent<HTMLButtonElement>,
@@ -188,16 +191,23 @@ export function Workspace(props: Props) {
           : `${layout.sidebar}px 0 minmax(0,1fr) 0 ${layout.inspector}px`,
       }}
       onKeyDown={(event) => {
+        if ((event.target as HTMLElement).closest('dialog')) return
         if (event.key === 'Escape') {
           if (state.inspector) state.toggle('inspector')
-          else if (layout.overlaySidebar && state.sidebar) state.toggle('sidebar')
+          else if (layout.overlaySidebar && overlaySidebar) setOverlaySidebar(false)
         }
         if (event.key === 'F6') {
           event.preventDefault()
           const regions = [
             ...(root.current?.querySelectorAll<HTMLElement>('[data-region]') ?? []),
-          ].filter((element) => element.offsetWidth > 0)
-          const current = regions.findIndex((element) => element.contains(document.activeElement))
+          ].filter(
+            (element) =>
+              element.offsetWidth > 0 && getComputedStyle(element).visibility !== 'hidden',
+          )
+          const currentRegion = [...regions]
+            .reverse()
+            .find((element) => element.contains(document.activeElement))
+          const current = currentRegion ? regions.indexOf(currentRegion) : -1
           const region = regions[(current + 1) % regions.length]
           ;(
             region?.querySelector<HTMLElement>('button,input,textarea,[tabindex="0"]') ?? region
@@ -211,6 +221,10 @@ export function Workspace(props: Props) {
             data-region="sidebar"
             aria-label="主要導覽"
             className={`${styles.sidebar} ${layout.overlaySidebar ? styles.sidebarOverlay : ''}`}
+            onClick={(event) => {
+              if (layout.overlaySidebar && (event.target as HTMLElement).closest('button'))
+                setOverlaySidebar(false)
+            }}
             style={{ gridColumn: 1, gridRow: 1, visibility: sidebar ? 'visible' : 'hidden' }}
           >
             {sidebarContent}
@@ -220,7 +234,7 @@ export function Workspace(props: Props) {
       )}
       <section className={styles.main} style={{ gridColumn: state.focusMode ? 1 : 3, gridRow: 1 }}>
         <header data-region="toolbar" className={styles.toolbar}>
-          <IconButton label="側邊欄" onClick={() => state.toggle('sidebar')}>
+          <IconButton label="側邊欄" onClick={toggleSidebar}>
             <PanelLeft size={16} strokeWidth={1.5} />
           </IconButton>
           <span className={styles.toolbarTitle}>

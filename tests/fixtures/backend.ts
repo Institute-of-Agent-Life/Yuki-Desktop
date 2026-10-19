@@ -23,23 +23,27 @@ export async function yukiFixture() {
     })
   })
   const log = openSync(join(root, 'server.log'), 'w', 0o600),
-    server = spawn(python!, ['-m', 'tests.support.desktop_reference_server', root, String(port)], {
-      cwd: backend,
-      stdio: ['ignore', log, log],
-    }),
+    spawnServer = () =>
+      spawn(python!, ['-m', 'tests.support.desktop_reference_server', root, String(port)], {
+        cwd: backend,
+        stdio: ['ignore', log, log],
+      }),
     base = `http://127.0.0.1:${port}/role/yuki`
-  await expect
-    .poll(
-      async () => {
-        try {
-          return (await fetch(`${base}/healthz`)).status
-        } catch {
-          return 0
-        }
-      },
-      { timeout: 30000 },
-    )
-    .toBe(200)
+  let server = spawnServer()
+  const ready = () =>
+    expect
+      .poll(
+        async () => {
+          try {
+            return (await fetch(`${base}/healthz`)).status
+          } catch {
+            return 0
+          }
+        },
+        { timeout: 30000 },
+      )
+      .toBe(200)
+  await ready()
   return {
     root,
     base,
@@ -55,10 +59,17 @@ export async function yukiFixture() {
         }
       ).code
     },
+    async restart() {
+      const stopped = new Promise<void>((resolve) => server.once('exit', () => resolve()))
+      server.kill('SIGKILL')
+      await stopped
+      server = spawnServer()
+      await ready()
+    },
     async close(success: boolean) {
       server.kill('SIGTERM')
       await new Promise<void>((resolve) => {
-        if (server.exitCode !== null) resolve()
+        if (server.exitCode !== null || server.signalCode !== null) resolve()
         else server.once('exit', () => resolve())
       })
       closeSync(log)

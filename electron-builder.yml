@@ -10,6 +10,7 @@ files:
   - out/renderer/**
   - package.json
   - LICENSE
+  - resources/icons/**/*.png
   - '!**/*.map'
   - '!**/docs{,/**}'
   - '!assets{,/**}'
@@ -31,6 +32,7 @@ publish:
   repo: Yuki-Desktop
   releaseType: draft
 mac:
+  icon: resources/icons/app/1024x1024.png
   category: public.app-category.productivity
   minimumSystemVersion: '13.0.0'
   target: [dmg, zip]
@@ -40,12 +42,14 @@ mac:
   extendInfo:
     NSMicrophoneUsageDescription: 錄下你明確開始的語音訊息，傳給所連接的 Yuki 角色。
 win:
+  icon: resources/icons/app/256x256.png
   target: [nsis]
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
 linux:
+  icon: resources/icons/app
   category: Utility
   target: [AppImage, deb, rpm]
   desktop:

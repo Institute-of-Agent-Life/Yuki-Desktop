@@ -15,12 +15,15 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  overflow: auto;
   height: 100%;
   background: var(--bg-window);
   padding: 52px 24px 24px;
 }
 .welcomeInner {
+  margin: auto 0;
+  flex-shrink: 0;
   width: min(640px, 100%);
   display: flex;
   align-items: center;
@@ -47,6 +50,15 @@
 }
 .server input {
   height: 36px;
+}
+.codeRow {
+  display: flex;
+  gap: 8px;
+}
+.codeInput {
+  font: 14px var(--font-mono);
+  flex: 1;
+  min-width: 0;
 }
 .actions {
   display: flex;

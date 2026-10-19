@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import MarkdownIt from 'markdown-it'
 import type {
   Connection,
   EventsPage,
@@ -9,10 +8,12 @@ import type {
   Profile,
   PublicEvent,
   AttachmentSource,
+  Activity,
 } from '../../shared/api'
 import type { Preferences } from '../../shared/desktop'
 import { Composer } from '../components/Composer'
-import { Avatar, Banner, Button, EmptyState } from '../components/Controls'
+import { Avatar, Banner, Button, EmptyState, IconButton } from '../components/Controls'
+import { Copy, Reply } from 'lucide-react'
 import { Workspace } from '../components/Workspace'
 import { unwrap, problemText, hidesPrivateData, ClientProblem } from '../queries/client'
 import { useWorkspace } from '../state/workspace'
@@ -22,9 +23,9 @@ import { parseMessage, referencedMessage, type MessageReference } from '../../sh
 import { AttachmentPreview, DraftAttachments, MessageAttachment } from './Media'
 import { VoiceRecorder } from './VoiceRecorder'
 import mediaStyles from './Media.module.css'
+import { useMarkdown } from '../text/markdown'
+import { useHistory } from '../queries/history'
 
-const markdown = new MarkdownIt({ html: false, linkify: false, breaks: true, typographer: false })
-markdown.disable(['image', 'html_block', 'html_inline'])
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
   window.yuki.client.read<T>(id, route).then(unwrap)
 
@@ -46,6 +47,7 @@ export function Conversation({
   const id = connection.characterId,
     query = useQueryClient(),
     view = useWorkspace((state) => state.view)
+  const target = useWorkspace((state) => state.target)
   const [conversation, setConversation] = useState(connection.conversationId),
     [draft, setDraft] = useState('')
   const currentDraft = useRef(draft)
@@ -54,6 +56,17 @@ export function Conversation({
     [mediaError, setMediaError] = useState(''),
     [recording, setRecording] = useState(false)
   const finishRecording = useRef<(() => void) | undefined>(undefined)
+  useEffect(() => {
+    void window.yuki.client.selected(id)
+  }, [id])
+  useEffect(() => {
+    if (target?.characterId === id && target.conversationId) {
+      setAnchor(null)
+      setConversation(target.conversationId)
+      setSelection(undefined)
+      bottom.current = true
+    }
+  }, [id, target])
   const [online, setOnline] = useState<'connecting' | 'online' | 'offline'>('connecting'),
     [connectionProblem, setConnectionProblem] = useState('')
   const [references, setReferences] = useState<MessageReference[]>([]),
@@ -61,9 +74,17 @@ export function Conversation({
   const currentReferences = useRef<MessageReference[]>([])
   const [search, setSearch] = useState<string | null>(null)
   const list = useRef<HTMLDivElement>(null),
-    floor = useRef<number | null>(null),
     bottom = useRef(true),
     [newMessages, setNewMessages] = useState(false)
+  const [anchor, setAnchor] = useState<number | null>(null)
+  const [jump, setJump] = useState<MessageReference>()
+  const [historyError, setHistoryError] = useState('')
+  const [loadingEarlier, setLoadingEarlier] = useState(false)
+  const earlierBusy = useRef(false)
+  const needsEarlier = useRef(false)
+  const activeRange = useRef('')
+  activeRange.current = `${conversation}/${anchor}`
+  const latestSeen = useRef<{ range: string; event: number }>({ range: '', event: 0 })
   const home = useQuery({ queryKey: [id, 'home'], queryFn: () => read<Home>(id, { kind: 'home' }) })
   const profile = useQuery({
     queryKey: [id, 'character'],
@@ -77,40 +98,11 @@ export function Conversation({
     queryKey: [id, 'uploads'],
     queryFn: () => window.yuki.client.uploads(id).then(unwrap),
   })
-  const events = useQuery({
-    queryKey: [id, 'events', conversation],
-    queryFn: async () => {
-      const first = await read<EventsPage>(id, {
-        kind: 'events',
-        conversationId: conversation,
-        before: Number.MAX_SAFE_INTEGER,
-      })
-      let current = first,
-        items = first.items
-      // Re-read the loaded range from authoritative pages, including deletions and edits.
-      while (
-        floor.current !== null &&
-        current.has_more &&
-        current.next_before !== null &&
-        Math.min(...items.map((item) => item.event_id)) > floor.current
-      ) {
-        current = await read<EventsPage>(id, {
-          kind: 'events',
-          conversationId: conversation,
-          before: current.next_before,
-        })
-        items = [...current.items, ...items]
-      }
-      return {
-        ...first,
-        has_more: current.has_more,
-        next_before: current.next_before,
-        items: [...new Map(items.map((item) => [item.event_id, item])).values()].sort(
-          (a, b) => a.event_id - b.event_id,
-        ),
-      }
-    },
+  const activity = useQuery({
+    queryKey: [id, 'activity', conversation],
+    queryFn: () => read<Activity>(id, { kind: 'activity', conversationId: conversation }),
   })
+  const events = useHistory(id, conversation, anchor)
   const accessLost = hidesPrivateData(new ClientProblem(connectionProblem))
   const eventData = accessLost || hidesPrivateData(events.error) ? undefined : events.data,
     homeData = accessLost || hidesPrivateData(home.error) ? undefined : home.data,
@@ -123,6 +115,7 @@ export function Conversation({
     void query.invalidateQueries({ queryKey: [id, 'outbox'] })
     void query.invalidateQueries({ queryKey: [id, 'uploads'] })
     void query.invalidateQueries({ queryKey: [id, 'content'] })
+    void query.invalidateQueries({ queryKey: [id, 'activity'] })
   }, [id, query])
   useEffect(() => {
     const deadlines = (eventData?.items ?? [])
@@ -204,11 +197,30 @@ export function Conversation({
     if (command === 'search' || command === 'find') setSearch('')
   })
   useEffect(() => {
-    if (bottom.current) {
-      list.current?.scrollTo({ top: list.current.scrollHeight })
+    const range = `${conversation}/${anchor}`
+    const last = events.data?.items.at(-1)?.event_id ?? 0
+    const previous = latestSeen.current
+    latestSeen.current = { range, event: last }
+    if (bottom.current && anchor === null) {
+      requestAnimationFrame(() => list.current?.scrollTo({ top: list.current.scrollHeight }))
       setNewMessages(false)
-    } else setNewMessages(true)
-  }, [events.data, outbox.data])
+    } else if (previous.range === range && previous.event > 0 && last > previous.event) {
+      setNewMessages(true)
+    }
+  }, [events.data, outbox.data, conversation, anchor])
+  useEffect(() => {
+    if (!jump || jump.conversationId !== conversation || !events.data) return
+    const original = events.data.items.find((item) => item.event_id === jump.eventId)
+    if (original) {
+      requestAnimationFrame(() => {
+        list.current
+          ?.querySelector<HTMLElement>(`[data-event-id="${jump.eventId}"]`)
+          ?.scrollIntoView({ block: 'center' })
+      })
+      setSelection(jump.eventId)
+    } else setHistoryError('引用的訊息無法讀取')
+    setJump(undefined)
+  }, [jump, conversation, events.data])
   useEffect(() => {
     const accent = profileData?.accent
     if (!accent) return
@@ -225,7 +237,10 @@ export function Conversation({
     }
   }, [profileData?.accent, preferences.theme])
   const choose = (next: string) => {
-    floor.current = null
+    needsEarlier.current = false
+    setAnchor(null)
+    setHistoryError('')
+    setNewMessages(false)
     setConversation(next)
     setSelection(undefined)
     bottom.current = true
@@ -273,26 +288,56 @@ export function Conversation({
     refresh()
   }
   const more = async () => {
-    if (!eventData?.has_more || eventData.next_before === null) return
+    if (earlierBusy.current || !eventData?.has_more || events.isFetching) return
+    needsEarlier.current = false
     const element = list.current,
       height = element?.scrollHeight ?? 0,
-      top = element?.scrollTop ?? 0
-    const page = await read<EventsPage>(id, {
-      kind: 'events',
-      conversationId: conversation,
-      before: eventData.next_before,
-    })
-    floor.current = Math.min(
-      ...page.items.map((item) => item.event_id),
-      ...eventData.items.map((item) => item.event_id),
-    )
-    query.setQueryData([id, 'events', conversation], {
-      ...eventData,
-      has_more: page.has_more,
-      next_before: page.next_before,
-      items: [...page.items, ...eventData.items],
-    })
-    requestAnimationFrame(() => element?.scrollTo({ top: top + element.scrollHeight - height }))
+      top = element?.scrollTop ?? 0,
+      range = activeRange.current
+    earlierBusy.current = true
+    setLoadingEarlier(true)
+    setHistoryError('')
+    try {
+      const page = await events.earlier(eventData)
+      query.setQueryData(events.key, page)
+      if (activeRange.current === range)
+        requestAnimationFrame(() => element?.scrollTo({ top: top + element.scrollHeight - height }))
+    } catch (error) {
+      if (activeRange.current === range)
+        setHistoryError(error instanceof Error ? error.message : '無法載入更早訊息。')
+    } finally {
+      earlierBusy.current = false
+      setLoadingEarlier(false)
+    }
+  }
+  useEffect(() => {
+    if (needsEarlier.current && !events.isFetching) void more()
+  })
+  const jumpTo = async (reference: MessageReference) => {
+    setHistoryError('')
+    try {
+      const page = await read<EventsPage>(id, {
+        kind: 'events',
+        conversationId: reference.conversationId,
+        after: reference.eventId - 1,
+        limit: 1,
+      })
+      if (!page.items.some((item) => item.event_id === reference.eventId))
+        throw new Error('引用的訊息無法讀取')
+      if (
+        reference.conversationId !== conversation ||
+        !eventData?.items.some((item) => item.event_id === reference.eventId)
+      ) {
+        setAnchor(reference.eventId + 1)
+        setConversation(reference.conversationId)
+      }
+      setSearch(null)
+      bottom.current = false
+      setJump(reference)
+      useWorkspace.getState().setView('chat')
+    } catch (error) {
+      setHistoryError(error instanceof Error ? error.message : '引用的訊息無法讀取')
+    }
   }
   const name = profileData?.display_name ?? connection.name,
     isMain = conversation === connection.conversationId
@@ -399,6 +444,7 @@ export function Conversation({
         >
           {dragging && <div className={mediaStyles.drop}>放開以附加</div>}
           {mediaError && <Banner status="failed">{mediaError}</Banner>}
+          {historyError && <Banner status="failed">{historyError}</Banner>}
           {online !== 'online' && (
             <Banner>
               {connectionProblem
@@ -443,38 +489,55 @@ export function Conversation({
             onScroll={(event) => {
               const node = event.currentTarget
               bottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 64
+              needsEarlier.current = node.scrollTop < 48 && !bottom.current
+              if (needsEarlier.current) void more()
             }}
           >
             {eventData?.has_more && (
-              <Button variant="plain" onClick={() => void more()}>
+              <Button variant="plain" loading={loadingEarlier} onClick={() => void more()}>
                 載入更早訊息
               </Button>
             )}
             {eventData && !events.isPending && !visible.length && !pending.length && (
               <EmptyState title={`和 ${name} 聊聊`}>說一聲你好，或交給她一件事。</EmptyState>
             )}
-            {visible.map((event) => (
-              <Message
-                characterId={id}
-                receipt={(outbox.data ?? []).find((item) => item.eventId === event.event_id)}
-                verify={async (requestId) => {
-                  unwrap(await window.yuki.client.verify(id, requestId))
-                  refresh()
-                }}
-                key={event.event_id}
-                event={event}
-                name={name}
-                selected={selection === event.event_id}
-                onSelect={() => setSelection(event.event_id)}
-                onReference={() => {
-                  addReference(event)
-                }}
-                onAttachment={openAttachment}
-              />
+            {visible.map((event, index) => (
+              <Fragment key={event.event_id}>
+                {(!index ||
+                  dayKey(event.created_at) !== dayKey(visible[index - 1]!.created_at)) && (
+                  <div className={styles.dateSeparator}>{dayLabel(event.created_at)}</div>
+                )}
+                <Message
+                  consecutive={
+                    index > 0 &&
+                    event.direction === visible[index - 1]!.direction &&
+                    dayKey(event.created_at) === dayKey(visible[index - 1]!.created_at)
+                  }
+                  onJump={(reference) => void jumpTo(reference)}
+                  characterId={id}
+                  receipt={(outbox.data ?? []).find((item) => item.eventId === event.event_id)}
+                  verify={async (requestId) => {
+                    unwrap(await window.yuki.client.verify(id, requestId))
+                    refresh()
+                  }}
+                  event={event}
+                  name={name}
+                  selected={selection === event.event_id}
+                  onSelect={() => setSelection(event.event_id)}
+                  onReference={() => {
+                    addReference(event)
+                  }}
+                  onAttachment={openAttachment}
+                />
+              </Fragment>
             ))}
             {pending.map((item) => (
               <div key={item.requestId} className={styles.ownMessage}>
-                <References characterId={id} text={item.body.text} />
+                <References
+                  characterId={id}
+                  text={item.body.text}
+                  onJump={(ref) => void jumpTo(ref)}
+                />
                 <p>{parseMessage(item.body.text).text}</p>
                 <Pending
                   item={item}
@@ -486,17 +549,23 @@ export function Conversation({
               </div>
             ))}
           </div>
-          {newMessages && (
+          {(newMessages || anchor !== null) && (
             <button
               className={styles.newMessages}
               onClick={() => {
+                if (anchor !== null) setAnchor(null)
                 bottom.current = true
                 list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' })
                 setNewMessages(false)
               }}
             >
-              ↓ 新訊息
+              {anchor !== null ? '回到最新訊息' : '↓ 新訊息'}
             </button>
+          )}
+          {online === 'online' && !activity.error && activity.data?.evidence === 'executing' && (
+            <div className={styles.processing} role="status">
+              {name} 正在處理
+            </div>
           )}
           {isMain ? (
             <Composer
@@ -506,6 +575,7 @@ export function Conversation({
               onSubmit={send}
               hasContent={references.length > 0 || !!uploads.data?.length}
               blocked={recording || uploads.data?.some((item) => item.state !== 'ready')}
+              commandEnter={preferences.sendKey === 'command-enter'}
               onAttach={() => void mediaAction(window.yuki.client.attach(id).then(unwrap))}
               onRecord={() => (recording ? finishRecording.current?.() : setRecording(true))}
             >
@@ -527,6 +597,7 @@ export function Conversation({
                     id={id}
                     conversation={reference.conversationId}
                     eventId={reference.eventId}
+                    onJump={(ref) => void jumpTo(ref)}
                   />
                   <Button
                     variant="plain"
@@ -612,6 +683,8 @@ function Message({
   onSelect,
   onReference,
   onAttachment,
+  onJump,
+  consecutive,
 }: {
   characterId: string
   receipt?: OutboxItem
@@ -622,41 +695,65 @@ function Message({
   onSelect(): void
   onReference(): void
   onAttachment(source: AttachmentSource): void
+  onJump(reference: MessageReference): void
+  consecutive: boolean
 }) {
   const own = event.direction === 'inbound'
+  const html = useMarkdown(parseMessage(event.text).text)
+  const [error, setError] = useState('')
+  const action = (work: Promise<unknown>) =>
+    void work.catch((error) => setError(error instanceof Error ? error.message : '操作未完成。'))
   return (
     <article
-      className={`${styles.message} ${own ? styles.ownMessage : ''} ${selected ? styles.selected : ''}`}
+      data-event-id={event.event_id}
+      tabIndex={0}
+      aria-label={`${own ? '你' : name}的訊息`}
+      className={`${styles.message} ${own ? styles.ownMessage : ''} ${selected ? styles.selected : ''} ${consecutive ? styles.consecutive : ''}`}
       onClick={onSelect}
+      onContextMenu={(click) => {
+        click.preventDefault()
+        const link = (click.target as HTMLElement).closest<HTMLAnchorElement>('a[href]')
+        action(
+          window.yuki.client
+            .contextMenu({
+              text: event.text,
+              ...(link ? { link: link.href } : {}),
+            })
+            .then(unwrap),
+        )
+      }}
     >
-      {!own && <Avatar name={name} size={28} />}
+      {!own &&
+        (!consecutive ? <Avatar name={name} size={28} /> : <span className={styles.avatarSpace} />)}
       <div className={styles.messageBody}>
         <header>
           <strong>{own ? '你' : name}</strong>
-          <time dateTime={event.created_at}>
-            {new Date(event.created_at).toLocaleString(undefined, {
-              month: 'numeric',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </time>
+          <time dateTime={event.created_at}>{timeLabel(event.created_at)}</time>
         </header>
-        <References characterId={characterId} text={event.text} />
+        <References characterId={characterId} text={event.text} onJump={onJump} />
         <div
           className={styles.markdown}
           onClick={(event) => {
+            const copy = (event.target as HTMLElement).closest('button[data-code-copy]')
+            if (copy) {
+              event.stopPropagation()
+              const text = copy.parentElement?.querySelector('pre code')?.textContent
+              if (text !== undefined && text !== null)
+                action(window.yuki.client.copy(text).then(unwrap))
+              return
+            }
             const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href]')
             if (link) {
               event.preventDefault()
               event.stopPropagation()
-              void window.yuki.client.external(link.href)
+              action(window.yuki.client.external(link.href).then(unwrap))
             }
           }}
           dangerouslySetInnerHTML={{
-            __html: markdown.render(parseMessage(event.text).text),
+            __html: html,
           }}
         />
+        {error && <Banner status="failed">{error}</Banner>}
         {own && receipt && <Pending item={receipt} verify={() => verify(receipt.requestId)} />}
         {event.attachments.map((attachment) => (
           <MessageAttachment
@@ -668,22 +765,39 @@ function Message({
           />
         ))}
         <div className={styles.messageActions}>
-          <Button
-            variant="plain"
+          <IconButton
+            label="複製訊息"
+            onClick={(click) => {
+              click.stopPropagation()
+              action(window.yuki.client.copy(event.text).then(unwrap))
+            }}
+          >
+            <Copy size={15} />
+          </IconButton>
+          <IconButton
+            label="引用回覆"
             onClick={(event) => {
               event.stopPropagation()
               onReference()
             }}
           >
-            引用回覆
-          </Button>
+            <Reply size={15} />
+          </IconButton>
         </div>
       </div>
     </article>
   )
 }
 
-function References({ characterId, text }: { characterId: string; text: string }) {
+function References({
+  characterId,
+  text,
+  onJump,
+}: {
+  characterId: string
+  text: string
+  onJump(reference: MessageReference): void
+}) {
   const refs = parseMessage(text).references
   return refs.map((item, index) => (
     <Reference
@@ -691,6 +805,7 @@ function References({ characterId, text }: { characterId: string; text: string }
       id={characterId}
       conversation={item.conversationId}
       eventId={item.eventId}
+      onJump={onJump}
     />
   ))
 }
@@ -698,11 +813,14 @@ function Reference({
   id,
   conversation,
   eventId,
+  onJump,
 }: {
   id: string
   conversation: string
   eventId: number
+  onJump(reference: MessageReference): void
 }) {
+  const home = useQuery({ queryKey: [id, 'home'], queryFn: () => read<Home>(id, { kind: 'home' }) })
   const event = useQuery({
     queryKey: [id, 'reference', conversation, eventId],
     queryFn: async () => {
@@ -715,13 +833,46 @@ function Reference({
       return page.items.find((item) => item.event_id === eventId) ?? null
     },
   })
+  const source = home.data?.entries.find((item) => item.conversation_id === conversation)
+  const available = !event.error && !!event.data
   return (
-    <div className={styles.reference}>
-      {event.isPending
-        ? '正在讀取引用…'
-        : !event.error && event.data
-          ? `引用：${event.data.text.slice(0, 120)}`
-          : '引用的訊息無法讀取'}
-    </div>
+    <button
+      className={styles.referenceCapsule}
+      disabled={!available}
+      onClick={(click) => {
+        click.stopPropagation()
+        onJump({ conversationId: conversation, eventId })
+      }}
+    >
+      {available && (
+        <small>
+          {source ? `${source.platform.toUpperCase()} 私聊` : '這個對話'} ·{' '}
+          {dayLabel(event.data!.created_at)} {timeLabel(event.data!.created_at)}
+        </small>
+      )}
+      <span>
+        {event.isPending
+          ? '正在讀取引用…'
+          : !event.error && event.data
+            ? `引用：${event.data.text.slice(0, 120)}`
+            : '引用的訊息無法讀取'}
+      </span>
+    </button>
   )
 }
+
+const displayZone = 'Asia/Taipei'
+const dayKey = (date: string) =>
+  new Date(date).toLocaleDateString('sv-SE', { timeZone: displayZone })
+const dayLabel = (date: string) =>
+  new Date(date).toLocaleDateString(undefined, {
+    timeZone: displayZone,
+    month: 'numeric',
+    day: 'numeric',
+  })
+const timeLabel = (date: string) =>
+  new Date(date).toLocaleTimeString(undefined, {
+    timeZone: displayZone,
+    hour: '2-digit',
+    minute: '2-digit',
+  })

@@ -4,12 +4,16 @@ import { windowGeometry, type Rect } from './geometry'
 import type { LocalStore } from './store'
 import { keyboardCommand } from '../shared/commands'
 
-export function createWindow(store: LocalStore) {
-  const saved = store.get<Rect>('window')
+const modes = new WeakMap<BrowserWindow, (pairing: boolean) => void>()
+export function setWindowMode(window: BrowserWindow, pairing: boolean) {
+  modes.get(window)?.(pairing)
+}
+export function createWindow(store: LocalStore, pairing = false) {
+  const saved = pairing ? undefined : store.get<Rect>('window')
   const work = saved
     ? screen.getDisplayMatching(saved).workArea
     : screen.getPrimaryDisplay().workArea
-  const geometry = windowGeometry(work, saved)
+  const geometry = windowGeometry(work, saved, pairing ? 'pairing' : 'workspace')
   const mac = process.platform === 'darwin'
   const opaque = store.preferences().opaque || nativeTheme.prefersReducedTransparency
   const win = new BrowserWindow({
@@ -17,6 +21,7 @@ export function createWindow(store: LocalStore) {
     minWidth: geometry.minimum.width,
     minHeight: geometry.minimum.height,
     title: 'Yuki',
+    icon: join(app.getAppPath(), 'resources/icons/app/256x256.png'),
     show: false,
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1C1C1E' : '#F5F5F7',
     titleBarStyle: mac ? 'hiddenInset' : 'hidden',
@@ -48,19 +53,38 @@ export function createWindow(store: LocalStore) {
     if (win.isDestroyed() || win.isMinimized() || win.isFullScreen() || adjusting) return
     adjusting = true
     const old = win.getBounds()
-    const next = windowGeometry(screen.getDisplayMatching(old).workArea, old)
+    const next = windowGeometry(
+      screen.getDisplayMatching(old).workArea,
+      old,
+      pairing ? 'pairing' : 'workspace',
+    )
     win.setMinimumSize(next.minimum.width, next.minimum.height)
     if (Object.keys(old).some((key) => old[key as keyof Rect] !== next.bounds[key as keyof Rect]))
       win.setBounds(next.bounds)
-    if (!win.isMaximized()) store.set('window', next.bounds)
+    if (!pairing && !win.isMaximized()) store.set('window', next.bounds)
     adjusting = false
   }
+  modes.set(win, (nextPairing) => {
+    if (pairing === nextPairing) return
+    pairing = nextPairing
+    adjusting = true
+    const area = screen.getDisplayMatching(win.getBounds()).workArea
+    const next = windowGeometry(
+      area,
+      pairing ? undefined : store.get<Rect>('window'),
+      pairing ? 'pairing' : 'workspace',
+    )
+    win.setMinimumSize(next.minimum.width, next.minimum.height)
+    win.setBounds(next.bounds)
+    adjusting = false
+  })
   screen.on('display-metrics-changed', fit)
   screen.on('display-added', fit)
   screen.on('display-removed', fit)
   win.on('moved', fit)
   win.on('resized', fit)
   win.once('closed', () => {
+    modes.delete(win)
     screen.removeListener('display-metrics-changed', fit)
     screen.removeListener('display-added', fit)
     screen.removeListener('display-removed', fit)

@@ -5,10 +5,17 @@ export interface Rect {
   height: number
 }
 
-export function windowGeometry(work: Rect, saved?: Rect) {
-  const minimum = { width: Math.min(960, work.width), height: Math.min(640, work.height) }
-  let width = saved?.width ?? Math.min(1440, work.width - 80)
-  let height = saved?.height ?? Math.min(900, work.height - 80)
+export function windowGeometry(
+  work: Rect,
+  saved?: Rect,
+  mode: 'workspace' | 'pairing' = 'workspace',
+) {
+  const minimum = {
+    width: Math.min(mode === 'pairing' ? 720 : 960, work.width),
+    height: Math.min(mode === 'pairing' ? 560 : 640, work.height),
+  }
+  let width = saved?.width ?? (mode === 'pairing' ? 720 : Math.min(1440, work.width - 80))
+  let height = saved?.height ?? (mode === 'pairing' ? 560 : Math.min(900, work.height - 80))
   if (!saved && (width < minimum.width || height < minimum.height)) {
     width = work.width
     height = work.height

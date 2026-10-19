@@ -24,6 +24,22 @@
   flex: 1;
   min-width: 0;
 }
+.dateSeparator {
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  margin: 8px 0 24px;
+}
+.consecutive {
+  margin-top: -16px;
+}
+.consecutive header strong {
+  display: none;
+}
+.avatarSpace {
+  width: 28px;
+  flex-shrink: 0;
+}
 .message header {
   display: flex;
   align-items: baseline;
@@ -80,6 +96,45 @@
   border-radius: 8px;
   padding: 12px;
 }
+.markdown :global(.code-block) {
+  position: relative;
+}
+.markdown :global(.code-block) > button {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--bg-content);
+  color: var(--text-secondary);
+  font-size: 11px;
+  opacity: 0;
+}
+.markdown :global(.code-block):hover > button,
+.markdown :global(.code-block):focus-within > button {
+  opacity: 1;
+}
+.markdown :global(.shiki),
+.markdown :global(.shiki) span {
+  color: var(--shiki-light);
+}
+:global([data-theme='dark']) .markdown :global(.shiki),
+:global([data-theme='dark']) .markdown :global(.shiki) span {
+  color: var(--shiki-dark);
+}
+:global([data-contrast='true']) .markdown :global(.shiki),
+:global([data-contrast='true']) .markdown :global(.shiki) span {
+  color: var(--shiki-contrast-light);
+}
+:global([data-theme='dark'][data-contrast='true']) .markdown :global(.shiki),
+:global([data-theme='dark'][data-contrast='true']) .markdown :global(.shiki) span {
+  color: var(--shiki-contrast-dark);
+}
+.markdown :is(pre, code) {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 19px;
+}
 .markdown :is(ul, ol) {
   padding-left: 24px;
 }
@@ -117,6 +172,11 @@
   color: var(--text-secondary);
   flex-wrap: wrap;
 }
+.processing {
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 4px max(24px, calc((100% - 712px) / 2));
+}
 .newMessages {
   position: absolute;
   bottom: 164px;
@@ -148,6 +208,34 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+.referenceCapsule {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  border-left: 2px solid var(--separator-strong);
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  gap: 3px;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.referenceCapsule:hover:enabled {
+  background: var(--fill-hover);
+}
+.referenceCapsule:disabled {
+  opacity: 1;
+}
+.referenceCapsule span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.referenceCapsule small {
+  font-size: 11px;
 }
 .search {
   display: flex;

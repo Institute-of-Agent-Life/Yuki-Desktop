@@ -19,6 +19,11 @@ window.yuki = {
   client: {
     reconnect: async () => ({ ok: true, value: undefined }),
     external: async () => ({ ok: false, code: 'fixture_only' }),
+    copy: async () => ({ ok: true, value: undefined }),
+    paste: async () => ({ ok: true, value: '' }),
+    selected: async () => ({ ok: true, value: undefined }),
+    acknowledgeTarget: async () => ({ ok: true, value: undefined }),
+    contextMenu: async () => ({ ok: true, value: null }),
     connections: async () => ({ ok: true, value: [] }),
     meta: async () => ({ ok: false, code: 'fixture_only' }),
     pair: async () => ({ ok: false, code: 'fixture_only' }),
@@ -45,6 +50,7 @@ window.yuki = {
   onCommand: () => () => {},
   onTheme: () => () => {},
   onPairLink: () => () => {},
+  onOpenTarget: () => () => {},
 }
 function Gallery() {
   const [preferences, setPreferences] = useState(defaultPreferences)
