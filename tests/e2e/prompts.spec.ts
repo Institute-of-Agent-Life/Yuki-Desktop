@@ -204,6 +204,7 @@ test('real prompt editor keeps CAS baselines, compares conflicts, supports undo 
     await pa.keyboard.press('Meta+,')
     await expect(pa.getByRole('dialog', { name: '要儲存變更嗎？' })).toBeVisible()
     await pa.getByRole('dialog').getByRole('button', { name: '不儲存', exact: true }).click()
+    await pa.getByRole('tab', { name: '外觀', exact: true }).click()
     await expect(pa.getByRole('switch', { name: '永遠不透明', exact: true })).toBeVisible()
     await pa.getByRole('button', { name: '返回', exact: true }).click()
     await open(pa)
@@ -254,6 +255,7 @@ test('real prompt editor keeps CAS baselines, compares conflicts, supports undo 
       )
       await expect.poll(() => pa.evaluate(() => [innerWidth, innerHeight])).toEqual([1440, 900])
       await pa.getByRole('button', { name: '設定', exact: true }).click()
+      await pa.getByRole('tab', { name: '外觀', exact: true }).click()
       await pa.getByRole('tab', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
       for (const [label, checked] of [
         ['永遠不透明', mode === 'opaque'],

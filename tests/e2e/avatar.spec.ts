@@ -324,6 +324,7 @@ test('actual avatar crop, EXIF orientation, two-device CAS, reset and cold recov
       )
       await expect.poll(() => pa.evaluate(() => [innerWidth, innerHeight])).toEqual([1440, 900])
       await pa.getByRole('button', { name: '設定', exact: true }).click()
+      await pa.getByRole('tab', { name: '外觀', exact: true }).click()
       await pa.getByRole('tab', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
       for (const [label, checked] of [
         ['永遠不透明', mode === 'opaque'],

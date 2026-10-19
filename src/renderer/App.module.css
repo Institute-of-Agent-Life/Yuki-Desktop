@@ -66,32 +66,6 @@
   gap: 8px;
   margin-top: 12px;
 }
-.settings {
-  overflow: auto;
-  padding: 32px;
-  width: min(760px, 100%);
-  margin: 0 auto;
-}
-.settings header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 32px;
-}
-.settings section {
-  padding: 20px 0;
-  border-bottom: var(--line) solid var(--separator);
-}
-.settings h3 {
-  margin-bottom: 16px;
-}
-.setting {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  min-height: 40px;
-}
 .shell {
   display: grid;
   grid-template-rows: minmax(0, 1fr);

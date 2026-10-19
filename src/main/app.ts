@@ -42,6 +42,8 @@ import { ApiError } from './api/client'
 import { NativeShell } from './native'
 import { ClientNotifications } from './notifications'
 import { heldComputers } from './computer-exit'
+import { LoginItem } from './login-item'
+import { diagnostics } from './diagnostics'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -271,6 +273,45 @@ else {
       })
     }
     action('connections', () => connections.publicList())
+    action('export-diagnostics', async () => {
+      const result = await dialog.showSaveDialog(win!, {
+        title: '匯出診斷記錄',
+        defaultPath: `Yuki-diagnostics-${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
+        filters: [{ name: '診斷記錄', extensions: ['json'] }],
+      })
+      if (result.canceled || !result.filePath) return false
+      const summary = diagnostics(
+        store.preferences(),
+        {
+          version: app.getVersion(),
+          platform: process.platform,
+          arch: process.arch,
+          electron: process.versions.electron,
+          chrome: process.versions.chrome,
+          node: process.versions.node,
+        },
+        connections.diagnosticCounts(),
+      )
+      await writeFile(result.filePath, JSON.stringify(summary, null, 2) + '\n', {
+        encoding: 'utf8',
+        mode: 0o600,
+      })
+      return true
+    })
+    const loginItem = new LoginItem({
+      platform: process.platform as BootInfo['platform'],
+      packaged: app.isPackaged,
+      executable: process.env.APPIMAGE || process.execPath,
+      configHome: app.getPath('appData'),
+      systemConfigDirectories: (process.env.XDG_CONFIG_DIRS || '/etc/xdg')
+        .split(':')
+        .filter((root) => root.startsWith('/')),
+      get: () => app.getLoginItemSettings(),
+      set: (enabled) => app.setLoginItemSettings({ openAtLogin: enabled }),
+    })
+    action('login-item', (enabled?: boolean) =>
+      enabled === undefined ? loginItem.read() : loginItem.set(enabled),
+    )
     action('copy', (text: string) => clipboard.writeText(text))
     action('paste', () => clipboard.readText())
     action('context-menu', (options: { text: string; link?: string; save?: boolean }) => {
@@ -600,6 +641,8 @@ else {
         if (typeof patch[key] === 'boolean') current[key] = patch[key]
       }
       if (['system', 'light', 'dark'].includes(patch.theme ?? '')) current.theme = patch.theme!
+      if (patch.timeZone === 'Asia/Taipei' || patch.timeZone === 'system')
+        current.timeZone = patch.timeZone
       if (patch.sendKey === 'enter' || patch.sendKey === 'command-enter')
         current.sendKey = patch.sendKey
       if (typeof patch.sidebarWidth === 'number' && Number.isFinite(patch.sidebarWidth))

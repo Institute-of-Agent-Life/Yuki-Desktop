@@ -14,6 +14,7 @@ import { PromptCode } from '../components/PromptCode'
 import { unwrap, ClientProblem, problemText } from '../queries/client'
 import { guardNavigation, requestNavigation, type NavigationAttempt } from '../state/navigation'
 import styles from './PromptEditor.module.css'
+import { useDisplayTime } from '../state/time'
 
 const keys: PromptKey[] = ['system_prompt', 'persona']
 const short = (revision: string) =>
@@ -41,6 +42,7 @@ export function PromptEditor({
   name: string
   platform: string
 }) {
+  const { timeLabel } = useDisplayTime()
   const [drafts, setDrafts] = useState<PromptDraft[]>([])
   const current = useRef(drafts)
   const versions = useRef({ system_prompt: 0, persona: 0 })
@@ -330,11 +332,7 @@ export function PromptEditor({
         className={changed ? styles.unsaved : savedRecent ? styles.saved : styles.status}
         role="status"
       >
-        {changed
-          ? '● 未儲存'
-          : savedAt
-            ? `已儲存 ${new Date(savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-            : ''}
+        {changed ? '● 未儲存' : savedAt ? `已儲存 ${timeLabel(savedAt)}` : ''}
       </span>
       <Button
         disabled={!changed || readOnly}
@@ -402,7 +400,7 @@ export function PromptEditor({
       {conflicted && (
         <div className={styles.conflict} role="status">
           <span
-            title={`另一台裝置在 ${draft.remote.updated_at ? new Date(draft.remote.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '稍早'} 儲存了新版本。你的草稿基於較早的版本。`}
+            title={`另一台裝置在 ${draft.remote.updated_at ? timeLabel(draft.remote.updated_at) : '稍早'} 儲存了新版本。你的草稿基於較早的版本。`}
           >
             另一台裝置儲存了新版本。你的草稿基於較早的版本。
           </span>

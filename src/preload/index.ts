@@ -97,6 +97,8 @@ const bridge: DesktopBridge = {
     void ipcRenderer.invoke('yuki:leave-response', request, allowed).catch(() => {})
   },
   preferences: (patch) => ipcRenderer.invoke('yuki:preferences', patch),
+  loginItem: (enabled) => ipcRenderer.invoke('yuki:login-item', enabled),
+  exportDiagnostics: () => ipcRenderer.invoke('yuki:export-diagnostics'),
   onCommand(callback) {
     const listener = (_event: Electron.IpcRendererEvent, command: Command) => callback(command)
     ipcRenderer.on('yuki:command', listener)

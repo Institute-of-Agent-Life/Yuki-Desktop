@@ -11,7 +11,7 @@ import { useWorkspace } from '../state/workspace'
 import type { MessageReference } from '../../shared/message'
 import styles from './Files.module.css'
 import chatStyles from './Conversation.module.css'
-import { dateGroup } from '../../shared/time'
+import { useDisplayTime } from '../state/time'
 
 type Reference = ArtifactPage['items'][number]
 type Item = Reference & { references: Reference[] }
@@ -20,14 +20,6 @@ const source = (item: Reference): ArtifactSource => ({
   version: item.version,
 })
 const shortVersion = (version: string) => `${version.slice(0, 4)}…${version.slice(-4)}`
-const date = (value: string) =>
-  new Date(value).toLocaleString(undefined, {
-    timeZone: 'Asia/Taipei',
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 function useContent(id: string, item?: ArtifactSource) {
   return useQuery({
     queryKey: [id, 'artifact-content', item?.artifactId, item?.version],
@@ -49,6 +41,7 @@ export function Files({
   work(workId: string): void
   onSelect(source: ArtifactSource): void
 }) {
+  const { date, group: dateGroup } = useDisplayTime()
   const query = useQueryClient(),
     [category, setCategory] = useState<'all' | 'image' | 'document' | 'code'>('all'),
     [selected, setSelected] = useState<ArtifactSource | undefined>(initial),

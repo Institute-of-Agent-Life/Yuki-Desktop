@@ -19,6 +19,7 @@ import { Banner, Button, EmptyState, IconButton } from '../components/Controls'
 import { CharacterAvatar, CharacterVisuals } from '../components/CharacterAvatar'
 import { characterPresence } from '../../shared/presence'
 import { PromptEditor } from './PromptEditor'
+import { useDisplayTime } from '../state/time'
 import { Copy, Reply } from 'lucide-react'
 import { Workspace } from '../components/Workspace'
 import { unwrap, problemText, hidesPrivateData, ClientProblem } from '../queries/client'
@@ -57,6 +58,7 @@ export function Conversation({
   const id = connection.characterId,
     query = useQueryClient(),
     view = useWorkspace((state) => state.view)
+  const { dayKey, dayLabel } = useDisplayTime()
   const target = useWorkspace((state) => state.target)
   const focusMode = useWorkspace((state) => state.focusMode)
   const [promptEditing, setPromptEditing] = useState(false)
@@ -938,6 +940,7 @@ function Message({
   consecutive: boolean
 }) {
   const own = event.direction === 'inbound'
+  const { timeLabel } = useDisplayTime()
   const html = useMarkdown(parseMessage(event.display_text ?? event.text).text)
   const [error, setError] = useState('')
   const action = (work: Promise<unknown>) =>
@@ -1060,6 +1063,7 @@ function Reference({
   eventId: number
   onJump(reference: MessageReference): void
 }) {
+  const { dayLabel, timeLabel } = useDisplayTime()
   const home = useQuery({ queryKey: [id, 'home'], queryFn: () => read<Home>(id, { kind: 'home' }) })
   const event = useQuery({
     queryKey: [id, 'reference', conversation, eventId],
@@ -1100,19 +1104,3 @@ function Reference({
     </button>
   )
 }
-
-const displayZone = 'Asia/Taipei'
-const dayKey = (date: string) =>
-  new Date(date).toLocaleDateString('sv-SE', { timeZone: displayZone })
-const dayLabel = (date: string) =>
-  new Date(date).toLocaleDateString(undefined, {
-    timeZone: displayZone,
-    month: 'numeric',
-    day: 'numeric',
-  })
-const timeLabel = (date: string) =>
-  new Date(date).toLocaleTimeString(undefined, {
-    timeZone: displayZone,
-    hour: '2-digit',
-    minute: '2-digit',
-  })

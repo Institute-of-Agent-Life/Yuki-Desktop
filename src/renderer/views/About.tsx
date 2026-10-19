@@ -27,16 +27,8 @@ import { ClientProblem, hidesPrivateData, problemText, unwrap } from '../queries
 import styles from './About.module.css'
 import { CharacterAvatar } from '../components/CharacterAvatar'
 import { AvatarEditor, AvatarPending } from './AvatarEditor'
+import { useDisplayTime } from '../state/time'
 
-const date = (value: string | null) =>
-  value
-    ? new Date(value).toLocaleString(undefined, {
-        month: 'numeric',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : '—'
 const kinds = { fact: '記錄', preference: '偏好', episode: '經歷' }
 const states = {
   active: '已安排',
@@ -370,6 +362,7 @@ function Memories({
   busy: boolean
   jump: (source: MessageReference) => Promise<boolean>
 }) {
+  const { date } = useDisplayTime()
   const query = useQueryClient()
   const facts = useInfiniteQuery({
     queryKey: [id, 'memory', about],
@@ -583,6 +576,7 @@ function Arrangements({
   run: Run
   busy: boolean
 }) {
+  const { date } = useDisplayTime()
   const [selectedScope, setScope] = useState<'mine' | 'self'>('mine')
   const scope = owner ? selectedScope : 'mine'
   const [remove, setRemove] = useState<Automation>()

@@ -1,6 +1,12 @@
 import type { ConversationBridge } from './api'
 
 export type Theme = 'system' | 'light' | 'dark'
+export type DisplayTimeZone = 'Asia/Taipei' | 'system'
+export interface LoginItemState {
+  enabled: boolean
+  available: boolean
+  reason: 'install-required' | 'system-approval-required' | null
+}
 export type View = 'chat' | 'works' | 'computer' | 'files' | 'about' | 'settings'
 export type Command =
   | View
@@ -15,6 +21,7 @@ export type Command =
 
 export interface Preferences {
   theme: Theme
+  timeZone: DisplayTimeZone
   opaque: boolean
   reducedMotion: boolean
   highContrast: boolean
@@ -30,6 +37,7 @@ export interface Preferences {
 
 export const defaultPreferences: Preferences = {
   theme: 'system',
+  timeZone: 'Asia/Taipei',
   opaque: false,
   reducedMotion: false,
   highContrast: false,
@@ -65,6 +73,8 @@ export interface DesktopBridge {
   client: ConversationBridge
   boot(): Promise<BootInfo>
   preferences(patch: Partial<Preferences>): Promise<Preferences>
+  loginItem(enabled?: boolean): Promise<import('./api').ApiReply<LoginItemState>>
+  exportDiagnostics(): Promise<import('./api').ApiReply<boolean>>
   onCommand(callback: (command: Command) => void): () => void
   onLeaveRequest(callback: (requestId: string) => void): () => void
   leaveResponse(requestId: string, allowed: boolean): void

@@ -83,6 +83,11 @@ window.yuki = {
   },
   preferences: async (patch) => ({ ...defaultPreferences, ...patch }),
   onCommand: () => () => {},
+  exportDiagnostics: async () => ({ ok: true, value: false }),
+  loginItem: async () => ({
+    ok: true,
+    value: { enabled: false, available: false, reason: 'install-required' },
+  }),
   onLeaveRequest: () => () => {},
   leaveResponse: () => {},
   onTheme: () => () => {},

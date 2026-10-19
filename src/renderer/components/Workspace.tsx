@@ -178,8 +178,8 @@ export function Workspace(props: Props) {
         className={styles.nav}
         onClick={() => {
           requestNavigation(() => {
-            state.setView('settings')
-            props.onSettings?.()
+            if (props.onSettings) props.onSettings()
+            else state.setView('settings')
           })
         }}
       >

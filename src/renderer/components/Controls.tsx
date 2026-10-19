@@ -120,10 +120,12 @@ export function Toggle({
   label,
   checked,
   onChange,
+  disabled = false,
 }: {
   label: string
   checked: boolean
   onChange: (value: boolean) => void
+  disabled?: boolean
 }) {
   return (
     <button
@@ -131,6 +133,7 @@ export function Toggle({
       aria-label={label}
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       className={styles.toggle}
       onClick={() => onChange(!checked)}
     />

@@ -46,6 +46,18 @@ const artifactIdentity = (value: string) => {
 }
 
 export class Connections {
+  diagnosticCounts() {
+    const messages: Record<string, number> = {}
+    for (const box of this.outboxes.values()) {
+      const rows = box.db
+        .prepare(
+          "SELECT state, count(*) AS total FROM requests WHERE state IN ('draft','submitted','accepted','result') GROUP BY state",
+        )
+        .all() as { state: string; total: number }[]
+      for (const row of rows) messages[row.state] = (messages[row.state] ?? 0) + row.total
+    }
+    return { connections: this.list().length, subscriptions: this.streams.size, messages }
+  }
   onProfile?: (id: string, profile: Profile) => void
   readonly credentials: Credentials
   private readonly outboxes = new Map<string, Outbox>()

@@ -17,7 +17,9 @@ import {
 import { hidesPrivateData, problemText, unwrap } from '../queries/client'
 import { useWorkspace } from '../state/workspace'
 import styles from './Works.module.css'
-import { dateGroup } from '../../shared/time'
+import { formatDateTime } from '../../shared/time'
+import type { DisplayTimeZone } from '../../shared/desktop'
+import { useDisplayTime } from '../state/time'
 
 const terminal = (work: Work) => ['completed', 'failed', 'cancelled'].includes(work.state)
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
@@ -33,22 +35,15 @@ const states: Record<Work['state'], [Status, string]> = {
   cancelled: ['offline', '已取消'],
 }
 export const workState = (work: Work) => states[work.state]
-const time = (date: number | string) =>
-  new Date(typeof date === 'number' ? date * 1000 : date).toLocaleString(undefined, {
-    timeZone: 'Asia/Taipei',
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+const time = formatDateTime
 const source = (work: Work) =>
   work.source.platform === 'app'
     ? '桌面對話'
     : `${work.source.platform?.toUpperCase() ?? '原入口'} ${work.source.kind === 'group' ? '群' : '私聊'}${work.source.display_name ? ` · ${work.source.display_name}` : ''}`
-export function waitText(wait: Work['wait']): string {
+export function waitText(wait: Work['wait'], zone: DisplayTimeZone = 'Asia/Taipei'): string {
   if (!wait) return ''
   const parts = wait.conditions.map((condition) => {
-    if (condition.kind === 'time_due') return `等到 ${time(condition.due_at)}`
+    if (condition.kind === 'time_due') return `等到 ${time(condition.due_at, zone)}`
     if (condition.kind === 'conversation') return '等待新的訊息'
     if (condition.kind === 'plugin_event') return '等待外掛事件'
     return condition.run_kind === 'terminal'
@@ -63,7 +58,7 @@ export function waitText(wait: Work['wait']): string {
     (parts.length === 1
       ? parts[0]!
       : `等待${wait.mode === 'any' ? '其中一項' : '全部完成'}：${parts.slice(0, 2).join('、')}${parts.length > 2 ? ` 等 ${parts.length} 項` : ''}`) +
-    (wait.deadline_at ? ` · 最晚 ${time(wait.deadline_at)}` : '')
+    (wait.deadline_at ? ` · 最晚 ${time(wait.deadline_at, zone)}` : '')
   )
 }
 
@@ -76,6 +71,7 @@ export function WorkList({
   selected?: string
   open(workId: string): void
 }) {
+  const { zone, group: dateGroup } = useDisplayTime()
   const [origin, setOrigin] = useState<'all' | 'this_entry' | 'other'>('all')
   const query = useQueryClient()
   const active = useInfiniteQuery({
@@ -135,7 +131,7 @@ export function WorkList({
         </span>
         <span className={styles.goal}>{work.goal}</span>
         <small>{source(work)}</small>
-        <time>{time(work.updated_at)}</time>
+        <time>{time(work.updated_at, zone)}</time>
       </button>
     ))
   const scroll = (element: HTMLDivElement) => {
@@ -244,6 +240,7 @@ export function WorkDetail({
   artifact(source: ArtifactSource): void
   computer?: () => void
 }) {
+  const { zone } = useDisplayTime()
   const query = useQueryClient(),
     [cancel, setCancel] = useState<Work | null>(null)
   const work = useQuery({
@@ -320,7 +317,7 @@ export function WorkDetail({
               {data.reason || '已暫停'}。補充要求會送進原工作；是否繼續由 Yuki 依目前狀況決定。
             </Banner>
           )}
-          {data.wait && <p className={styles.secondary}>{waitText(data.wait)}</p>}
+          {data.wait && <p className={styles.secondary}>{waitText(data.wait, zone)}</p>}
           {data.waiting_question && (
             <div className={styles.question}>
               <p>{data.waiting_question.text}</p>
@@ -359,7 +356,7 @@ export function WorkDetail({
                           ? 'unknown'
                           : 'running'
                 }
-                time={time(step.updated_at)}
+                time={time(step.updated_at, zone)}
               />
             ))}
             {steps.hasNextPage && (
@@ -547,6 +544,7 @@ export function ConversationWork({
   reply(work: Work): void
   artifact(source: ArtifactSource): void
 }) {
+  const { zone } = useDisplayTime()
   const [cancel, setCancel] = useState<Work | null>(null)
   const workId = typeof work === 'string' ? work : work.work_id
   const detail = useQuery({
@@ -563,7 +561,7 @@ export function ConversationWork({
         title={data.goal}
         status={status}
         statusLabel={label}
-        detail={`${data.step_count ?? 0} 個步驟 · ${data.child_count} 個子工作${data.wait ? ` · ${waitText(data.wait)}` : ''}`}
+        detail={`${data.step_count ?? 0} 個步驟 · ${data.child_count} 個子工作${data.wait ? ` · ${waitText(data.wait, zone)}` : ''}`}
         question={data.waiting_question?.text}
         onOpen={() => open(data.work_id)}
         onReply={() => reply(data)}
