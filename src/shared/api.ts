@@ -149,6 +149,13 @@ export interface Connection {
   deviceId?: string
   needsPairing?: boolean
   credentialProblem?: string
+  logout?: { drafts: number; pending: number; attachments: number; choice?: 'keep' | 'delete' }
+}
+export interface LogoutSummary {
+  connection: Connection
+  drafts: number
+  pending: number
+  attachments: number
 }
 export interface OutboxOwner {
   characterId: string
@@ -213,6 +220,13 @@ export type ApiRead =
   | { kind: 'activity'; conversationId: string }
 
 export interface ConversationBridge {
+  prepareLogout(characterId: string): Promise<ApiReply<LogoutSummary>>
+  logoutSummary(characterId: string): Promise<ApiReply<LogoutSummary>>
+  finishLogout(
+    characterId: string,
+    deviceId: string,
+    choice: 'keep' | 'delete',
+  ): Promise<ApiReply<void>>
   issueLinkCode(characterId: string): Promise<ApiReply<LinkCodeReply>>
   linkCodeRequests(characterId: string): Promise<ApiReply<LinkCodeRequest[]>>
   verifyLinkCode(characterId: string, requestId: string): Promise<ApiReply<LinkCodeReply>>

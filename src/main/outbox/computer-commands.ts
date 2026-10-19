@@ -128,6 +128,9 @@ export class ComputerCommands {
     this.pending.set(id, task)
     return task
   }
+  settled() {
+    return Promise.allSettled(this.pending.values())
+  }
   private async dispatch(client: ApiClient, id: string, verify: boolean) {
     const item = this.get(id)
     if (item.state === 'result') return item

@@ -5,8 +5,15 @@ import { createServer, request as forward } from 'node:http'
 export async function forwardProxy(target: string, prefix: string) {
   const root = new URL(target)
   const calls: { path: string; method: string; bearer: boolean; requestId?: string }[] = []
-  const faults = { offline: false, holdReceipts: false, loseNextSuffix: '' }
+  const faults = {
+    offline: false,
+    holdReceipts: false,
+    holdRequestIds: new Set<string>(),
+    holdResponses: new Set<string>(),
+    loseNextSuffix: '',
+  }
   const lostStatuses: number[] = []
+  const held = new Map<string, (() => void)[]>()
   const server = createServer((req, res) => {
     const path = (req.url ?? '/').slice(prefix.length)
     const call = {
@@ -16,7 +23,11 @@ export async function forwardProxy(target: string, prefix: string) {
       requestId: undefined as string | undefined,
     }
     calls.push(call)
-    if (faults.offline || (faults.holdReceipts && path.includes('/requests/'))) {
+    if (
+      faults.offline ||
+      (path.includes('/requests/') &&
+        (faults.holdReceipts || faults.holdRequestIds.has(path.split('/').at(-1)!)))
+    ) {
       res.writeHead(503, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ problem: { code: 'unavailable' } }))
       return
@@ -51,7 +62,12 @@ export async function forwardProxy(target: string, prefix: string) {
           })
         } else {
           res.writeHead(response.statusCode!, response.headers)
-          response.pipe(res)
+          if (faults.holdResponses.has(path)) {
+            response.pause()
+            const pending = held.get(path) ?? []
+            pending.push(() => response.pipe(res))
+            held.set(path, pending)
+          } else response.pipe(res)
         }
       },
     )
@@ -69,6 +85,12 @@ export async function forwardProxy(target: string, prefix: string) {
     base: `http://127.0.0.1:${address.port}${prefix}`,
     calls,
     lostStatuses,
+    held,
+    releaseResponses(path: string) {
+      faults.holdResponses.delete(path)
+      held.get(path)?.forEach((resume) => resume())
+      held.delete(path)
+    },
     faults,
     close: () =>
       new Promise<void>((resolve) => {

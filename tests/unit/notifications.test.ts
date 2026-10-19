@@ -140,6 +140,7 @@ function setup(initial: Work[] = [work()]) {
   }
   const client = { connection: () => connection, read }
   return {
+    client,
     store,
     home,
     profile,
@@ -252,4 +253,35 @@ it('keeps proactive notification watermarks across restarts and honors disabled 
   facts.home.works = [work({ help_requested: true })]
   await service.wake(id)
   expect(facts.shown).toHaveLength(1)
+})
+
+it('pausing a role drains its pending read and suppresses both late notifications and their presentation watermark', async () => {
+  const fixture = setup([]),
+    notifications = fixture.create()
+  await notifications.wake(id)
+  const key = `notifications/${id}/${person}/${binding}`,
+    before = fixture.store.get(key)
+  fixture.events.items = [event(1, 'self_initiative')]
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => {
+      release = resolve
+    }),
+    original = fixture.client.read
+  fixture.client.read = async <T>(id: string, route: ApiRead, offline?: boolean) => {
+    await gate
+    return original<T>(id, route, offline)
+  }
+  const pending = notifications.wake(id),
+    pause = notifications.pause(id)
+  await notifications.wake(id)
+  release()
+  await pending
+  await pause
+  expect(fixture.shown).toEqual([])
+  expect(fixture.store.get(key)).toEqual(before)
+  fixture.client.read = original
+  notifications.resume(id)
+  await notifications.wake(id)
+  expect(fixture.shown).toHaveLength(1)
+  await notifications.close()
 })

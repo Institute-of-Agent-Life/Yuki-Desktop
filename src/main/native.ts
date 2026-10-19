@@ -15,7 +15,7 @@ import type { Profile } from '../shared/api'
 export class NativeShell {
   private tray: Tray | undefined
   private fallbackIcon: NativeImage | undefined
-  private readonly notices = new Set<Notification>()
+  private readonly notices = new Map<Notification, string>()
   private selected: string | undefined
   private readonly desired = new Map<string, { key: string; name: string }>()
   private readonly decorations = new Map<
@@ -112,7 +112,7 @@ export class NativeShell {
         this.decorations.get(notice.target.characterId)?.notification ??
         join(app.getAppPath(), 'resources/icons/app/128x128.png'),
     })
-    this.notices.add(notification)
+    this.notices.set(notification, notice.target.characterId)
     notification.once('click', () => {
       this.reveal()
       this.open(notice.target)
@@ -124,9 +124,23 @@ export class NativeShell {
   close() {
     this.tray?.destroy()
     this.tray = undefined
-    this.notices.forEach((notice) => notice.close())
+    this.notices.forEach((_, notice) => notice.close())
     this.notices.clear()
     this.decorations.clear()
     this.desired.clear()
+  }
+  forget(id: string) {
+    for (const [notice, owner] of this.notices)
+      if (owner === id) {
+        notice.close()
+        this.notices.delete(notice)
+      }
+    this.decorations.delete(id)
+    this.desired.delete(id)
+    if (this.selected === id) {
+      this.selected = undefined
+      if (this.tray && this.fallbackIcon) this.tray.setImage(this.fallbackIcon)
+      this.tray?.setToolTip('Yuki')
+    }
   }
 }

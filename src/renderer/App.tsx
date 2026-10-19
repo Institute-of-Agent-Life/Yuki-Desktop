@@ -7,12 +7,14 @@ import type { Connection } from '../shared/api'
 import { Pairing } from './views/Pairing'
 import { Conversation } from './views/Conversation'
 import { useWorkspace } from './state/workspace'
-import { problemText } from './queries/client'
+import { problemText, unwrap } from './queries/client'
 import { requestNavigation } from './state/navigation'
 import { TimeZoneContext } from './state/time'
 import { Settings } from './views/Settings'
+import { useQueryClient } from '@tanstack/react-query'
 
 export function App({ boot }: { boot: BootInfo }) {
+  const query = useQueryClient()
   const [step, setStep] = useState<'welcome' | 'server' | 'settings'>('welcome')
   const [preferences, setPreferences] = useState(boot.preferences)
   const [appearance, setAppearance] = useState(boot)
@@ -37,7 +39,10 @@ export function App({ boot }: { boot: BootInfo }) {
           setNavigationError('原角色的連線已移除。')
           return
         }
-        if (first?.needsPairing) {
+        if (first?.logout) {
+          setConnection(first)
+          setStep('settings')
+        } else if (first?.needsPairing) {
           setConnection(undefined)
           setPairingTarget(first)
         } else {
@@ -115,13 +120,32 @@ export function App({ boot }: { boot: BootInfo }) {
       <main className={styles.app}>
         <div className={styles.titlebar} />
         {navigationError && <Banner status="failed">{navigationError}</Banner>}
-        {step === 'settings' ? (
+        {step === 'settings' || connection?.logout ? (
           <Settings
             boot={boot}
             preferences={preferences}
             save={save}
             connection={connection}
             onConnection={setConnection}
+            onLoggedOut={async () => {
+              const previous = connection!
+              await query.cancelQueries({ queryKey: [previous.characterId] })
+              query.removeQueries({ queryKey: [previous.characterId] })
+              useWorkspace.getState().setView('chat')
+              setTarget(null)
+              setPairLink(null)
+              setNavigationError('')
+              const remaining = unwrap(await window.yuki.client.connections())
+              if (remaining[0]) {
+                setConnection(remaining[0])
+                setPairingTarget(undefined)
+                void window.yuki.client.selected(remaining[0].characterId)
+              } else {
+                setConnection(undefined)
+                setPairingTarget({ ...previous, logout: undefined, needsPairing: true })
+              }
+              setStep('welcome')
+            }}
             about={() => {
               useWorkspace.getState().setView('about')
               setStep('welcome')
@@ -150,7 +174,19 @@ export function App({ boot }: { boot: BootInfo }) {
             initialLink={pairLink}
             initialServer={pairingTarget?.baseUrl}
             reconnect={!!pairingTarget}
+            onResumeLogout={async (id) => {
+              const candidate = unwrap(await window.yuki.client.connections()).find(
+                (item) => item.characterId === id,
+              )
+              if (!candidate) throw new Error('原連線已處理完成，可以重新配對。')
+              setPairLink(null)
+              setPairingTarget(undefined)
+              setConnection(candidate)
+              setStep('settings')
+            }}
             onDone={(value) => {
+              void query.cancelQueries({ queryKey: [value.characterId] })
+              query.removeQueries({ queryKey: [value.characterId] })
               void window.yuki.client.selected(value.characterId)
               setConnection(value)
               setPairingTarget(undefined)

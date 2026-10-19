@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
+import { rm } from 'node:fs/promises'
 import type {
   ApiRead,
   AttachmentSource,
@@ -16,6 +17,7 @@ import type {
   PromptCommand,
   PromptDocuments,
   PromptEdit,
+  LogoutSummary,
 } from '../shared/api'
 import { REQUIRED_API_REVISION } from '../shared/api'
 import { ApiClient, ApiError, normalizeServer } from './api/client'
@@ -29,6 +31,7 @@ import { CharacterCommands } from './outbox/character-commands'
 import { AvatarCommands } from './outbox/avatar-commands'
 import { Prompts } from './outbox/prompts'
 import { LinkCodes } from './outbox/link-codes'
+import { localSummary } from './outbox/local-summary'
 import { ComputerTickets } from './computer-tickets'
 import type { LocalStore } from './store'
 import { Uploads } from './media/uploads'
@@ -78,6 +81,11 @@ export class Connections {
   private readonly promptReads = new Set<Promise<unknown>>()
   readonly computerTickets = new ComputerTickets()
   private closed = false
+  private readonly frozen = new Set<string>()
+  private readonly epochs = new Map<string, number>()
+  private readonly activities = new Map<string, Set<Promise<unknown>>>()
+  private readonly logouts = new Map<string, Promise<LogoutSummary>>()
+  private readonly finishes = new Map<string, { key: string; work: Promise<void> }>()
   constructor(
     readonly store: LocalStore,
     readonly root: string,
@@ -95,6 +103,191 @@ export class Connections {
   }
   list() {
     return this.store.get<Connection[]>('connections') ?? []
+  }
+  activity<T>(id: string, run: () => T | Promise<T>): Promise<T> {
+    if (this.frozen.has(id) || this.connection(id).logout)
+      return Promise.reject(new ApiError('logout_pending'))
+    return this.trackActivity(id, run)
+  }
+  private trackActivity<T>(id: string, run: () => T | Promise<T>): Promise<T> {
+    let active = this.activities.get(id)
+    if (!active) {
+      active = new Set()
+      this.activities.set(id, active)
+    }
+    const work = Promise.resolve()
+      .then(run)
+      .finally(() => active!.delete(work))
+    active.add(work)
+    return work
+  }
+  private freeze(id: string) {
+    this.epochs.set(id, (this.epochs.get(id) ?? 0) + 1)
+    this.frozen.add(id)
+    this.streams.get(id)?.abort()
+    this.streams.delete(id)
+    clearTimeout(this.retries.get(id))
+    this.retries.delete(id)
+  }
+  private async drain(id: string) {
+    await Promise.allSettled(this.activities.get(id) ?? [])
+    const connection = this.connection(id),
+      box = this.outboxes.get(`${id}/${connection.personId}/${connection.bindingId}`)
+    if (!box) return
+    await Promise.allSettled([
+      ...[...this.avatarReads].filter(([key]) => key.startsWith(id + '/')).map(([, work]) => work),
+      ...[...this.checking].filter(([key]) => key.startsWith(id + '/')).map(([, work]) => work),
+      this.uploadStores.get(box)?.settled(),
+      this.commandStores.get(box)?.settle(),
+      this.characterStores.get(box)?.settle(),
+      this.computerStores.get(box)?.settled(),
+      this.avatarStores.get(box)?.settle(),
+      this.promptStores.get(box)?.settled(),
+      this.linkCodeStores.get(box)?.settled(),
+    ])
+  }
+  logoutSummary(id: string): LogoutSummary {
+    const connection = this.connection(id)
+    if (!connection.logout) throw new ApiError('precondition_failed')
+    return {
+      connection,
+      drafts: connection.logout.drafts,
+      pending: connection.logout.pending,
+      attachments: connection.logout.attachments,
+    }
+  }
+  prepareLogout(id: string, pause: () => Promise<void> = async () => {}) {
+    const existing = this.logouts.get(id)
+    if (existing) return existing
+    const work = this.beginLogout(id, pause).finally(() => this.logouts.delete(id))
+    this.logouts.set(id, work)
+    return work
+  }
+  private async beginLogout(id: string, pause: () => Promise<void>) {
+    let connection = this.connection(id)
+    this.freeze(id)
+    try {
+      await pause()
+      await this.drain(id)
+      connection = this.connection(id)
+      if (!connection.logout) {
+        if (!connection.deviceId) throw new ApiError('precondition_failed')
+        await this.identify(id)
+        const client = this.client(id),
+          box = this.box(id)
+        let invalid = false
+        try {
+          await box.verifyOwner(client)
+        } catch (error) {
+          if (error instanceof ApiError && error.code === 'unauthenticated') invalid = true
+          else throw error
+        }
+        if (!invalid) {
+          const commands = this.characterCommands(id),
+            item = commands.prepare({ kind: 'device-revoke', deviceId: connection.deviceId })
+          const result = await commands.run(client, item.requestId, true)
+          if (result.state !== 'result' || result.problem) {
+            try {
+              await client.get<Me>('me')
+            } catch (error) {
+              if (error instanceof ApiError && error.code === 'unauthenticated') invalid = true
+              else throw error
+            }
+            if (!invalid) throw new ApiError(result.problem ?? 'unknown')
+          }
+        }
+        this.store.set(
+          'connections',
+          this.list().map((item) =>
+            item.characterId === id ? { ...item, logout: localSummary(box) } : item,
+          ),
+        )
+      }
+      return this.logoutSummary(id)
+    } catch (error) {
+      if (!this.connection(id).logout) {
+        this.frozen.delete(id)
+        this.start(id)
+      }
+      throw error
+    }
+  }
+  finishLogout(id: string, deviceId: string, choice: 'keep' | 'delete') {
+    const key = `${deviceId}/${choice}`,
+      previous = this.finishes.get(id)
+    if (previous)
+      return previous.key === key
+        ? previous.work
+        : Promise.reject(new ApiError('precondition_failed'))
+    const work = this.completeLogout(id, deviceId, choice).finally(() => this.finishes.delete(id))
+    this.finishes.set(id, { key, work })
+    return work
+  }
+  private async completeLogout(id: string, deviceId: string, choice: 'keep' | 'delete') {
+    const connection = this.connection(id)
+    if (
+      !connection.logout ||
+      connection.deviceId !== deviceId ||
+      !['keep', 'delete'].includes(choice)
+    )
+      throw new ApiError('precondition_failed')
+    this.freeze(id)
+    await this.drain(id)
+    if (connection.logout.choice && connection.logout.choice !== choice)
+      throw new ApiError('precondition_failed')
+    this.store.set(
+      'connections',
+      this.list().map((item) =>
+        item.characterId === id ? { ...item, logout: { ...connection.logout!, choice } } : item,
+      ),
+    )
+    const key = `${id}/${connection.personId}/${connection.bindingId}`,
+      box = this.outboxes.get(key)
+    const file = join(
+      this.root,
+      'connections',
+      uuid(id),
+      'outbox',
+      uuid(connection.personId),
+      uuid(connection.bindingId) + '.sqlite3',
+    )
+    if (box) {
+      box.db.close()
+      this.outboxes.delete(key)
+      this.uploadStores.delete(box)
+      this.commandStores.delete(box)
+      this.computerStores.delete(box)
+      this.characterStores.delete(box)
+      this.avatarStores.delete(box)
+      this.promptStores.delete(box)
+      this.linkCodeStores.delete(box)
+    }
+    if (choice === 'delete') {
+      await rm(
+        join(
+          this.root,
+          'connections',
+          uuid(id),
+          'uploads',
+          uuid(connection.personId),
+          uuid(connection.bindingId),
+        ),
+        { recursive: true, force: true },
+      )
+      await this.contentCache(id).clear()
+      for (const suffix of ['', '-wal', '-shm']) await rm(file + suffix, { force: true })
+    }
+    this.credentials.remove(`device/${id}/${connection.personId}`)
+    this.activities.delete(id)
+    this.identified.delete(id)
+    this.states.delete(id)
+    this.store.set(
+      'connections',
+      this.list().filter((item) => item.characterId !== id),
+    )
+    if (this.store.get<string>('selectedCharacterId') === id)
+      this.store.set('selectedCharacterId', null)
+    this.frozen.delete(id)
   }
   publicList() {
     const selected = this.store.get<string>('selectedCharacterId')
@@ -618,8 +811,20 @@ export class Connections {
     return pending
   }
   async pair(server: string, code: string, label: string) {
-    const baseUrl = normalizeServer(server),
+    const epochs = new Map(this.epochs),
+      baseUrl = normalizeServer(server),
       meta = await this.meta(baseUrl)
+    if (
+      (epochs.get(meta.character.id) ?? 0) !== (this.epochs.get(meta.character.id) ?? 0) ||
+      this.frozen.has(meta.character.id) ||
+      this.list().some((item) => item.characterId === meta.character.id && item.logout)
+    )
+      throw new ApiError('logout_pending')
+    return this.trackActivity(meta.character.id, () =>
+      this.pairVerified(baseUrl, meta, code, label),
+    )
+  }
+  private async pairVerified(baseUrl: string, meta: Meta, code: string, label: string) {
     const paired = await new ApiClient(baseUrl, undefined, undefined, this.version).post<{
       device_id: string
       token: string
@@ -805,6 +1010,7 @@ export class Connections {
     return pending
   }
   start(id: string) {
+    if (this.frozen.has(id) || this.connection(id).logout) return
     this.identified.delete(id)
     try {
       if (!this.credentials.get(`device/${id}/${this.connection(id).personId}`)) return
@@ -820,7 +1026,12 @@ export class Connections {
     this.retry(id, 1000)
   }
   private retry(id: string, delay: number) {
-    if (this.closed) return
+    if (
+      this.closed ||
+      this.frozen.has(id) ||
+      !this.list().some((item) => item.characterId === id && !item.logout)
+    )
+      return
     this.retries.set(
       id,
       setTimeout(() => {
@@ -935,12 +1146,16 @@ export class Connections {
     this.streams.forEach((controller) => controller.abort())
     this.retries.forEach((timer) => clearTimeout(timer))
     // Reads already in flight settle before their database is closed.
-    void Promise.allSettled([
+    return Promise.allSettled([
+      ...[...this.activities.values()].flatMap((active) => [...active]),
+      ...this.logouts.values(),
+      ...[...this.finishes.values()].map((value) => value.work),
       ...this.avatarReads.values(),
       ...this.promptReads,
       ...this.checking.values(),
       ...[...this.uploadStores.values()].map((uploads) => uploads.settled()),
       ...[...this.commandStores.values()].map((commands) => commands.settle()),
+      ...[...this.computerStores.values()].map((commands) => commands.settled()),
       ...[...this.characterStores.values()].map((commands) => commands.settle()),
       ...[...this.avatarStores.values()].map((commands) => commands.settle()),
       ...[...this.promptStores.values()].map((prompts) => prompts.settled()),

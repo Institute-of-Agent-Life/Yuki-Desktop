@@ -34,6 +34,7 @@ export function hidesPrivateData(error: unknown) {
   )
 }
 const messages: Record<string, string> = {
+  logout_pending: '請先完成這個角色的登出與本機資料選擇。',
   unsupported_image: '無法讀取這張圖片，請選擇 PNG、JPEG 或 WebP 圖片。',
   image_dimensions: '圖片尺寸不符，請重新裁切為 1024 × 1024 像素。',
   invalid_server: '請輸入完整的 http 或 https 伺服器位址。',

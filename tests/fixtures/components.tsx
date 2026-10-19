@@ -17,6 +17,9 @@ import '../../src/renderer/tokens.css'
 
 window.yuki = {
   client: {
+    prepareLogout: async () => ({ ok: false, code: 'fixture_only' }),
+    logoutSummary: async () => ({ ok: false, code: 'fixture_only' }),
+    finishLogout: async () => ({ ok: false, code: 'fixture_only' }),
     issueLinkCode: async () => ({ ok: false, code: 'fixture_only' }),
     linkCodeRequests: async () => ({ ok: true, value: [] }),
     verifyLinkCode: async () => ({ ok: false, code: 'fixture_only' }),

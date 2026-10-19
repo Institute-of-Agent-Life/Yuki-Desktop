@@ -10,6 +10,7 @@ export interface HeldComputer {
 export async function heldComputers(connections: Connections): Promise<HeldComputer[]> {
   const held: HeldComputer[] = []
   for (const connection of connections.list()) {
+    if (connection.logout) continue
     let offline = false
     let state: Pick<Computer, 'control'> | undefined
     try {

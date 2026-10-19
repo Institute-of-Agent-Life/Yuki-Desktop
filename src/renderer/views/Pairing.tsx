@@ -4,7 +4,7 @@ import type { Connection, Me, Meta } from '../../shared/api'
 import { parsePairing } from '../../shared/pairing'
 import { Banner, Button, TextField } from '../components/Controls'
 import { PairingAvatar } from '../components/CharacterAvatar'
-import { unwrap } from '../queries/client'
+import { ClientProblem, unwrap } from '../queries/client'
 import styles from '../App.module.css'
 
 export function Pairing({
@@ -13,12 +13,14 @@ export function Pairing({
   initialServer = '',
   reconnect = false,
   onDone,
+  onResumeLogout,
 }: {
   label: string
   initialLink: string | null
   initialServer?: string
   reconnect?: boolean
   onDone(connection: Connection): void
+  onResumeLogout(characterId: string): Promise<void>
 }) {
   const [step, setStep] = useState<'welcome' | 'server' | 'code' | 'person'>(
     initialServer ? 'server' : 'welcome',
@@ -31,6 +33,7 @@ export function Pairing({
     [connection, setConnection] = useState<Connection>()
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('')
+  const [pendingLogout, setPendingLogout] = useState<string>()
   const parsed = parsePairing(codeInput)
   const prefill = (link: string) => {
     const value = parsePairing(link)
@@ -47,10 +50,13 @@ export function Pairing({
   const run = async (action: () => Promise<void>) => {
     setBusy(true)
     setError('')
+    setPendingLogout(undefined)
     try {
       await action()
     } catch (error) {
       setError(error instanceof Error ? error.message : '操作未完成。')
+      if (error instanceof ClientProblem && error.code === 'logout_pending' && meta)
+        setPendingLogout(meta.character.id)
     } finally {
       setBusy(false)
     }
@@ -105,6 +111,11 @@ export function Pairing({
                 : '你在其他入口的對話與工作，也能在這裡接續。'}
         </p>
         {error && <Banner status="failed">{error}</Banner>}
+        {pendingLogout && (
+          <Button loading={busy} onClick={() => void run(() => onResumeLogout(pendingLogout))}>
+            處理登出中的本機資料
+          </Button>
+        )}
         {reconnect && (
           <Banner>請重新配對以讀取原本的連線。本機草稿與未確認請求仍保留在原入口。</Banner>
         )}

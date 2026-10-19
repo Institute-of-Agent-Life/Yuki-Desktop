@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
@@ -53,6 +53,7 @@ export function Settings({
   connection,
   onConnection,
   about,
+  onLoggedOut,
 }: {
   boot: BootInfo
   preferences: Preferences
@@ -61,12 +62,16 @@ export function Settings({
   connection?: Connection
   onConnection(connection: Connection): void
   about(): void
+  onLoggedOut(): Promise<void>
 }) {
-  const [category, setCategory] = useState<Category>('general'),
+  const [category, setCategory] = useState<Category>(connection?.logout ? 'security' : 'general'),
     [error, setError] = useState(''),
     [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const query = useQueryClient()
+  useEffect(() => {
+    if (connection?.logout) setCategory('security')
+  }, [connection?.logout])
   const login = useQuery({
     queryKey: ['desktop', 'login-item'],
     queryFn: () => window.yuki.loginItem().then(unwrap),
@@ -100,7 +105,7 @@ export function Settings({
   return (
     <section className={styles.settings} aria-label="設定">
       <header className={styles.header}>
-        <Button variant="plain" onClick={back}>
+        <Button variant="plain" onClick={back} disabled={!!connection?.logout}>
           <ArrowLeft size={16} />
           返回
         </Button>
@@ -281,7 +286,12 @@ export function Settings({
             </div>
           ) : category === 'security' ? (
             connection ? (
-              <DeviceSecurity key={connection.characterId} connection={connection} />
+              <DeviceSecurity
+                key={connection.characterId}
+                connection={connection}
+                onConnection={onConnection}
+                onLoggedOut={onLoggedOut}
+              />
             ) : (
               <p className={styles.notice}>配對角色後可管理本人的裝置。</p>
             )

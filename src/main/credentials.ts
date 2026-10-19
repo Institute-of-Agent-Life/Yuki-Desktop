@@ -40,4 +40,8 @@ export class Credentials {
       .run(key, safeStorage.encryptString(secret))
     return true
   }
+  remove(key: string) {
+    this.memory.delete(key)
+    this.store.db.prepare('DELETE FROM credentials WHERE key=?').run(key)
+  }
 }

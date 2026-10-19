@@ -22,6 +22,7 @@ export interface ClientNotice {
 export class ClientNotifications {
   private readonly pending = new Map<string, Promise<void>>()
   private readonly dirty = new Set<string>()
+  private readonly paused = new Set<string>()
   private closed = false
   constructor(
     readonly store: LocalStore,
@@ -29,7 +30,7 @@ export class ClientNotifications {
     readonly show: (notice: ClientNotice) => void,
   ) {}
   wake(id: string) {
-    if (this.closed) return Promise.resolve()
+    if (this.closed || this.paused.has(id)) return Promise.resolve()
     this.dirty.add(id)
     const previous = this.pending.get(id)
     if (previous) return previous
@@ -131,7 +132,7 @@ export class ClientNotifications {
         target: { characterId: id, view: 'chat', conversationId: connection.conversationId },
       })
     // These are local presentation watermarks, never command or delivery receipts.
-    if (this.closed) return
+    if (this.closed || this.paused.has(id)) return
     this.store.set(key, next)
     notices.forEach(this.show)
   }
@@ -139,5 +140,13 @@ export class ClientNotifications {
     this.closed = true
     this.dirty.clear()
     return Promise.allSettled(this.pending.values())
+  }
+  async pause(id: string) {
+    this.paused.add(id)
+    this.dirty.delete(id)
+    await this.pending.get(id)?.catch(() => {})
+  }
+  resume(id: string) {
+    this.paused.delete(id)
   }
 }

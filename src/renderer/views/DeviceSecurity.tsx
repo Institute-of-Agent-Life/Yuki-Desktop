@@ -7,8 +7,17 @@ import { hidesPrivateData, unwrap, problemText } from '../queries/client'
 import { useDisplayTime } from '../state/time'
 import { Row } from './Settings'
 import styles from './Settings.module.css'
+import { LogoutFlow } from './LogoutFlow'
 
-export function DeviceSecurity({ connection }: { connection: Connection }) {
+export function DeviceSecurity({
+  connection,
+  onConnection,
+  onLoggedOut,
+}: {
+  connection: Connection
+  onConnection(connection: Connection): void
+  onLoggedOut(): Promise<void>
+}) {
   const id = connection.characterId,
     query = useQueryClient(),
     { date } = useDisplayTime()
@@ -16,14 +25,17 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
     queryKey: [id, 'me'],
     queryFn: () => window.yuki.client.read<Me>(id, { kind: 'me' }).then(unwrap),
     retry: false,
+    enabled: !connection.logout,
   })
   const commands = useQuery({
     queryKey: [id, 'character-commands'],
     queryFn: () => window.yuki.client.characterCommands(id).then(unwrap),
+    enabled: !connection.logout,
   })
   const codes = useQuery({
     queryKey: [id, 'link-code-requests'],
     queryFn: () => window.yuki.client.linkCodeRequests(id).then(unwrap),
+    enabled: !connection.logout,
   })
   const [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
@@ -58,11 +70,11 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
     [],
   )
   useEffect(() => {
-    if (lost) {
+    if (lost || connection.logout) {
       close()
       setRevoke(undefined)
     }
-  }, [lost])
+  }, [lost, connection.logout])
   useEffect(
     () =>
       window.yuki.client.onHint((character, kind, hint) => {
@@ -176,82 +188,98 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
     ) ?? []
   return (
     <>
-      {me.isPending && <Spinner />}
-      {revoked && !me.isError && <Banner status="failed">{problemText('unauthenticated')}</Banner>}
-      {me.isError && <Banner status="failed">{me.error.message}</Banner>}
-      {error && <Banner status="failed">{error}</Banner>}
-      {notice && (
-        <p className={styles.notice} role="status">
-          {notice}
-        </p>
-      )}
-      <div className={styles.group}>
-        {data?.devices.map((device) => (
-          <Row
-            key={device.device_id}
-            title={`${device.label || '未命名裝置'}${device.device_id === connection.deviceId ? '（此裝置）' : ''}`}
-            description={`建立於 ${date(device.created_at)}${device.revoked_at ? ` · 已撤銷 ${date(device.revoked_at)}` : ''}`}
-          >
-            {device.revoked_at ? (
-              <span className={styles.notice}>已撤銷</span>
-            ) : device.device_id !== connection.deviceId ? (
-              <Button
-                disabled={
-                  busy ||
-                  pending.some(
-                    (item) =>
-                      item.command.kind === 'device-revoke' &&
-                      item.command.deviceId === device.device_id,
-                  )
-                }
-                onClick={() => setRevoke(device)}
-                aria-label={`撤銷 ${device.label || '未命名裝置'}`}
+      {connection.logout ? (
+        <LogoutFlow connection={connection} onConnection={onConnection} onLoggedOut={onLoggedOut} />
+      ) : (
+        <>
+          {me.isPending && <Spinner />}
+          {revoked && !me.isError && (
+            <Banner status="failed">{problemText('unauthenticated')}</Banner>
+          )}
+          {me.isError && <Banner status="failed">{me.error.message}</Banner>}
+          {error && <Banner status="failed">{error}</Banner>}
+          {notice && (
+            <p className={styles.notice} role="status">
+              {notice}
+            </p>
+          )}
+          <div className={styles.group}>
+            {data?.devices.map((device) => (
+              <Row
+                key={device.device_id}
+                title={`${device.label || '未命名裝置'}${device.device_id === connection.deviceId ? '（此裝置）' : ''}`}
+                description={`建立於 ${date(device.created_at)}${device.revoked_at ? ` · 已撤銷 ${date(device.revoked_at)}` : ''}`}
               >
-                撤銷…
-              </Button>
-            ) : (
-              <span className={styles.notice}>使用中</span>
-            )}
-          </Row>
-        ))}
-      </div>
-      <Button disabled={busy} onClick={() => void refresh()}>
-        重新讀取裝置
-      </Button>
-      {pending.map((item) => (
-        <div className={styles.actions} key={item.requestId}>
-          <p className={styles.notice}>裝置撤銷：結果尚未確認。</p>
-          <Button
-            loading={busy}
-            onClick={() => {
-              if (item.command.kind === 'device-revoke')
-                void revokeDevice(item.command.deviceId, item.requestId)
-            }}
-          >
-            查證原撤銷請求
-          </Button>
-        </div>
-      ))}
-      <h3>連接另一台裝置</h3>
-      <p className={styles.notice}>綁定碼在 10 分鐘內可使用一次，請勿分享給他人。</p>
-      <Button disabled={busy || !data} onClick={() => void issue()}>
-        產生綁定碼
-      </Button>
-      {codes.data?.at(-1) && (
-        <Button disabled={busy || !data} onClick={() => void issue(codes.data!.at(-1)!.requestId)}>
-          查看上次發碼結果
-        </Button>
-      )}
-      {codes.data
-        ?.filter((item) => item.state !== 'result')
-        .map((item) => (
-          <div className={styles.actions} key={item.requestId}>
-            <p className={styles.notice}>發碼結果尚未確認，原請求已保留。</p>
-            <Button loading={busy} onClick={() => void issue(item.requestId)}>
-              查證原發碼請求
-            </Button>
+                {device.revoked_at ? (
+                  <span className={styles.notice}>已撤銷</span>
+                ) : device.device_id !== connection.deviceId ? (
+                  <Button
+                    disabled={
+                      busy ||
+                      pending.some(
+                        (item) =>
+                          item.command.kind === 'device-revoke' &&
+                          item.command.deviceId === device.device_id,
+                      )
+                    }
+                    onClick={() => setRevoke(device)}
+                    aria-label={`撤銷 ${device.label || '未命名裝置'}`}
+                  >
+                    撤銷…
+                  </Button>
+                ) : (
+                  <span className={styles.notice}>使用中</span>
+                )}
+              </Row>
+            ))}
           </div>
-        ))}
+          <Button disabled={busy} onClick={() => void refresh()}>
+            重新讀取裝置
+          </Button>
+          {pending.map((item) => (
+            <div className={styles.actions} key={item.requestId}>
+              <p className={styles.notice}>裝置撤銷：結果尚未確認。</p>
+              <Button
+                loading={busy}
+                onClick={() => {
+                  if (item.command.kind === 'device-revoke')
+                    void revokeDevice(item.command.deviceId, item.requestId)
+                }}
+              >
+                查證原撤銷請求
+              </Button>
+            </div>
+          ))}
+          <h3>連接另一台裝置</h3>
+          <p className={styles.notice}>綁定碼在 10 分鐘內可使用一次，請勿分享給他人。</p>
+          <Button disabled={busy || !data} onClick={() => void issue()}>
+            產生綁定碼
+          </Button>
+          {codes.data?.at(-1) && (
+            <Button
+              disabled={busy || !data}
+              onClick={() => void issue(codes.data!.at(-1)!.requestId)}
+            >
+              查看上次發碼結果
+            </Button>
+          )}
+          {codes.data
+            ?.filter((item) => item.state !== 'result')
+            .map((item) => (
+              <div className={styles.actions} key={item.requestId}>
+                <p className={styles.notice}>發碼結果尚未確認，原請求已保留。</p>
+                <Button loading={busy} onClick={() => void issue(item.requestId)}>
+                  查證原發碼請求
+                </Button>
+              </div>
+            ))}
+          <LogoutFlow
+            connection={connection}
+            onConnection={onConnection}
+            onLoggedOut={onLoggedOut}
+          />
+        </>
+      )}
       <Sheet
         title="撤銷裝置？"
         open={!!revoke}

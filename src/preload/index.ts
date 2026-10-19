@@ -3,6 +3,9 @@ import type { BootInfo, Command, DesktopBridge } from '../shared/desktop'
 
 const bridge: DesktopBridge = {
   client: {
+    prepareLogout: (id) => ipcRenderer.invoke('yuki:prepare-logout', id),
+    logoutSummary: (id) => ipcRenderer.invoke('yuki:logout-summary', id),
+    finishLogout: (id, device, choice) => ipcRenderer.invoke('yuki:finish-logout', id, device, choice),
     issueLinkCode: (id) => ipcRenderer.invoke('yuki:issue-link-code', id),
     linkCodeRequests: (id) => ipcRenderer.invoke('yuki:link-code-requests', id),
     verifyLinkCode: (id, request) => ipcRenderer.invoke('yuki:verify-link-code', id, request),

@@ -272,12 +272,35 @@ else {
         }
       })
     }
+    const clientAction = <A extends unknown[], T>(
+      name: string,
+      run: (id: string, ...args: A) => T | Promise<T>,
+    ) => action(name, (id: string, ...args: A) => connections.activity(id, () => run(id, ...args)))
     action('connections', () => connections.publicList())
-    action('issue-link-code', (id: string) => connections.issueLinkCode(id))
-    action('link-code-requests', (id: string) => connections.linkCodes(id).list())
-    action('verify-link-code', (id: string, request: string) => connections.verifyLinkCode(id, request))
-    action('server-info', (id: string) => connections.serverInfo(id))
-    action('change-address', (id: string, server: string) => connections.changeAddress(id, server))
+    action('prepare-logout', async (id: string) => {
+      try {
+        return await connections.prepareLogout(id, () => notifications.pause(id))
+      } catch (error) {
+        notifications.resume(id)
+        throw error
+      }
+    })
+    action('logout-summary', (id: string) => connections.logoutSummary(id))
+    action('finish-logout', async (id: string, deviceId: string, choice: 'keep' | 'delete') => {
+      await connections.finishLogout(id, deviceId, choice)
+      native.forget(id)
+      if (openTarget?.characterId === id) openTarget = null
+    })
+
+    clientAction('issue-link-code', (id: string) => connections.issueLinkCode(id))
+    clientAction('link-code-requests', (id: string) => connections.linkCodes(id).list())
+    clientAction('verify-link-code', (id: string, request: string) =>
+      connections.verifyLinkCode(id, request),
+    )
+    clientAction('server-info', (id: string) => connections.serverInfo(id))
+    clientAction('change-address', (id: string, server: string) =>
+      connections.changeAddress(id, server),
+    )
     action('export-diagnostics', async () => {
       const result = await dialog.showSaveDialog(win!, {
         title: '匯出診斷記錄',
@@ -381,21 +404,22 @@ else {
     action('meta', (server: string) => connections.meta(server))
     action('pair', async (server: string, code: string, label: string) => {
       const result = await connections.pair(server, code, label)
+      notifications.resume(result.characterId)
       pairLink = null
       return result
     })
-    action('read', (id: string, route: ApiRead) => connections.read(id, route))
-    action('prompt-documents', (id: string) => connections.promptDocuments(id))
-    action('prompt-edit', (id: string, edit: PromptEdit) => connections.promptEdit(id, edit))
-    action('prompt-drafts', (id: string) => connections.prompts(id).drafts())
-    action('prompt-command', (id: string, command: PromptCommand) =>
+    clientAction('read', (id: string, route: ApiRead) => connections.read(id, route))
+    clientAction('prompt-documents', (id: string) => connections.promptDocuments(id))
+    clientAction('prompt-edit', (id: string, edit: PromptEdit) => connections.promptEdit(id, edit))
+    clientAction('prompt-drafts', (id: string) => connections.prompts(id).drafts())
+    clientAction('prompt-command', (id: string, command: PromptCommand) =>
       connections.promptCommand(id, command),
     )
-    action('prompt-commands', (id: string) => connections.prompts(id).list())
-    action('verify-prompt-command', (id: string, request: string) =>
+    clientAction('prompt-commands', (id: string) => connections.prompts(id).list())
+    clientAction('verify-prompt-command', (id: string, request: string) =>
       connections.verifyPromptCommand(id, request),
     )
-    action(
+    clientAction(
       'letter-decoration',
       (id: string, revision: number, avatarRevision: number, bytes: Uint8Array) => {
         const profile = connections.box(id).cached<Profile>('character')
@@ -472,32 +496,32 @@ else {
       if (image.isEmpty()) throw new ApiError('unsupported_image')
       return { filename: '剪貼簿圖片.png', bytes: image.toPNG() }
     })
-    action('avatar-bytes', (id: string, sha: string, size: number) =>
+    clientAction('avatar-bytes', (id: string, sha: string, size: number) =>
       connections.avatarBytes(id, sha, size),
     )
     action('preview-avatar', (server: string) => connections.previewAvatar(server))
-    action('avatar-command', (id: string, revision: number, bytes?: Uint8Array) =>
+    clientAction('avatar-command', (id: string, revision: number, bytes?: Uint8Array) =>
       connections.avatarCommand(id, revision, bytes),
     )
-    action('avatar-commands', (id: string) => connections.avatarCommands(id).list())
-    action('avatar-draft', (id: string, request: string) =>
+    clientAction('avatar-commands', (id: string) => connections.avatarCommands(id).list())
+    clientAction('avatar-draft', (id: string, request: string) =>
       connections.avatarCommands(id).draft(request),
     )
-    action('acknowledge-avatar-command', (id: string, request: string) =>
+    clientAction('acknowledge-avatar-command', (id: string, request: string) =>
       connections.avatarCommands(id).acknowledge(request),
     )
-    action('verify-avatar-command', (id: string, request: string) =>
+    clientAction('verify-avatar-command', (id: string, request: string) =>
       connections.verifyAvatarCommand(id, request),
     )
-    action('character-command', (id: string, command: CharacterCommand) =>
+    clientAction('character-command', (id: string, command: CharacterCommand) =>
       connections.characterCommand(id, command),
     )
-    action('character-commands', (id: string) => connections.characterCommands(id).list())
-    action('verify-character-command', (id: string, request: string) =>
+    clientAction('character-commands', (id: string) => connections.characterCommands(id).list())
+    clientAction('verify-character-command', (id: string, request: string) =>
       connections.verifyCharacterCommand(id, request),
     )
-    action('computer-ticket', (id: string) => connections.computerTicket(id))
-    action('save-computer-file', async (id: string, path: string) => {
+    clientAction('computer-ticket', (id: string) => connections.computerTicket(id))
+    clientAction('save-computer-file', async (id: string, path: string) => {
       const item = await connections.computerFile(id, path)
       const target = await dialog.showSaveDialog(win!, {
         defaultPath: item.filename ?? basename(path),
@@ -506,15 +530,15 @@ else {
       await item.cache.save(item.path, item.sha256, target.filePath)
       return true
     })
-    action('computer-command', (id: string, command: ComputerCommand) =>
+    clientAction('computer-command', (id: string, command: ComputerCommand) =>
       connections.computerCommand(id, command),
     )
-    action('computer-commands', (id: string) => connections.computerCommands(id).list())
-    action('verify-computer-command', (id: string, request: string) =>
+    clientAction('computer-commands', (id: string) => connections.computerCommands(id).list())
+    clientAction('verify-computer-command', (id: string, request: string) =>
       connections.verifyComputerCommand(id, request),
     )
     action('keyboard-capture', (captured: boolean) => setKeyboardCapture(win!, captured))
-    action('save-screenshot', async (id: string, bytes: Uint8Array) => {
+    clientAction('save-screenshot', async (id: string, bytes: Uint8Array) => {
       const connection = connections.connection(id)
       const image = nativeImage.createFromBuffer(Buffer.from(bytes))
       if (image.isEmpty()) throw new ApiError('validation_error')
@@ -526,21 +550,21 @@ else {
       await writeFile(result.filePath, image.toPNG())
       return true
     })
-    action('send', (id: string, text: string, uploads?: string[]) =>
+    clientAction('send', (id: string, text: string, uploads?: string[]) =>
       connections.send(id, text, uploads),
     )
-    action('uploads', (id: string) => connections.uploads(id).list())
-    action('work-command', (id: string, command: WorkCommand) =>
+    clientAction('uploads', (id: string) => connections.uploads(id).list())
+    clientAction('work-command', (id: string, command: WorkCommand) =>
       connections.workCommand(id, command),
     )
-    action('work-commands', (id: string) => connections.commands(id).list())
-    action('verify-work-command', (id: string, request: string) =>
+    clientAction('work-commands', (id: string) => connections.commands(id).list())
+    clientAction('verify-work-command', (id: string, request: string) =>
       connections.verifyWorkCommand(id, request),
     )
-    action('work-draft', (id: string, work: string, text?: string) =>
+    clientAction('work-draft', (id: string, work: string, text?: string) =>
       connections.commands(id).draft(work, text),
     )
-    action('attach', async (id: string) => {
+    clientAction('attach', async (id: string) => {
       const picked = await dialog.showOpenDialog(win!, {
         title: '附加檔案',
         properties: ['openFile', 'multiSelections'],
@@ -549,17 +573,21 @@ else {
         ? connections.uploads(id).list()
         : connections.stage(id, picked.filePaths)
     })
-    action('drop', (id: string, paths: string[]) => connections.stage(id, paths))
-    action('record', (id: string, bytes: Uint8Array) => connections.record(id, bytes))
-    action('retry-upload', (id: string, request: string) => connections.retryUpload(id, request))
-    action('remove-upload', (id: string, request: string) => {
+    clientAction('drop', (id: string, paths: string[]) => connections.stage(id, paths))
+    clientAction('record', (id: string, bytes: Uint8Array) => connections.record(id, bytes))
+    clientAction('retry-upload', (id: string, request: string) =>
+      connections.retryUpload(id, request),
+    )
+    clientAction('remove-upload', (id: string, request: string) => {
       connections.uploads(id).remove(request)
     })
-    action('content', (id: string, source: AttachmentSource) => connections.content(id, source))
-    action('artifact-content', (id: string, source: ArtifactSource) =>
+    clientAction('content', (id: string, source: AttachmentSource) =>
+      connections.content(id, source),
+    )
+    clientAction('artifact-content', (id: string, source: ArtifactSource) =>
       connections.artifactContent(id, source),
     )
-    action('save-artifact', async (id: string, source: ArtifactSource) => {
+    clientAction('save-artifact', async (id: string, source: ArtifactSource) => {
       const content = await connections.artifact(id, source)
       const picked = await dialog.showSaveDialog(win!, {
         title: '存到…',
@@ -571,7 +599,7 @@ else {
       connections.savedArtifact(id, source, picked.filePath)
       return true
     })
-    action('reveal-artifact', async (id: string, source: ArtifactSource) => {
+    clientAction('reveal-artifact', async (id: string, source: ArtifactSource) => {
       const path = connections.savedArtifact(id, source)
       if (!path) throw new ApiError('local_file_missing')
       try {
@@ -581,7 +609,7 @@ else {
       }
       shell.showItemInFolder(path)
     })
-    action('open-artifact', async (id: string, source: ArtifactSource) => {
+    clientAction('open-artifact', async (id: string, source: ArtifactSource) => {
       const content = await connections.artifact(id, source)
       const directory = join(content.cache.root, 'open', content.sha256, randomUUID())
       await mkdir(directory, { recursive: true, mode: 0o700 })
@@ -590,7 +618,7 @@ else {
       const error = await shell.openPath(path)
       if (error) throw new ApiError('open_failed')
     })
-    action('save-content', async (id: string, source: AttachmentSource) => {
+    clientAction('save-content', async (id: string, source: AttachmentSource) => {
       const content = await connections.attachment(id, source)
       const picked = await dialog.showSaveDialog(win!, {
         title: '存成檔案',
@@ -609,9 +637,9 @@ else {
         throw new ApiError('microphone_denied')
       microphoneRequested = true
     })
-    action('outbox', (id: string) => connections.box(id).list())
-    action('verify', (id: string, requestId: string) => connections.verify(id, requestId))
-    action('draft', (id: string, text?: string) => connections.box(id).draft(text))
+    clientAction('outbox', (id: string) => connections.box(id).list())
+    clientAction('verify', (id: string, requestId: string) => connections.verify(id, requestId))
+    clientAction('draft', (id: string, text?: string) => connections.box(id).draft(text))
     for (const connection of connections.list()) connections.start(connection.characterId)
     const appearance = () => ({
       dark: nativeTheme.shouldUseDarkColors,
@@ -719,10 +747,10 @@ else {
     })
     app.on('will-quit', () => {
       native.close()
-      void notifications.close().then(() => {
-        connections.close()
-        store.db.close()
-      })
+      void notifications
+        .close()
+        .then(() => connections.close())
+        .then(() => store.db.close())
     })
   })
 }
