@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { ApiClient } from '../../src/main/api/client'
-import { problemText } from '../../src/renderer/queries/client'
+import { ClientProblem, problemText } from '../../src/renderer/queries/client'
 
 const codes = JSON.parse(
   readFileSync(new URL('../../contracts/client-api.openapi.json', import.meta.url), 'utf8'),
@@ -17,3 +17,26 @@ it.each(codes)('keeps the public problem code %s and provides a readable message
   await expect(client.get('home')).rejects.toMatchObject({ code })
   expect(problemText(code)).not.toContain('操作未完成（')
 })
+it.each([
+  ['expired', '已過期'],
+  ['cleaned', '已清理'],
+  ['source_unavailable', '無法從原平台取得'],
+  ['source_changed', '原附件已變更，請重新讀取訊息。'],
+])(
+  'preserves media reason %s through the API error and readable UI message',
+  async (reason, message) => {
+    const client = new ApiClient(
+      'http://localhost',
+      undefined,
+      undefined,
+      '1.0.0-beta.1',
+      async () =>
+        Response.json({ problem: { code: 'media_unavailable', reason } }, { status: 409 }),
+    )
+    await expect(client.get('attachment')).rejects.toMatchObject({
+      code: 'media_unavailable',
+      reason,
+    })
+    expect(new ClientProblem('media_unavailable', reason).message).toBe(message)
+  },
+)

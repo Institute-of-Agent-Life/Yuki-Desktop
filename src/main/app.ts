@@ -9,15 +9,16 @@ import {
   protocol,
   session,
   shell,
+  systemPreferences,
 } from 'electron'
 import { hostname } from 'node:os'
-import { join, resolve, sep } from 'node:path'
+import { basename, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createWindow } from './windows'
 import { installMenu } from './menu'
 import { LocalStore } from './store'
 import type { BootInfo, Preferences } from '../shared/desktop'
-import type { ApiRead, ApiReply } from '../shared/api'
+import type { ApiRead, ApiReply, AttachmentSource } from '../shared/api'
 import { Connections } from './connections'
 import { ApiError } from './api/client'
 
@@ -68,13 +69,23 @@ else {
         responseHeaders: {
           ...details.responseHeaders,
           'Content-Security-Policy': [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'self' blob:",
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'self' blob:",
           ],
         },
       })
     })
-    session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) =>
-      callback(false),
+    let microphoneRequested = false
+    session.defaultSession.setPermissionRequestHandler(
+      (contents, permission, callback, details) => {
+        const audio =
+          microphoneRequested &&
+          contents === win?.webContents &&
+          permission === 'media' &&
+          'mediaTypes' in details &&
+          details.mediaTypes?.every((type) => type === 'audio') === true
+        if (audio) microphoneRequested = false
+        callback(audio)
+      },
     )
     const authorize = (event: Electron.IpcMainInvokeEvent) => {
       if (
@@ -96,7 +107,11 @@ else {
         try {
           return { ok: true, value: await run(...args) }
         } catch (error) {
-          return { ok: false, code: error instanceof ApiError ? error.code : 'unknown' }
+          return {
+            ok: false,
+            code: error instanceof ApiError ? error.code : 'unknown',
+            ...(error instanceof ApiError && error.reason ? { reason: error.reason } : {}),
+          }
         }
       })
     }
@@ -126,7 +141,45 @@ else {
       return result
     })
     action('read', (id: string, route: ApiRead) => connections.read(id, route))
-    action('send', (id: string, text: string) => connections.send(id, text))
+    action('send', (id: string, text: string, uploads?: string[]) =>
+      connections.send(id, text, uploads),
+    )
+    action('uploads', (id: string) => connections.uploads(id).list())
+    action('attach', async (id: string) => {
+      const picked = await dialog.showOpenDialog(win!, {
+        title: '附加檔案',
+        properties: ['openFile', 'multiSelections'],
+      })
+      return picked.canceled
+        ? connections.uploads(id).list()
+        : connections.stage(id, picked.filePaths)
+    })
+    action('drop', (id: string, paths: string[]) => connections.stage(id, paths))
+    action('record', (id: string, bytes: Uint8Array) => connections.record(id, bytes))
+    action('retry-upload', (id: string, request: string) => connections.retryUpload(id, request))
+    action('remove-upload', (id: string, request: string) => {
+      connections.uploads(id).remove(request)
+    })
+    action('content', (id: string, source: AttachmentSource) => connections.content(id, source))
+    action('save-content', async (id: string, source: AttachmentSource) => {
+      const content = await connections.attachment(id, source)
+      const picked = await dialog.showSaveDialog(win!, {
+        title: '存成檔案',
+        defaultPath: basename(content.filename),
+      })
+      if (picked.canceled || !picked.filePath) return false
+      const current = await connections.attachment(id, source)
+      await current.cache.save(current.path, current.sha256, picked.filePath)
+      return true
+    })
+    action('microphone', async () => {
+      if (
+        process.platform === 'darwin' &&
+        !(await systemPreferences.askForMediaAccess('microphone'))
+      )
+        throw new ApiError('microphone_denied')
+      microphoneRequested = true
+    })
     action('outbox', (id: string) => connections.box(id).list())
     action('verify', (id: string, requestId: string) => connections.verify(id, requestId))
     action('draft', (id: string, text?: string) => connections.box(id).draft(text))

@@ -5,6 +5,7 @@ import { openSync, closeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createServer } from 'node:net'
+import { pairUI } from '../fixtures/backend'
 
 test('actual Yuki container: pairing, real ledger reply, lost response, cold recovery and draft', async () => {
   const backend = process.env.YUKI_BACKEND_TEST_ROOT,
@@ -121,10 +122,31 @@ test('actual Yuki container: pairing, real ledger reply, lost response, cold rec
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(composer).toHaveValue('')
     await composer.fill('尚未送出的草稿')
-    await app.close()
+    await expect
+      .poll(() =>
+        page.evaluate(async () => {
+          const connections = await window.yuki.client.connections()
+          if (!connections.ok || !connections.value[0]) return ''
+          const draft = await window.yuki.client.draft(connections.value[0].characterId)
+          return draft.ok ? draft.value : ''
+        }),
+      )
+      .toBe('尚未送出的草稿')
+    const process = app.process()
+    const stopped = new Promise<void>((resolve) => process.once('exit', () => resolve()))
+    process.kill('SIGKILL')
+    await stopped
+    app = undefined
     app = await launch()
     page = await app.firstWindow()
     composer = page.getByRole('textbox', { name: '和 Yuki 說點什麼' })
+    await expect(composer.or(page.getByLabel('伺服器位址'))).toBeVisible()
+    if (await page.getByLabel('伺服器位址').isVisible()) {
+      const code = (await (await fetch(`${base}/__test/link-code`, { method: 'POST' })).json()) as {
+        code: string
+      }
+      await pairUI(page, base, code.code)
+    }
     await expect(composer).toHaveValue('尚未送出的草稿')
     await expect(page.getByText('原回應遺失的訊息', { exact: true })).toBeVisible()
     await expect

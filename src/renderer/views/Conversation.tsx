@@ -8,6 +8,7 @@ import type {
   OutboxItem,
   Profile,
   PublicEvent,
+  AttachmentSource,
 } from '../../shared/api'
 import type { Preferences } from '../../shared/desktop'
 import { Composer } from '../components/Composer'
@@ -18,6 +19,9 @@ import { useWorkspace } from '../state/workspace'
 import { useCommands } from '../state/commands'
 import styles from './Conversation.module.css'
 import { parseMessage, referencedMessage, type MessageReference } from '../../shared/message'
+import { AttachmentPreview, DraftAttachments, MessageAttachment } from './Media'
+import { VoiceRecorder } from './VoiceRecorder'
+import mediaStyles from './Media.module.css'
 
 const markdown = new MarkdownIt({ html: false, linkify: false, breaks: true, typographer: false })
 markdown.disable(['image', 'html_block', 'html_inline'])
@@ -45,6 +49,11 @@ export function Conversation({
   const [conversation, setConversation] = useState(connection.conversationId),
     [draft, setDraft] = useState('')
   const currentDraft = useRef(draft)
+  const [preview, setPreview] = useState<AttachmentSource>(),
+    [dragging, setDragging] = useState(false),
+    [mediaError, setMediaError] = useState(''),
+    [recording, setRecording] = useState(false)
+  const finishRecording = useRef<(() => void) | undefined>(undefined)
   const [online, setOnline] = useState<'connecting' | 'online' | 'offline'>('connecting'),
     [connectionProblem, setConnectionProblem] = useState('')
   const [references, setReferences] = useState<MessageReference[]>([]),
@@ -63,6 +72,10 @@ export function Conversation({
   const outbox = useQuery({
     queryKey: [id, 'outbox'],
     queryFn: () => window.yuki.client.outbox(id).then(unwrap),
+  })
+  const uploads = useQuery({
+    queryKey: [id, 'uploads'],
+    queryFn: () => window.yuki.client.uploads(id).then(unwrap),
   })
   const events = useQuery({
     queryKey: [id, 'events', conversation],
@@ -108,7 +121,40 @@ export function Conversation({
     void query.invalidateQueries({ queryKey: [id, 'events'] })
     void query.invalidateQueries({ queryKey: [id, 'reference'] })
     void query.invalidateQueries({ queryKey: [id, 'outbox'] })
+    void query.invalidateQueries({ queryKey: [id, 'uploads'] })
+    void query.invalidateQueries({ queryKey: [id, 'content'] })
   }, [id, query])
+  useEffect(() => {
+    const deadlines = (eventData?.items ?? [])
+      .flatMap((event) =>
+        event.attachments.map((item) => (item.expires_at ? Date.parse(item.expires_at) : NaN)),
+      )
+      .filter((time) => time > Date.now())
+    if (!deadlines.length) return
+    const timer = setTimeout(
+      refresh,
+      Math.min(Math.max(1, Math.min(...deadlines) - Date.now()), 2147483647),
+    )
+    return () => clearTimeout(timer)
+  }, [eventData, refresh])
+  const finishVoice = useCallback(() => {
+    setRecording(false)
+    refresh()
+  }, [refresh])
+  const cancelVoice = useCallback(() => setRecording(false), [])
+  const mediaAction = async (work: Promise<unknown>) => {
+    try {
+      setMediaError('')
+      await work
+      refresh()
+    } catch (error) {
+      setMediaError(error instanceof Error ? error.message : '無法附加檔案。')
+    }
+  }
+  const openAttachment = (source: AttachmentSource) => {
+    setPreview(source)
+    useWorkspace.setState({ inspector: true })
+  }
   useEffect(() => {
     const wake = () => {
       void window.yuki.client.reconnect()
@@ -211,7 +257,13 @@ export function Conversation({
     const submittedDraft = currentDraft.current
     const sentReferences = currentReferences.current
     const text = referencedMessage(sentReferences, submittedDraft)
-    unwrap(await window.yuki.client.send(id, text))
+    unwrap(
+      await window.yuki.client.send(
+        id,
+        text,
+        uploads.data?.map((item) => item.requestId),
+      ),
+    )
     if (currentDraft.current === submittedDraft) {
       currentDraft.current = ''
       setDraft('')
@@ -247,9 +299,7 @@ export function Conversation({
   const entry = homeData?.entries.find((item) => item.conversation_id === conversation)
   const pending = isMain
     ? (outbox.data ?? []).filter(
-        (item) =>
-          (item.state !== 'result' || item.problem) &&
-          (!item.eventId || !eventData?.items.some((event) => event.event_id === item.eventId)),
+        (item) => (item.state !== 'result' || item.problem) && !item.eventId,
       )
     : []
   const visible = (eventData?.items ?? []).filter(
@@ -286,24 +336,28 @@ export function Conversation({
         </>
       }
       inspector={
-        <div className={styles.inspector}>
-          <h3>
-            {isMain ? '桌面對話' : `${entry?.platform.toUpperCase()} · ${entry?.display_name}`}
-          </h3>
-          <p>這裡的內容來自原入口的對話紀錄。</p>
-          {outbox.data
-            ?.filter((item) => item.state !== 'result' || item.problem)
-            .map((item) => (
-              <Pending
-                key={item.requestId}
-                item={item}
-                verify={async () => {
-                  unwrap(await window.yuki.client.verify(id, item.requestId))
-                  refresh()
-                }}
-              />
-            ))}
-        </div>
+        preview ? (
+          <AttachmentPreview id={id} source={preview} close={() => setPreview(undefined)} />
+        ) : (
+          <div className={styles.inspector}>
+            <h3>
+              {isMain ? '桌面對話' : `${entry?.platform.toUpperCase()} · ${entry?.display_name}`}
+            </h3>
+            <p>這裡的內容來自原入口的對話紀錄。</p>
+            {outbox.data
+              ?.filter((item) => item.state !== 'result' || item.problem)
+              .map((item) => (
+                <Pending
+                  key={item.requestId}
+                  item={item}
+                  verify={async () => {
+                    unwrap(await window.yuki.client.verify(id, item.requestId))
+                    refresh()
+                  }}
+                />
+              ))}
+          </div>
+        )
       }
     >
       {view !== 'chat' ? (
@@ -323,7 +377,28 @@ export function Conversation({
           <span>{view === 'about' ? profileData?.bio : '正在接入此單元的伺服器介面。'}</span>
         </EmptyState>
       ) : (
-        <div className={styles.chat}>
+        <div
+          className={styles.chat}
+          onDragOver={(event) => {
+            if (isMain && event.dataTransfer.types.includes('Files')) {
+              event.preventDefault()
+              setDragging(true)
+            }
+          }}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false)
+          }}
+          onDrop={(event) => {
+            event.preventDefault()
+            setDragging(false)
+            if (isMain)
+              void mediaAction(
+                window.yuki.client.drop(id, Array.from(event.dataTransfer.files)).then(unwrap),
+              )
+          }}
+        >
+          {dragging && <div className={mediaStyles.drop}>放開以附加</div>}
+          {mediaError && <Banner status="failed">{mediaError}</Banner>}
           {online !== 'online' && (
             <Banner>
               {connectionProblem
@@ -394,6 +469,7 @@ export function Conversation({
                 onReference={() => {
                   addReference(event)
                 }}
+                onAttachment={openAttachment}
               />
             ))}
             {pending.map((item) => (
@@ -428,8 +504,20 @@ export function Conversation({
               draft={draft}
               onDraft={updateDraft}
               onSubmit={send}
-              hasContent={references.length > 0}
+              hasContent={references.length > 0 || !!uploads.data?.length}
+              blocked={recording || uploads.data?.some((item) => item.state !== 'ready')}
+              onAttach={() => void mediaAction(window.yuki.client.attach(id).then(unwrap))}
+              onRecord={() => (recording ? finishRecording.current?.() : setRecording(true))}
             >
+              <DraftAttachments id={id} items={uploads.data ?? []} refresh={refresh} />
+              {recording && (
+                <VoiceRecorder
+                  id={id}
+                  done={finishVoice}
+                  cancel={cancelVoice}
+                  finish={finishRecording}
+                />
+              )}
               {references.map((reference, index) => (
                 <div
                   key={`${reference.conversationId}/${reference.eventId}/${index}`}
@@ -523,6 +611,7 @@ function Message({
   selected,
   onSelect,
   onReference,
+  onAttachment,
 }: {
   characterId: string
   receipt?: OutboxItem
@@ -532,6 +621,7 @@ function Message({
   selected: boolean
   onSelect(): void
   onReference(): void
+  onAttachment(source: AttachmentSource): void
 }) {
   const own = event.direction === 'inbound'
   return (
@@ -568,8 +658,14 @@ function Message({
           }}
         />
         {own && receipt && <Pending item={receipt} verify={() => verify(receipt.requestId)} />}
-        {event.attachments.map((attachment, index) => (
-          <small key={index}>{attachment.filename ?? attachment.kind}</small>
+        {event.attachments.map((attachment) => (
+          <MessageAttachment
+            key={attachment.attachment_index}
+            id={characterId}
+            event={event}
+            attachment={attachment}
+            open={onAttachment}
+          />
         ))}
         <div className={styles.messageActions}>
           <Button

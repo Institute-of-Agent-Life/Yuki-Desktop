@@ -13,6 +13,7 @@ export function Composer({
   onRecord,
   commandEnter = false,
   hasContent = false,
+  blocked = false,
   children,
 }: {
   name: string
@@ -23,6 +24,7 @@ export function Composer({
   onRecord?: () => void
   commandEnter?: boolean
   hasContent?: boolean
+  blocked?: boolean
   children?: ReactNode
 }) {
   const input = useRef<HTMLTextAreaElement>(null)
@@ -36,7 +38,7 @@ export function Composer({
     }
   }, [draft])
   const submit = async () => {
-    if (sending || (!normalizeMessageText(draft) && !hasContent)) return
+    if (sending || blocked || (!normalizeMessageText(draft) && !hasContent)) return
     setSending(true)
     setError('')
     try {
@@ -79,7 +81,7 @@ export function Composer({
         <small>{error || (commandEnter ? '⌘ / Ctrl ↩ 送出' : '↩ 送出 · ⇧↩ 換行')}</small>
         <IconButton
           label="送出"
-          disabled={sending || (!normalizeMessageText(draft) && !hasContent)}
+          disabled={sending || blocked || (!normalizeMessageText(draft) && !hasContent)}
           onClick={() => void submit()}
         >
           <ArrowUp size={18} strokeWidth={1.6} />

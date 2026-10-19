@@ -1,5 +1,13 @@
 import { join } from 'node:path'
-import type { ApiRead, Connection, Me, Meta, OutboxItem } from '../shared/api'
+import type {
+  ApiRead,
+  AttachmentSource,
+  Connection,
+  EventsPage,
+  Me,
+  Meta,
+  OutboxItem,
+} from '../shared/api'
 import { REQUIRED_API_REVISION } from '../shared/api'
 import { ApiClient, ApiError, normalizeServer } from './api/client'
 import { meetsMinimum } from '../shared/version'
@@ -7,6 +15,9 @@ import { readStream } from './api/stream'
 import { Credentials } from './credentials'
 import { Outbox } from './outbox'
 import type { LocalStore } from './store'
+import { Uploads } from './media/uploads'
+import { ContentCache } from './media/content'
+import { previewMime } from '../shared/media'
 
 const uuid = (value: string) => {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value))
@@ -22,6 +33,7 @@ export class Connections {
   private readonly checking = new Map<string, Promise<OutboxItem>>()
   private readonly identified = new Map<string, Promise<void>>()
   private readonly states = new Map<string, unknown>()
+  private readonly uploadStores = new Map<Outbox, Uploads>()
   private closed = false
   constructor(
     readonly store: LocalStore,
@@ -90,6 +102,116 @@ export class Connections {
       this.outboxes.set(key, box)
     }
     return box
+  }
+  uploads(id: string) {
+    const box = this.box(id)
+    let uploads = this.uploadStores.get(box)
+    if (!uploads) {
+      uploads = new Uploads(
+        box,
+        join(
+          this.root,
+          'connections',
+          uuid(id),
+          'uploads',
+          uuid(box.owner.personId),
+          uuid(box.owner.bindingId),
+        ),
+      )
+      this.uploadStores.set(box, uploads)
+    }
+    return uploads
+  }
+  private contentCache(id: string) {
+    return new ContentCache(
+      join(this.root, 'connections', uuid(id), 'cache', uuid(this.connection(id).personId)),
+    )
+  }
+  async retryUpload(id: string, requestId: string) {
+    await this.identify(id)
+    const result = await this.uploads(id).upload(this.client(id), uuid(requestId))
+    this.emit(id, 'outbox', {})
+    return result
+  }
+  async stage(id: string, paths: string[]) {
+    const uploads = this.uploads(id)
+    for (const path of paths) {
+      const item = await uploads.stage(path)
+      void this.retryUpload(id, item.requestId).catch(() => {})
+    }
+    this.emit(id, 'outbox', {})
+    return uploads.list()
+  }
+  async record(id: string, bytes: Uint8Array) {
+    const item = await this.uploads(id).record(bytes)
+    void this.retryUpload(id, item.requestId).catch(() => {})
+    this.emit(id, 'outbox', {})
+    return item
+  }
+  async attachment(id: string, source: AttachmentSource) {
+    if (
+      !Number.isSafeInteger(source.eventId) ||
+      source.eventId < 1 ||
+      !Number.isSafeInteger(source.index) ||
+      source.index < 0
+    )
+      throw new ApiError('validation_error')
+    const page = await this.read<EventsPage>(id, {
+      kind: 'events',
+      conversationId: uuid(source.conversationId),
+      after: source.eventId - 1,
+      limit: 1,
+    })
+    const event = page.items.find((item) => item.event_id === source.eventId),
+      attachment = event?.attachments.find((item) => item.attachment_index === source.index)
+    const key = `content/${source.conversationId}/${source.eventId}/${source.index}`,
+      cache = this.contentCache(id),
+      previous = this.box(id).cached<string>(key)
+    if (!attachment) {
+      if (previous) await cache.remove(previous)
+      throw new ApiError('not_found')
+    }
+    if (attachment.artifact_id) throw new ApiError('validation_error')
+    if (attachment.availability !== 'available') {
+      if (previous) await cache.remove(previous)
+      throw new ApiError(
+        'media_unavailable',
+        attachment.availability === 'expired' ? 'expired' : 'source_unavailable',
+      )
+    }
+    let downloaded: Awaited<ReturnType<ContentCache['download']>>
+    try {
+      downloaded = await cache.download(
+        this.client(id),
+        `conversations/${source.conversationId}/events/${source.eventId}/attachments/${source.index}`,
+      )
+    } catch (error) {
+      if (
+        previous &&
+        error instanceof ApiError &&
+        ['not_found', 'media_unavailable'].includes(error.code)
+      )
+        await cache.remove(previous)
+      throw error
+    }
+    this.box(id).cache(key, downloaded.sha256)
+    return {
+      ...downloaded,
+      cache,
+      filename: attachment.filename ?? 'attachment',
+      mime: previewMime(attachment.filename ?? '', attachment.mime_type),
+    }
+  }
+  async content(id: string, source: AttachmentSource) {
+    const item = await this.attachment(id, source)
+    return {
+      bytes: /^(image\/|video\/|text\/|application\/(json|pdf)$)/.test(item.mime)
+        ? await item.cache.bytes(item.path, item.sha256)
+        : null,
+      sha256: item.sha256,
+      mime: item.mime,
+      filename: item.filename,
+    }
   }
   async meta(server: string) {
     const meta = await new ApiClient(server, undefined, undefined, this.version).get<Meta>('meta')
@@ -202,8 +324,10 @@ export class Connections {
       return value
     } catch (error) {
       if (error instanceof ApiError) {
-        if (['unauthenticated', 'not_found', 'outbox_owner_mismatch'].includes(error.code))
+        if (['unauthenticated', 'not_found', 'outbox_owner_mismatch'].includes(error.code)) {
           box.clearCache()
+          await this.contentCache(id).clear()
+        }
         if (['transport_unknown', 'unavailable'].includes(error.code)) {
           this.emit(id, 'connection', { state: 'offline', code: error.code })
           const cached = box.cached<T>(path)
@@ -213,7 +337,7 @@ export class Connections {
       throw error
     }
   }
-  async send(id: string, text: string): Promise<OutboxItem> {
+  async send(id: string, text: string, uploadIds: string[] = []): Promise<OutboxItem> {
     const box = this.box(id),
       client = this.client(id),
       draftSnapshot = box.draft()
@@ -226,7 +350,15 @@ export class Connections {
         offline = true
       else throw error
     }
-    const item = box.prepare(text, offline ? 'draft' : 'submitted', draftSnapshot)
+    const uploads = this.uploads(id),
+      attachments = uploads.references(uploadIds)
+    const item = box.prepare(
+      text,
+      offline ? 'draft' : 'submitted',
+      draftSnapshot,
+      attachments,
+      () => uploadIds.forEach((item) => uploads.remove(item)),
+    )
     const result = offline ? item : await box.send(client, item.requestId)
     this.emit(id, 'outbox', {})
     return result
@@ -265,6 +397,10 @@ export class Connections {
     this.retries.set(
       id,
       setTimeout(() => {
+        for (const item of this.uploads(id)
+          .list()
+          .filter((item) => item.state !== 'ready' && item.state !== 'failed'))
+          void this.retryUpload(id, item.requestId).catch(() => {})
         const work = this.box(id)
           .list()
           .filter(
@@ -301,10 +437,15 @@ export class Connections {
           }
           this.emit(id, kind, data)
         })
+        if (!controller.signal.aborted) this.emit(id, 'connection', { state: 'offline' })
       } catch (error) {
         this.identified.delete(id)
         if (controller.signal.aborted) break
         const code = error instanceof ApiError ? error.code : 'transport_unknown'
+        if (code === 'unauthenticated') {
+          this.box(id).clearCache()
+          await this.contentCache(id).clear()
+        }
         this.emit(id, 'connection', { state: 'offline', code })
         if (
           [
@@ -334,8 +475,9 @@ export class Connections {
     this.streams.forEach((controller) => controller.abort())
     this.retries.forEach((timer) => clearTimeout(timer))
     // Reads already in flight settle before their database is closed.
-    void Promise.allSettled(this.checking.values()).then(() =>
-      this.outboxes.forEach((box) => box.db.close()),
-    )
+    void Promise.allSettled([
+      ...this.checking.values(),
+      ...[...this.uploadStores.values()].map((uploads) => uploads.settled()),
+    ]).then(() => this.outboxes.forEach((box) => box.db.close()))
   }
 }

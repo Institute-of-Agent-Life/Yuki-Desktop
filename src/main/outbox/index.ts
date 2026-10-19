@@ -60,10 +60,16 @@ export class Outbox {
     if (!row) throw new ApiError('not_found')
     return this.item(row)
   }
-  prepare(text: string, state: 'submitted' | 'draft' = 'submitted', draftSnapshot = this.draft()) {
+  prepare(
+    text: string,
+    state: 'submitted' | 'draft' = 'submitted',
+    draftSnapshot = this.draft(),
+    attachments: string[] = [],
+    linkUploads: () => void = () => {},
+  ) {
     const id = randomUUID(),
-      body = { request_id: id, text: normalizeMessageText(text), attachments: [] as string[] }
-    if (!body.text) throw new ApiError('validation_error')
+      body = { request_id: id, text: normalizeMessageText(text), attachments }
+    if (!body.text && !attachments.length) throw new ApiError('validation_error')
     const hash = payloadHash('message', this.owner.conversationId, {
       text: body.text,
       attachments: body.attachments,
@@ -73,6 +79,7 @@ export class Outbox {
         .prepare('INSERT INTO requests VALUES(?,?,?,?,NULL,NULL,?)')
         .run(id, JSON.stringify(body), hash, state, Date.now())
       if (this.draft() === draftSnapshot) this.draft('')
+      linkUploads()
       return this.get(id)
     })()
   }

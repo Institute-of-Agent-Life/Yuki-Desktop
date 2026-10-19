@@ -1,0 +1,21 @@
+.recording {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+.wave {
+  display: flex;
+  height: 32px;
+  gap: 2px;
+  align-items: center;
+  flex: 1;
+}
+.wave i {
+  width: 2px;
+  background: var(--status-failed);
+  border-radius: 1px;
+}

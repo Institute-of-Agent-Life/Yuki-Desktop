@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { BootInfo, Command, DesktopBridge } from '../shared/desktop'
 
 const bridge: DesktopBridge = {
@@ -9,7 +9,21 @@ const bridge: DesktopBridge = {
     meta: (server) => ipcRenderer.invoke('yuki:meta', server),
     pair: (server, code, label) => ipcRenderer.invoke('yuki:pair', server, code, label),
     read: (id, route) => ipcRenderer.invoke('yuki:read', id, route),
-    send: (id, text) => ipcRenderer.invoke('yuki:send', id, text),
+    send: (id, text, uploads) => ipcRenderer.invoke('yuki:send', id, text, uploads),
+    uploads: (id) => ipcRenderer.invoke('yuki:uploads', id),
+    attach: (id) => ipcRenderer.invoke('yuki:attach', id),
+    drop: (id, files) =>
+      ipcRenderer.invoke(
+        'yuki:drop',
+        id,
+        files.map((file) => webUtils.getPathForFile(file)).filter(Boolean),
+      ),
+    record: (id, bytes) => ipcRenderer.invoke('yuki:record', id, bytes),
+    microphone: () => ipcRenderer.invoke('yuki:microphone'),
+    retryUpload: (id, request) => ipcRenderer.invoke('yuki:retry-upload', id, request),
+    removeUpload: (id, request) => ipcRenderer.invoke('yuki:remove-upload', id, request),
+    content: (id, source) => ipcRenderer.invoke('yuki:content', id, source),
+    saveContent: (id, source) => ipcRenderer.invoke('yuki:save-content', id, source),
     outbox: (id) => ipcRenderer.invoke('yuki:outbox', id),
     verify: (id, requestId) => ipcRenderer.invoke('yuki:verify', id, requestId),
     draft: (id, text) => ipcRenderer.invoke('yuki:draft', id, text),

@@ -1,5 +1,8 @@
 export class ApiError extends Error {
-  constructor(readonly code: string) {
+  constructor(
+    readonly code: string,
+    readonly reason?: string,
+  ) {
     super(code)
   }
 }
@@ -58,13 +61,15 @@ export class ApiClient {
     }
     if (!response.ok) {
       let code = 'unknown'
+      let reason: string | undefined
       try {
-        const body = (await response.json()) as { problem?: { code?: string } }
+        const body = (await response.json()) as { problem?: { code?: string; reason?: string } }
         code = body.problem?.code ?? code
+        reason = typeof body.problem?.reason === 'string' ? body.problem.reason : undefined
       } catch {
         /* The HTTP result contains no usable receipt. */
       }
-      throw new ApiError(code)
+      throw new ApiError(code, reason)
     }
     return response
   }

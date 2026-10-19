@@ -1,0 +1,122 @@
+.attachment {
+  display: block;
+  margin: 8px 0;
+  max-width: 100%;
+  border-radius: 10px;
+  background: var(--bg-window);
+  color: var(--text-primary);
+  text-align: left;
+  overflow: hidden;
+}
+.attachment:disabled {
+  opacity: 1;
+  color: var(--text-secondary);
+}
+.attachment > small {
+  display: block;
+  padding: 6px 12px;
+  font-size: 11px;
+}
+.image img {
+  display: block;
+  max-width: 320px;
+  max-height: 240px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+.file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 12px;
+}
+.filename {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.filename small {
+  display: block;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+.voice {
+  margin: 8px 0;
+}
+.voice > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: var(--fill-inactive);
+}
+.voice p {
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+.drafts {
+  display: flex;
+  gap: 8px;
+  overflow: auto;
+  padding-bottom: 8px;
+}
+.draft {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 180px;
+  max-width: 340px;
+  height: 56px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--fill-inactive);
+}
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  min-height: 0;
+  overflow: auto;
+}
+.preview header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.preview :is(img, video) {
+  max-width: 100%;
+  max-height: 480px;
+  object-fit: contain;
+  border-radius: 10px;
+}
+.preview pre {
+  overflow: auto;
+  font: 12.5px/19px var(--font-mono);
+  white-space: pre;
+}
+.drop {
+  position: absolute;
+  inset: 8px;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: 12px;
+  background: var(--bg-content);
+  z-index: 10;
+  pointer-events: none;
+  color: var(--accent);
+}
+@media (max-height: 599px) {
+  .draft {
+    height: 40px;
+  }
+}

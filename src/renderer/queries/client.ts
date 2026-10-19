@@ -2,13 +2,28 @@ import type { ApiReply } from '../../shared/api'
 import { REQUIRED_API_REVISION } from '../../shared/api'
 
 export class ClientProblem extends Error {
-  constructor(readonly code: string) {
-    super(problemText(code))
+  constructor(
+    readonly code: string,
+    readonly reason?: string,
+  ) {
+    super(reason && code === 'media_unavailable' ? mediaProblem(reason) : problemText(code))
   }
 }
 export function unwrap<T>(result: ApiReply<T>): T {
-  if (!result.ok) throw new ClientProblem(result.code)
+  if (!result.ok) throw new ClientProblem(result.code, result.reason)
   return result.value
+}
+function mediaProblem(reason: string) {
+  return (
+    (
+      {
+        expired: '已過期',
+        cleaned: '已清理',
+        source_unavailable: '無法從原平台取得',
+        source_changed: '原附件已變更，請重新讀取訊息。',
+      } as Record<string, string>
+    )[reason] ?? '附件內容目前無法取得。'
+  )
 }
 export function hidesPrivateData(error: unknown) {
   return (
@@ -32,6 +47,7 @@ const messages: Record<string, string> = {
   precondition_failed: '目前狀態已改變，請重新讀取。',
   unavailable: '伺服器暫時無法接收，尚未寫入。',
   unknown: '狀態尚未確認，請查詢原回執。',
+  internal_failure: '這次處理發生錯誤，原訊息與回執已保留。',
   owner_required: '這項操作需要角色擁有者權限。',
   outbox_owner_mismatch: '原入口已不屬於這位本人，已停止送出。',
   different_person: '這個角色已連接另一位本人。請先處理原連線的本機資料。',
@@ -41,6 +57,9 @@ const messages: Record<string, string> = {
   validation_error: '請檢查輸入內容。',
   control_held: '電腦目前由另一台裝置接手。',
   media_unavailable: '附件內容目前無法取得。',
+  upload_pending: '附件尚未完成上傳，內容仍保存在這台電腦。',
+  content_hash_mismatch: '附件內容核對失敗，尚未顯示或存檔。',
+  microphone_denied: '麥克風權限未開啟，請到系統設定允許 Yuki 使用麥克風。',
   executor_offline: '這台電腦尚未連線，操作未建立。',
 }
 export function problemText(code: string): string {

@@ -38,7 +38,29 @@ export interface OutboxItem {
   problem: string | null
   createdAt: number
 }
-export type ApiReply<T> = { ok: true; value: T } | { ok: false; code: string }
+export type ApiReply<T> = { ok: true; value: T } | { ok: false; code: string; reason?: string }
+export interface UploadDraft {
+  requestId: string
+  filename: string
+  kind: 'image' | 'video' | 'file' | 'record'
+  sha256: string
+  size: number
+  state: 'draft' | 'submitted' | 'ready' | 'failed'
+  mediaId: string | null
+  expiresAt: number | null
+  problem: string | null
+}
+export interface AttachmentSource {
+  conversationId: string
+  eventId: number
+  index: number
+}
+export interface CachedContent {
+  bytes: Uint8Array | null
+  sha256: string
+  mime: string
+  filename: string
+}
 export type ApiRead =
   | { kind: 'me' | 'home' | 'character' }
   | { kind: 'events'; conversationId: string; after?: number; before?: number; limit?: 1 | 50 }
@@ -49,7 +71,16 @@ export interface ConversationBridge {
   meta(server: string): Promise<ApiReply<Meta>>
   pair(server: string, code: string, label: string): Promise<ApiReply<Connection>>
   read<T>(characterId: string, route: ApiRead): Promise<ApiReply<T>>
-  send(characterId: string, text: string): Promise<ApiReply<OutboxItem>>
+  send(characterId: string, text: string, uploads?: string[]): Promise<ApiReply<OutboxItem>>
+  uploads(characterId: string): Promise<ApiReply<UploadDraft[]>>
+  attach(characterId: string): Promise<ApiReply<UploadDraft[]>>
+  drop(characterId: string, files: File[]): Promise<ApiReply<UploadDraft[]>>
+  record(characterId: string, bytes: Uint8Array): Promise<ApiReply<UploadDraft>>
+  microphone(): Promise<ApiReply<void>>
+  retryUpload(characterId: string, requestId: string): Promise<ApiReply<UploadDraft>>
+  removeUpload(characterId: string, requestId: string): Promise<ApiReply<void>>
+  content(characterId: string, source: AttachmentSource): Promise<ApiReply<CachedContent>>
+  saveContent(characterId: string, source: AttachmentSource): Promise<ApiReply<boolean>>
   outbox(characterId: string): Promise<ApiReply<OutboxItem[]>>
   verify(characterId: string, requestId: string): Promise<ApiReply<OutboxItem>>
   draft(characterId: string, text?: string): Promise<ApiReply<string>>
