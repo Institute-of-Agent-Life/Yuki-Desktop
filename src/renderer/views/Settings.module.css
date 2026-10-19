@@ -93,6 +93,7 @@
   line-height: 18px;
   color: var(--text-secondary);
   margin-top: 2px;
+  overflow-wrap: anywhere;
 }
 .row > button,
 .row > select {
@@ -111,6 +112,18 @@
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 18px;
+}
+.pane h3 {
+  font-size: 13px;
+  line-height: 20px;
+  margin: 24px 0 8px;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0;
 }
 @media (max-width: 1000px) {
   .pane {

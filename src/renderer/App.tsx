@@ -120,6 +120,12 @@ export function App({ boot }: { boot: BootInfo }) {
             boot={boot}
             preferences={preferences}
             save={save}
+            connection={connection}
+            onConnection={setConnection}
+            about={() => {
+              useWorkspace.getState().setView('about')
+              setStep('welcome')
+            }}
             back={() => {
               setStep('welcome')
             }}

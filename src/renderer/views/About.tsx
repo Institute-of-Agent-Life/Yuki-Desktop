@@ -188,7 +188,7 @@ export function About({
       />
       {error && <Banner status="failed">{error}</Banner>}
       {commands.data
-        ?.filter((item) => item.state !== 'result')
+        ?.filter((item) => item.state !== 'result' && item.command.kind !== 'proactive-route')
         .map((item) => (
           <div key={item.requestId} className={styles.pending} role="status">
             <span>

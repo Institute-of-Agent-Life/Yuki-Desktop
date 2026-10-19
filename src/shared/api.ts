@@ -5,6 +5,7 @@ export const REQUIRED_API_REVISION = 4
 
 export type Meta = components['schemas']['Meta']
 export type Me = components['schemas']['Me']
+export type ProactiveRoute = components['schemas']['ProactiveRoute']
 export type Home = components['schemas']['Home']
 export type Profile = components['schemas']['CharacterProfile']
 export type CharacterStatus = components['schemas']['CharacterStatus']
@@ -57,6 +58,7 @@ export type Automation = components['schemas']['AutomationView']
 export type AutomationPage = components['schemas']['AutomationPage']
 export type Capabilities = components['schemas']['CharacterCapabilities']
 export type CharacterCommand =
+  | { kind: 'proactive-route'; expectedRevision: number; bindingId: string }
   | {
       kind: 'profile'
       expectedRevision: number
@@ -179,7 +181,7 @@ export interface ArtifactSource {
   version: string
 }
 export type ApiRead =
-  | { kind: 'me' | 'home' | 'character' | 'character-status' | 'computer' }
+  | { kind: 'me' | 'home' | 'character' | 'character-status' | 'computer' | 'proactive-route' }
   | { kind: 'memory'; about: 'me' | 'self'; cursor?: string }
   | { kind: 'memory-fact'; factId: number }
   | { kind: 'automations'; scope: 'mine' | 'self' }
@@ -199,6 +201,8 @@ export type ApiRead =
   | { kind: 'activity'; conversationId: string }
 
 export interface ConversationBridge {
+  serverInfo(characterId: string): Promise<ApiReply<Meta>>
+  changeAddress(characterId: string, server: string): Promise<ApiReply<Connection>>
   promptDocuments(
     characterId: string,
   ): Promise<ApiReply<{ documents: PromptDocuments; drafts: PromptDraft[] }>>

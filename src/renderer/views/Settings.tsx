@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, SlidersHorizontal, Palette, Bell, Wrench } from 'lucide-react'
+import { ArrowLeft, SlidersHorizontal, Palette, Bell, Wrench, Server } from 'lucide-react'
+import type { Connection } from '../../shared/api'
+import { ServerSettings } from './ServerSettings'
 import type { BootInfo, Preferences } from '../../shared/desktop'
 import { Banner, Button, Segmented, Spinner, Toggle } from '../components/Controls'
 import { unwrap } from '../queries/client'
@@ -10,10 +12,11 @@ const categories = [
   { id: 'general', label: '一般', icon: SlidersHorizontal },
   { id: 'look', label: '外觀', icon: Palette },
   { id: 'notify', label: '通知', icon: Bell },
+  { id: 'server', label: '伺服器與角色', icon: Server },
   { id: 'advanced', label: '進階', icon: Wrench },
 ] as const
 type Category = (typeof categories)[number]['id']
-function Row({
+export function Row({
   title,
   description,
   children,
@@ -37,11 +40,17 @@ export function Settings({
   preferences,
   save,
   back,
+  connection,
+  onConnection,
+  about,
 }: {
   boot: BootInfo
   preferences: Preferences
   save(patch: Partial<Preferences>): Promise<void>
   back(): void
+  connection?: Connection
+  onConnection(connection: Connection): void
+  about(): void
 }) {
   const [category, setCategory] = useState<Category>('general'),
     [error, setError] = useState(''),
@@ -260,6 +269,17 @@ export function Settings({
                 </Row>
               ))}
             </div>
+          ) : category === 'server' ? (
+            connection ? (
+              <ServerSettings
+                key={connection.characterId}
+                connection={connection}
+                onConnection={onConnection}
+                about={about}
+              />
+            ) : (
+              <p className={styles.notice}>配對角色後可查看伺服器與主動訊息設定。</p>
+            )
           ) : (
             <>
               <div className={styles.group}>

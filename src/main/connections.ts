@@ -116,6 +116,47 @@ export class Connections {
     if (!connection) throw new ApiError('not_found')
     return connection
   }
+  private readonly addressChanges = new Map<string, symbol>()
+  async serverInfo(id: string) {
+    const value = await this.meta(this.connection(id).baseUrl)
+    if (value.character.id !== id) throw new ApiError('different_character')
+    return value
+  }
+  async changeAddress(id: string, server: string) {
+    const attempt = Symbol(),
+      original = this.connection(id),
+      baseUrl = normalizeServer(server)
+    this.addressChanges.set(id, attempt)
+    // A new address receives no credential until its public identity and minimum
+    // versions have been checked. The original App namespace must then still match.
+    const meta = await this.meta(baseUrl)
+    if (meta.character.id !== id) throw new ApiError('different_character')
+    const key = `device/${id}/${original.personId}`,
+      token = this.credentials.get(key)
+    if (!token) throw new ApiError('unauthenticated')
+    const me = await this.box(id).verifyOwner(
+      new ApiClient(baseUrl, token, original.bindingId, this.version),
+    )
+    if (me.source_person_id !== original.personId) throw new ApiError('outbox_owner_mismatch')
+    const current = this.connection(id)
+    if (
+      this.addressChanges.get(id) !== attempt ||
+      current.baseUrl !== original.baseUrl ||
+      current.personId !== original.personId ||
+      current.bindingId !== original.bindingId ||
+      current.conversationId !== original.conversationId ||
+      this.credentials.get(key) !== token
+    )
+      throw new ApiError('precondition_failed')
+    const updated = { ...current, baseUrl }
+    this.store.set(
+      'connections',
+      this.list().map((item) => (item.characterId === id ? updated : item)),
+    )
+    this.start(id)
+    this.emit(id, 'address', { baseUrl })
+    return updated
+  }
   client(id: string, entry?: string) {
     const connection = this.connection(id)
     const token = this.credentials.get(`device/${connection.characterId}/${connection.personId}`)
@@ -619,6 +660,7 @@ export class Connections {
     if (route.kind === 'me' || route.kind === 'character' || route.kind === 'computer')
       path = route.kind
     else if (route.kind === 'character-status') path = 'character/status'
+    else if (route.kind === 'proactive-route') path = 'me/proactive-route'
     else if (route.kind === 'memory') {
       if (!['me', 'self'].includes(route.about)) throw new ApiError('validation_error')
       const params = new URLSearchParams({ about: route.about, limit: '50' })
@@ -663,7 +705,7 @@ export class Connections {
     try {
       await this.identify(id)
       const value = await this.client(id).get<T>(path)
-      if (route.kind !== 'me' && route.kind !== 'request') box.cache(path, value)
+      if (!['me', 'request', 'proactive-route'].includes(route.kind)) box.cache(path, value)
       if (route.kind === 'character') this.onProfile?.(id, value as Profile)
       return value
     } catch (error) {
@@ -687,7 +729,9 @@ export class Connections {
         if (['transport_unknown', 'unavailable'].includes(error.code)) {
           this.emit(id, 'connection', { state: 'offline', code: error.code })
           const cached =
-            offlineCache && !route.kind.startsWith('computer') ? box.cached<T>(path) : undefined
+            offlineCache && !route.kind.startsWith('computer') && route.kind !== 'proactive-route'
+              ? box.cached<T>(path)
+              : undefined
           if (cached !== undefined) {
             if (route.kind === 'character') this.onProfile?.(id, cached as Profile)
             return cached
@@ -789,6 +833,7 @@ export class Connections {
         await this.identify(id)
         const client = this.client(id)
         await readStream(client, controller.signal, (kind, data) => {
+          if (controller.signal.aborted || this.streams.get(id) !== controller) return
           if (kind === 'sync') {
             delay = 1000
             this.emit(id, 'connection', { state: 'online' })

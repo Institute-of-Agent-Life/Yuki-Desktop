@@ -15,7 +15,20 @@ const terminal = new Set([
   'precondition_failed',
   'validation_error',
 ])
-export function characterRequest(command: CharacterCommand, characterId: string) {
+export function characterRequest(
+  command: CharacterCommand,
+  characterId: string,
+  personId: string,
+) {
+  if (command.kind === 'proactive-route')
+    return {
+      operation: 'client.proactive_route',
+      target: command.bindingId,
+      hashTarget: personId,
+      path: 'me/proactive-route',
+      method: 'PUT' as const,
+      payload: { expected_revision: command.expectedRevision, binding_id: command.bindingId },
+    }
   if (command.kind === 'profile')
     return {
       operation: 'client.character_update',
@@ -101,6 +114,16 @@ export class CharacterCommands {
         !/^#[0-9a-f]{6}$/i.test(command.accent?.dark)
       )
         throw new ApiError('validation_error')
+    } else if (command.kind === 'proactive-route') {
+      if (
+        !Number.isSafeInteger(command.expectedRevision) ||
+        command.expectedRevision < 0 ||
+        typeof command.bindingId !== 'string' ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          command.bindingId,
+        )
+      )
+        throw new ApiError('validation_error')
     } else if (command.kind === 'memory' || command.kind === 'automation') {
       const id = command.kind === 'memory' ? command.factId : command.automationId
       if (
@@ -115,8 +138,12 @@ export class CharacterCommands {
       )
         throw new ApiError('validation_error')
     } else throw new ApiError('validation_error')
-    const request = characterRequest(command, this.box.owner.characterId)
-    const hash = payloadHash(request.operation, request.target, request.payload)
+    const request = characterRequest(command, this.box.owner.characterId, this.box.owner.personId)
+    const hash = payloadHash(
+      request.operation,
+      request.hashTarget ?? request.target,
+      request.payload,
+    )
     const previous = this.box.db
       .prepare(
         "SELECT request_id FROM character_commands WHERE hash=? AND state='submitted' ORDER BY rowid LIMIT 1",
@@ -161,7 +188,11 @@ export class CharacterCommands {
     if (item.state === 'result') return item
     try {
       await this.box.verifyOwner(client)
-      const request = characterRequest(item.command, this.box.owner.characterId)
+      const request = characterRequest(
+        item.command,
+        this.box.owner.characterId,
+        this.box.owner.personId,
+      )
       if (verify) {
         const receipt = await client.get<OriginalRequest>(`requests/${id}`)
         if (receipt.found) {

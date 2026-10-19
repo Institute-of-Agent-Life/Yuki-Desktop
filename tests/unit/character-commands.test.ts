@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { Outbox } from '../../src/main/outbox'
 import { CharacterCommands, characterRequest } from '../../src/main/outbox/character-commands'
 import { ApiClient } from '../../src/main/api/client'
+import { payloadHash } from '../../src/main/outbox/fingerprint'
 import type { CharacterCommand, Me, OutboxOwner } from '../../src/shared/api'
 const owner: OutboxOwner = {
   characterId: '00000000-0000-4000-8000-000000000001',
@@ -220,8 +221,59 @@ it.each([
       return data({ revision: 3 })
     })
     expect((await commands.run(client, item.requestId)).problem).toBeNull()
-    expect(characterRequest(command, owner.characterId).target).toBe(
+    expect(characterRequest(command, owner.characterId, owner.personId).target).toBe(
       command.kind === 'profile' ? owner.characterId : command.kind === 'automation' ? '31' : '42',
     )
   },
 )
+
+it('proactive route uses the original Person fingerprint and the destination binding receipt, including cold lost-response recovery', async () => {
+  const { path, box, commands } = setup()
+  const destination = '00000000-0000-4000-8000-000000000005'
+  const command: CharacterCommand = {
+    kind: 'proactive-route',
+    expectedRevision: 8,
+    bindingId: destination,
+  }
+  const item = commands.prepare(command)
+  expect(item.payloadHash).toBe(
+    payloadHash('client.proactive_route', owner.personId, {
+      expected_revision: 8,
+      binding_id: destination,
+    }),
+  )
+  let effects = 0
+  const client = api(async (input, init) => {
+    if (String(input).endsWith('/me')) return data(me)
+    if (String(input).includes('/requests/'))
+      return data({
+        found: effects > 0,
+        request_id: item.requestId,
+        operation_kind: 'client.proactive_route',
+        target: destination,
+        payload_hash: item.payloadHash,
+        status: 'succeeded',
+        result: { binding_id: destination, platform: 'qq', paused: false, revision: 9 },
+      })
+    expect(init?.method).toBe('PUT')
+    expect(String(input)).toBe('http://localhost/role/client/v1/me/proactive-route')
+    expect(JSON.parse(init!.body as string)).toEqual({
+      request_id: item.requestId,
+      binding_id: destination,
+      expected_revision: 8,
+    })
+    effects++
+    throw Error('lost after actual effect')
+  })
+  expect((await commands.run(client, item.requestId, true)).state).toBe('submitted')
+  box.db.close()
+  const recovered = new Outbox(path, owner)
+  try {
+    const replay = await new CharacterCommands(recovered).run(client, item.requestId, true)
+    expect(replay.state).toBe('result')
+    expect(replay.result).toMatchObject({ revision: 9 })
+    expect(effects).toBe(1)
+  } finally {
+    recovered.db.close()
+  }
+})

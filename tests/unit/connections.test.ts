@@ -265,3 +265,129 @@ it('uses the durable owner cache only for transport failure and clears private f
   failure = 'transport'
   await expect(connections.read(original.characterId, route)).rejects.toThrow('transport_unknown')
 })
+
+it.each([
+  ['different_character', { ...meta, character: { ...meta.character, id: merged } }],
+  ['server_upgrade_required', { ...meta, api_revision: 3 }],
+] as const)(
+  'address changes stop before credentials when public identity rejects %s',
+  async (code, value) => {
+    const connections = setup(),
+      box = connections.box(original.characterId)
+    connections.credentials.set(
+      `device/${original.characterId}/${original.personId}`,
+      'private-test-credential',
+    )
+    box.draft('original unsent draft')
+    const calls: string[] = []
+    vi.stubGlobal('fetch', async (input: string, init: RequestInit) => {
+      calls.push(input)
+      expect(init.headers).not.toHaveProperty('Authorization')
+      return data('Envelope_Meta_', value)
+    })
+    await expect(
+      connections.changeAddress(original.characterId, 'https://new.test/role'),
+    ).rejects.toHaveProperty('code', code)
+    expect(calls).toEqual(['https://new.test/role/client/v1/meta'])
+    expect(connections.connection(original.characterId)).toEqual(original)
+    expect(box.draft()).toBe('original unsent draft')
+  },
+)
+it('address changes require the original source, request Person, conversation and App binding', async () => {
+  const connections = setup(),
+    box = connections.box(original.characterId)
+  connections.credentials.set(
+    `device/${original.characterId}/${original.personId}`,
+    'private-test-credential',
+  )
+  box.draft('keep original draft')
+  for (const changed of [
+    { ...me, source_person_id: merged },
+    { ...me, request_person_id: merged },
+    { ...me, conversation_id: merged },
+    { ...me, bindings: [] },
+  ]) {
+    vi.stubGlobal('fetch', async (input: string, init: RequestInit) => {
+      if (input.endsWith('/meta')) {
+        expect(init.headers).not.toHaveProperty('Authorization')
+        return data('Envelope_Meta_', meta)
+      }
+      expect(init.headers).toHaveProperty('X-Yuki-Entry', original.bindingId)
+      expect(init.headers).toHaveProperty('Authorization', 'Bearer private-test-credential')
+      return data('Envelope_Me_', changed)
+    })
+    await expect(
+      connections.changeAddress(original.characterId, 'https://new.test/role'),
+    ).rejects.toHaveProperty('code', 'outbox_owner_mismatch')
+    expect(connections.connection(original.characterId)).toEqual(original)
+    expect(box.draft()).toBe('keep original draft')
+  }
+})
+it('a verified new address preserves the same request UUID and body when its original receipt is absent', async () => {
+  const connections = setup(),
+    box = connections.box(original.characterId),
+    item = box.prepare('original pending message')
+  connections.credentials.set(
+    `device/${original.characterId}/${original.personId}`,
+    'private-test-credential',
+  )
+  const start = vi.spyOn(connections, 'start').mockImplementation(() => {})
+  const calls: string[] = []
+  vi.stubGlobal('fetch', async (input: string, init: RequestInit) => {
+    calls.push(input)
+    if (input.endsWith('/meta')) return data('Envelope_Meta_', meta)
+    expect(init.headers).toHaveProperty('X-Yuki-Entry', original.bindingId)
+    if (input.endsWith('/me')) return data('Envelope_Me_', me)
+    if (input.endsWith(`/requests/${item.requestId}`))
+      return data('Envelope_OriginalRequest_', { found: false, request_id: item.requestId })
+    expect(input).toBe('https://new.test/role/client/v1/messages')
+    expect(JSON.parse(init.body as string)).toEqual(item.body)
+    return data('Envelope_MessageResult_', {
+      request_id: item.requestId,
+      event_id: 1,
+      state: 'accepted',
+      replay: false,
+    })
+  })
+  await connections.changeAddress(original.characterId, 'https://new.test/role/')
+  expect(start).toHaveBeenCalledWith(original.characterId)
+  expect(connections.connection(original.characterId)).toEqual({
+    ...original,
+    baseUrl: 'https://new.test/role',
+  })
+  expect((await connections.verify(original.characterId, item.requestId)).requestId).toBe(
+    item.requestId,
+  )
+  expect(box.get(item.requestId).body).toEqual(item.body)
+  expect(calls.every((value) => value.startsWith('https://new.test/role/'))).toBe(true)
+})
+it('a delayed address proof cannot replace a newer user address choice', async () => {
+  const connections = setup()
+  connections.credentials.set(
+    `device/${original.characterId}/${original.personId}`,
+    'private-test-credential',
+  )
+  vi.spyOn(connections, 'start').mockImplementation(() => {})
+  let release!: () => void, blocked!: () => void
+  const entered = new Promise<void>((resolve) => {
+      blocked = resolve
+    }),
+    wait = new Promise<void>((resolve) => {
+      release = resolve
+    })
+  vi.stubGlobal('fetch', async (input: string) => {
+    if (input.endsWith('/meta')) return data('Envelope_Meta_', meta)
+    if (input.startsWith('https://old-choice.test')) {
+      blocked()
+      await wait
+    }
+    return data('Envelope_Me_', me)
+  })
+  const first = connections.changeAddress(original.characterId, 'https://old-choice.test')
+  const rejected = expect(first).rejects.toHaveProperty('code', 'precondition_failed')
+  await entered
+  await connections.changeAddress(original.characterId, 'https://latest-choice.test')
+  release()
+  await rejected
+  expect(connections.connection(original.characterId).baseUrl).toBe('https://latest-choice.test')
+})

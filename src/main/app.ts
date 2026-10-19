@@ -273,6 +273,8 @@ else {
       })
     }
     action('connections', () => connections.publicList())
+    action('server-info', (id: string) => connections.serverInfo(id))
+    action('change-address', (id: string, server: string) => connections.changeAddress(id, server))
     action('export-diagnostics', async () => {
       const result = await dialog.showSaveDialog(win!, {
         title: '匯出診斷記錄',

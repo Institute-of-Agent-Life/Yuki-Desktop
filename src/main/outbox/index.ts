@@ -133,6 +133,7 @@ export class Outbox {
       me.request_person_id !== this.owner.personId
     )
       throw new ApiError('outbox_owner_mismatch')
+    return me
   }
   async send(client: ApiClient, id: string): Promise<OutboxItem> {
     const row = this.get(id)
