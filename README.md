@@ -41,7 +41,7 @@ YUKI_BACKEND_TEST_PYTHON=/path/to/test-checkout/.venv/bin/python \
 npm run test:e2e -- tests/e2e/backend.spec.ts
 ```
 
-該測試使用實際 Yuki 應用程式容器、帳本與 App Gateway，在臨時目錄建立測試資料，模型回覆使用固定測試 Provider，不呼叫付費服務。
+該測試使用實際 Yuki 應用程式容器、帳本與 App Gateway，在臨時目錄建立測試資料，模型回覆使用固定測試 Provider，不呼叫付費服務。 執行器核心的真後端測試使用同一組環境變數，執行 `npm test -- tests/unit/executor-backend.test.ts`；它經由真 Main、HTTP/SSE 與原生檔案系統，驗證成果版本、建立與回執遺失及冷恢復。核心檢查以重開 SQLite 與重建 Runner 模擬冷啟動；桌面按鈕、OS 程序崩潰、系統通知與三平台原生驗收需各自執行。
 
 對話可透過「附加檔案」或拖放加入附件；主程序先保存原件快照並核對上傳回執，附件可送出後才建立含附件的訊息。另一台裝置可從原事件預覽及存檔，內容會核對伺服器提供的 SHA-256。到期或原來源無法取得時會顯示原因。
 

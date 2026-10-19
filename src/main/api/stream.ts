@@ -4,8 +4,9 @@ export async function readStream(
   client: ApiClient,
   signal: AbortSignal,
   hint: (kind: string, data: unknown) => void,
+  path = 'stream?works=active',
 ) {
-  const response = await client.response('stream?works=active', { signal })
+  const response = await client.response(path, { signal })
   if (!response.body) throw new ApiError('invalid_response')
   const reader = response.body.getReader(),
     decoder = new TextDecoder()

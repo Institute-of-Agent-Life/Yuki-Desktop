@@ -7,7 +7,12 @@ import { join } from 'node:path'
 import { createServer } from 'node:net'
 
 export async function yukiFixture(
-  options: { computer?: boolean; character?: boolean; prompts?: boolean | 'readonly' } = {},
+  options: {
+    computer?: boolean
+    character?: boolean
+    prompts?: boolean | 'readonly'
+    executor?: boolean
+  } = {},
 ) {
   const backend = process.env.YUKI_BACKEND_TEST_ROOT,
     python = process.env.YUKI_BACKEND_TEST_PYTHON
@@ -31,6 +36,7 @@ export async function yukiFixture(
         env: {
           ...process.env,
           YUKI_DESKTOP_COMPUTER_FIXTURE: options.computer ? '1' : '0',
+          YUKI_DESKTOP_EXECUTOR_FIXTURE: options.executor ? '1' : '0',
           YUKI_DESKTOP_CHARACTER_FIXTURE: options.character ? '1' : '0',
           YUKI_DESKTOP_PROMPT_FIXTURE:
             options.prompts === 'readonly' ? 'readonly' : options.prompts ? '1' : '0',

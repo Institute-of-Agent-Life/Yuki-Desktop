@@ -121,6 +121,24 @@ export class NativeShell {
     notification.once('failed', () => this.notices.delete(notification))
     notification.show()
   }
+  submitNotification(characterId: string, title: string, body: string): Promise<boolean> {
+    if (!Notification.isSupported()) return Promise.resolve(false)
+    const notification = new Notification({
+      title,
+      body,
+      icon:
+        this.decorations.get(characterId)?.notification ??
+        join(app.getAppPath(), 'resources/icons/app/128x128.png'),
+    })
+    this.notices.set(notification, characterId)
+    notification.once('failed', () => this.notices.delete(notification))
+    notification.once('close', () => this.notices.delete(notification))
+    notification.show()
+    // Completion means the native API accepted submission. Focus mode and
+    // later delivery failures cannot prove that the person saw a notification.
+    return Promise.resolve(true)
+  }
+
   close() {
     this.tray?.destroy()
     this.tray = undefined

@@ -1,7 +1,7 @@
 import type { components } from './contract.gen'
 import type { NavigationTarget } from './desktop'
 
-export const REQUIRED_API_REVISION = 4
+export const REQUIRED_API_REVISION = 5
 
 export type Meta = components['schemas']['Meta']
 export type Me = components['schemas']['Me']

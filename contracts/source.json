@@ -1,9 +1,9 @@
 {
   "repository": "https://github.com/YuanYeYouTao/Yuki",
-  "commit": "e011ba912b60b296bb130f8467808401cacbac61",
+  "commit": "34e0187fd3b560452edcdcdfce87db1cd76d0174",
   "serverVersion": "3.9.0",
-  "sha256": "c20f1c22822cffc46ebc2a16b9118938c72332c15fd24148c3d03c6aeaa622ab",
+  "sha256": "554e3312ee1b8199530bc823c072c91283cf8963ce26bd4ed6363b9d2b4a1b3f",
   "file": "client-api.openapi.json",
   "sourceAvailability": "local-only",
-  "apiRevision": 4
+  "apiRevision": 5
 }

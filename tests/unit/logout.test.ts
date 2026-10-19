@@ -32,7 +32,7 @@ const connection: Connection = {
   persistentCredentials: false,
 }
 const meta: Meta = {
-  api_revision: 4,
+  api_revision: 5,
   server_version: 'test',
   character: {
     id: connection.characterId,
