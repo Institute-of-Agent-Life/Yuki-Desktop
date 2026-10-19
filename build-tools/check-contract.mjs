@@ -9,8 +9,14 @@ const source = readFileSync('contracts/client-api.openapi.json')
 if (!/^[a-f0-9]{40}$/.test(manifest.commit)) throw new Error('Missing fixed backend commit')
 if (createHash('sha256').update(source).digest('hex') !== manifest.sha256)
   throw new Error('Contract hash mismatch')
-if (JSON.parse(source).info.version !== manifest.serverVersion)
+const schema = JSON.parse(source)
+if (schema.info.version !== manifest.serverVersion)
   throw new Error('Contract source version mismatch')
+if (
+  !Number.isSafeInteger(manifest.apiRevision) ||
+  schema.info['x-yuki-api-revision'] !== manifest.apiRevision
+)
+  throw new Error('Contract API revision mismatch')
 const root = mkdtempSync(join(tmpdir(), 'yuki-contract-'))
 try {
   const output = join(root, 'contract.gen.ts')

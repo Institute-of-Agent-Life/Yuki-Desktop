@@ -1,12 +1,31 @@
 import type { components } from './contract.gen'
 import type { NavigationTarget } from './desktop'
 
-export const REQUIRED_API_REVISION = 3
+export const REQUIRED_API_REVISION = 4
 
 export type Meta = components['schemas']['Meta']
 export type Me = components['schemas']['Me']
 export type Home = components['schemas']['Home']
 export type Profile = components['schemas']['CharacterProfile']
+export type CharacterStatus = components['schemas']['CharacterStatus']
+export interface AvatarInput {
+  filename: string
+  bytes: Uint8Array
+  sourceSize?: number
+}
+export interface AvatarCommandItem {
+  requestId: string
+  action: 'set' | 'reset'
+  expectedRevision: number
+  sha256: string | null
+  size: number | null
+  payloadHash: string
+  state: 'submitted' | 'result'
+  problem: string | null
+  result: Profile | null
+  current: Profile | null
+  acknowledged: boolean
+}
 export type MemoryFact = components['schemas']['MemoryFactView']
 export type MemoryDetail = components['schemas']['MemoryDetail']
 export type MemoryPage = components['schemas']['MemoryPage']
@@ -136,7 +155,7 @@ export interface ArtifactSource {
   version: string
 }
 export type ApiRead =
-  | { kind: 'me' | 'home' | 'character' | 'computer' }
+  | { kind: 'me' | 'home' | 'character' | 'character-status' | 'computer' }
   | { kind: 'memory'; about: 'me' | 'self'; cursor?: string }
   | { kind: 'memory-fact'; factId: number }
   | { kind: 'automations'; scope: 'mine' | 'self' }
@@ -156,6 +175,26 @@ export type ApiRead =
   | { kind: 'activity'; conversationId: string }
 
 export interface ConversationBridge {
+  letterDecoration(
+    characterId: string,
+    revision: number,
+    avatarRevision: number,
+    bytes: Uint8Array,
+  ): Promise<ApiReply<void>>
+  pickAvatar(): Promise<ApiReply<AvatarInput | null>>
+  dropAvatar(file: File): Promise<ApiReply<AvatarInput>>
+  pasteAvatar(): Promise<ApiReply<AvatarInput>>
+  avatarBytes(characterId: string, sha256: string, size: number): Promise<ApiReply<Uint8Array>>
+  previewAvatar(server: string): Promise<ApiReply<Uint8Array | null>>
+  avatarCommand(
+    characterId: string,
+    expectedRevision: number,
+    bytes?: Uint8Array,
+  ): Promise<ApiReply<AvatarCommandItem>>
+  avatarCommands(characterId: string): Promise<ApiReply<AvatarCommandItem[]>>
+  avatarDraft(characterId: string, requestId: string): Promise<ApiReply<AvatarInput | null>>
+  acknowledgeAvatarCommand(characterId: string, requestId: string): Promise<ApiReply<void>>
+  verifyAvatarCommand(characterId: string, requestId: string): Promise<ApiReply<AvatarCommandItem>>
   characterCommand(
     characterId: string,
     command: CharacterCommand,

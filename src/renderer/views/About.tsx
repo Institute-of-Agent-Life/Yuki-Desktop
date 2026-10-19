@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronRight, Pencil, RefreshCw } from 'lucide-react'
 import type {
@@ -11,10 +11,10 @@ import type {
   MemoryFact,
   MemoryPage,
   Profile,
+  AvatarCommandItem,
 } from '../../shared/api'
 import type { MessageReference } from '../../shared/message'
 import {
-  Avatar,
   Banner,
   Button,
   EmptyState,
@@ -25,6 +25,8 @@ import {
 } from '../components/Controls'
 import { ClientProblem, hidesPrivateData, problemText, unwrap } from '../queries/client'
 import styles from './About.module.css'
+import { CharacterAvatar } from '../components/CharacterAvatar'
+import { AvatarEditor, AvatarPending } from './AvatarEditor'
 
 const date = (value: string | null) =>
   value
@@ -59,6 +61,14 @@ export function About({
   const query = useQueryClient()
   const [tab, setTab] = useState<'me' | 'self' | 'arrangements' | 'capabilities'>('me')
   const [editing, setEditing] = useState(false)
+  const [avatarEditing, setAvatarEditing] = useState(false)
+  const [avatarRestore, setAvatarRestore] = useState<AvatarCommandItem>()
+  const [notice, setNotice] = useState('')
+  useEffect(() => {
+    if (!notice) return
+    const timer = setTimeout(() => setNotice(''), 4000)
+    return () => clearTimeout(timer)
+  }, [notice])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const commands = useQuery({
@@ -96,7 +106,20 @@ export function About({
     <div className={styles.about}>
       <header className={styles.hero}>
         <div className={styles.portrait}>
-          <Avatar name={profile.display_name} size={200} />
+          <CharacterAvatar size={200} />
+          {profile.viewer.is_owner && (
+            <button
+              className={styles.avatarEdit}
+              aria-label="編輯頭像"
+              onClick={() => {
+                setAvatarRestore(undefined)
+                setAvatarEditing(true)
+              }}
+            >
+              <Pencil size={14} />
+              <span>更換頭像</span>
+            </button>
+          )}
         </div>
         <div className={styles.introduction}>
           <div className={styles.name}>
@@ -118,10 +141,43 @@ export function About({
               refresh={refresh}
             />
           ) : (
-            <p>{profile.bio}</p>
+            <>
+              <p>{profile.bio}</p>
+              {profile.viewer.is_owner && (
+                <Button
+                  onClick={() => {
+                    setAvatarRestore(undefined)
+                    setAvatarEditing(true)
+                  }}
+                >
+                  更換頭像
+                </Button>
+              )}
+            </>
           )}
         </div>
       </header>
+      <AvatarPending
+        id={id}
+        owner={profile.viewer.is_owner}
+        open={(item) => {
+          setAvatarRestore(item)
+          setAvatarEditing(true)
+        }}
+      />
+      <AvatarEditor
+        id={id}
+        profile={profile}
+        open={avatarEditing}
+        restore={avatarRestore}
+        close={() => setAvatarEditing(false)}
+        done={() => setNotice('已更新頭像')}
+      />
+      {notice && (
+        <div className={styles.toast} role="status">
+          {notice}
+        </div>
+      )}
       <Segmented
         label="角色資料"
         value={tab}

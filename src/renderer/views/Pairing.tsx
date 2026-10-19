@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Snowflake } from 'lucide-react'
 import type { Connection, Me, Meta } from '../../shared/api'
 import { parsePairing } from '../../shared/pairing'
-import { Avatar, Banner, Button, TextField } from '../components/Controls'
+import { Banner, Button, TextField } from '../components/Controls'
+import { PairingAvatar } from '../components/CharacterAvatar'
 import { unwrap } from '../queries/client'
 import styles from '../App.module.css'
 
@@ -76,7 +77,14 @@ export function Pairing({
   return (
     <div className={styles.welcome}>
       <div className={styles.welcomeInner}>
-        {meta && <Avatar name={meta.character.display_name} size={step === 'person' ? 80 : 36} />}
+        {meta && (
+          <PairingAvatar
+            server={server}
+            name={meta.character.display_name}
+            size={step === 'person' ? 80 : 36}
+            avatarUrl={meta.character.avatar_url}
+          />
+        )}
         {step === 'welcome' && (
           <Snowflake className={styles.welcomeMark} size={160} strokeWidth={1} />
         )}

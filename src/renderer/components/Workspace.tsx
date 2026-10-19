@@ -14,15 +14,17 @@ import {
 } from 'lucide-react'
 import { columns } from '../../main/geometry'
 import { useWorkspace } from '../state/workspace'
-import { Avatar, IconButton } from './Controls'
+import { IconButton } from './Controls'
+import { PresenceCard } from './PresenceCard'
 import type { Preferences, View } from '../../shared/desktop'
 import styles from '../App.module.css'
 import { useCommands } from '../state/commands'
 
 interface Props {
   name: string
-  avatar?: string | null
+  avatar?: ReactNode
   status: string
+  presence?: 'running' | 'waiting' | 'done' | 'offline'
   owner: boolean
   platform: string
   preferences: Preferences
@@ -125,13 +127,13 @@ export function Workspace(props: Props) {
   )
   const sidebarContent = (
     <>
-      <button className={styles.presence} onClick={() => state.setView('about')}>
-        <Avatar name={props.name} src={props.avatar} />
-        <span>
-          <strong>{props.name}</strong>
-          <small>{props.status}</small>
-        </span>
-      </button>
+      <PresenceCard
+        name={props.name}
+        status={props.status}
+        color={props.presence}
+        avatar={props.avatar}
+        open={() => state.setView('about')}
+      />
       <div className={styles.group}>對話</div>
       {views
         .filter(([view]) => view === 'chat')

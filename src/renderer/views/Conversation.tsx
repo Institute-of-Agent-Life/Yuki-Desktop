@@ -11,10 +11,13 @@ import type {
   Activity,
   Work,
   ArtifactSource,
+  CharacterStatus,
 } from '../../shared/api'
 import type { Preferences } from '../../shared/desktop'
 import { Composer } from '../components/Composer'
-import { Avatar, Banner, Button, EmptyState, IconButton } from '../components/Controls'
+import { Banner, Button, EmptyState, IconButton } from '../components/Controls'
+import { CharacterAvatar, CharacterVisuals } from '../components/CharacterAvatar'
+import { characterPresence } from '../../shared/presence'
 import { Copy, Reply } from 'lucide-react'
 import { Workspace } from '../components/Workspace'
 import { unwrap, problemText, hidesPrivateData, ClientProblem } from '../queries/client'
@@ -100,6 +103,46 @@ export function Conversation({
     queryKey: [id, 'character'],
     queryFn: () => read<Profile>(id, { kind: 'character' }),
   })
+  const characterStatus = useQuery({
+    queryKey: [id, 'character-status'],
+    queryFn: () => read<CharacterStatus>(id, { kind: 'character-status' }),
+  })
+  useEffect(() => {
+    if (!profile.data || profile.data.avatar || hidesPrivateData(profile.error)) return
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 128
+    const context = canvas.getContext('2d', { colorSpace: 'srgb' })!
+    context.beginPath()
+    context.arc(64, 64, 64, 0, Math.PI * 2)
+    context.clip()
+    context.fillStyle = profile.data.accent.light
+    context.fillRect(0, 0, 128, 128)
+    context.fillStyle = '#fff'
+    context.textAlign = 'center'
+    context.textBaseline = 'middle'
+    context.font = `600 ${128 * 0.42}px ${getComputedStyle(document.documentElement).fontFamily}`
+    const letter =
+      [
+        ...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(
+          profile.data.display_name.trim(),
+        ),
+      ][0]?.segment.toLocaleUpperCase() ?? ''
+    context.fillText(letter, 64, 66)
+    const source = profile.data
+    canvas.toBlob((blob) => {
+      if (blob)
+        void blob
+          .arrayBuffer()
+          .then((buffer) =>
+            window.yuki.client.letterDecoration(
+              id,
+              source.revision,
+              source.avatar_revision,
+              new Uint8Array(buffer),
+            ),
+          )
+    }, 'image/png')
+  }, [id, profile.data, profile.error])
   const outbox = useQuery({
     queryKey: [id, 'outbox'],
     queryFn: () => window.yuki.client.outbox(id).then(unwrap),
@@ -133,6 +176,7 @@ export function Conversation({
   const refresh = useCallback(() => {
     void query.invalidateQueries({ queryKey: [id, 'home'] })
     void query.invalidateQueries({ queryKey: [id, 'character'] })
+    void query.invalidateQueries({ queryKey: [id, 'character-status'] })
     void query.invalidateQueries({ queryKey: [id, 'events'] })
     void query.invalidateQueries({ queryKey: [id, 'reference'] })
     void query.invalidateQueries({ queryKey: [id, 'outbox'] })
@@ -140,7 +184,13 @@ export function Conversation({
     void query.invalidateQueries({ queryKey: [id, 'content'] })
     void query.invalidateQueries({ queryKey: [id, 'activity'] })
     void query.invalidateQueries({ queryKey: [id, 'work'] })
-    for (const key of ['memory', 'automations', 'capabilities', 'character-commands'])
+    for (const key of [
+      'memory',
+      'automations',
+      'capabilities',
+      'character-commands',
+      'avatar-commands',
+    ])
       void query.invalidateQueries({ queryKey: [id, key] })
   }, [id, query])
   useEffect(() => {
@@ -403,370 +453,395 @@ export function Conversation({
   const visible = (eventData?.items ?? []).filter(
     (item) => search === null || item.text.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
   )
+  const presence = characterPresence(
+    online,
+    accessLost || hidesPrivateData(characterStatus.error) ? undefined : characterStatus.data,
+  )
   return (
-    <Workspace
-      name={name}
-      status={online === 'online' ? '已連線' : online === 'offline' ? '離線' : '連線中'}
-      owner={profileData?.viewer.is_owner ?? false}
-      platform={platform}
-      preferences={preferences}
-      savePreferences={save}
-      onSettings={onSettings}
-      entries={
-        <>
-          {homeData?.entries
-            .filter((item) => item.conversation_id !== connection.conversationId)
-            .map((item) => (
-              <button
-                className={styles.entry}
-                key={item.conversation_id}
-                aria-current={item.conversation_id === conversation ? 'page' : undefined}
-                onClick={() => choose(item.conversation_id)}
-              >
-                {item.platform.toUpperCase()} · {item.display_name}
-              </button>
-            ))}
-          {!isMain && (
-            <Button variant="plain" onClick={() => choose(connection.conversationId)}>
-              回到桌面對話
-            </Button>
-          )}
-        </>
-      }
-      inspector={
-        view === 'computer' && !accessLost && profileData?.viewer.is_owner ? (
-          focusMode ? (
-            <Computer key={id} connection={connection} name={name} work={openWork} />
-          ) : (
-            <ComputerInspector key={id} id={id} work={openWork} />
-          )
-        ) : artifact && !accessLost ? (
-          <ArtifactInspector
-            key={`${artifact.artifactId}/${artifact.version}`}
-            id={id}
-            source={artifact}
-            library={() => useWorkspace.getState().setView('files')}
-          />
-        ) : selectedWork && !accessLost ? (
-          <WorkDetail
-            key={selectedWork}
-            id={id}
-            workId={selectedWork}
-            open={openWork}
-            replyInChat={answerWork}
-            commandEnter={preferences.sendKey === 'command-enter'}
-            artifact={openArtifact}
-            computer={
-              profileData?.viewer.is_owner
-                ? () => {
-                    const state = useWorkspace.getState()
-                    state.setView('computer')
-                    if (!state.focusMode) state.toggle('focusMode')
-                  }
-                : undefined
-            }
-          />
-        ) : preview ? (
-          <AttachmentPreview id={id} source={preview} close={() => setPreview(undefined)} />
-        ) : (
-          <div className={styles.inspector}>
-            <h3>
-              {isMain ? '桌面對話' : `${entry?.platform.toUpperCase()} · ${entry?.display_name}`}
-            </h3>
-            <p>這裡的內容來自原入口的對話紀錄。</p>
-            {outbox.data
-              ?.filter((item) => item.state !== 'result' || item.problem)
+    <CharacterVisuals.Provider value={{ id, name, profile: profileData, presence }}>
+      <Workspace
+        name={name}
+        avatar={<CharacterAvatar />}
+        status={presence.text}
+        presence={presence.color}
+        owner={profileData?.viewer.is_owner ?? false}
+        platform={platform}
+        preferences={preferences}
+        savePreferences={save}
+        onSettings={onSettings}
+        entries={
+          <>
+            {homeData?.entries
+              .filter((item) => item.conversation_id !== connection.conversationId)
               .map((item) => (
-                <Pending
-                  key={item.requestId}
-                  item={item}
-                  verify={async () => {
-                    unwrap(await window.yuki.client.verify(id, item.requestId))
-                    refresh()
-                  }}
-                />
+                <button
+                  className={styles.entry}
+                  key={item.conversation_id}
+                  aria-current={item.conversation_id === conversation ? 'page' : undefined}
+                  onClick={() => choose(item.conversation_id)}
+                >
+                  {item.platform.toUpperCase()} · {item.display_name}
+                </button>
               ))}
-          </div>
-        )
-      }
-    >
-      {view === 'computer' && !focusMode ? (
-        accessLost || !profileData?.viewer.is_owner ? (
-          <Banner status="failed">
-            {accessLost ? problemText(connectionProblem) : '這項操作需要角色擁有者權限。'}
-          </Banner>
-        ) : (
-          <Computer key={id} connection={connection} name={name} work={openWork} />
-        )
-      ) : view === 'files' && !focusMode ? (
-        accessLost ? (
-          <Banner status="failed">{problemText(connectionProblem)}</Banner>
-        ) : (
-          <Files
-            id={id}
-            initial={artifact}
-            onSelect={selectArtifact}
-            jump={(ref) => void jumpTo(ref)}
-            work={openWork}
-          />
-        )
-      ) : view === 'works' && !focusMode ? (
-        accessLost ? (
-          <Banner status="failed">{problemText(connectionProblem)}</Banner>
-        ) : (
-          <WorkList id={id} selected={selectedWork} open={openWork} />
-        )
-      ) : view === 'about' && !focusMode ? (
-        accessLost ? (
-          <Banner status="failed">{problemText(connectionProblem)}</Banner>
-        ) : profileData ? (
-          <About key={id} id={id} profile={profileData} jump={jumpTo} />
-        ) : (
-          <EmptyState title="角色資料">{profile.error?.message ?? '正在讀取…'}</EmptyState>
-        )
-      ) : view !== 'chat' && !focusMode ? (
-        <EmptyState
-          title={
-            view === 'settings' ? '設定' : view === 'computer' ? `${name} 的電腦` : '檔案與成果'
-          }
-        >
-          <span>正在接入此單元的伺服器介面。</span>
-        </EmptyState>
-      ) : (
-        <div
-          className={styles.chat}
-          onDragOver={(event) => {
-            if (isMain && event.dataTransfer.types.includes('Files')) {
-              event.preventDefault()
-              setDragging(true)
-            }
-          }}
-          onDragLeave={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false)
-          }}
-          onDrop={(event) => {
-            event.preventDefault()
-            setDragging(false)
-            if (isMain)
-              void mediaAction(
-                window.yuki.client.drop(id, Array.from(event.dataTransfer.files)).then(unwrap),
-              )
-          }}
-        >
-          {dragging && <div className={mediaStyles.drop}>放開以附加</div>}
-          {mediaError && <Banner status="failed">{mediaError}</Banner>}
-          {historyError && <Banner status="failed">{historyError}</Banner>}
-          {online !== 'online' && (
-            <Banner>
-              {connectionProblem
-                ? problemText(connectionProblem)
-                : '正在連接伺服器。草稿保存在這台電腦。'}
-            </Banner>
-          )}
-          {(events.error || home.error || profile.error) && (
-            <Banner status="failed">
-              {(events.error ?? home.error ?? profile.error)?.message}
-              <Button variant="plain" onClick={refresh}>
-                重新連線
+            {!isMain && (
+              <Button variant="plain" onClick={() => choose(connection.conversationId)}>
+                回到桌面對話
               </Button>
-              <Button variant="plain" onClick={onPairAgain}>
-                重新配對
-              </Button>
-            </Banner>
-          )}
-          {search !== null && (
-            <div className={styles.search}>
-              <input
-                autoFocus
-                aria-label="搜尋已載入內容"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') setSearch(null)
-                }}
-              />
-              <Button variant="plain" onClick={() => setSearch(null)}>
-                完成
-              </Button>
-              <small>只搜尋已載入的內容</small>
+            )}
+          </>
+        }
+        inspector={
+          view === 'computer' && !accessLost && profileData?.viewer.is_owner ? (
+            focusMode ? (
+              <Computer key={id} connection={connection} name={name} work={openWork} />
+            ) : (
+              <ComputerInspector key={id} id={id} work={openWork} />
+            )
+          ) : artifact && !accessLost ? (
+            <ArtifactInspector
+              key={`${artifact.artifactId}/${artifact.version}`}
+              id={id}
+              source={artifact}
+              library={() => useWorkspace.getState().setView('files')}
+            />
+          ) : selectedWork && !accessLost ? (
+            <WorkDetail
+              key={selectedWork}
+              id={id}
+              workId={selectedWork}
+              open={openWork}
+              replyInChat={answerWork}
+              commandEnter={preferences.sendKey === 'command-enter'}
+              artifact={openArtifact}
+              computer={
+                profileData?.viewer.is_owner
+                  ? () => {
+                      const state = useWorkspace.getState()
+                      state.setView('computer')
+                      if (!state.focusMode) state.toggle('focusMode')
+                    }
+                  : undefined
+              }
+            />
+          ) : preview ? (
+            <AttachmentPreview id={id} source={preview} close={() => setPreview(undefined)} />
+          ) : (
+            <div className={styles.inspector}>
+              <h3>
+                {isMain ? '桌面對話' : `${entry?.platform.toUpperCase()} · ${entry?.display_name}`}
+              </h3>
+              <p>這裡的內容來自原入口的對話紀錄。</p>
+              {outbox.data
+                ?.filter((item) => item.state !== 'result' || item.problem)
+                .map((item) => (
+                  <Pending
+                    key={item.requestId}
+                    item={item}
+                    verify={async () => {
+                      unwrap(await window.yuki.client.verify(id, item.requestId))
+                      refresh()
+                    }}
+                  />
+                ))}
             </div>
-          )}
+          )
+        }
+      >
+        {view === 'computer' && !focusMode ? (
+          accessLost || !profileData?.viewer.is_owner ? (
+            <Banner status="failed">
+              {accessLost ? problemText(connectionProblem) : '這項操作需要角色擁有者權限。'}
+            </Banner>
+          ) : (
+            <Computer key={id} connection={connection} name={name} work={openWork} />
+          )
+        ) : view === 'files' && !focusMode ? (
+          accessLost ? (
+            <Banner status="failed">{problemText(connectionProblem)}</Banner>
+          ) : (
+            <Files
+              id={id}
+              initial={artifact}
+              onSelect={selectArtifact}
+              jump={(ref) => void jumpTo(ref)}
+              work={openWork}
+            />
+          )
+        ) : view === 'works' && !focusMode ? (
+          accessLost ? (
+            <Banner status="failed">{problemText(connectionProblem)}</Banner>
+          ) : (
+            <WorkList id={id} selected={selectedWork} open={openWork} />
+          )
+        ) : view === 'about' && !focusMode ? (
+          accessLost ? (
+            <Banner status="failed">{problemText(connectionProblem)}</Banner>
+          ) : profileData ? (
+            <About key={id} id={id} profile={profileData} jump={jumpTo} />
+          ) : (
+            <EmptyState title="角色資料">{profile.error?.message ?? '正在讀取…'}</EmptyState>
+          )
+        ) : view !== 'chat' && !focusMode ? (
+          <EmptyState
+            title={
+              view === 'settings' ? '設定' : view === 'computer' ? `${name} 的電腦` : '檔案與成果'
+            }
+          >
+            <span>正在接入此單元的伺服器介面。</span>
+          </EmptyState>
+        ) : (
           <div
-            className={styles.messages}
-            role="log"
-            aria-label="對話訊息"
-            aria-live="polite"
-            ref={list}
-            onScroll={(event) => {
-              const node = event.currentTarget
-              bottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 64
-              needsEarlier.current = node.scrollTop < 48 && !bottom.current
-              if (needsEarlier.current) void more()
+            className={styles.chat}
+            onDragOver={(event) => {
+              if (isMain && event.dataTransfer.types.includes('Files')) {
+                event.preventDefault()
+                setDragging(true)
+              }
+            }}
+            onDragLeave={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false)
+            }}
+            onDrop={(event) => {
+              event.preventDefault()
+              setDragging(false)
+              if (isMain)
+                void mediaAction(
+                  window.yuki.client.drop(id, Array.from(event.dataTransfer.files)).then(unwrap),
+                )
             }}
           >
-            {eventData?.has_more && (
-              <Button variant="plain" loading={loadingEarlier} onClick={() => void more()}>
-                載入更早訊息
-              </Button>
+            {dragging && <div className={mediaStyles.drop}>放開以附加</div>}
+            {mediaError && <Banner status="failed">{mediaError}</Banner>}
+            {historyError && <Banner status="failed">{historyError}</Banner>}
+            {online !== 'online' && (
+              <Banner>
+                {connectionProblem
+                  ? problemText(connectionProblem)
+                  : '正在連接伺服器。草稿保存在這台電腦。'}
+              </Banner>
             )}
-            {eventData && !events.isPending && !visible.length && !pending.length && (
-              <EmptyState title={`和 ${name} 聊聊`}>說一聲你好，或交給她一件事。</EmptyState>
+            {(events.error || home.error || profile.error) && (
+              <Banner status="failed">
+                {(events.error ?? home.error ?? profile.error)?.message}
+                <Button variant="plain" onClick={refresh}>
+                  重新連線
+                </Button>
+                <Button variant="plain" onClick={onPairAgain}>
+                  重新配對
+                </Button>
+              </Banner>
             )}
-            {visible.map((event, index) => (
-              <Fragment key={event.event_id}>
-                {(!index ||
-                  dayKey(event.created_at) !== dayKey(visible[index - 1]!.created_at)) && (
-                  <div className={styles.dateSeparator}>{dayLabel(event.created_at)}</div>
-                )}
-                <Message
-                  consecutive={
-                    index > 0 &&
-                    event.direction === visible[index - 1]!.direction &&
-                    dayKey(event.created_at) === dayKey(visible[index - 1]!.created_at)
-                  }
-                  onJump={(reference) => void jumpTo(reference)}
-                  characterId={id}
-                  receipt={(outbox.data ?? []).find((item) => item.eventId === event.event_id)}
-                  verify={async (requestId) => {
-                    unwrap(await window.yuki.client.verify(id, requestId))
-                    refresh()
-                  }}
-                  event={event}
-                  name={name}
-                  selected={selection === event.event_id}
-                  onSelect={() => setSelection(event.event_id)}
-                  onReference={() => {
-                    addReference(event)
-                  }}
-                  onAttachment={openAttachment}
-                  onArtifact={openArtifact}
-                />
-                {!accessLost &&
-                  (event.work_ids ?? []).map((workId) => (
-                    <ConversationWork
-                      key={workId}
-                      id={id}
-                      work={workId}
-                      open={openWork}
-                      reply={answerWork}
-                      artifact={openArtifact}
-                    />
-                  ))}
-              </Fragment>
-            ))}
-            {pending.map((item) => (
-              <div key={item.requestId} className={styles.ownMessage}>
-                <References
-                  characterId={id}
-                  text={item.body.text}
-                  onJump={(ref) => void jumpTo(ref)}
-                />
-                <p>{parseMessage(item.body.text).text}</p>
-                <Pending
-                  item={item}
-                  verify={async () => {
-                    unwrap(await window.yuki.client.verify(id, item.requestId))
-                    refresh()
+            {search !== null && (
+              <div className={styles.search}>
+                <input
+                  autoFocus
+                  aria-label="搜尋已載入內容"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') setSearch(null)
                   }}
                 />
+                <Button variant="plain" onClick={() => setSearch(null)}>
+                  完成
+                </Button>
+                <small>只搜尋已載入的內容</small>
               </div>
-            ))}
-          </div>
-          {(newMessages || anchor !== null) && (
-            <button
-              className={styles.newMessages}
-              onClick={() => {
-                if (anchor !== null) setAnchor(null)
-                bottom.current = true
-                list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' })
-                setNewMessages(false)
+            )}
+            <div
+              className={styles.messages}
+              role="log"
+              aria-label="對話訊息"
+              aria-live="polite"
+              ref={list}
+              onScroll={(event) => {
+                const node = event.currentTarget
+                bottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 64
+                needsEarlier.current = node.scrollTop < 48 && !bottom.current
+                if (needsEarlier.current) void more()
               }}
             >
-              {anchor !== null ? '回到最新訊息' : '↓ 新訊息'}
-            </button>
-          )}
-          {online === 'online' && !activity.error && activity.data?.evidence === 'executing' && (
-            <div className={styles.processing} role="status">
-              {name} 正在處理
-            </div>
-          )}
-          {isMain && replyWork ? (
-            <WorkReply
-              key={replyWork.work_id}
-              id={id}
-              work={replyWork}
-              done={refresh}
-              close={() => setReplyWork(undefined)}
-              commandEnter={preferences.sendKey === 'command-enter'}
-            />
-          ) : isMain ? (
-            <Composer
-              name={name}
-              draft={draft}
-              onDraft={updateDraft}
-              onSubmit={send}
-              hasContent={references.length > 0 || !!uploads.data?.length}
-              blocked={recording || uploads.data?.some((item) => item.state !== 'ready')}
-              commandEnter={preferences.sendKey === 'command-enter'}
-              onAttach={() => void mediaAction(window.yuki.client.attach(id).then(unwrap))}
-              onRecord={() => (recording ? finishRecording.current?.() : setRecording(true))}
-            >
-              <DraftAttachments id={id} items={uploads.data ?? []} refresh={refresh} />
-              {recording && (
-                <VoiceRecorder
-                  id={id}
-                  done={finishVoice}
-                  cancel={cancelVoice}
-                  finish={finishRecording}
-                />
+              {eventData?.has_more && (
+                <Button variant="plain" loading={loadingEarlier} onClick={() => void more()}>
+                  載入更早訊息
+                </Button>
               )}
-              {references.map((reference, index) => (
-                <div
-                  key={`${reference.conversationId}/${reference.eventId}/${index}`}
-                  className={styles.reference}
-                >
-                  <Reference
-                    id={id}
-                    conversation={reference.conversationId}
-                    eventId={reference.eventId}
+              {eventData && !eventData.has_more && visible.length > 0 && search === null && (
+                <header className={styles.conversationIntroduction}>
+                  <CharacterAvatar size={64} />
+                  <h2>{name}</h2>
+                  <p>
+                    {isMain
+                      ? `這是你與 ${name} 的桌面對話`
+                      : `${entry?.platform.toUpperCase() ?? ''} · ${entry?.display_name ?? ''}`}
+                  </p>
+                </header>
+              )}
+              {eventData && !events.isPending && !visible.length && !pending.length && (
+                <div className={styles.emptyConversation}>
+                  <CharacterAvatar size={120} />
+                  <h2>和 {name} 聊聊</h2>
+                  <p>說一聲你好，或交給她一件事。</p>
+                </div>
+              )}
+              {visible.map((event, index) => (
+                <Fragment key={event.event_id}>
+                  {(!index ||
+                    dayKey(event.created_at) !== dayKey(visible[index - 1]!.created_at)) && (
+                    <div className={styles.dateSeparator}>{dayLabel(event.created_at)}</div>
+                  )}
+                  <Message
+                    consecutive={
+                      index > 0 &&
+                      event.direction === visible[index - 1]!.direction &&
+                      dayKey(event.created_at) === dayKey(visible[index - 1]!.created_at)
+                    }
+                    onJump={(reference) => void jumpTo(reference)}
+                    characterId={id}
+                    receipt={(outbox.data ?? []).find((item) => item.eventId === event.event_id)}
+                    verify={async (requestId) => {
+                      unwrap(await window.yuki.client.verify(id, requestId))
+                      refresh()
+                    }}
+                    event={event}
+                    name={name}
+                    selected={selection === event.event_id}
+                    onSelect={() => setSelection(event.event_id)}
+                    onReference={() => {
+                      addReference(event)
+                    }}
+                    onAttachment={openAttachment}
+                    onArtifact={openArtifact}
+                  />
+                  {!accessLost &&
+                    (event.work_ids ?? []).map((workId) => (
+                      <ConversationWork
+                        key={workId}
+                        id={id}
+                        work={workId}
+                        open={openWork}
+                        reply={answerWork}
+                        artifact={openArtifact}
+                      />
+                    ))}
+                </Fragment>
+              ))}
+              {pending.map((item) => (
+                <div key={item.requestId} className={styles.ownMessage}>
+                  <References
+                    characterId={id}
+                    text={item.body.text}
                     onJump={(ref) => void jumpTo(ref)}
                   />
-                  <Button
-                    variant="plain"
-                    onClick={() =>
-                      updateReferences(
-                        currentReferences.current.filter((item) => item !== reference),
-                      )
-                    }
-                  >
-                    移除引用
-                  </Button>
+                  <p>{parseMessage(item.body.text).text}</p>
+                  <Pending
+                    item={item}
+                    verify={async () => {
+                      unwrap(await window.yuki.client.verify(id, item.requestId))
+                      refresh()
+                    }}
+                  />
                 </div>
               ))}
-            </Composer>
-          ) : (
-            <div className={styles.readonly}>
-              <p>
-                這是你在 {entry?.platform.toUpperCase()} 與 {name}{' '}
-                的對話。要在這裡繼續，請到桌面對話。
-              </p>
-              <Button
-                disabled={!visible.length}
+            </div>
+            {(newMessages || anchor !== null) && (
+              <button
+                className={styles.newMessages}
                 onClick={() => {
-                  const event =
-                    visible.find((item) => item.event_id === selection) ?? visible.at(-1)
-                  if (event) {
-                    addReference(event)
-                  }
+                  if (anchor !== null) setAnchor(null)
+                  bottom.current = true
+                  list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' })
+                  setNewMessages(false)
                 }}
               >
-                在桌面對話中提到這段
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-    </Workspace>
+                {anchor !== null ? '回到最新訊息' : '↓ 新訊息'}
+              </button>
+            )}
+            {online === 'online' && !activity.error && activity.data?.evidence === 'executing' && (
+              <div className={styles.processing} role="status">
+                <CharacterAvatar size={20} />
+                <span aria-hidden="true">•••</span>
+                {name} 正在處理
+              </div>
+            )}
+            {isMain && replyWork ? (
+              <WorkReply
+                key={replyWork.work_id}
+                id={id}
+                work={replyWork}
+                done={refresh}
+                close={() => setReplyWork(undefined)}
+                commandEnter={preferences.sendKey === 'command-enter'}
+              />
+            ) : isMain ? (
+              <Composer
+                name={name}
+                draft={draft}
+                onDraft={updateDraft}
+                onSubmit={send}
+                hasContent={references.length > 0 || !!uploads.data?.length}
+                blocked={recording || uploads.data?.some((item) => item.state !== 'ready')}
+                commandEnter={preferences.sendKey === 'command-enter'}
+                onAttach={() => void mediaAction(window.yuki.client.attach(id).then(unwrap))}
+                onRecord={() => (recording ? finishRecording.current?.() : setRecording(true))}
+              >
+                <DraftAttachments id={id} items={uploads.data ?? []} refresh={refresh} />
+                {recording && (
+                  <VoiceRecorder
+                    id={id}
+                    done={finishVoice}
+                    cancel={cancelVoice}
+                    finish={finishRecording}
+                  />
+                )}
+                {references.map((reference, index) => (
+                  <div
+                    key={`${reference.conversationId}/${reference.eventId}/${index}`}
+                    className={styles.reference}
+                  >
+                    <Reference
+                      id={id}
+                      conversation={reference.conversationId}
+                      eventId={reference.eventId}
+                      onJump={(ref) => void jumpTo(ref)}
+                    />
+                    <Button
+                      variant="plain"
+                      onClick={() =>
+                        updateReferences(
+                          currentReferences.current.filter((item) => item !== reference),
+                        )
+                      }
+                    >
+                      移除引用
+                    </Button>
+                  </div>
+                ))}
+              </Composer>
+            ) : (
+              <div className={styles.readonly}>
+                <p>
+                  這是你在 {entry?.platform.toUpperCase()} 與 {name}{' '}
+                  的對話。要在這裡繼續，請到桌面對話。
+                </p>
+                <Button
+                  disabled={!visible.length}
+                  onClick={() => {
+                    const event =
+                      visible.find((item) => item.event_id === selection) ?? visible.at(-1)
+                    if (event) {
+                      addReference(event)
+                    }
+                  }}
+                >
+                  在桌面對話中提到這段
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </Workspace>
+    </CharacterVisuals.Provider>
   )
 }
 
@@ -858,7 +933,7 @@ function Message({
       }}
     >
       {!own &&
-        (!consecutive ? <Avatar name={name} size={28} /> : <span className={styles.avatarSpace} />)}
+        (!consecutive ? <CharacterAvatar size={28} /> : <span className={styles.avatarSpace} />)}
       <div className={styles.messageBody}>
         <header>
           <strong>{own ? '你' : name}</strong>

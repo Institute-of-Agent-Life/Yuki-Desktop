@@ -4203,7 +4203,8 @@
   },
   "info": {
     "title": "Yuki personal API",
-    "version": "3.9.0"
+    "version": "3.9.0",
+    "x-yuki-api-revision": 4
   },
   "openapi": "3.1.0",
   "paths": {

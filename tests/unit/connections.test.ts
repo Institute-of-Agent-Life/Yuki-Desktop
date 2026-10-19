@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false } }))
@@ -19,7 +20,7 @@ const original: Connection = {
 }
 const merged = '00000000-0000-4000-8000-000000000005'
 const meta: Meta = {
-  api_revision: 3,
+  api_revision: 4,
   server_version: 'test',
   character: {
     id: original.characterId,
@@ -74,6 +75,50 @@ function data(schema: string, value: unknown) {
   validateFixture(schema, { data: value })
   return Response.json({ data: value })
 }
+it('keeps verified avatar bytes offline, rejects a damaged cache and clears it after known revocation', async () => {
+  const connections = setup()
+  connections.credentials.set(`device/${original.characterId}/${original.personId}`, 'fixture-only')
+  const png = readFileSync(new URL('../fixtures/avatar-white.png', import.meta.url))
+  const sha = createHash('sha256').update(png).digest('hex')
+  let state: 'online' | 'offline' | 'revoked' = 'online',
+    downloads = 0
+  vi.stubGlobal('fetch', async (input: string) => {
+    if (input.endsWith('/meta')) return data('Envelope_Meta_', meta)
+    if (input.endsWith('/me')) return data('Envelope_Me_', me)
+    if (state === 'offline') throw Error('offline')
+    if (state === 'revoked')
+      return Response.json({ problem: { code: 'unauthenticated' } }, { status: 401 })
+    downloads++
+    return new Response(png, {
+      headers: { 'Content-Type': 'image/png', 'Content-Length': String(png.length) },
+    })
+  })
+  const both = await Promise.all([
+    connections.avatarBytes(original.characterId, sha, 1024),
+    connections.avatarBytes(original.characterId, sha, 1024),
+  ])
+  expect(downloads).toBe(1)
+  expect(Buffer.from(both[0]!)).toEqual(png)
+  state = 'offline'
+  expect(Buffer.from(await connections.avatarBytes(original.characterId, sha, 1024))).toEqual(png)
+  const box = connections.box(original.characterId),
+    key = `avatar/${sha}/1024`,
+    cached = box.cached<{ bytes: string; sha256: string }>(key)!
+  box.cache(key, { ...cached, bytes: Buffer.from('damaged').toString('base64') })
+  await expect(connections.avatarBytes(original.characterId, sha, 1024)).rejects.toMatchObject({
+    code: 'content_hash_mismatch',
+  })
+  box.cache(key, cached)
+  state = 'revoked'
+  await expect(connections.avatarBytes(original.characterId, sha, 1024)).rejects.toMatchObject({
+    code: 'unauthenticated',
+  })
+  expect(box.cached(key)).toBeUndefined()
+  state = 'offline'
+  await expect(connections.avatarBytes(original.characterId, sha, 1024)).rejects.toMatchObject({
+    code: 'transport_unknown',
+  })
+})
 
 it('re-pairing after a Person merge proves access to the old binding and keeps its original outbox', async () => {
   const connections = setup(),
@@ -162,6 +207,7 @@ it('a new session without a keyring requests pairing and preserves the existing 
 it.each([
   [{ ...meta, character: { ...meta.character, id: merged } }, 'different_character'],
   [{ ...meta, api_revision: 2 }, 'server_upgrade_required'],
+  [{ ...meta, api_revision: 3 }, 'server_upgrade_required'],
   [{ ...meta, min_client: { desktop: '2.0.0', android: null } }, 'client_upgrade_required'],
 ] as const)(
   'checks instance identity and compatibility before sending credentials or changing outbox',

@@ -119,10 +119,22 @@
 }
 .presence strong {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .presence small {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--text-secondary);
   display: block;
   margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.presenceText {
+  min-width: 0;
 }
 .group {
   font-size: 11px;
@@ -308,4 +320,18 @@
   .composer {
     width: calc(100% - 32px);
   }
+}
+.presenceAvatar {
+  display: inline-flex;
+  position: relative;
+  flex: 0 0 36px;
+}
+.presenceDot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  height: 10px;
+  width: 10px;
+  border-radius: 50%;
+  outline: 2px solid var(--bg-sidebar);
 }

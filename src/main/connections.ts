@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { createHash } from 'node:crypto'
 import type {
   ApiRead,
   AttachmentSource,
@@ -11,6 +12,7 @@ import type {
   Meta,
   OutboxItem,
   WorkCommand,
+  Profile,
 } from '../shared/api'
 import { REQUIRED_API_REVISION } from '../shared/api'
 import { ApiClient, ApiError, normalizeServer } from './api/client'
@@ -21,6 +23,7 @@ import { Outbox } from './outbox'
 import { WorkCommands } from './outbox/work-commands'
 import { ComputerCommands } from './outbox/computer-commands'
 import { CharacterCommands } from './outbox/character-commands'
+import { AvatarCommands } from './outbox/avatar-commands'
 import { ComputerTickets } from './computer-tickets'
 import type { LocalStore } from './store'
 import { Uploads } from './media/uploads'
@@ -39,6 +42,7 @@ const artifactIdentity = (value: string) => {
 }
 
 export class Connections {
+  onProfile?: (id: string, profile: Profile) => void
   readonly credentials: Credentials
   private readonly outboxes = new Map<string, Outbox>()
   private readonly streams = new Map<string, AbortController>()
@@ -50,6 +54,8 @@ export class Connections {
   private readonly commandStores = new Map<Outbox, WorkCommands>()
   private readonly computerStores = new Map<Outbox, ComputerCommands>()
   private readonly characterStores = new Map<Outbox, CharacterCommands>()
+  private readonly avatarStores = new Map<Outbox, AvatarCommands>()
+  private readonly avatarReads = new Map<string, Promise<Uint8Array>>()
   readonly computerTickets = new ComputerTickets()
   private closed = false
   constructor(
@@ -149,6 +155,87 @@ export class Connections {
       this.characterStores.set(box, commands)
     }
     return commands
+  }
+  avatarCommands(id: string) {
+    const box = this.box(id)
+    let commands = this.avatarStores.get(box)
+    if (!commands) {
+      commands = new AvatarCommands(box)
+      this.avatarStores.set(box, commands)
+    }
+    return commands
+  }
+  async avatarCommand(id: string, expectedRevision: number, bytes?: Uint8Array) {
+    await this.identify(id)
+    const commands = this.avatarCommands(id),
+      item = commands.prepare(expectedRevision, bytes)
+    const result = await commands.run(this.client(id), item.requestId)
+    this.emit(id, 'avatar-command', {})
+    return result
+  }
+  async verifyAvatarCommand(id: string, requestId: string) {
+    await this.identify(id)
+    const result = await this.avatarCommands(id).run(this.client(id), uuid(requestId))
+    this.emit(id, 'avatar-command', {})
+    return result
+  }
+  avatarBytes(id: string, sha: string, size: number) {
+    if (this.closed) return Promise.reject(new ApiError('unavailable'))
+    const connection = this.connection(id)
+    const key = `${id}/${connection.personId}/${connection.bindingId}/${sha}/${size}`
+    const previous = this.avatarReads.get(key)
+    if (previous) return previous
+    const work = this.fetchAvatarBytes(id, sha, size).finally(() => this.avatarReads.delete(key))
+    this.avatarReads.set(key, work)
+    return work
+  }
+  private async fetchAvatarBytes(id: string, sha: string, size: number) {
+    if (!/^[a-f0-9]{64}$/.test(sha) || ![64, 128, 256, 512, 1024].includes(size))
+      throw new ApiError('validation_error')
+    const box = this.box(id),
+      key = `avatar/${sha}/${size}`
+    try {
+      await this.identify(id)
+      const response = await this.client(id).response(`character/avatar/${sha}/${size}.png`)
+      const bytes = Buffer.from(await response.arrayBuffer())
+      if (response.headers.get('Content-Type')?.split(';')[0] !== 'image/png')
+        throw new ApiError('invalid_response')
+      const length = response.headers.get('Content-Length')
+      if (length !== null && bytes.byteLength !== Number(length))
+        throw new ApiError('content_hash_mismatch')
+      box.cache(key, {
+        bytes: bytes.toString('base64'),
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+      })
+      return new Uint8Array(bytes)
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        ['unauthenticated', 'not_found', 'different_character', 'outbox_owner_mismatch'].includes(
+          error.code,
+        )
+      )
+        box.clearCache()
+      if (error instanceof ApiError && ['transport_unknown', 'unavailable'].includes(error.code)) {
+        const cached = box.cached<{ bytes: string; sha256: string }>(key)
+        if (cached) {
+          const bytes = Buffer.from(cached.bytes, 'base64')
+          if (createHash('sha256').update(bytes).digest('hex') !== cached.sha256)
+            throw new ApiError('content_hash_mismatch')
+          return new Uint8Array(bytes)
+        }
+      }
+      throw error
+    }
+  }
+  async previewAvatar(server: string) {
+    const meta = await this.meta(server)
+    const path = meta.character.avatar_url
+    if (path === null) return null
+    if (!/^\/client\/v1\/character\/avatar\/[a-f0-9]{64}\/128\.png$/.test(path))
+      throw new ApiError('invalid_response')
+    const response = await new ApiClient(server).response(path.slice('/client/v1/'.length))
+    return new Uint8Array(await response.arrayBuffer())
   }
   async characterCommand(id: string, command: CharacterCommand) {
     await this.identify(id)
@@ -474,6 +561,7 @@ export class Connections {
     let path: string
     if (route.kind === 'me' || route.kind === 'character' || route.kind === 'computer')
       path = route.kind
+    else if (route.kind === 'character-status') path = 'character/status'
     else if (route.kind === 'memory') {
       if (!['me', 'self'].includes(route.about)) throw new ApiError('validation_error')
       const params = new URLSearchParams({ about: route.about, limit: '50' })
@@ -519,6 +607,7 @@ export class Connections {
       await this.identify(id)
       const value = await this.client(id).get<T>(path)
       if (route.kind !== 'me' && route.kind !== 'request') box.cache(path, value)
+      if (route.kind === 'character') this.onProfile?.(id, value as Profile)
       return value
     } catch (error) {
       if (error instanceof ApiError) {
@@ -542,7 +631,10 @@ export class Connections {
           this.emit(id, 'connection', { state: 'offline', code: error.code })
           const cached =
             offlineCache && !route.kind.startsWith('computer') ? box.cached<T>(path) : undefined
-          if (cached !== undefined) return cached
+          if (cached !== undefined) {
+            if (route.kind === 'character') this.onProfile?.(id, cached as Profile)
+            return cached
+          }
         }
       }
       throw error
@@ -645,6 +737,10 @@ export class Connections {
             this.emit(id, 'connection', { state: 'online' })
           }
           if (['sync', 'conversation', 'work'].includes(kind)) {
+            for (const item of this.avatarCommands(id)
+              .list()
+              .filter((item) => item.state !== 'result'))
+              void this.verifyAvatarCommand(id, item.requestId).catch(() => {})
             for (const item of this.characterCommands(id)
               .list()
               .filter((item) => item.state !== 'result'))
@@ -703,10 +799,12 @@ export class Connections {
     this.retries.forEach((timer) => clearTimeout(timer))
     // Reads already in flight settle before their database is closed.
     void Promise.allSettled([
+      ...this.avatarReads.values(),
       ...this.checking.values(),
       ...[...this.uploadStores.values()].map((uploads) => uploads.settled()),
       ...[...this.commandStores.values()].map((commands) => commands.settle()),
       ...[...this.characterStores.values()].map((commands) => commands.settle()),
+      ...[...this.avatarStores.values()].map((commands) => commands.settle()),
     ]).then(() => this.outboxes.forEach((box) => box.db.close()))
   }
 }

@@ -3,6 +3,7 @@ import type { EventEmitter } from 'node:events'
 import type { BrowserWindow } from 'electron'
 import { defaultPreferences } from '../../src/shared/desktop'
 import type { ClientNotice } from '../../src/main/notifications'
+import type { Profile } from '../../src/shared/api'
 
 const os = vi.hoisted(() => ({
   trays: [] as unknown[],
@@ -22,11 +23,30 @@ vi.mock('electron', async () => {
       os.trays.push(this)
     }
     setToolTip() {}
+    setImage(icon: unknown) {
+      this.icon = icon
+    }
     setContextMenu(menu: unknown) {
       this.menu = menu
     }
     destroy() {
       this.destroyed = true
+    }
+  }
+  class Raster {
+    constructor(
+      readonly source: string,
+      readonly width = 128,
+    ) {}
+    resize(options: { width: number }) {
+      return new Raster(this.source, options.width)
+    }
+    isEmpty() {
+      return false
+    }
+    addRepresentation() {}
+    toPNG() {
+      return Buffer.from(this.source)
     }
   }
   class Notification extends EventEmitter {
@@ -49,10 +69,63 @@ vi.mock('electron', async () => {
   return {
     app: { getAppPath: () => '/product', quit: os.quit },
     Menu: { buildFromTemplate: (value: unknown) => value },
-    nativeImage: { createFromPath: (path: string) => ({ path, setTemplateImage: os.template }) },
+    nativeImage: {
+      createFromPath: (path: string) => ({ path, setTemplateImage: os.template }),
+      createFromBuffer: (bytes: Buffer) => new Raster(bytes.toString('hex')),
+    },
     Tray,
     Notification,
   }
+})
+it('keeps avatar notifications and tray selection isolated and ignores late obsolete images', () => {
+  os.trays.length = 0
+  os.notices.length = 0
+  const shell = new NativeShell(
+    () => undefined,
+    () => {},
+    () => {},
+  )
+  shell.update(defaultPreferences)
+  const avatar = (name: string): Profile => ({
+    id: name,
+    slug: name,
+    display_name: name,
+    bio: '',
+    revision: 1,
+    avatar_revision: 1,
+    avatar: null,
+    default_avatar: null,
+    accent: { light: '#123456', dark: '#abcdef' },
+    viewer: { is_owner: true },
+  })
+  const a = avatar('role-a'),
+    b = avatar('role-b')
+  const aKey = shell.prepareCharacter('role-a', a)
+  shell.decorate('role-a', aKey, new Uint8Array([11]))
+  shell.selectedCharacter = 'role-a'
+  const tray = os.trays[0] as FakeTray
+  expect(tray.icon).toMatchObject({ source: '0b' })
+  shell.selectedCharacter = 'role-b'
+  expect(tray.icon.path).toContain('trayTemplate.png')
+  const bKey = shell.prepareCharacter('role-b', b)
+  shell.decorate('role-b', bKey, new Uint8Array([12]))
+  expect(tray.icon).toMatchObject({ source: '0c' })
+  const newer = shell.prepareCharacter('role-a', { ...a, avatar_revision: 2 })
+  shell.decorate('role-a', newer, new Uint8Array([13]))
+  shell.decorate('role-a', aKey, new Uint8Array([11]))
+  shell.show({
+    category: 'completed',
+    title: 'A 的工作',
+    body: '已完成',
+    target: { characterId: 'role-a', view: 'works' },
+  })
+  expect((os.notices.at(-1) as FakeNotice).options).toMatchObject({
+    icon: { source: '0d', width: 128 },
+  })
+  expect(tray.icon).toMatchObject({ source: '0c' })
+  shell.selectedCharacter = 'role-a'
+  expect(tray.icon).toMatchObject({ source: '0d', width: 18 })
+  shell.close()
 })
 import { NativeShell } from '../../src/main/native'
 interface FakeTray extends EventEmitter {

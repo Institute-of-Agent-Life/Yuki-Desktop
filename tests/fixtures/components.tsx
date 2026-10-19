@@ -17,6 +17,17 @@ import '../../src/renderer/tokens.css'
 
 window.yuki = {
   client: {
+    letterDecoration: async () => ({ ok: true, value: undefined }),
+    pickAvatar: async () => ({ ok: true, value: null }),
+    dropAvatar: async () => ({ ok: false, code: 'fixture_only' }),
+    pasteAvatar: async () => ({ ok: false, code: 'fixture_only' }),
+    avatarBytes: async () => ({ ok: false, code: 'fixture_only' }),
+    previewAvatar: async () => ({ ok: true, value: null }),
+    avatarCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    avatarCommands: async () => ({ ok: true, value: [] }),
+    avatarDraft: async () => ({ ok: true, value: null }),
+    acknowledgeAvatarCommand: async () => ({ ok: true, value: undefined }),
+    verifyAvatarCommand: async () => ({ ok: false, code: 'fixture_only' }),
     characterCommand: async () => ({ ok: false, code: 'fixture_only' }),
     characterCommands: async () => ({ ok: true, value: [] }),
     verifyCharacterCommand: async () => ({ ok: false, code: 'fixture_only' }),

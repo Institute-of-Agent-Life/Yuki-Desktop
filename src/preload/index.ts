@@ -3,6 +3,21 @@ import type { BootInfo, Command, DesktopBridge } from '../shared/desktop'
 
 const bridge: DesktopBridge = {
   client: {
+    letterDecoration: (id, revision, avatarRevision, bytes) =>
+      ipcRenderer.invoke('yuki:letter-decoration', id, revision, avatarRevision, bytes),
+    pickAvatar: () => ipcRenderer.invoke('yuki:pick-avatar'),
+    dropAvatar: (file) => ipcRenderer.invoke('yuki:drop-avatar', webUtils.getPathForFile(file)),
+    pasteAvatar: () => ipcRenderer.invoke('yuki:paste-avatar'),
+    avatarBytes: (id, sha, size) => ipcRenderer.invoke('yuki:avatar-bytes', id, sha, size),
+    previewAvatar: (server) => ipcRenderer.invoke('yuki:preview-avatar', server),
+    avatarCommand: (id, revision, bytes) =>
+      ipcRenderer.invoke('yuki:avatar-command', id, revision, bytes),
+    avatarCommands: (id) => ipcRenderer.invoke('yuki:avatar-commands', id),
+    avatarDraft: (id, request) => ipcRenderer.invoke('yuki:avatar-draft', id, request),
+    acknowledgeAvatarCommand: (id, request) =>
+      ipcRenderer.invoke('yuki:acknowledge-avatar-command', id, request),
+    verifyAvatarCommand: (id, request) =>
+      ipcRenderer.invoke('yuki:verify-avatar-command', id, request),
     characterCommand: (id, command) => ipcRenderer.invoke('yuki:character-command', id, command),
     characterCommands: (id) => ipcRenderer.invoke('yuki:character-commands', id),
     verifyCharacterCommand: (id, request) =>

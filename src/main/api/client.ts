@@ -95,7 +95,11 @@ export class ApiClient {
   async post<T>(path: string, body: unknown): Promise<T> {
     return this.mutate<T>(path, body, 'POST')
   }
-  async mutate<T>(path: string, body: unknown, method: 'POST' | 'PATCH' | 'PUT'): Promise<T> {
+  async mutate<T>(
+    path: string,
+    body: unknown,
+    method: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+  ): Promise<T> {
     const response = await this.response(path, {
       method,
       headers: { 'Content-Type': 'application/json' },

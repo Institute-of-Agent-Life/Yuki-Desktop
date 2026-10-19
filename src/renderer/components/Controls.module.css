@@ -74,6 +74,25 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  animation: avatar-enter 180ms ease;
+}
+.photo {
+  background: transparent;
+}
+.avatarLoading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg-content) 45%, transparent);
+}
+@keyframes avatar-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .pill {
   display: inline-flex;

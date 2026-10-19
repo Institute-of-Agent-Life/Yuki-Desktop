@@ -7,6 +7,9 @@ import {
   type CSSProperties,
   type InputHTMLAttributes,
   type ReactNode,
+  type ClipboardEventHandler,
+  type DragEventHandler,
+  type KeyboardEventHandler,
 } from 'react'
 import { Snowflake } from 'lucide-react'
 import styles from './Controls.module.css'
@@ -68,18 +71,33 @@ export function Avatar({
   name,
   size = 36,
   src,
+  loading = false,
 }: {
   name: string
   size?: number
   src?: string | null
+  loading?: boolean
 }) {
   return (
     <span
-      className={styles.avatar}
+      className={`${styles.avatar} ${src ? styles.photo : ''}`}
       style={{ width: size, height: size, fontSize: size * 0.42 }}
       aria-label={name}
+      role="img"
+      aria-busy={loading}
     >
-      {src ? <img src={src} alt="" /> : name.trim().slice(0, 1).toLocaleUpperCase()}
+      {src ? (
+        <img key={src} src={src} alt="" />
+      ) : (
+        [
+          ...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(name.trim()),
+        ][0]?.segment.toLocaleUpperCase()
+      )}
+      {loading && (
+        <span className={styles.avatarLoading}>
+          <Spinner />
+        </span>
+      )}
     </span>
   )
 }
@@ -182,12 +200,22 @@ export function Sheet({
   onClose,
   children,
   actions,
+  width,
+  onPaste,
+  onDrop,
+  onDragOver,
+  onKeyDown,
 }: {
   title: string
   open: boolean
   onClose: () => void
   children: ReactNode
   actions: ReactNode
+  width?: number
+  onPaste?: ClipboardEventHandler<HTMLDialogElement>
+  onDrop?: DragEventHandler<HTMLDialogElement>
+  onDragOver?: DragEventHandler<HTMLDialogElement>
+  onKeyDown?: KeyboardEventHandler<HTMLDialogElement>
 }) {
   const titleId = useId()
   const ref = useRef<HTMLDialogElement>(null)
@@ -205,7 +233,12 @@ export function Sheet({
     <dialog
       ref={ref}
       className={styles.dialog}
+      style={width ? { width: `min(${width}px, calc(100vw - 32px))` } : undefined}
       aria-labelledby={titleId}
+      onPaste={onPaste}
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+      onKeyDown={onKeyDown}
       onCancel={(event) => {
         event.preventDefault()
         onClose()

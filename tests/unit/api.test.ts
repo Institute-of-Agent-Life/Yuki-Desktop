@@ -2,10 +2,15 @@ import { expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { ApiClient } from '../../src/main/api/client'
 import { ClientProblem, problemText } from '../../src/renderer/queries/client'
+import { REQUIRED_API_REVISION } from '../../src/shared/api'
 
-const codes = JSON.parse(
+const contract = JSON.parse(
   readFileSync(new URL('../../contracts/client-api.openapi.json', import.meta.url), 'utf8'),
-).components.schemas.PublicProblemCode.enum as string[]
+)
+const codes = contract.components.schemas.PublicProblemCode.enum as string[]
+it('requires the API revision in the fixed backend contract', () => {
+  expect(REQUIRED_API_REVISION).toBe(contract.info['x-yuki-api-revision'])
+})
 it.each(codes)('keeps the public problem code %s and provides a readable message', async (code) => {
   const client = new ApiClient(
     'http://localhost',

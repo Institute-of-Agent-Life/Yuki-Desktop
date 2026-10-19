@@ -60,7 +60,10 @@ export async function yukiFixture(options: { computer?: boolean; character?: boo
     base,
     launch: (profile: string, args: string[] = []) =>
       electron.launch({
-        args: [...args, '.'],
+        ...(process.env.YUKI_DESKTOP_EXECUTABLE
+          ? { executablePath: process.env.YUKI_DESKTOP_EXECUTABLE }
+          : {}),
+        args: process.env.YUKI_DESKTOP_EXECUTABLE ? args : [...args, '.'],
         env: { ...process.env, YUKI_DESKTOP_DATA: join(root, profile) },
       }),
     async code() {

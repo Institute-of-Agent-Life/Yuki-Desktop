@@ -24,6 +24,12 @@ const previewTypes: Record<string, string> = {
   yml: 'text/plain',
   log: 'text/plain',
 }
+export const formatBytes = (bytes: number) =>
+  bytes < 1024
+    ? `${bytes} B`
+    : bytes < 1024 * 1024
+      ? `${(bytes / 1024).toFixed(1)} KB`
+      : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 export function previewMime(filename: string, declared?: string | null) {
   return (
     declared ??

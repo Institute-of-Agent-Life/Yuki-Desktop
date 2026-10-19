@@ -11,14 +11,9 @@ import type {
 import { Button, IconButton, Banner } from '../components/Controls'
 import { unwrap, problemText } from '../queries/client'
 import styles from './Media.module.css'
+import { formatBytes as size } from '../../shared/media'
 
 type Attachment = PublicEvent['attachments'][number]
-const size = (bytes: number) =>
-  bytes < 1024
-    ? `${bytes} B`
-    : bytes < 1024 * 1024
-      ? `${(bytes / 1024).toFixed(1)} KB`
-      : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 function useBlob(content?: CachedContent) {
   const [url, setUrl] = useState<string>()
   useEffect(() => {
@@ -76,8 +71,9 @@ export function MessageAttachment({
         <p>{event.transcript?.state === 'available' ? event.transcript.text : '沒有轉寫'}</p>
       </div>
     )
-  const status =
-    attachment.artifact_id ? undefined : attachment.availability === 'expired'
+  const status = attachment.artifact_id
+    ? undefined
+    : attachment.availability === 'expired'
       ? '已過期'
       : !available
         ? '無法取得'

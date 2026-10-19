@@ -16,7 +16,9 @@ import {
 } from 'electron'
 import { hostname } from 'node:os'
 import { randomUUID } from 'node:crypto'
-import { mkdir, stat, writeFile } from 'node:fs/promises'
+import { mkdir, stat, writeFile, readFile, mkdtemp, rm } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { basename, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createWindow, setWindowMode, setKeyboardCapture } from './windows'
@@ -31,6 +33,7 @@ import type {
   ArtifactSource,
   WorkCommand,
   ComputerCommand,
+  Profile,
 } from '../shared/api'
 import { Connections } from './connections'
 import { ApiError } from './api/client'
@@ -133,6 +136,18 @@ else {
         win?.webContents.send('yuki:open-target', target)
       },
     )
+    const decorations = new Map<string, Promise<void>>()
+    connections.onProfile = (id, profile) => {
+      const key = native.prepareCharacter(id, profile),
+        pendingKey = `${id}/${key}`
+      if (!profile.avatar || native.hasDecoration(id, key) || decorations.has(pendingKey)) return
+      const work = connections
+        .avatarBytes(id, profile.avatar.sha256, 128)
+        .then((bytes) => native.decorate(id, key, bytes))
+        .catch(() => {})
+        .finally(() => decorations.delete(pendingKey))
+      decorations.set(pendingKey, work)
+    }
     session.defaultSession.webRequest.onBeforeRequest(
       { urls: ['ws://*/*', 'wss://*/*'] },
       (details, callback) => {
@@ -295,6 +310,100 @@ else {
       return result
     })
     action('read', (id: string, route: ApiRead) => connections.read(id, route))
+    action(
+      'letter-decoration',
+      (id: string, revision: number, avatarRevision: number, bytes: Uint8Array) => {
+        const profile = connections.box(id).cached<Profile>('character')
+        if (
+          !(bytes instanceof Uint8Array) ||
+          bytes.byteLength < 24 ||
+          Buffer.from(bytes.subarray(0, 8)).toString('hex') !== '89504e470d0a1a0a' ||
+          Buffer.from(bytes).readUInt32BE(16) !== 128 ||
+          Buffer.from(bytes).readUInt32BE(20) !== 128
+        )
+          throw new ApiError('validation_error')
+        if (
+          profile &&
+          !profile.avatar &&
+          profile.revision === revision &&
+          profile.avatar_revision === avatarRevision
+        )
+          native.decorate(id, native.prepareCharacter(id, profile), bytes)
+      },
+    )
+    const avatarInput = async (path: string) => {
+      const bytes = await readFile(path)
+      const heif =
+        bytes.toString('ascii', 4, 8) === 'ftyp' &&
+        ['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1'].includes(bytes.toString('ascii', 8, 12))
+      if (process.platform === 'darwin' && (heif || /\.hei[cf]$/i.test(path))) {
+        const root = await mkdtemp(join(app.getPath('temp'), 'yuki-avatar-'))
+        const output = join(root, 'decoded.png')
+        try {
+          // Electron's nativeImage codec does not decode HEIC on macOS; ImageIO does.
+          await promisify(execFile)('/usr/bin/sips', [
+            '--setProperty',
+            'format',
+            'png',
+            path,
+            '--out',
+            output,
+          ])
+          return {
+            filename: basename(path),
+            bytes: new Uint8Array(await readFile(output)),
+            sourceSize: bytes.byteLength,
+          }
+        } catch {
+          throw new ApiError('unsupported_image')
+        } finally {
+          await rm(root, { recursive: true, force: true })
+        }
+      }
+      return { filename: basename(path), bytes: new Uint8Array(bytes) }
+    }
+    action('pick-avatar', async () => {
+      const picked = await dialog.showOpenDialog(win!, {
+        title: '選擇頭像圖片',
+        properties: ['openFile'],
+        filters: [
+          {
+            name: '圖片',
+            extensions: [
+              'png',
+              'jpg',
+              'jpeg',
+              'webp',
+              ...(process.platform === 'darwin' ? ['heic', 'heif'] : []),
+            ],
+          },
+        ],
+      })
+      return picked.canceled || !picked.filePaths[0] ? null : avatarInput(picked.filePaths[0])
+    })
+    action('drop-avatar', (path: string) => avatarInput(path))
+    action('paste-avatar', () => {
+      const image = clipboard.readImage()
+      if (image.isEmpty()) throw new ApiError('unsupported_image')
+      return { filename: '剪貼簿圖片.png', bytes: image.toPNG() }
+    })
+    action('avatar-bytes', (id: string, sha: string, size: number) =>
+      connections.avatarBytes(id, sha, size),
+    )
+    action('preview-avatar', (server: string) => connections.previewAvatar(server))
+    action('avatar-command', (id: string, revision: number, bytes?: Uint8Array) =>
+      connections.avatarCommand(id, revision, bytes),
+    )
+    action('avatar-commands', (id: string) => connections.avatarCommands(id).list())
+    action('avatar-draft', (id: string, request: string) =>
+      connections.avatarCommands(id).draft(request),
+    )
+    action('acknowledge-avatar-command', (id: string, request: string) =>
+      connections.avatarCommands(id).acknowledge(request),
+    )
+    action('verify-avatar-command', (id: string, request: string) =>
+      connections.verifyAvatarCommand(id, request),
+    )
     action('character-command', (id: string, command: CharacterCommand) =>
       connections.characterCommand(id, command),
     )
