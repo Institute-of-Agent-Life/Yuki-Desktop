@@ -90,6 +90,29 @@
   line-height: 16px;
   color: var(--text-secondary);
 }
+.artifactList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.artifact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--bg-window);
+  text-align: left;
+  font-size: 12px;
+}
+.artifact small {
+  display: block;
+  font: 11px/14px var(--font-mono);
+  color: var(--text-secondary);
+}
 .question {
   background: var(--accent-subtle);
   border-radius: 10px;

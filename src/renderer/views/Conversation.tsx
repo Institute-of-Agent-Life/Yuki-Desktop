@@ -10,6 +10,7 @@ import type {
   AttachmentSource,
   Activity,
   Work,
+  ArtifactSource,
 } from '../../shared/api'
 import type { Preferences } from '../../shared/desktop'
 import { Composer } from '../components/Composer'
@@ -27,6 +28,7 @@ import mediaStyles from './Media.module.css'
 import { useMarkdown } from '../text/markdown'
 import { useHistory } from '../queries/history'
 import { ConversationWork, WorkDetail, WorkList, WorkReply } from './Works'
+import { Files, ArtifactInspector } from './Files'
 
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
   window.yuki.client.read<T>(id, route).then(unwrap)
@@ -50,6 +52,8 @@ export function Conversation({
     query = useQueryClient(),
     view = useWorkspace((state) => state.view)
   const target = useWorkspace((state) => state.target)
+  const focusMode = useWorkspace((state) => state.focusMode)
+  const [artifact, setArtifact] = useState<ArtifactSource>()
   const [conversation, setConversation] = useState(connection.conversationId),
     [draft, setDraft] = useState('')
   const currentDraft = useRef(draft)
@@ -75,7 +79,6 @@ export function Conversation({
     [selection, setSelection] = useState<number>()
   const [selectedWork, setSelectedWork] = useState<string>()
   const [replyWork, setReplyWork] = useState<Work>()
-  const [knownWorks, setKnownWorks] = useState<Work[]>([])
   const currentReferences = useRef<MessageReference[]>([])
   const [search, setSearch] = useState<string | null>(null)
   const list = useRef<HTMLDivElement>(null),
@@ -109,18 +112,18 @@ export function Conversation({
   })
   const events = useHistory(id, conversation, anchor)
   useEffect(() => {
+    if (view === 'files') {
+      setSelectedWork(undefined)
+      setPreview(undefined)
+      useWorkspace.setState({ inspector: false })
+    }
+  }, [view])
+  useEffect(() => {
     if (target?.characterId === id && target.workId) {
       setSelectedWork(target.workId)
       useWorkspace.setState({ inspector: true })
     }
   }, [id, target])
-  useEffect(() => {
-    if (home.data && !home.error)
-      setKnownWorks((known) => [
-        ...new Map([...known, ...home.data.works].map((work) => [work.work_id, work])).values(),
-      ])
-    if (hidesPrivateData(home.error)) setKnownWorks([])
-  }, [home.data, home.error])
   const accessLost = hidesPrivateData(new ClientProblem(connectionProblem))
   const eventData = accessLost || hidesPrivateData(events.error) ? undefined : events.data,
     homeData = accessLost || hidesPrivateData(home.error) ? undefined : home.data,
@@ -164,6 +167,7 @@ export function Conversation({
     }
   }
   const openAttachment = (source: AttachmentSource) => {
+    setArtifact(undefined)
     setSelectedWork(undefined)
     setPreview(source)
     useWorkspace.setState({ inspector: true })
@@ -363,9 +367,21 @@ export function Conversation({
   const name = profileData?.display_name ?? connection.name,
     isMain = conversation === connection.conversationId
   const openWork = (workId: string) => {
+    setArtifact(undefined)
     setPreview(undefined)
     setSelectedWork(workId)
     useWorkspace.setState({ inspector: true })
+  }
+  const openArtifact = (source: ArtifactSource) => {
+    setArtifact(source)
+    setSelectedWork(undefined)
+    setPreview(undefined)
+    useWorkspace.setState({ inspector: true })
+  }
+  const selectArtifact = (source: ArtifactSource) => {
+    setArtifact(source)
+    setSelectedWork(undefined)
+    setPreview(undefined)
   }
   const answerWork = (work: Work) => {
     setReplyWork(work)
@@ -412,7 +428,14 @@ export function Conversation({
         </>
       }
       inspector={
-        selectedWork && !accessLost ? (
+        artifact && !accessLost ? (
+          <ArtifactInspector
+            key={`${artifact.artifactId}/${artifact.version}`}
+            id={id}
+            source={artifact}
+            library={() => useWorkspace.getState().setView('files')}
+          />
+        ) : selectedWork && !accessLost ? (
           <WorkDetail
             key={selectedWork}
             id={id}
@@ -420,6 +443,7 @@ export function Conversation({
             open={openWork}
             replyInChat={answerWork}
             commandEnter={preferences.sendKey === 'command-enter'}
+            artifact={openArtifact}
           />
         ) : preview ? (
           <AttachmentPreview id={id} source={preview} close={() => setPreview(undefined)} />
@@ -445,13 +469,25 @@ export function Conversation({
         )
       }
     >
-      {view === 'works' ? (
+      {view === 'files' && !focusMode ? (
+        accessLost ? (
+          <Banner status="failed">{problemText(connectionProblem)}</Banner>
+        ) : (
+          <Files
+            id={id}
+            initial={artifact}
+            onSelect={selectArtifact}
+            jump={(ref) => void jumpTo(ref)}
+            work={openWork}
+          />
+        )
+      ) : view === 'works' && !focusMode ? (
         accessLost ? (
           <Banner status="failed">{problemText(connectionProblem)}</Banner>
         ) : (
           <WorkList id={id} selected={selectedWork} open={openWork} />
         )
-      ) : view !== 'chat' ? (
+      ) : view !== 'chat' && !focusMode ? (
         <EmptyState
           title={
             view === 'settings'
@@ -572,23 +608,19 @@ export function Conversation({
                     addReference(event)
                   }}
                   onAttachment={openAttachment}
+                  onArtifact={openArtifact}
                 />
                 {!accessLost &&
-                  knownWorks
-                    .filter(
-                      (work) =>
-                        work.trigger_event_id === event.event_id &&
-                        work.conversation_id === conversation,
-                    )
-                    .map((work) => (
-                      <ConversationWork
-                        key={work.work_id}
-                        id={id}
-                        work={work}
-                        open={openWork}
-                        reply={answerWork}
-                      />
-                    ))}
+                  (event.work_ids ?? []).map((workId) => (
+                    <ConversationWork
+                      key={workId}
+                      id={id}
+                      work={workId}
+                      open={openWork}
+                      reply={answerWork}
+                      artifact={openArtifact}
+                    />
+                  ))}
               </Fragment>
             ))}
             {pending.map((item) => (
@@ -752,6 +784,7 @@ function Message({
   onSelect,
   onReference,
   onAttachment,
+  onArtifact,
   onJump,
   consecutive,
 }: {
@@ -764,11 +797,12 @@ function Message({
   onSelect(): void
   onReference(): void
   onAttachment(source: AttachmentSource): void
+  onArtifact(source: ArtifactSource): void
   onJump(reference: MessageReference): void
   consecutive: boolean
 }) {
   const own = event.direction === 'inbound'
-  const html = useMarkdown(parseMessage(event.text).text)
+  const html = useMarkdown(parseMessage(event.display_text ?? event.text).text)
   const [error, setError] = useState('')
   const action = (work: Promise<unknown>) =>
     void work.catch((error) => setError(error instanceof Error ? error.message : '操作未完成。'))
@@ -831,6 +865,7 @@ function Message({
             event={event}
             attachment={attachment}
             open={onAttachment}
+            artifact={onArtifact}
           />
         ))}
         <div className={styles.messageActions}>
@@ -923,7 +958,7 @@ function Reference({
         {event.isPending
           ? '正在讀取引用…'
           : !event.error && event.data
-            ? `引用：${event.data.text.slice(0, 120)}`
+            ? `引用：${parseMessage(event.data.display_text ?? event.data.text).text.slice(0, 120)}`
             : '引用的訊息無法讀取'}
       </span>
     </button>

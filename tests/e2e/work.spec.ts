@@ -50,6 +50,13 @@ test('continues the original work through an actual reply and confirms cancellat
     const facts = (await (await fetch(`${rig.base}/__test/events`)).json()) as { text: string }[]
     expect(facts.filter((item) => item.text === '台北，請接續原工作')).toHaveLength(1)
     await page.getByRole('button', { name: '取消回覆工作', exact: true }).click()
+    await page.reload()
+    await expect(card.getByText('已完成', { exact: true })).toBeVisible()
+    const afterReload = await page.evaluate(async (id) => {
+      const home = await window.yuki.client.read<Home>(id, { kind: 'home' })
+      return home.ok ? home.value.works : null
+    }, original.characterId)
+    expect(afterReload).toEqual([])
     await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
     await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('再建立一項可取消的工作')
     await page.getByRole('button', { name: '送出', exact: true }).click()

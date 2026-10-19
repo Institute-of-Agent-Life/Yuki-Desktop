@@ -43,7 +43,21 @@ const highlighter = createHighlighterCore({
     })
     return `<div class="code-block">${copyButton}${html}</div>`
   }
+  return highlighter
 })
+export async function renderCode(text: string, language: string) {
+  const instance = await highlighter
+  return instance.codeToHtml(text, {
+    lang: instance.getLoadedLanguages().includes(language) ? language : 'text',
+    themes: {
+      light: 'github-light',
+      dark: 'github-dark',
+      'contrast-light': 'github-light-high-contrast',
+      'contrast-dark': 'github-dark-high-contrast',
+    },
+    defaultColor: false,
+  })
+}
 export async function renderMarkdown(text: string) {
   await highlighter
   return markdown.render(text)

@@ -59,6 +59,8 @@ const messages: Record<string, string> = {
   media_unavailable: '附件內容目前無法取得。',
   upload_pending: '附件尚未完成上傳，內容仍保存在這台電腦。',
   content_hash_mismatch: '附件內容核對失敗，尚未顯示或存檔。',
+  local_file_missing: '尚未存到本機，或已存的檔案已移動。',
+  open_failed: '系統無法開啟此檔案，請先存到本機並選擇開啟程式。',
   microphone_denied: '麥克風權限未開啟，請到系統設定允許 Yuki 使用麥克風。',
   executor_offline: '這台電腦尚未連線，操作未建立。',
 }

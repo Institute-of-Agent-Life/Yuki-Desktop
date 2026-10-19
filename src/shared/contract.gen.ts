@@ -1048,6 +1048,8 @@ export interface components {
             created_at: string;
             /** Direction */
             direction: string;
+            /** Display Text */
+            display_text?: string | null;
             /** Event Id */
             event_id: number;
             /** Origin */
@@ -1057,6 +1059,8 @@ export interface components {
             /** Text */
             text: string;
             transcript?: components["schemas"]["Transcript"] | null;
+            /** Work Ids */
+            work_ids?: string[];
         } & {
             [key: string]: unknown;
         };

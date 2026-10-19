@@ -79,6 +79,10 @@ export interface CachedContent {
   mime: string
   filename: string
 }
+export interface ArtifactSource {
+  artifactId: string
+  version: string
+}
 export type ApiRead =
   | { kind: 'me' | 'home' | 'character' }
   | { kind: 'events'; conversationId: string; after?: number; before?: number; limit?: 1 | 50 }
@@ -109,6 +113,10 @@ export interface ConversationBridge {
   removeUpload(characterId: string, requestId: string): Promise<ApiReply<void>>
   content(characterId: string, source: AttachmentSource): Promise<ApiReply<CachedContent>>
   saveContent(characterId: string, source: AttachmentSource): Promise<ApiReply<boolean>>
+  artifactContent(characterId: string, source: ArtifactSource): Promise<ApiReply<CachedContent>>
+  saveArtifact(characterId: string, source: ArtifactSource): Promise<ApiReply<boolean>>
+  revealArtifact(characterId: string, source: ArtifactSource): Promise<ApiReply<void>>
+  openArtifact(characterId: string, source: ArtifactSource): Promise<ApiReply<void>>
   outbox(characterId: string): Promise<ApiReply<OutboxItem[]>>
   verify(characterId: string, requestId: string): Promise<ApiReply<OutboxItem>>
   workCommand(characterId: string, command: WorkCommand): Promise<ApiReply<WorkCommandItem>>

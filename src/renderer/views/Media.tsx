@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { File, Mic, Image as ImageIcon, Download, X } from 'lucide-react'
-import type { AttachmentSource, CachedContent, PublicEvent, UploadDraft } from '../../shared/api'
+import type {
+  AttachmentSource,
+  ArtifactSource,
+  CachedContent,
+  PublicEvent,
+  UploadDraft,
+} from '../../shared/api'
 import { Button, IconButton, Banner } from '../components/Controls'
 import { unwrap, problemText } from '../queries/client'
 import styles from './Media.module.css'
@@ -41,11 +47,13 @@ export function MessageAttachment({
   event,
   attachment,
   open,
+  artifact,
 }: {
   id: string
   event: PublicEvent
   attachment: Attachment
   open(source: AttachmentSource): void
+  artifact?(source: ArtifactSource): void
 }) {
   const source = {
       conversationId: event.conversation_id,
@@ -69,7 +77,7 @@ export function MessageAttachment({
       </div>
     )
   const status =
-    attachment.availability === 'expired'
+    attachment.artifact_id ? undefined : attachment.availability === 'expired'
       ? '已過期'
       : !available
         ? '無法取得'
@@ -77,8 +85,14 @@ export function MessageAttachment({
   return (
     <button
       className={`${styles.attachment} ${image ? styles.image : ''}`}
-      disabled={!available || !!content.error || !!attachment.artifact_id}
-      onClick={() => open(source)}
+      disabled={
+        attachment.artifact_id ? !attachment.version || !artifact : !available || !!content.error
+      }
+      onClick={() =>
+        attachment.artifact_id && attachment.version
+          ? artifact?.({ artifactId: attachment.artifact_id, version: attachment.version })
+          : open(source)
+      }
       onContextMenu={(click) => {
         click.preventDefault()
         click.stopPropagation()
@@ -110,7 +124,7 @@ export function MessageAttachment({
       )}
       {image && status && <small>{status}</small>}
       {menuError && <small role="alert">{menuError}</small>}
-      {attachment.artifact_id && <small>請從「檔案與成果」讀取</small>}
+      {attachment.artifact_id && <small>成果檔案</small>}
     </button>
   )
 }

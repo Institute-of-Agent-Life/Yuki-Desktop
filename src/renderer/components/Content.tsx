@@ -1,4 +1,5 @@
 import { Check, Circle, CircleHelp, File, X } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Button, StatusPill, type Status } from './Controls'
 import styles from './Content.module.css'
 
@@ -11,6 +12,7 @@ export function WorkCard({
   onOpen,
   onReply,
   onCancel,
+  children,
 }: {
   title: string
   status: Status
@@ -20,6 +22,7 @@ export function WorkCard({
   onOpen: () => void
   onReply?: () => void
   onCancel?: () => void
+  children?: ReactNode
 }) {
   return (
     <article className={styles.work}>
@@ -38,6 +41,7 @@ export function WorkCard({
           </div>
         </div>
       )}
+      {children}
       <footer className={styles.workActions}>
         <Button variant="plain" onClick={onOpen}>
           查看詳情
@@ -84,15 +88,22 @@ export function FileRow({
   detail,
   size,
   onOpen,
+  selected,
 }: {
   name: string
   identity: string
   detail: string
   size?: string
   onOpen: () => void
+  selected?: boolean
 }) {
   return (
-    <button className={styles.file} onClick={onOpen} title={name}>
+    <button
+      className={styles.file}
+      onClick={onOpen}
+      title={name}
+      aria-current={selected ? 'true' : undefined}
+    >
       <File size={20} strokeWidth={1.5} />
       <span className={styles.fileText}>
         <span className={styles.fileName}>{middleTruncate(name)}</span>

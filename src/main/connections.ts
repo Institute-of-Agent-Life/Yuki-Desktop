@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import type {
   ApiRead,
   AttachmentSource,
+  ArtifactSource,
   Connection,
   EventsPage,
   Me,
@@ -25,6 +26,11 @@ const uuid = (value: string) => {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value))
     throw new ApiError('invalid_response')
   return value
+}
+const artifactIdentity = (value: string) => {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value))
+    throw new ApiError('validation_error')
+  return value.toLowerCase()
 }
 
 export class Connections {
@@ -166,6 +172,54 @@ export class Connections {
     return new ContentCache(
       join(this.root, 'connections', uuid(id), 'cache', uuid(this.connection(id).personId)),
     )
+  }
+  async artifact(id: string, source: ArtifactSource) {
+    const identity = artifactIdentity(source.artifactId)
+    if (!/^[a-f0-9]{64}$/.test(source.version)) throw new ApiError('validation_error')
+    await this.identify(id)
+    const cache = new ContentCache(join(this.contentCache(id).root, 'artifacts'))
+    try {
+      const content = await cache.download(
+        this.client(id),
+        `artifacts/${identity}?version=${source.version}`,
+        source.version,
+      )
+      const filename = content.filename ?? identity
+      return {
+        ...content,
+        cache,
+        filename,
+        mime: previewMime(
+          filename,
+          content.mime === 'application/octet-stream' ? undefined : content.mime,
+        ),
+      }
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        ['not_found', 'unauthenticated', 'outbox_owner_mismatch'].includes(error.code)
+      )
+        await cache.remove(source.version)
+      throw error
+    }
+  }
+  async artifactContent(id: string, source: ArtifactSource) {
+    const item = await this.artifact(id, source)
+    return {
+      bytes: /^(image\/|text\/|application\/(json|pdf)$)/.test(item.mime)
+        ? await item.cache.bytes(item.path, item.sha256)
+        : null,
+      sha256: item.sha256,
+      filename: item.filename,
+      mime: item.mime,
+    }
+  }
+  savedArtifact(id: string, source: ArtifactSource, path?: string) {
+    const identity = artifactIdentity(source.artifactId)
+    if (!/^[a-f0-9]{64}$/.test(source.version)) throw new ApiError('validation_error')
+    const key = `saved-artifact/${identity}/${source.version}`
+    if (path) this.box(id).cache(key, path)
+    return this.box(id).cached<string>(key)
   }
   async retryUpload(id: string, requestId: string) {
     await this.identify(id)

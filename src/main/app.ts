@@ -14,13 +14,21 @@ import {
   systemPreferences,
 } from 'electron'
 import { hostname } from 'node:os'
+import { randomUUID } from 'node:crypto'
+import { mkdir, stat } from 'node:fs/promises'
 import { basename, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createWindow, setWindowMode } from './windows'
 import { installMenu } from './menu'
 import { LocalStore } from './store'
 import type { BootInfo, Preferences, NavigationTarget } from '../shared/desktop'
-import type { ApiRead, ApiReply, AttachmentSource, WorkCommand } from '../shared/api'
+import type {
+  ApiRead,
+  ApiReply,
+  AttachmentSource,
+  ArtifactSource,
+  WorkCommand,
+} from '../shared/api'
 import { Connections } from './connections'
 import { ApiError } from './api/client'
 import { NativeShell } from './native'
@@ -69,6 +77,10 @@ else {
       return net.fetch(pathToFileURL(path).toString())
     })
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      if (!details.url.startsWith('app://desktop/')) {
+        callback({ responseHeaders: details.responseHeaders })
+        return
+      }
       callback({
         responseHeaders: {
           ...details.responseHeaders,
@@ -234,6 +246,40 @@ else {
       connections.uploads(id).remove(request)
     })
     action('content', (id: string, source: AttachmentSource) => connections.content(id, source))
+    action('artifact-content', (id: string, source: ArtifactSource) =>
+      connections.artifactContent(id, source),
+    )
+    action('save-artifact', async (id: string, source: ArtifactSource) => {
+      const content = await connections.artifact(id, source)
+      const picked = await dialog.showSaveDialog(win!, {
+        title: '存到…',
+        defaultPath: basename(content.filename),
+      })
+      if (picked.canceled || !picked.filePath) return false
+      const current = await connections.artifact(id, source)
+      await current.cache.save(current.path, current.sha256, picked.filePath)
+      connections.savedArtifact(id, source, picked.filePath)
+      return true
+    })
+    action('reveal-artifact', async (id: string, source: ArtifactSource) => {
+      const path = connections.savedArtifact(id, source)
+      if (!path) throw new ApiError('local_file_missing')
+      try {
+        await stat(path)
+      } catch {
+        throw new ApiError('local_file_missing')
+      }
+      shell.showItemInFolder(path)
+    })
+    action('open-artifact', async (id: string, source: ArtifactSource) => {
+      const content = await connections.artifact(id, source)
+      const directory = join(content.cache.root, 'open', content.sha256, randomUUID())
+      await mkdir(directory, { recursive: true, mode: 0o700 })
+      const path = join(directory, basename(content.filename))
+      await content.cache.save(content.path, content.sha256, path)
+      const error = await shell.openPath(path)
+      if (error) throw new ApiError('open_failed')
+    })
     action('save-content', async (id: string, source: AttachmentSource) => {
       const content = await connections.attachment(id, source)
       const picked = await dialog.showSaveDialog(win!, {

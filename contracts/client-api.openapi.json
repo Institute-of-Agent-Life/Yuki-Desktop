@@ -1808,6 +1808,17 @@
             "title": "Direction",
             "type": "string"
           },
+          "display_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Text"
+          },
           "event_id": {
             "title": "Event Id",
             "type": "integer"
@@ -1833,6 +1844,13 @@
                 "type": "null"
               }
             ]
+          },
+          "work_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Work Ids",
+            "type": "array"
           }
         },
         "required": [

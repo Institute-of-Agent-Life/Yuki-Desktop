@@ -18,19 +18,36 @@ export class ContentCache {
     await rm(this.root, { recursive: true, force: true })
   }
   async remove(sha256: string) {
-    if (/^[a-f0-9]{64}$/.test(sha256)) await rm(join(this.root, sha256 + '.blob'), { force: true })
+    if (/^[a-f0-9]{64}$/.test(sha256)) {
+      await rm(join(this.root, sha256 + '.blob'), { force: true })
+      await rm(join(this.root, 'open', sha256), { recursive: true, force: true })
+    }
   }
-  async download(client: ApiClient, route: string) {
+  async download(client: ApiClient, route: string, expectedVersion?: string) {
     const response = await client.response(route),
       expected = response.headers.get('X-Yuki-Sha256')
     if (!expected || !/^[a-f0-9]{64}$/.test(expected) || !response.body)
       throw new ApiError('invalid_response')
+    if (expectedVersion && expectedVersion !== expected) {
+      await response.body.cancel()
+      throw new ApiError('content_hash_mismatch')
+    }
+    const disposition = response.headers.get('Content-Disposition'),
+      name = disposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+    let filename: string | undefined
+    try {
+      filename = name ? basename(decodeURIComponent(name)) : undefined
+    } catch {
+      await response.body.cancel()
+      throw new ApiError('invalid_response')
+    }
+    const metadata = { filename, mime: response.headers.get('Content-Type')?.split(';')[0] }
     await mkdir(this.root, { recursive: true, mode: 0o700 })
     const destination = join(this.root, expected + '.blob')
     try {
       if ((await digest(destination)) === expected) {
         await response.body.cancel()
-        return { path: destination, sha256: expected }
+        return { path: destination, sha256: expected, ...metadata }
       }
     } catch {
       /* Missing or damaged disposable cache is downloaded again. */
@@ -50,7 +67,7 @@ export class ContentCache {
       if (hash.digest('hex') !== expected || (declared !== null && Number(declared) !== size))
         throw new ApiError('content_hash_mismatch')
       await rename(temporary, destination)
-      return { path: destination, sha256: expected }
+      return { path: destination, sha256: expected, ...metadata }
     } finally {
       await output.close()
       await rm(temporary, { force: true })

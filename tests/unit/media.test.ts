@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest'
-import { mkdtemp, writeFile, readFile, rm, readdir } from 'node:fs/promises'
+import { mkdtemp, writeFile, readFile, rm, readdir, mkdir, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
@@ -73,6 +73,38 @@ it('cleans its unfinished upload snapshot when reading the selected original fai
 })
 const api = (fetcher: typeof fetch) =>
   new ApiClient('http://localhost/prefix', 'test-only', owner.bindingId, '1.0.0-beta.1', fetcher)
+
+it('requires the requested artifact version even when another valid hash is served and preserves user-saved files', async () => {
+  const { root } = await setup(),
+    cache = new ContentCache(join(root, 'artifact-cache'))
+  const bytes = Buffer.from('original version'),
+    sha256 = createHash('sha256').update(bytes).digest('hex')
+  let changed = false
+  const client = api(async () => {
+    const body = changed ? Buffer.from('another valid version') : bytes
+    return new Response(body, {
+      headers: {
+        'X-Yuki-Sha256': createHash('sha256').update(body).digest('hex'),
+        'Content-Length': String(body.length),
+        'Content-Disposition': "attachment; filename*=UTF-8''%E5%8E%9F%E7%A8%BF.md",
+      },
+    })
+  })
+  const original = await cache.download(client, 'artifact', sha256)
+  expect(original.filename).toBe('原稿.md')
+  const saved = join(root, 'user-saved.md')
+  await cache.save(original.path, sha256, saved)
+  changed = true
+  await expect(cache.download(client, 'artifact', sha256)).rejects.toThrow('content_hash_mismatch')
+  expect(await cache.bytes(original.path, sha256)).toEqual(bytes)
+  const privateOpen = join(cache.root, 'open', sha256, 'file.md')
+  await mkdir(join(cache.root, 'open', sha256), { recursive: true })
+  await writeFile(privateOpen, bytes)
+  await cache.remove(sha256)
+  await expect(stat(original.path)).rejects.toMatchObject({ code: 'ENOENT' })
+  await expect(stat(privateOpen)).rejects.toMatchObject({ code: 'ENOENT' })
+  expect(await readFile(saved)).toEqual(bytes)
+})
 
 it.each([false, true])(
   'recovers an interrupted upload after restart; server had committed=%s',

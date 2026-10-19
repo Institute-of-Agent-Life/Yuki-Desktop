@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
-import { X } from 'lucide-react'
-import type { Work, WorkCommandItem, WorkPage, WorkSteps } from '../../shared/api'
+import { File, X } from 'lucide-react'
+import type { ArtifactSource, Work, WorkCommandItem, WorkPage, WorkSteps } from '../../shared/api'
 import { Composer } from '../components/Composer'
-import { WorkCard, StepRow } from '../components/Content'
+import { WorkCard, StepRow, middleTruncate } from '../components/Content'
 import {
   Banner,
   Button,
@@ -17,6 +17,7 @@ import {
 import { hidesPrivateData, problemText, unwrap } from '../queries/client'
 import { useWorkspace } from '../state/workspace'
 import styles from './Works.module.css'
+import { dateGroup } from '../../shared/time'
 
 const terminal = (work: Work) => ['completed', 'failed', 'cancelled'].includes(work.state)
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
@@ -232,12 +233,14 @@ export function WorkDetail({
   open,
   replyInChat,
   commandEnter = false,
+  artifact,
 }: {
   id: string
   workId: string
   open(workId: string): void
   replyInChat(work: Work): void
   commandEnter?: boolean
+  artifact(source: ArtifactSource): void
 }) {
   const query = useQueryClient(),
     [cancel, setCancel] = useState<Work | null>(null)
@@ -379,6 +382,7 @@ export function WorkDetail({
               {data.results.map((result) => (
                 <p key={result.event_id}>{result.text}</p>
               ))}
+              <WorkArtifacts work={data} open={artifact} />
             </section>
           )}
           <p className={styles.secondary}>
@@ -526,19 +530,22 @@ export function ConversationWork({
   work,
   open,
   reply,
+  artifact,
 }: {
   id: string
-  work: Work
+  work: Work | string
   open(workId: string): void
   reply(work: Work): void
+  artifact(source: ArtifactSource): void
 }) {
   const [cancel, setCancel] = useState<Work | null>(null)
+  const workId = typeof work === 'string' ? work : work.work_id
   const detail = useQuery({
-    queryKey: [id, 'work', work.work_id],
-    queryFn: () => read<Work>(id, { kind: 'work', workId: work.work_id }),
-    initialData: work,
+    queryKey: [id, 'work', workId],
+    queryFn: () => read<Work>(id, { kind: 'work', workId }),
+    initialData: typeof work === 'string' ? undefined : work,
   })
-  if (hidesPrivateData(detail.error)) return null
+  if (hidesPrivateData(detail.error) || !detail.data) return null
   const data = detail.data,
     [status, label] = states[data.state]
   return (
@@ -552,7 +559,9 @@ export function ConversationWork({
         onOpen={() => open(data.work_id)}
         onReply={() => reply(data)}
         onCancel={!terminal(data) ? () => setCancel(data) : undefined}
-      />
+      >
+        <WorkArtifacts work={data} open={artifact} limit={3} all={() => open(data.work_id)} />
+      </WorkCard>
       <CancelWorkSheet id={id} work={cancel} close={() => setCancel(null)} />
     </>
   )
@@ -615,26 +624,64 @@ function CancelWorkSheet({ id, work, close }: { id: string; work: Work | null; c
     </>
   )
 }
+function WorkArtifacts({
+  work,
+  open,
+  limit,
+  all,
+}: {
+  work: Work
+  open(source: ArtifactSource): void
+  limit?: number
+  all?: () => void
+}) {
+  const items = [
+    ...new Map(
+      work.results
+        .flatMap((result) => result.artifacts)
+        .flatMap((item) =>
+          typeof item.artifact_id === 'string' && typeof item.version === 'string'
+            ? [
+                [
+                  `${item.artifact_id}/${item.version}`,
+                  {
+                    artifactId: item.artifact_id,
+                    version: item.version,
+                    name: typeof item.filename === 'string' ? item.filename : item.artifact_id,
+                  },
+                ] as const,
+              ]
+            : [],
+        ),
+    ).values(),
+  ]
+  if (!items.length) return null
+  return (
+    <div className={styles.artifactList}>
+      {items.slice(0, limit).map((item) => (
+        <button
+          className={styles.artifact}
+          key={`${item.artifactId}/${item.version}`}
+          title={`${item.name} · ${item.artifactId} · ${item.version}`}
+          onClick={() => open(item)}
+        >
+          <File size={18} />
+          <span>
+            {middleTruncate(item.name)}
+            <small>
+              {item.version.slice(0, 4)}…{item.version.slice(-4)}
+            </small>
+          </span>
+        </button>
+      ))}
+      {limit !== undefined && items.length > limit && all && (
+        <Button variant="plain" onClick={all}>
+          其他 {items.length - limit} 個
+        </Button>
+      )}
+    </div>
+  )
+}
 function unique(works: Work[]) {
   return [...new Map(works.map((work) => [work.work_id, work])).values()]
-}
-function dateGroup(seconds: number) {
-  const date = new Date(seconds * 1000),
-    today = new Date()
-  const day = (value: Date) => value.toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' })
-  if (day(date) === day(today)) return '今天'
-  const local = new Date(Date.now() + 8 * 3600000)
-  const monday =
-    Date.UTC(
-      local.getUTCFullYear(),
-      local.getUTCMonth(),
-      local.getUTCDate() - ((local.getUTCDay() + 6) % 7),
-    ) -
-    8 * 3600000
-  if (seconds * 1000 >= monday) return '本週'
-  return date.toLocaleDateString(undefined, {
-    timeZone: 'Asia/Taipei',
-    year: 'numeric',
-    month: 'long',
-  })
 }

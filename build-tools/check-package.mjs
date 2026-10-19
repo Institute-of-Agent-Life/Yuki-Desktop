@@ -38,6 +38,8 @@ for (const archive of archives) {
     if (!entries.includes('/out/renderer/' + asset))
       throw new Error(`Missing bundled asset: ${asset}`)
   }
+  if (!entries.some((entry) => /^\/out\/renderer\/assets\/diff\.worker-[^/]+\.js$/.test(entry)))
+    throw new Error('Missing artifact comparison worker')
   for (const entry of entries) {
     const path = entry.replace(/^\//, '')
     const icon =

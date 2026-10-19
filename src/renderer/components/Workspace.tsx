@@ -184,7 +184,7 @@ export function Workspace(props: Props) {
   return (
     <div
       ref={root}
-      className={`${styles.shell} ${props.platform === 'darwin' && !layout.sidebar ? styles.macCollapsed : ''}`}
+      className={`${styles.shell} ${props.platform === 'darwin' && (!layout.sidebar || state.focusMode) ? styles.macCollapsed : ''}`}
       style={{
         gridTemplateColumns: state.focusMode
           ? '400px 0 minmax(0,1fr)'
@@ -238,7 +238,9 @@ export function Workspace(props: Props) {
             <PanelLeft size={16} strokeWidth={1.5} />
           </IconButton>
           <span className={styles.toolbarTitle}>
-            {state.view === 'chat' ? props.name : views.find(([view]) => view === state.view)?.[1]}
+            {state.view === 'chat' || state.focusMode
+              ? props.name
+              : views.find(([view]) => view === state.view)?.[1]}
           </span>
           <IconButton label="展開工作區" onClick={() => state.toggle('focusMode')}>
             <Maximize2 size={16} strokeWidth={1.5} />

@@ -17,7 +17,7 @@ export const useWorkspace = create<WorkspaceState>((set) => ({
   sidebar: true,
   focusMode: false,
   target: null,
-  navigate: (target) => set({ target, view: target.view }),
-  setView: (view) => set({ view, target: null }),
+  navigate: (target) => set({ target, view: target.view, focusMode: false }),
+  setView: (view) => set({ view, target: null, focusMode: false }),
   toggle: (key) => set((state) => ({ [key]: !state[key] })),
 }))
