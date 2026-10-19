@@ -15,21 +15,7 @@ export function useHistory(characterId: string, conversationId: string, before: 
     queryKey: key,
     queryFn: async () => {
       const floor = floors.current.get(range)
-      const first = await read(before ?? Number.MAX_SAFE_INTEGER)
-      let current = first,
-        items = first.items
-      // Re-read only the visible range. Edits and deletions replace cached facts.
-      while (
-        floor !== undefined &&
-        current.has_more &&
-        current.next_before !== null &&
-        items.length > 0 &&
-        items[0]!.event_id > floor
-      ) {
-        current = await read(current.next_before)
-        items = [...current.items, ...items]
-      }
-      return { ...current, items: uniqueEvents(items) }
+      return readHistoryRange(read, before ?? Number.MAX_SAFE_INTEGER, floor)
     },
   })
   return {
@@ -40,8 +26,41 @@ export function useHistory(characterId: string, conversationId: string, before: 
       const next = await read(page.next_before)
       const items = uniqueEvents([...next.items, ...page.items])
       if (items.length) floors.current.set(range, items[0]!.event_id)
+      if (next.generation !== page.generation || next.revision !== page.revision)
+        return readHistoryRange(read, before ?? Number.MAX_SAFE_INTEGER, items[0]?.event_id)
       return { ...next, items }
     },
+  }
+}
+
+export async function readHistoryRange(
+  read: (cursor: number) => Promise<EventsPage>,
+  before: number,
+  floor?: number,
+): Promise<EventsPage> {
+  for (;;) {
+    const first = await read(before)
+    let current = first,
+      items = first.items,
+      changed = false
+    // A page fetched after an edit cannot stamp older cached bodies with its
+    // newer revision. Read the requested range again using one actual snapshot.
+    while (
+      floor !== undefined &&
+      current.has_more &&
+      current.next_before !== null &&
+      items.length > 0 &&
+      items[0]!.event_id > floor
+    ) {
+      const next = await read(current.next_before)
+      if (next.generation !== first.generation || next.revision !== first.revision) {
+        changed = true
+        break
+      }
+      current = next
+      items = [...next.items, ...items]
+    }
+    if (!changed) return { ...current, items: uniqueEvents(items) }
   }
 }
 

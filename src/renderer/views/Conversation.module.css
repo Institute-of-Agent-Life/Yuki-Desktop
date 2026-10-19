@@ -300,3 +300,9 @@
   flex: 1;
   min-width: 0;
 }
+.stageTitle {
+  margin: 24px 24px 16px;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 600;
+}

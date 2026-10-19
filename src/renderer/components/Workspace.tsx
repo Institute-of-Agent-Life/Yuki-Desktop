@@ -3,6 +3,7 @@ import {
   BriefcaseBusiness,
   Folder,
   Maximize2,
+  Minimize2,
   MessageCircle,
   Monitor,
   PanelLeft,
@@ -254,8 +255,15 @@ export function Workspace(props: Props) {
                   ? props.name
                   : views.find(([view]) => view === state.view)?.[1]}
               </span>
-              <IconButton label="展開工作區" onClick={() => state.toggle('focusMode')}>
-                <Maximize2 size={16} strokeWidth={1.5} />
+              <IconButton
+                label={state.focusMode ? '收合工作區' : '展開工作區'}
+                onClick={() => state.toggle('focusMode')}
+              >
+                {state.focusMode ? (
+                  <Minimize2 size={16} strokeWidth={1.5} />
+                ) : (
+                  <Maximize2 size={16} strokeWidth={1.5} />
+                )}
               </IconButton>
               <IconButton label="檢視器" onClick={() => state.toggle('inspector')}>
                 <PanelRight size={16} strokeWidth={1.5} />

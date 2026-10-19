@@ -14,6 +14,7 @@ import type {
   CharacterStatus,
 } from '../../shared/api'
 import type { Preferences } from '../../shared/desktop'
+import type { components } from '../../shared/contract.gen'
 import { Composer } from '../components/Composer'
 import { Banner, Button, EmptyState, IconButton } from '../components/Controls'
 import { CharacterAvatar, CharacterVisuals } from '../components/CharacterAvatar'
@@ -32,6 +33,9 @@ import { VoiceRecorder } from './VoiceRecorder'
 import mediaStyles from './Media.module.css'
 import { useMarkdown } from '../text/markdown'
 import { useHistory } from '../queries/history'
+import { CommandPalette, type PaletteCommand } from '../components/CommandPalette'
+import type { LoadedItem } from '../state/loaded'
+import { requestNavigation } from '../state/navigation'
 import { ConversationWork, WorkDetail, WorkList, WorkReply } from './Works'
 import { Files, ArtifactInspector } from './Files'
 import { Computer, ComputerInspector } from './Computer'
@@ -94,6 +98,15 @@ export function Conversation({
   const [replyWork, setReplyWork] = useState<Work>()
   const currentReferences = useRef<MessageReference[]>([])
   const [search, setSearch] = useState<string | null>(null)
+  const [palette, setPalette] = useState(false),
+    [messageStage, setMessageStage] = useState<MessageReference>()
+  const alive = useRef(true)
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+    }
+  }, [id])
   const list = useRef<HTMLDivElement>(null),
     bottom = useRef(true),
     [newMessages, setNewMessages] = useState(false)
@@ -229,6 +242,7 @@ export function Conversation({
     }
   }
   const openAttachment = (source: AttachmentSource) => {
+    setMessageStage(undefined)
     setArtifact(undefined)
     setSelectedWork(undefined)
     setPreview(source)
@@ -261,6 +275,29 @@ export function Conversation({
     () =>
       window.yuki.client.onHint((character, kind, data) => {
         if (character !== id) return
+        if (kind === 'sync') query.setQueryData([id, 'sync'], data)
+        if (kind === 'conversation' || kind === 'work') {
+          query.setQueryData<components['schemas']['SyncHint']>([id, 'sync'], (current) => {
+            if (!current) return current
+            if (kind === 'conversation') {
+              const entry = data as components['schemas']['Entry']
+              return {
+                ...current,
+                conversations: [
+                  ...current.conversations.filter(
+                    (item) => item.conversation_id !== entry.conversation_id,
+                  ),
+                  entry,
+                ],
+              }
+            }
+            const work = data as components['schemas']['WorkHint']
+            return {
+              ...current,
+              works: [...current.works.filter((item) => item.work_id !== work.work_id), work],
+            }
+          })
+        }
         if (kind === 'connection') {
           const state = data as { state: 'online' | 'offline'; code?: string }
           setOnline(state.state)
@@ -273,15 +310,22 @@ export function Conversation({
     [id, refresh],
   )
   useEffect(() => {
-    const search = () => setSearch('')
+    const search = () => setPalette(true)
     window.addEventListener('yuki:search', search)
     return () => window.removeEventListener('yuki:search', search)
   }, [])
   useCommands((command) => {
     if (command === 'focus-composer')
       document.querySelector<HTMLTextAreaElement>('textarea')?.focus()
-    if (command === 'search' || (command === 'find' && !promptEditing)) setSearch('')
+    if (command === 'search') setPalette(true)
+    if (command === 'find' && !promptEditing) {
+      if (view === 'chat') setSearch('')
+      else setPalette(true)
+    }
   })
+  useEffect(() => {
+    if (accessLost) setPalette(false)
+  }, [accessLost])
   useEffect(() => {
     const range = `${conversation}/${anchor}`
     const last = events.data?.items.at(-1)?.event_id ?? 0
@@ -400,29 +444,65 @@ export function Conversation({
   useEffect(() => {
     if (needsEarlier.current && !events.isFetching) void more()
   })
+  const applyJump = (reference: MessageReference, event: PublicEvent, stage = false) => {
+    if (!alive.current) return false
+    if (
+      reference.conversationId !== conversation ||
+      !eventData?.items.some((item) => item.event_id === reference.eventId)
+    ) {
+      setAnchor(reference.eventId + 1)
+      setConversation(reference.conversationId)
+    }
+    setSearch(null)
+    bottom.current = false
+    setJump(reference)
+    useWorkspace.getState().setView('chat')
+    setMessageStage(stage ? reference : undefined)
+    if (stage) {
+      setSelectedWork(undefined)
+      setArtifact(undefined)
+      setPreview(undefined)
+      query.setQueryData([id, 'reference', reference.conversationId, reference.eventId], event)
+      useWorkspace.setState({ inspector: true, focusMode: true })
+    }
+    return true
+  }
+  const exactMessage = async (reference: MessageReference) => {
+    const page = await read<EventsPage>(id, {
+      kind: 'events',
+      conversationId: reference.conversationId,
+      after: reference.eventId - 1,
+      limit: 1,
+    })
+    const event = page.items.find(
+      (item) =>
+        item.event_id === reference.eventId && item.conversation_id === reference.conversationId,
+    )
+    if (!event) {
+      query.setQueriesData<EventsPage>(
+        {
+          predicate: (item) =>
+            item.queryKey[0] === id &&
+            item.queryKey[1] === 'events' &&
+            item.queryKey[2] === reference.conversationId,
+        },
+        (previous) =>
+          previous
+            ? {
+                ...previous,
+                items: previous.items.filter((item) => item.event_id !== reference.eventId),
+              }
+            : previous,
+      )
+      query.setQueryData([id, 'reference', reference.conversationId, reference.eventId], null)
+      throw new Error('引用的訊息無法讀取')
+    }
+    return event
+  }
   const jumpTo = async (reference: MessageReference) => {
     setHistoryError('')
     try {
-      const page = await read<EventsPage>(id, {
-        kind: 'events',
-        conversationId: reference.conversationId,
-        after: reference.eventId - 1,
-        limit: 1,
-      })
-      if (!page.items.some((item) => item.event_id === reference.eventId))
-        throw new Error('引用的訊息無法讀取')
-      if (
-        reference.conversationId !== conversation ||
-        !eventData?.items.some((item) => item.event_id === reference.eventId)
-      ) {
-        setAnchor(reference.eventId + 1)
-        setConversation(reference.conversationId)
-      }
-      setSearch(null)
-      bottom.current = false
-      setJump(reference)
-      useWorkspace.getState().setView('chat')
-      return true
+      return applyJump(reference, await exactMessage(reference))
     } catch (error) {
       setHistoryError(error instanceof Error ? error.message : '引用的訊息無法讀取')
       return false
@@ -431,18 +511,21 @@ export function Conversation({
   const name = profileData?.display_name ?? connection.name,
     isMain = conversation === connection.conversationId
   const openWork = (workId: string) => {
+    setMessageStage(undefined)
     setArtifact(undefined)
     setPreview(undefined)
     setSelectedWork(workId)
     useWorkspace.setState({ inspector: true })
   }
   const openArtifact = (source: ArtifactSource) => {
+    setMessageStage(undefined)
     setArtifact(source)
     setSelectedWork(undefined)
     setPreview(undefined)
     useWorkspace.setState({ inspector: true })
   }
   const selectArtifact = (source: ArtifactSource) => {
+    setMessageStage(undefined)
     setArtifact(source)
     setSelectedWork(undefined)
     setPreview(undefined)
@@ -465,6 +548,92 @@ export function Conversation({
     online,
     accessLost || hidesPrivateData(characterStatus.error) ? undefined : characterStatus.data,
   )
+  const paletteNavigate = (run: () => void) => {
+    setPalette(false)
+    requestNavigation(() => {
+      if (alive.current) run()
+    })
+  }
+  const pickLoaded = async (item: LoadedItem, stage: boolean) => {
+    if (item.kind === 'message') {
+      const reference = { conversationId: item.conversationId, eventId: item.event.event_id }
+      const event = await exactMessage(reference)
+      if (alive.current) paletteNavigate(() => applyJump(reference, event, stage))
+    } else if (item.kind === 'work')
+      paletteNavigate(() => {
+        useWorkspace.getState().setView(stage ? 'chat' : 'works')
+        openWork(item.work.work_id)
+        if (stage) useWorkspace.setState({ focusMode: true })
+      })
+    else
+      paletteNavigate(() => {
+        useWorkspace.getState().setView(stage ? 'chat' : 'files')
+        if (stage) {
+          openArtifact(item.source)
+          useWorkspace.setState({ focusMode: true })
+        } else selectArtifact(item.source)
+      })
+  }
+  const paletteCommands: PaletteCommand[] = [
+    ...(['chat', 'works', 'files', 'about'] as const).map((view, index) => ({
+      id: `command/${view}`,
+      title: ['開啟對話', '開啟工作', '開啟檔案與成果', '開啟角色資料'][index]!,
+      run: () => paletteNavigate(() => useWorkspace.getState().setView(view)),
+    })),
+    {
+      id: 'command/inspector',
+      title: '開合檢視器',
+      run: () => paletteNavigate(() => useWorkspace.getState().toggle('inspector')),
+    },
+    {
+      id: 'command/sidebar',
+      title: '開合側邊欄',
+      run: () => paletteNavigate(() => useWorkspace.getState().toggle('sidebar')),
+    },
+    {
+      id: 'command/stage',
+      title: '展開或收合工作區',
+      run: () => paletteNavigate(() => useWorkspace.getState().toggle('focusMode')),
+    },
+    { id: 'command/settings', title: '開啟設定', run: () => paletteNavigate(onSettings) },
+    ...(profileData?.viewer.is_owner && !accessLost
+      ? [
+          {
+            id: 'command/computer',
+            title: `觀看 ${name} 的電腦`,
+            run: (stage: boolean) =>
+              paletteNavigate(() => {
+                useWorkspace.getState().setView('computer')
+                if (stage) useWorkspace.setState({ focusMode: true, inspector: true })
+              }),
+          },
+          {
+            id: 'command/wake',
+            title: `喚醒 ${name} 的電腦`,
+            run: (stage: boolean) =>
+              paletteNavigate(() => {
+                useWorkspace.getState().setView('computer')
+                if (stage) useWorkspace.setState({ focusMode: true, inspector: true })
+                void window.yuki.client
+                  .computerCommand(id, { action: 'wake' })
+                  .then(unwrap)
+                  .then((result) => {
+                    if (alive.current && (result.problem || result.state !== 'result'))
+                      setMediaError(
+                        result.state !== 'result'
+                          ? '喚醒結果尚未確認，請在電腦頁查證原請求。'
+                          : problemText(result.problem!),
+                      )
+                  })
+                  .catch((error) => {
+                    if (alive.current)
+                      setMediaError(error instanceof Error ? error.message : '喚醒尚未確認。')
+                  })
+              }),
+          },
+        ]
+      : []),
+  ]
   return (
     <CharacterVisuals.Provider value={{ id, name, profile: profileData, presence }}>
       <Workspace
@@ -510,6 +679,29 @@ export function Conversation({
             ) : (
               <ComputerInspector key={id} id={id} work={openWork} />
             )
+          ) : messageStage && !accessLost ? (
+            <MessageStage
+              id={id}
+              reference={messageStage}
+              render={(event) => (
+                <Message
+                  characterId={id}
+                  event={event}
+                  name={name}
+                  selected={false}
+                  consecutive={false}
+                  onSelect={() => setSelection(event.event_id)}
+                  onReference={() => addReference(event)}
+                  onAttachment={openAttachment}
+                  onArtifact={openArtifact}
+                  onJump={(ref) => void jumpTo(ref)}
+                  verify={async (requestId) => {
+                    unwrap(await window.yuki.client.verify(id, requestId))
+                    refresh()
+                  }}
+                />
+              )}
+            />
           ) : artifact && !accessLost ? (
             <ArtifactInspector
               key={`${artifact.artifactId}/${artifact.version}`}
@@ -560,6 +752,7 @@ export function Conversation({
           )
         }
       >
+        {mediaError && view !== 'chat' && <Banner status="failed">{mediaError}</Banner>}
         {view === 'computer' && !focusMode ? (
           accessLost || !profileData?.viewer.is_owner ? (
             <Banner status="failed">
@@ -873,7 +1066,51 @@ export function Conversation({
           </div>
         )}
       </Workspace>
+      {palette && !accessLost && (
+        <CommandPalette
+          character={id}
+          commands={paletteCommands}
+          pick={pickLoaded}
+          close={() => setPalette(false)}
+        />
+      )}
     </CharacterVisuals.Provider>
+  )
+}
+
+function MessageStage({
+  id,
+  reference,
+  render,
+}: {
+  id: string
+  reference: MessageReference
+  render(event: PublicEvent): React.ReactNode
+}) {
+  const event = useQuery({
+    queryKey: [id, 'reference', reference.conversationId, reference.eventId],
+    staleTime: Infinity,
+    queryFn: async () => {
+      const page = await read<EventsPage>(id, {
+        kind: 'events',
+        conversationId: reference.conversationId,
+        after: reference.eventId - 1,
+        limit: 1,
+      })
+      return page.items.find((item) => item.event_id === reference.eventId) ?? null
+    },
+  })
+  return (
+    <section aria-label="原訊息舞台">
+      <h2 className={styles.stageTitle}>原訊息</h2>
+      {event.isPending ? (
+        <p>正在讀取原訊息…</p>
+      ) : event.error || !event.data ? (
+        <Banner status="failed">引用的訊息無法讀取</Banner>
+      ) : (
+        render(event.data)
+      )}
+    </section>
   )
 }
 

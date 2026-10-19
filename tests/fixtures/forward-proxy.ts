@@ -1,4 +1,4 @@
-import { createServer, request as forward } from 'node:http'
+import { createServer, request as forward, type IncomingMessage } from 'node:http'
 
 // Faults are applied after forwarding to the real integration backend. This
 // proxy has no business responses, identity, model or receipt implementation.
@@ -14,6 +14,7 @@ export async function forwardProxy(target: string, prefix: string) {
   }
   const lostStatuses: number[] = []
   const held = new Map<string, (() => void)[]>()
+  const responses = new Map<string, Set<IncomingMessage>>()
   const server = createServer((req, res) => {
     const path = (req.url ?? '/').slice(prefix.length)
     const call = {
@@ -53,6 +54,13 @@ export async function forwardProxy(target: string, prefix: string) {
       new URL(root.pathname + path, root),
       { method: req.method, headers: { ...req.headers, host: root.host } },
       (response) => {
+        const active = responses.get(path) ?? new Set<IncomingMessage>()
+        active.add(response)
+        responses.set(path, active)
+        response.once('close', () => {
+          active.delete(response)
+          if (!active.size) responses.delete(path)
+        })
         if (loseResponse) {
           lostStatuses.push(response.statusCode!)
           response.resume()
@@ -86,6 +94,12 @@ export async function forwardProxy(target: string, prefix: string) {
     calls,
     lostStatuses,
     held,
+    pauseActive(path: string) {
+      for (const response of responses.get(path) ?? []) response.pause()
+    },
+    resumeActive(path: string) {
+      for (const response of responses.get(path) ?? []) response.resume()
+    },
     releaseResponses(path: string) {
       faults.holdResponses.delete(path)
       held.get(path)?.forEach((resume) => resume())

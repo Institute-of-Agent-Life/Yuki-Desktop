@@ -47,6 +47,9 @@ export function Files({
     [selected, setSelected] = useState<ArtifactSource | undefined>(initial),
     [comparison, setComparison] = useState<ArtifactSource>(),
     [problem, setProblem] = useState('')
+  useEffect(() => {
+    if (initial) setSelected(initial)
+  }, [initial?.artifactId, initial?.version])
   const page = useInfiniteQuery({
     queryKey: [id, 'artifacts', category],
     initialPageParam: null as string | null,
