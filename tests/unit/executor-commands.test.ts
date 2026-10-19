@@ -204,10 +204,10 @@ it('cold recovery proves original create and delete before replacing an unclaime
   expect(env.vault.current()).toBeUndefined()
   const originalId = env.commands.list()[0]!.requestId
   const cold = env.reopen()
-  await expect(cold.flow.enable(api.client, 'my PC', 'linux')).rejects.toThrow('transport_unknown')
+  await expect(cold.flow.resume(api.client)).rejects.toThrow('transport_unknown')
   const revokeId = cold.commands.list().find((item) => item.command.kind === 'delete')!.requestId
   const again = env.reopen()
-  const state = await again.flow.enable(api.client, 'my PC', 'linux')
+  const state = await again.flow.resume(api.client)
   expect(api.actions.map((value) => value.split(':')[0])).toEqual(['create', 'delete', 'create'])
   expect(api.queries.filter((id) => id === originalId).length).toBeGreaterThan(1)
   expect(api.queries).toContain(revokeId)

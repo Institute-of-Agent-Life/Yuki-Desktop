@@ -56,7 +56,7 @@ export function Conversation({
   platform: string
   preferences: Preferences
   save(patch: Partial<Preferences>): void
-  onSettings(): void
+  onSettings(target?: 'folder'): void
   onPairAgain(): void
 }) {
   const id = connection.characterId,
@@ -596,6 +596,11 @@ export function Conversation({
       run: () => paletteNavigate(() => useWorkspace.getState().toggle('focusMode')),
     },
     { id: 'command/settings', title: '開啟設定', run: () => paletteNavigate(onSettings) },
+    {
+      id: 'command/folder',
+      title: '授權本機資料夾',
+      run: () => paletteNavigate(() => onSettings('folder')),
+    },
     ...(profileData?.viewer.is_owner && !accessLost
       ? [
           {

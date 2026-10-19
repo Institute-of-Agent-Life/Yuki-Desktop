@@ -29,6 +29,7 @@ export class ExecutorRunner {
     readonly journal: ExecutorJournal,
     private transport: ExecutorTransport,
     private effects: ExecutorEffects,
+    private mayStart: () => boolean = () => true,
   ) {}
   run(opId: string): Promise<ExecutorTask> {
     const current = this.running.get(opId)
@@ -69,7 +70,8 @@ export class ExecutorRunner {
     const local = this.journal.get(opId),
       outcome = this.outcomes.get(opId) ?? (local?.phase === 'finished' ? local.result : undefined)
     if (outcome) return this.report(task, outcome)
-    if (task.state === 'registered') return task
+    if (task.state === 'registered' || (task.state === 'dispatched' && !this.mayStart()))
+      return task
     if (task.state === 'dispatched') {
       this.journal.started(opId)
       this.beforeEffect.add(opId)
@@ -82,6 +84,7 @@ export class ExecutorRunner {
         throw new ApiError('invalid_response')
     }
     if (!this.beforeEffect.has(opId)) return this.report(task, await this.unknown(task))
+    if (!this.mayStart()) return task
     this.beforeEffect.delete(opId)
     let result: ExecutorResult
     try {

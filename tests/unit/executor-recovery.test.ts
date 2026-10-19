@@ -121,6 +121,28 @@ function setup() {
   }
 }
 
+it('pausing during ack holds the original operation until resume without executing or reporting unknown', async () => {
+  const h = setup()
+  let allowed = true
+  const ack = h.transport.ack
+  h.transport.ack = async (id) => {
+    const result = await ack(id)
+    allowed = false
+    return result
+  }
+  const runner = new ExecutorRunner(h.journal, h.transport, h.effects, () => allowed)
+  expect((await runner.run('original-op')).state).toBe('acknowledged')
+  expect(h.writes()).toBe(0)
+  expect(h.reports).toEqual([])
+  expect(h.journal.get('original-op')).toEqual({ phase: 'started' })
+  expect((await runner.run('original-op')).state).toBe('acknowledged')
+  expect(h.writes()).toBe(0)
+  allowed = true
+  expect((await runner.run('original-op')).state).toBe('succeeded')
+  expect(h.writes()).toBe(1)
+  expect(h.acks).toBe(1)
+})
+
 it('persists started before ack and resumes an unaccepted ack after reopening the original SQLite', async () => {
   const h = setup(),
     ack = h.transport.ack

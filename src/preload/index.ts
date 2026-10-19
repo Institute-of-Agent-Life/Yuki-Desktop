@@ -3,9 +3,20 @@ import type { BootInfo, Command, DesktopBridge } from '../shared/desktop'
 
 const bridge: DesktopBridge = {
   client: {
+    executorState: (id) => ipcRenderer.invoke('yuki:executor-state', id),
+    clearUnavailableExecutor: (id) => ipcRenderer.invoke('yuki:executor-clear-unavailable', id),
+    enableExecutor: (id) => ipcRenderer.invoke('yuki:enable-executor', id),
+    executorAction: (id, action) => ipcRenderer.invoke('yuki:executor-action', id, action),
+    executorCommands: (id) => ipcRenderer.invoke('yuki:executor-commands', id),
+    verifyExecutorCommand: (id, request) =>
+      ipcRenderer.invoke('yuki:verify-executor-command', id, request),
+    pickExecutorFolder: (id, alias) => ipcRenderer.invoke('yuki:pick-executor-folder', id, alias),
+    removeExecutorFolder: (id, digest) =>
+      ipcRenderer.invoke('yuki:remove-executor-folder', id, digest),
     prepareLogout: (id) => ipcRenderer.invoke('yuki:prepare-logout', id),
     logoutSummary: (id) => ipcRenderer.invoke('yuki:logout-summary', id),
-    finishLogout: (id, device, choice) => ipcRenderer.invoke('yuki:finish-logout', id, device, choice),
+    finishLogout: (id, device, choice) =>
+      ipcRenderer.invoke('yuki:finish-logout', id, device, choice),
     issueLinkCode: (id) => ipcRenderer.invoke('yuki:issue-link-code', id),
     linkCodeRequests: (id) => ipcRenderer.invoke('yuki:link-code-requests', id),
     verifyLinkCode: (id, request) => ipcRenderer.invoke('yuki:verify-link-code', id, request),

@@ -15,6 +15,7 @@ import {
   systemPreferences,
 } from 'electron'
 import { hostname } from 'node:os'
+import type { ExecutorAction } from '../shared/executor'
 import { randomUUID } from 'node:crypto'
 import { mkdir, stat, writeFile, readFile, mkdtemp, rm } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
@@ -140,6 +141,31 @@ else {
         win?.webContents.send('yuki:open-target', target)
       },
     )
+    connections.executorNative = (id) => ({
+      openURL: (url) => shell.openExternal(url),
+      openFile: (path) => shell.openPath(path),
+      notify: (title, body) => native.submitNotification(id, title, body),
+    })
+    connections.onExecutorActivity = (id, task, active) => {
+      const verbs: Record<string, string> = {
+        'folder.read': '讀取',
+        'folder.write': '寫入',
+        'open.file': '開啟檔案',
+        'open.url': '開啟網址',
+        notify: '提交通知',
+      }
+      const scopes = connections.executorState(id).installation?.scopes ?? []
+      const path = typeof task.params.path === 'string' ? task.params.path : ''
+      const scope = scopes
+        .filter((item) => path === item.alias || path.startsWith(`${item.alias}/`))
+        .sort((a, b) => b.alias.length - a.alias.length)[0]
+      native.activity(
+        id,
+        task.opId,
+        `${verbs[task.capability] ?? '處理本機操作'}${scope ? ` ${scope.alias}` : ''}`,
+        active,
+      )
+    }
     const decorations = new Map<string, Promise<void>>()
     connections.onProfile = (id, profile) => {
       const key = native.prepareCharacter(id, profile),
@@ -276,6 +302,35 @@ else {
       name: string,
       run: (id: string, ...args: A) => T | Promise<T>,
     ) => action(name, (id: string, ...args: A) => connections.activity(id, () => run(id, ...args)))
+    clientAction('executor-state', (id) => connections.executorState(id))
+    clientAction('executor-clear-unavailable', (id) => connections.clearUnavailableExecutor(id))
+    clientAction('enable-executor', (id) => connections.enableExecutor(id, hostname()))
+    clientAction('executor-action', (id, command: ExecutorAction) =>
+      connections.executorAction(id, command),
+    )
+    clientAction('executor-commands', (id) => connections.executorCommands(id))
+    clientAction('verify-executor-command', (id, request: string) =>
+      connections.verifyExecutorCommand(id, request),
+    )
+    clientAction('remove-executor-folder', (id, digest: string) =>
+      connections.removeExecutorFolder(id, digest),
+    )
+    clientAction('pick-executor-folder', async (id, alias: string) => {
+      if (typeof alias !== 'string') throw new ApiError('validation_error')
+      const options = {
+        title: `允許 ${connections.connection(id).name} 使用資料夾`,
+        properties: ['openDirectory'] as 'openDirectory'[],
+      }
+      const selected = win
+        ? await dialog.showOpenDialog(win, options)
+        : await dialog.showOpenDialog(options)
+      if (selected.canceled || !selected.filePaths[0]) return null
+      return connections.executorFolder(
+        id,
+        selected.filePaths[0],
+        alias.trim() || basename(selected.filePaths[0]) || '資料夾',
+      )
+    })
     action('connections', () => connections.publicList())
     action('prepare-logout', async (id: string) => {
       try {

@@ -22,7 +22,10 @@ vi.mock('electron', async () => {
       this.icon = icon
       os.trays.push(this)
     }
-    setToolTip() {}
+    tooltip = ''
+    setToolTip(value: string) {
+      this.tooltip = value
+    }
     setImage(icon: unknown) {
       this.icon = icon
     }
@@ -129,6 +132,7 @@ it('keeps avatar notifications and tray selection isolated and ignores late obso
 })
 import { NativeShell } from '../../src/main/native'
 interface FakeTray extends EventEmitter {
+  tooltip: string
   destroyed: boolean
   icon: { path: string }
   menu: { label?: string; click?: () => void }[]
@@ -138,6 +142,31 @@ interface FakeNotice extends EventEmitter {
   closed: boolean
   options: { title: string }
 }
+
+it('shows each actual executor activity under its own role and clears only the finished operation', async () => {
+  os.trays.length = 0
+  os.notices.length = 0
+  const reveal = vi.fn(),
+    open = vi.fn(),
+    shell = new NativeShell(() => undefined, reveal, open)
+  shell.update(defaultPreferences)
+  shell.activity('role-a', 'op-a', '讀取 收件匣A', true)
+  shell.activity('role-b', 'op-b', '寫入 收件匣B', true)
+  const tray = os.trays[0] as FakeTray
+  expect(tray.tooltip).toContain('讀取 收件匣A')
+  expect(tray.tooltip).toContain('寫入 收件匣B')
+  expect(os.notices).toHaveLength(2)
+  ;(os.notices[1] as FakeNotice).emit('click')
+  expect(reveal).toHaveBeenCalledOnce()
+  expect(open).toHaveBeenCalledWith({ characterId: 'role-b', view: 'chat' })
+  shell.activity('role-a', 'op-a', '讀取 收件匣A', false)
+  expect(tray.tooltip).not.toContain('收件匣A')
+  expect(tray.tooltip).toContain('收件匣B')
+  shell.forget('role-b')
+  expect(tray.tooltip).toBe('Yuki')
+  expect(tray.menu.some((item) => item.label?.includes('收件匣'))).toBe(false)
+  shell.close()
+})
 
 it.each(['darwin', 'win32', 'linux'] as const)(
   'uses the %s tray adapter and real reveal/quit callbacks',

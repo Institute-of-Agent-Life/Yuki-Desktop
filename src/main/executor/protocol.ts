@@ -24,7 +24,7 @@ const task = (value: ExecutorOperation): ExecutorTask => ({
   state: value.state,
 })
 export class ExecutorProtocol implements ExecutorTransport {
-  constructor(readonly client: ExecutorClient) {}
+  constructor(public client: ExecutorClient) {}
   async get(id: string) {
     return task(await this.client.get<ExecutorOperation>(`operations/${encodeURIComponent(id)}`))
   }

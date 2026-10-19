@@ -1,5 +1,6 @@
 import type { components } from './contract.gen'
 import type { NavigationTarget } from './desktop'
+import type { ExecutorAction, ExecutorCommandItem, LocalExecutorState } from './executor'
 
 export const REQUIRED_API_REVISION = 5
 
@@ -200,7 +201,17 @@ export interface ArtifactSource {
   version: string
 }
 export type ApiRead =
-  | { kind: 'me' | 'home' | 'character' | 'character-status' | 'computer' | 'proactive-route' }
+  | {
+      kind:
+        | 'me'
+        | 'home'
+        | 'character'
+        | 'character-status'
+        | 'computer'
+        | 'proactive-route'
+        | 'executors'
+    }
+  | { kind: 'executor-operations'; executorId: string; cursor?: string }
   | { kind: 'memory'; about: 'me' | 'self'; cursor?: string }
   | { kind: 'memory-fact'; factId: number }
   | { kind: 'automations'; scope: 'mine' | 'self' }
@@ -220,6 +231,24 @@ export type ApiRead =
   | { kind: 'activity'; conversationId: string }
 
 export interface ConversationBridge {
+  executorState(characterId: string): Promise<ApiReply<LocalExecutorState>>
+  clearUnavailableExecutor(characterId: string): Promise<ApiReply<LocalExecutorState>>
+  enableExecutor(characterId: string): Promise<ApiReply<LocalExecutorState>>
+  executorAction(
+    characterId: string,
+    action: ExecutorAction,
+  ): Promise<ApiReply<ExecutorCommandItem>>
+  executorCommands(characterId: string): Promise<ApiReply<ExecutorCommandItem[]>>
+  verifyExecutorCommand(
+    characterId: string,
+    requestId: string,
+  ): Promise<ApiReply<ExecutorCommandItem>>
+  pickExecutorFolder(
+    characterId: string,
+    alias: string,
+  ): Promise<ApiReply<{ alias: string; digest: string } | null>>
+  removeExecutorFolder(characterId: string, digest: string): Promise<ApiReply<LocalExecutorState>>
+
   prepareLogout(characterId: string): Promise<ApiReply<LogoutSummary>>
   logoutSummary(characterId: string): Promise<ApiReply<LogoutSummary>>
   finishLogout(

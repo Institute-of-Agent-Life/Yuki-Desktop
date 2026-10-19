@@ -37,6 +37,13 @@ import type { LocalStore } from './store'
 import { Uploads } from './media/uploads'
 import { ContentCache } from './media/content'
 import { previewMime } from '../shared/media'
+import type { ExecutorAction } from '../shared/executor'
+import { ExecutorCommands } from './outbox/executor-commands'
+import { ExecutorInstallation } from './executor/installation'
+import { ExecutorSetup } from './executor/setup'
+import { LocalExecutorRuntime } from './executor/runtime'
+import type { NativeSubmissions } from './executor/effects'
+import type { ExecutorTask } from './executor/runner'
 
 const uuid = (value: string) => {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value))
@@ -63,6 +70,17 @@ export class Connections {
     return { connections: this.list().length, subscriptions: this.streams.size, messages }
   }
   onProfile?: (id: string, profile: Profile) => void
+  executorNative?: (id: string) => NativeSubmissions
+  onExecutorActivity?: (id: string, task: ExecutorTask, active: boolean) => void
+  private readonly executorStores = new Map<
+    Outbox,
+    {
+      installation: ExecutorInstallation
+      commands: ExecutorCommands
+      setup: ExecutorSetup
+      runtime: LocalExecutorRuntime
+    }
+  >()
   readonly credentials: Credentials
   private readonly outboxes = new Map<string, Outbox>()
   private readonly streams = new Map<string, AbortController>()
@@ -124,6 +142,8 @@ export class Connections {
   private freeze(id: string) {
     this.epochs.set(id, (this.epochs.get(id) ?? 0) + 1)
     this.frozen.add(id)
+    for (const [box, context] of this.executorStores)
+      if (box.owner.characterId === id) context.runtime.disconnect()
     this.streams.get(id)?.abort()
     this.streams.delete(id)
     clearTimeout(this.retries.get(id))
@@ -144,6 +164,9 @@ export class Connections {
       this.avatarStores.get(box)?.settle(),
       this.promptStores.get(box)?.settled(),
       this.linkCodeStores.get(box)?.settled(),
+      this.executorStores.get(box)?.commands.settled(),
+      this.executorStores.get(box)?.setup.settled(),
+      this.executorStores.get(box)?.runtime.settled(),
     ])
   }
   logoutSummary(id: string): LogoutSummary {
@@ -252,6 +275,8 @@ export class Connections {
       uuid(connection.bindingId) + '.sqlite3',
     )
     if (box) {
+      if (choice === 'delete') this.executorStores.get(box)?.installation.remove()
+      this.executorStores.delete(box)
       box.db.close()
       this.outboxes.delete(key)
       this.uploadStores.delete(box)
@@ -427,6 +452,139 @@ export class Connections {
       this.promptStores.set(box, prompts)
     }
     return prompts
+  }
+  private executors(id: string) {
+    const box = this.box(id)
+    let context = this.executorStores.get(box)
+    if (!context) {
+      const installation = new ExecutorInstallation(this.credentials, box.owner)
+      const commands = new ExecutorCommands(box, installation)
+      const runtime = new LocalExecutorRuntime(
+        box,
+        installation,
+        this.executorNative?.(id) ?? {
+          async openURL() {
+            throw new ApiError('unavailable')
+          },
+          async openFile() {
+            throw new ApiError('unavailable')
+          },
+          async notify() {
+            throw new ApiError('unavailable')
+          },
+        },
+        async () => {
+          await this.identify(id)
+          const current = this.connection(id)
+          if (this.closed || this.frozen.has(id) || current.logout)
+            throw new ApiError('logout_pending')
+          if (current.personId !== box.owner.personId || current.bindingId !== box.owner.bindingId)
+            throw new ApiError('outbox_owner_mismatch')
+        },
+        () => {
+          if (!this.closed) this.emit(id, 'executor-local', {})
+        },
+        (task, active) => this.onExecutorActivity?.(id, task, active),
+      )
+      context = {
+        installation,
+        commands,
+        setup: new ExecutorSetup(commands, installation),
+        runtime,
+      }
+      this.executorStores.set(box, context)
+    }
+    return context
+  }
+  executorState(id: string) {
+    return this.executors(id).runtime.state()
+  }
+  executorCommands(id: string) {
+    return this.executors(id).commands.list()
+  }
+  async enableExecutor(id: string, label: string) {
+    await this.identify(id)
+    const context = this.executors(id)
+    await context.setup.enable(this.client(id), label, process.platform)
+    await context.runtime.start(this.connection(id).baseUrl, this.version)
+    this.emit(id, 'executor', {})
+    return context.runtime.state()
+  }
+  async executorFolder(id: string, path: string, alias: string) {
+    await this.identify(id)
+    await this.box(id).verifyOwner(this.client(id))
+    const scope = await this.executors(id).installation.choose(path, alias)
+    this.emit(id, 'executor-local', {})
+    return scope
+  }
+  removeExecutorFolder(id: string, digest: string) {
+    const context = this.executors(id)
+    context.installation.removeScope(digest)
+    this.emit(id, 'executor-local', {})
+    return context.runtime.state()
+  }
+  async clearUnavailableExecutor(id: string) {
+    await this.identify(id)
+    const context = this.executors(id),
+      client = this.client(id)
+    await this.box(id).verifyOwner(client)
+    const current = context.installation.current()
+    if (current) {
+      const listed = await client.get<{ executor_id: string }[]>('executors')
+      if (listed.some((row) => row.executor_id === current.executorId))
+        throw new ApiError('precondition_failed')
+    }
+    context.runtime.disconnect()
+    await context.runtime.settled()
+    context.installation.remove()
+    context.setup.removed()
+    this.emit(id, 'executor-local', {})
+    return context.runtime.state()
+  }
+  async executorAction(id: string, action: ExecutorAction) {
+    if (!['grants', 'pause', 'resume', 'delete'].includes(action?.kind))
+      throw new ApiError('validation_error')
+    const context = this.executors(id),
+      installed = context.installation.current()
+    if (action.kind === 'grants') {
+      if (installed?.executorId !== action.executorId) throw new ApiError('executor_not_local')
+      context.installation.consent(action.grants)
+    }
+    if (installed?.executorId === action.executorId && ['pause', 'resume'].includes(action.kind)) {
+      context.installation.pause(action.kind === 'pause')
+      this.emit(id, 'executor-local', {})
+      void context.runtime.refresh().catch(() => {})
+    }
+    const request = context.commands.prepare(action)
+    return this.verifyExecutorCommand(id, request.requestId)
+  }
+  async verifyExecutorCommand(id: string, requestId: string) {
+    await this.identify(id)
+    const context = this.executors(id)
+    const item = await context.commands.run(this.client(id), uuid(requestId))
+    if (item.state === 'result' && !item.problem) {
+      const command = item.command
+      if (
+        command.kind === 'delete' &&
+        (context.installation.current()?.executorId === command.executorId ||
+          context.setup.owns(command.executorId))
+      ) {
+        context.runtime.disconnect()
+        context.installation.remove()
+        context.setup.removed()
+      } else void context.runtime.refresh().catch(() => {})
+    }
+    this.emit(id, 'executor', {})
+    this.emit(id, 'executor-local', {})
+    return item
+  }
+  private async startExecutor(id: string) {
+    if (this.closed || this.frozen.has(id) || this.connection(id).logout) return
+    const context = this.executors(id)
+    if (!context.installation.current() && context.setup.pending)
+      await context.setup.resume(this.client(id))
+    if (context.installation.current())
+      await context.runtime.start(this.connection(id).baseUrl, this.version)
   }
   promptDocuments(id: string) {
     if (this.closed) return Promise.reject(new ApiError('unavailable'))
@@ -884,9 +1042,17 @@ export class Connections {
     return connection
   }
   async read<T>(id: string, route: ApiRead, offlineCache = true): Promise<T> {
+    if (route.kind === 'executors' || route.kind === 'executor-operations') offlineCache = false
     let path: string
-    if (route.kind === 'me' || route.kind === 'character' || route.kind === 'computer')
+    if (
+      route.kind === 'me' ||
+      route.kind === 'character' ||
+      route.kind === 'computer' ||
+      route.kind === 'executors'
+    )
       path = route.kind
+    else if (route.kind === 'executor-operations')
+      path = `executors/${uuid(route.executorId)}/operations?${new URLSearchParams({ limit: '50', ...(route.cursor ? { cursor: route.cursor } : {}) })}`
     else if (route.kind === 'character-status') path = 'character/status'
     else if (route.kind === 'proactive-route') path = 'me/proactive-route'
     else if (route.kind === 'memory') {
@@ -1012,6 +1178,11 @@ export class Connections {
   start(id: string) {
     if (this.frozen.has(id) || this.connection(id).logout) return
     this.identified.delete(id)
+    void this.startExecutor(id).catch((error) => {
+      this.emit(id, 'executor-local', {
+        problem: error instanceof ApiError ? error.code : 'unknown',
+      })
+    })
     try {
       if (!this.credentials.get(`device/${id}/${this.connection(id).personId}`)) return
     } catch {
@@ -1057,7 +1228,13 @@ export class Connections {
             .list()
             .filter((item) => item.state !== 'result')
             .map((item) => this.verifyWorkCommand(id, item.requestId).catch(() => {})),
-        ]).finally(() => this.retry(id, Math.min(delay * 2, 60000)))
+          ...this.executors(id)
+            .commands.list()
+            .filter((item) => item.state !== 'result')
+            .map((item) => this.verifyExecutorCommand(id, item.requestId).catch(() => {})),
+        ])
+          .then(() => this.startExecutor(id).catch(() => {}))
+          .finally(() => this.retry(id, Math.min(delay * 2, 60000)))
       }, delay),
     )
   }
@@ -1075,6 +1252,11 @@ export class Connections {
           if (kind === 'sync') {
             delay = 1000
             this.emit(id, 'connection', { state: 'online' })
+            void this.startExecutor(id).catch((error) => {
+              this.emit(id, 'executor-local', {
+                problem: error instanceof ApiError ? error.code : 'unknown',
+              })
+            })
           }
           if (['sync', 'conversation', 'work'].includes(kind)) {
             for (const item of this.linkCodes(id)
@@ -1125,8 +1307,12 @@ export class Connections {
             'server_upgrade_required',
             'client_upgrade_required',
           ].includes(code)
-        )
+        ) {
+          if (code !== 'unauthenticated')
+            for (const [box, context] of this.executorStores)
+              if (box.owner.characterId === id) context.runtime.disconnect()
           break
+        }
       }
       if (controller.signal.aborted) break
       await new Promise<void>((resolve) => {
@@ -1143,6 +1329,7 @@ export class Connections {
   }
   close() {
     this.closed = true
+    this.executorStores.forEach((context) => context.runtime.disconnect())
     this.streams.forEach((controller) => controller.abort())
     this.retries.forEach((timer) => clearTimeout(timer))
     // Reads already in flight settle before their database is closed.
@@ -1160,6 +1347,12 @@ export class Connections {
       ...[...this.avatarStores.values()].map((commands) => commands.settle()),
       ...[...this.promptStores.values()].map((prompts) => prompts.settled()),
       ...[...this.linkCodeStores.values()].map((codes) => codes.settled()),
-    ]).then(() => this.outboxes.forEach((box) => box.db.close()))
+      ...[...this.executorStores.values()].map((context) => context.commands.settled()),
+      ...[...this.executorStores.values()].map((context) => context.setup.settled()),
+    ]).then(() =>
+      this.outboxes.forEach((box) => {
+        if (!this.executorStores.get(box)?.runtime.hasWork) box.db.close()
+      }),
+    )
   }
 }

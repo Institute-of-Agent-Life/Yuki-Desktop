@@ -85,6 +85,7 @@ export class NativeExecutorEffects implements ExecutorEffects {
     private authority: () => Promise<ExecutionAuthority>,
     private native: NativeSubmissions,
     private content: (task: ExecutorTask) => Promise<Uint8Array>,
+    private activity: (task: ExecutorTask, active: boolean) => void = () => {},
   ) {}
   private async authorized(task: ExecutorTask) {
     const authority = await this.authority()
@@ -162,11 +163,17 @@ export class NativeExecutorEffects implements ExecutorEffects {
   }
   async execute(task: ExecutorTask): Promise<ExecutorResult> {
     let issued = false
+    let active = false
+    const starting = () => {
+      active = true
+      this.activity(task, true)
+    }
     try {
       const authority = await this.authorized(task)
       switch (task.capability) {
         case 'folder.read': {
           const target = await this.target(task, authority)
+          starting()
           if (task.params.mode === 'list') {
             const directory = await opendir(target.path),
               entries = []
@@ -214,6 +221,7 @@ export class NativeExecutorEffects implements ExecutorEffects {
             throw new Refusal('invalid_parameters')
           if (task.params.if_absent && !created) return failed('already_exists')
           const temporary = join(dirname(target.path), `.yuki-${randomUUID()}.tmp`)
+          starting()
           let handle: FileHandle | undefined
           try {
             handle = await open(temporary, 'wx', 0o600)
@@ -247,12 +255,14 @@ export class NativeExecutorEffects implements ExecutorEffects {
           const url = new URL(text(task.params.url))
           if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password)
             throw new Refusal('unsupported_url')
+          starting()
           issued = true
           await this.native.openURL(url.toString())
           break
         }
         case 'open.file': {
           const target = await this.target(task, authority)
+          starting()
           issued = true
           if (await this.native.openFile(target.path)) return failed('open_failed')
           break
@@ -260,6 +270,7 @@ export class NativeExecutorEffects implements ExecutorEffects {
         case 'notify': {
           const title = text(task.params.title),
             body = text(task.params.body)
+          starting()
           issued = true
           if (!(await this.native.notify(title, body))) return failed('notification_failed')
           break
@@ -279,6 +290,8 @@ export class NativeExecutorEffects implements ExecutorEffects {
       if (error instanceof ReadTooLarge)
         return { state: 'failed', result: { reason: 'too_large', size: error.size } }
       return failed(reason(error))
+    } finally {
+      if (active) this.activity(task, false)
     }
   }
   async observe(task: ExecutorTask): Promise<Record<string, unknown> | undefined> {

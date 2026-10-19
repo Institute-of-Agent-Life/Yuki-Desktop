@@ -10,6 +10,8 @@ export async function forwardProxy(target: string, prefix: string) {
     holdReceipts: false,
     holdRequestIds: new Set<string>(),
     holdResponses: new Set<string>(),
+    holdResponseSuffixes: new Set<string>(),
+    rejectPostSuffixes: new Set<string>(),
     loseNextSuffix: '',
   }
   const lostStatuses: number[] = []
@@ -26,6 +28,8 @@ export async function forwardProxy(target: string, prefix: string) {
     calls.push(call)
     if (
       faults.offline ||
+      (req.method === 'POST' &&
+        [...faults.rejectPostSuffixes].some((suffix) => path.endsWith(suffix))) ||
       (path.includes('/requests/') &&
         (faults.holdReceipts || faults.holdRequestIds.has(path.split('/').at(-1)!)))
     ) {
@@ -33,7 +37,7 @@ export async function forwardProxy(target: string, prefix: string) {
       res.end(JSON.stringify({ problem: { code: 'unavailable' } }))
       return
     }
-    if (path.endsWith('/messages') || path.endsWith('/me/proactive-route')) {
+    if (req.method !== 'GET') {
       const chunks: Buffer[] = []
       req.on('data', (part) => chunks.push(Buffer.from(part)))
       req.on('end', () => {
@@ -70,7 +74,10 @@ export async function forwardProxy(target: string, prefix: string) {
           })
         } else {
           res.writeHead(response.statusCode!, response.headers)
-          if (faults.holdResponses.has(path)) {
+          if (
+            faults.holdResponses.has(path) ||
+            [...faults.holdResponseSuffixes].some((suffix) => path.endsWith(suffix))
+          ) {
             response.pause()
             const pending = held.get(path) ?? []
             pending.push(() => response.pipe(res))

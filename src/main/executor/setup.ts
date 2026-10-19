@@ -36,6 +36,20 @@ export class ExecutorSetup {
     this.enabling = work
     return work
   }
+  resume(client: ApiClient) {
+    const flow = this.flow()
+    if (!flow) return Promise.resolve(this.installation.publicState())
+    const command = this.commands.get(flow.create_request).command
+    if (command.kind !== 'create') throw new ApiError('request_conflict')
+    return this.enable(client, command.label, command.platform)
+  }
+  get pending() {
+    return !!this.flow()
+  }
+  owns(executorId: string) {
+    const flow = this.flow()
+    return !!flow && this.commands.get(flow.create_request).result?.executor_id === executorId
+  }
   private async performEnable(client: ApiClient, label: string, platform: string) {
     await this.commands.box.verifyOwner(client)
     if (this.installation.current()) return this.installation.publicState()
@@ -73,5 +87,8 @@ export class ExecutorSetup {
   }
   removed() {
     this.commands.box.db.prepare('DELETE FROM executor_setup').run()
+  }
+  settled() {
+    return this.enabling?.catch(() => {}) ?? Promise.resolve()
   }
 }

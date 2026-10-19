@@ -8,10 +8,12 @@ import {
   Wrench,
   Server,
   ShieldCheck,
+  Laptop,
 } from 'lucide-react'
 import type { Connection } from '../../shared/api'
 import { ServerSettings } from './ServerSettings'
 import { DeviceSecurity } from './DeviceSecurity'
+import { LocalConnection } from './LocalConnection'
 import type { BootInfo, Preferences } from '../../shared/desktop'
 import { Banner, Button, Segmented, Spinner, Toggle } from '../components/Controls'
 import { unwrap } from '../queries/client'
@@ -21,6 +23,7 @@ const categories = [
   { id: 'general', label: '一般', icon: SlidersHorizontal },
   { id: 'look', label: '外觀', icon: Palette },
   { id: 'notify', label: '通知', icon: Bell },
+  { id: 'local', label: '本機連接', icon: Laptop },
   { id: 'security', label: '裝置與安全', icon: ShieldCheck },
   { id: 'server', label: '伺服器與角色', icon: Server },
   { id: 'advanced', label: '進階', icon: Wrench },
@@ -54,6 +57,7 @@ export function Settings({
   onConnection,
   about,
   onLoggedOut,
+  folderRequest = false,
 }: {
   boot: BootInfo
   preferences: Preferences
@@ -63,11 +67,15 @@ export function Settings({
   onConnection(connection: Connection): void
   about(): void
   onLoggedOut(): Promise<void>
+  folderRequest?: boolean
 }) {
-  const [category, setCategory] = useState<Category>(connection?.logout ? 'security' : 'general'),
+  const [category, setCategory] = useState<Category>(
+      connection?.logout ? 'security' : folderRequest ? 'local' : 'general',
+    ),
     [error, setError] = useState(''),
     [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [folderPending, setFolderPending] = useState(folderRequest)
   const query = useQueryClient()
   useEffect(() => {
     if (connection?.logout) setCategory('security')
@@ -284,6 +292,17 @@ export function Settings({
                 </Row>
               ))}
             </div>
+          ) : category === 'local' ? (
+            connection ? (
+              <LocalConnection
+                key={connection.characterId}
+                connection={connection}
+                folderRequest={folderPending}
+                onFolderRequested={() => setFolderPending(false)}
+              />
+            ) : (
+              <p className={styles.notice}>配對角色後可設定本機連接。</p>
+            )
           ) : category === 'security' ? (
             connection ? (
               <DeviceSecurity

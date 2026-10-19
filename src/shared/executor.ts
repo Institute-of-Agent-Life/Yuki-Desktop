@@ -17,3 +17,18 @@ export interface ExecutorCommandItem {
   problem: string | null
   result: ExecutorConfig | Omit<ExecutorCreated, 'token'> | null
 }
+
+export interface LocalExecutorState {
+  installation: {
+    executorId: string
+    paused: boolean
+    persistent: boolean
+    scopes: { alias: string; digest: string }[]
+    consents: ExecutorGrant[]
+  } | null
+  state: 'offline' | 'connecting' | 'online'
+  problem: string | null
+  activeOperations: string[]
+}
+
+export type ExecutorAction = Exclude<ExecutorCommand, { kind: 'create' }>

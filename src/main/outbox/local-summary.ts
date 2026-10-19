@@ -45,7 +45,12 @@ export function localSummary(box: Outbox) {
     'avatar_commands',
     'prompt_commands',
     'link_code_commands',
+    'executor_commands',
   ].reduce((total, table) => total + count(table, "state NOT IN ('result','draft')"), 0)
   drafts += count('requests', "state='draft'") + count('work_commands', "state='draft'")
-  return { drafts, pending, attachments: count('uploads', 'active=1') }
+  return {
+    drafts,
+    pending: pending + count('local_executor_operations', '1'),
+    attachments: count('uploads', 'active=1'),
+  }
 }

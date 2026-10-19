@@ -16,6 +16,7 @@ import { useQueryClient } from '@tanstack/react-query'
 export function App({ boot }: { boot: BootInfo }) {
   const query = useQueryClient()
   const [step, setStep] = useState<'welcome' | 'server' | 'settings'>('welcome')
+  const [folderSettings, setFolderSettings] = useState(false)
   const [preferences, setPreferences] = useState(boot.preferences)
   const [appearance, setAppearance] = useState(boot)
   const [connection, setConnection] = useState<Connection>()
@@ -108,7 +109,11 @@ export function App({ boot }: { boot: BootInfo }) {
     [],
   )
   useCommands((command) => {
-    if (command === 'settings') requestNavigation(() => setStep('settings'))
+    if (command === 'settings')
+      requestNavigation(() => {
+        setFolderSettings(false)
+        setStep('settings')
+      })
     if (command === 'back' && step === 'settings') setStep('welcome')
     if (step === 'settings' && ['chat', 'works', 'computer', 'files', 'about'].includes(command)) {
       useWorkspace.getState().setView(command as import('../shared/desktop').View)
@@ -122,6 +127,7 @@ export function App({ boot }: { boot: BootInfo }) {
         {navigationError && <Banner status="failed">{navigationError}</Banner>}
         {step === 'settings' || connection?.logout ? (
           <Settings
+            folderRequest={folderSettings}
             boot={boot}
             preferences={preferences}
             save={save}
@@ -161,7 +167,12 @@ export function App({ boot }: { boot: BootInfo }) {
             platform={boot.platform}
             preferences={preferences}
             save={(patch) => void save(patch)}
-            onSettings={() => requestNavigation(() => setStep('settings'))}
+            onSettings={(target) =>
+              requestNavigation(() => {
+                setFolderSettings(target === 'folder')
+                setStep('settings')
+              })
+            }
             onPairAgain={() => {
               setPairingTarget(connection)
               setConnection(undefined)

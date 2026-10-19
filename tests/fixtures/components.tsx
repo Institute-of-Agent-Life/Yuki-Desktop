@@ -17,6 +17,14 @@ import '../../src/renderer/tokens.css'
 
 window.yuki = {
   client: {
+    executorState: async () => ({ ok: false, code: 'fixture_only' }),
+    clearUnavailableExecutor: async () => ({ ok: false, code: 'fixture_only' }),
+    enableExecutor: async () => ({ ok: false, code: 'fixture_only' }),
+    executorAction: async () => ({ ok: false, code: 'fixture_only' }),
+    executorCommands: async () => ({ ok: false, code: 'fixture_only' }),
+    verifyExecutorCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    pickExecutorFolder: async () => ({ ok: false, code: 'fixture_only' }),
+    removeExecutorFolder: async () => ({ ok: false, code: 'fixture_only' }),
     prepareLogout: async () => ({ ok: false, code: 'fixture_only' }),
     logoutSummary: async () => ({ ok: false, code: 'fixture_only' }),
     finishLogout: async () => ({ ok: false, code: 'fixture_only' }),
