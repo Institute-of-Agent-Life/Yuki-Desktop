@@ -27,6 +27,7 @@
     "generate:contract": "openapi-typescript contracts/client-api.openapi.json -o src/shared/contract.gen.ts"
   },
   "dependencies": {
+    "@novnc/novnc": "1.7.0",
     "@shikijs/langs": "4.5.0",
     "@shikijs/themes": "4.5.0",
     "@tanstack/react-query": "5.104.4",

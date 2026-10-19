@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 export default defineConfig({
   root: resolve('tests/fixtures'),
   plugins: [react()],
-  optimizeDeps: { include: ['diff'] },
+  optimizeDeps: { include: ['diff', '@novnc/novnc'] },
   server: {
     host: '127.0.0.1',
     port: 4178,

@@ -4,6 +4,7 @@ import type {
   AttachmentSource,
   ArtifactSource,
   Connection,
+  ComputerCommand,
   EventsPage,
   Me,
   Meta,
@@ -17,6 +18,8 @@ import { readStream } from './api/stream'
 import { Credentials } from './credentials'
 import { Outbox } from './outbox'
 import { WorkCommands } from './outbox/work-commands'
+import { ComputerCommands } from './outbox/computer-commands'
+import { ComputerTickets } from './computer-tickets'
 import type { LocalStore } from './store'
 import { Uploads } from './media/uploads'
 import { ContentCache } from './media/content'
@@ -43,6 +46,8 @@ export class Connections {
   private readonly states = new Map<string, unknown>()
   private readonly uploadStores = new Map<Outbox, Uploads>()
   private readonly commandStores = new Map<Outbox, WorkCommands>()
+  private readonly computerStores = new Map<Outbox, ComputerCommands>()
+  readonly computerTickets = new ComputerTickets()
   private closed = false
   constructor(
     readonly store: LocalStore,
@@ -123,6 +128,46 @@ export class Connections {
       this.commandStores.set(box, commands)
     }
     return commands
+  }
+  computerCommands(id: string) {
+    const box = this.box(id)
+    let commands = this.computerStores.get(box)
+    if (!commands) {
+      commands = new ComputerCommands(box)
+      this.computerStores.set(box, commands)
+    }
+    return commands
+  }
+  async computerCommand(id: string, command: ComputerCommand) {
+    await this.identify(id)
+    const client = this.client(id)
+    await this.box(id).verifyOwner(client)
+    const commands = this.computerCommands(id)
+    const item = commands.prepare(command)
+    const result = await commands.run(client, item.requestId)
+    this.emit(id, 'computer-command', {})
+    return result
+  }
+  async verifyComputerCommand(id: string, requestId: string) {
+    await this.identify(id)
+    const result = await this.computerCommands(id).run(this.client(id), uuid(requestId), true)
+    this.emit(id, 'computer-command', {})
+    return result
+  }
+  async computerTicket(id: string) {
+    await this.identify(id)
+    await this.box(id).verifyOwner(this.client(id))
+    return this.computerTickets.issue(this.client(id))
+  }
+  async computerFile(id: string, path: string) {
+    await this.identify(id)
+    await this.box(id).verifyOwner(this.client(id))
+    const cache = new ContentCache(join(this.contentCache(id).root, 'computer'))
+    const item = await cache.download(
+      this.client(id),
+      `computer/files/content?${new URLSearchParams({ path })}`,
+    )
+    return { ...item, cache }
   }
   async workCommand(id: string, command: WorkCommand) {
     uuid(command.workId)
@@ -401,8 +446,13 @@ export class Connections {
   }
   async read<T>(id: string, route: ApiRead, offlineCache = true): Promise<T> {
     let path: string
-    if (route.kind === 'me' || route.kind === 'character') path = route.kind
-    else if (route.kind === 'home') path = 'home?works=active'
+    if (route.kind === 'me' || route.kind === 'character' || route.kind === 'computer')
+      path = route.kind
+    else if (route.kind === 'computer-files') {
+      const params = new URLSearchParams({ path: route.path })
+      if (route.cursor) params.set('cursor', route.cursor)
+      path = `computer/files?${params}`
+    } else if (route.kind === 'home') path = 'home?works=active'
     else if (route.kind === 'request') path = `requests/${uuid(route.requestId)}`
     else if (route.kind === 'work') path = `works/${uuid(route.workId)}`
     else if (route.kind === 'activity')
@@ -433,13 +483,20 @@ export class Connections {
       return value
     } catch (error) {
       if (error instanceof ApiError) {
+        if (error.code === 'owner_required' && route.kind.startsWith('computer')) {
+          box.db
+            .prepare("DELETE FROM read_cache WHERE key='computer' OR key GLOB 'computer/*'")
+            .run()
+          await new ContentCache(join(this.contentCache(id).root, 'computer')).clear()
+        }
         if (['unauthenticated', 'not_found', 'outbox_owner_mismatch'].includes(error.code)) {
           box.clearCache()
           await this.contentCache(id).clear()
         }
         if (['transport_unknown', 'unavailable'].includes(error.code)) {
           this.emit(id, 'connection', { state: 'offline', code: error.code })
-          const cached = offlineCache ? box.cached<T>(path) : undefined
+          const cached =
+            offlineCache && !route.kind.startsWith('computer') ? box.cached<T>(path) : undefined
           if (cached !== undefined) return cached
         }
       }
@@ -543,6 +600,10 @@ export class Connections {
             this.emit(id, 'connection', { state: 'online' })
           }
           if (['sync', 'conversation', 'work'].includes(kind)) {
+            for (const item of this.computerCommands(id)
+              .list()
+              .filter((item) => item.state !== 'result'))
+              void this.verifyComputerCommand(id, item.requestId).catch(() => {})
             for (const item of this.commands(id)
               .list()
               .filter((item) => item.state !== 'result'))

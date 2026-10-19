@@ -3,6 +3,14 @@ import type { BootInfo, Command, DesktopBridge } from '../shared/desktop'
 
 const bridge: DesktopBridge = {
   client: {
+    computerTicket: (id) => ipcRenderer.invoke('yuki:computer-ticket', id),
+    saveComputerFile: (id, path) => ipcRenderer.invoke('yuki:save-computer-file', id, path),
+    computerCommand: (id, command) => ipcRenderer.invoke('yuki:computer-command', id, command),
+    computerCommands: (id) => ipcRenderer.invoke('yuki:computer-commands', id),
+    verifyComputerCommand: (id, request) =>
+      ipcRenderer.invoke('yuki:verify-computer-command', id, request),
+    keyboardCapture: (captured) => ipcRenderer.invoke('yuki:keyboard-capture', captured),
+    saveScreenshot: (id, bytes) => ipcRenderer.invoke('yuki:save-screenshot', id, bytes),
     reconnect: () => ipcRenderer.invoke('yuki:reconnect'),
     external: (url) => ipcRenderer.invoke('yuki:external', url),
     copy: (text) => ipcRenderer.invoke('yuki:copy', text),

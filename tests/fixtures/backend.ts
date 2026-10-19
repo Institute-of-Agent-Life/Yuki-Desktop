@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createServer } from 'node:net'
 
-export async function yukiFixture() {
+export async function yukiFixture(options: { computer?: boolean } = {}) {
   const backend = process.env.YUKI_BACKEND_TEST_ROOT,
     python = process.env.YUKI_BACKEND_TEST_PYTHON
   test.skip(
@@ -26,6 +26,7 @@ export async function yukiFixture() {
     spawnServer = () =>
       spawn(python!, ['-m', 'tests.support.desktop_reference_server', root, String(port)], {
         cwd: backend,
+        env: { ...process.env, YUKI_DESKTOP_COMPUTER_FIXTURE: options.computer ? '1' : '0' },
         stdio: ['ignore', log, log],
       }),
     base = `http://127.0.0.1:${port}/role/yuki`

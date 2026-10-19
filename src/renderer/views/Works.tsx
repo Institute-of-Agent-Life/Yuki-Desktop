@@ -105,7 +105,7 @@ export function WorkList({
   useEffect(
     () =>
       window.yuki.client.onHint((character, kind) => {
-        if (character === id && ['sync', 'work', 'commands'].includes(kind))
+        if (character === id && ['sync', 'work', 'commands', 'computer'].includes(kind))
           void query.invalidateQueries({ queryKey: [id, 'works'] })
       }),
     [id, query],
@@ -234,6 +234,7 @@ export function WorkDetail({
   replyInChat,
   commandEnter = false,
   artifact,
+  computer,
 }: {
   id: string
   workId: string
@@ -241,6 +242,7 @@ export function WorkDetail({
   replyInChat(work: Work): void
   commandEnter?: boolean
   artifact(source: ArtifactSource): void
+  computer?: () => void
 }) {
   const query = useQueryClient(),
     [cancel, setCancel] = useState<Work | null>(null)
@@ -276,7 +278,8 @@ export function WorkDetail({
         if (
           (kind === 'sync' && needsSync) ||
           (['work', 'work_steps'].includes(kind) && original.work_id === workId) ||
-          kind === 'commands'
+          kind === 'commands' ||
+          kind === 'computer'
         ) {
           void query.invalidateQueries({ queryKey: [id, 'work', workId] })
           void query.invalidateQueries({ queryKey: [id, 'steps', workId] })
@@ -335,6 +338,12 @@ export function WorkDetail({
           )}
           <section>
             <h3>步驟</h3>
+            {computer &&
+              allSteps.some((step) => ['browser', 'computer'].includes(step.category)) && (
+                <Button variant="plain" onClick={computer}>
+                  在電腦上查看
+                </Button>
+              )}
             {allSteps.map((step) => (
               <StepRow
                 key={step.step_id}

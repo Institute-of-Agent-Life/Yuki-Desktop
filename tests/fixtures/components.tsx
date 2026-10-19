@@ -17,6 +17,13 @@ import '../../src/renderer/tokens.css'
 
 window.yuki = {
   client: {
+    computerTicket: async () => ({ ok: false, code: 'fixture_only' }),
+    saveComputerFile: async () => ({ ok: false, code: 'fixture_only' }),
+    computerCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    computerCommands: async () => ({ ok: true, value: [] }),
+    verifyComputerCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    keyboardCapture: async () => ({ ok: true, value: undefined }),
+    saveScreenshot: async () => ({ ok: false, code: 'fixture_only' }),
     reconnect: async () => ({ ok: true, value: undefined }),
     external: async () => ({ ok: false, code: 'fixture_only' }),
     copy: async () => ({ ok: true, value: undefined }),

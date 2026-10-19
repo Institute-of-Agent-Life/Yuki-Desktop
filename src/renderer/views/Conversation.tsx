@@ -29,6 +29,7 @@ import { useMarkdown } from '../text/markdown'
 import { useHistory } from '../queries/history'
 import { ConversationWork, WorkDetail, WorkList, WorkReply } from './Works'
 import { Files, ArtifactInspector } from './Files'
+import { Computer, ComputerInspector } from './Computer'
 
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
   window.yuki.client.read<T>(id, route).then(unwrap)
@@ -428,7 +429,13 @@ export function Conversation({
         </>
       }
       inspector={
-        artifact && !accessLost ? (
+        view === 'computer' && !accessLost && profileData?.viewer.is_owner ? (
+          focusMode ? (
+            <Computer key={id} connection={connection} name={name} work={openWork} />
+          ) : (
+            <ComputerInspector key={id} id={id} work={openWork} />
+          )
+        ) : artifact && !accessLost ? (
           <ArtifactInspector
             key={`${artifact.artifactId}/${artifact.version}`}
             id={id}
@@ -444,6 +451,15 @@ export function Conversation({
             replyInChat={answerWork}
             commandEnter={preferences.sendKey === 'command-enter'}
             artifact={openArtifact}
+            computer={
+              profileData?.viewer.is_owner
+                ? () => {
+                    const state = useWorkspace.getState()
+                    state.setView('computer')
+                    if (!state.focusMode) state.toggle('focusMode')
+                  }
+                : undefined
+            }
           />
         ) : preview ? (
           <AttachmentPreview id={id} source={preview} close={() => setPreview(undefined)} />
@@ -469,7 +485,15 @@ export function Conversation({
         )
       }
     >
-      {view === 'files' && !focusMode ? (
+      {view === 'computer' && !focusMode ? (
+        accessLost || !profileData?.viewer.is_owner ? (
+          <Banner status="failed">
+            {accessLost ? problemText(connectionProblem) : '這項操作需要角色擁有者權限。'}
+          </Banner>
+        ) : (
+          <Computer key={id} connection={connection} name={name} work={openWork} />
+        )
+      ) : view === 'files' && !focusMode ? (
         accessLost ? (
           <Banner status="failed">{problemText(connectionProblem)}</Banner>
         ) : (

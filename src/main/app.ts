@@ -5,6 +5,7 @@ import {
   dialog,
   ipcMain,
   nativeTheme,
+  nativeImage,
   Menu,
   net,
   powerMonitor,
@@ -15,10 +16,10 @@ import {
 } from 'electron'
 import { hostname } from 'node:os'
 import { randomUUID } from 'node:crypto'
-import { mkdir, stat } from 'node:fs/promises'
+import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { basename, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { createWindow, setWindowMode } from './windows'
+import { createWindow, setWindowMode, setKeyboardCapture } from './windows'
 import { installMenu } from './menu'
 import { LocalStore } from './store'
 import type { BootInfo, Preferences, NavigationTarget } from '../shared/desktop'
@@ -28,11 +29,13 @@ import type {
   AttachmentSource,
   ArtifactSource,
   WorkCommand,
+  ComputerCommand,
 } from '../shared/api'
 import { Connections } from './connections'
 import { ApiError } from './api/client'
 import { NativeShell } from './native'
 import { ClientNotifications } from './notifications'
+import { heldComputers } from './computer-exit'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -85,7 +88,7 @@ else {
         responseHeaders: {
           ...details.responseHeaders,
           'Content-Security-Policy': [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'self' blob:",
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; frame-src 'self' blob:",
           ],
         },
       })
@@ -117,7 +120,7 @@ else {
       app.getVersion(),
       (id, kind, data) => {
         win?.webContents.send('yuki:hint', id, kind, data)
-        if (['sync', 'conversation', 'work', 'character', 'work_steps'].includes(kind))
+        if (['sync', 'conversation', 'work', 'character', 'work_steps', 'computer'].includes(kind))
           void notifications.wake(id).catch(() => {})
       },
     )
@@ -129,10 +132,85 @@ else {
         win?.webContents.send('yuki:open-target', target)
       },
     )
+    session.defaultSession.webRequest.onBeforeRequest(
+      { urls: ['ws://*/*', 'wss://*/*'] },
+      (details, callback) => {
+        const development =
+          !app.isPackaged &&
+          process.env.ELECTRON_RENDERER_URL &&
+          details.url.startsWith(process.env.ELECTRON_RENDERER_URL.replace(/^http/, 'ws') + '/')
+        callback({
+          cancel:
+            !development &&
+            !(
+              details.webContentsId === win?.webContents.id &&
+              connections.computerTickets.consume(details.url)
+            ),
+        })
+      },
+    )
     const notifications = new ClientNotifications(store, connections, (notice) =>
       native.show(notice),
     )
     native.update(store.preferences())
+    let quitAllowed = false,
+      askingToQuit = false
+    powerMonitor.on('shutdown', () => {
+      quitAllowed = true
+    })
+    app.on('before-quit', (event) => {
+      if (quitAllowed) return
+      event.preventDefault()
+      if (askingToQuit) return
+      askingToQuit = true
+      void (async () => {
+        const held = await heldComputers(connections)
+        if (!held.length) return true
+        reveal?.()
+        const options = {
+          type: 'question' as const,
+          title: '你正在控制角色的電腦',
+          message: `${held.some((item) => item.offline) ? '你上次仍在控制' : '你正在控制'} ${held.map((item) => item.connection.name).join('、')} 的電腦`,
+          detail: `${held.some((item) => item.offline) ? '目前無法連線確認；交回時會核對伺服器目前的控制權。' : ''}保持控制時，需要用電腦的步驟會一直等待交回；其他步驟照常進行。`,
+          buttons: ['交回並結束', '保持控制並結束', '取消'],
+          defaultId: 0,
+          cancelId: 2,
+        }
+        const choice = win
+          ? await dialog.showMessageBox(win, options)
+          : await dialog.showMessageBox(options)
+        if (choice.response === 2) return false
+        if (choice.response === 1) return true
+        for (const item of held) {
+          const result = await connections.computerCommand(item.connection.characterId, {
+            action: 'return',
+            leaseId: item.leaseId,
+            note: '使用者交回控制並結束 App。',
+          })
+          if (result.state !== 'result' || result.problem) {
+            const failure = {
+              type: 'warning' as const,
+              message: '尚未確認交回，App 會保持開啟。',
+              detail: '請確認目前控制權或查證原請求，再決定是否結束。',
+            }
+            if (win) await dialog.showMessageBox(win, failure)
+            else await dialog.showMessageBox(failure)
+            return false
+          }
+        }
+        return true
+      })()
+        .then((allowed) => {
+          askingToQuit = false
+          if (allowed) {
+            quitAllowed = true
+            app.quit()
+          }
+        })
+        .catch(() => {
+          askingToQuit = false
+        })
+    })
     const action = <A extends unknown[], T>(name: string, run: (...args: A) => T | Promise<T>) => {
       ipcMain.handle(`yuki:${name}`, async (event, ...args: A): Promise<ApiReply<T>> => {
         authorize(event)
@@ -216,6 +294,36 @@ else {
       return result
     })
     action('read', (id: string, route: ApiRead) => connections.read(id, route))
+    action('computer-ticket', (id: string) => connections.computerTicket(id))
+    action('save-computer-file', async (id: string, path: string) => {
+      const item = await connections.computerFile(id, path)
+      const target = await dialog.showSaveDialog(win!, {
+        defaultPath: item.filename ?? basename(path),
+      })
+      if (target.canceled || !target.filePath) return false
+      await item.cache.save(item.path, item.sha256, target.filePath)
+      return true
+    })
+    action('computer-command', (id: string, command: ComputerCommand) =>
+      connections.computerCommand(id, command),
+    )
+    action('computer-commands', (id: string) => connections.computerCommands(id).list())
+    action('verify-computer-command', (id: string, request: string) =>
+      connections.verifyComputerCommand(id, request),
+    )
+    action('keyboard-capture', (captured: boolean) => setKeyboardCapture(win!, captured))
+    action('save-screenshot', async (id: string, bytes: Uint8Array) => {
+      const connection = connections.connection(id)
+      const image = nativeImage.createFromBuffer(Buffer.from(bytes))
+      if (image.isEmpty()) throw new ApiError('validation_error')
+      const result = await dialog.showSaveDialog(win!, {
+        defaultPath: `${connection.name} 電腦截圖.png`,
+        filters: [{ name: 'PNG 圖片', extensions: ['png'] }],
+      })
+      if (result.canceled || !result.filePath) return false
+      await writeFile(result.filePath, image.toPNG())
+      return true
+    })
     action('send', (id: string, text: string, uploads?: string[]) =>
       connections.send(id, text, uploads),
     )
@@ -358,6 +466,15 @@ else {
         !connections.publicList().some((connection) => !connection.needsPairing),
       )
       win = created
+      created.on('close', (event) => {
+        if (!quitAllowed && !store.preferences().keepInTray) {
+          event.preventDefault()
+          app.quit()
+        }
+      })
+      created.on('session-end', () => {
+        quitAllowed = true
+      })
       created.once('closed', () => {
         if (win === created) win = undefined
       })

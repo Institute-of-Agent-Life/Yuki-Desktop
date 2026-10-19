@@ -141,6 +141,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/client/v1/computer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Computer */
+        get: operations["get_computer_client_v1_computer_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client/v1/computer/control": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Control Computer */
+        post: operations["control_computer_client_v1_computer_control_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client/v1/computer/display-tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Display Ticket */
+        post: operations["display_ticket_client_v1_computer_display_tickets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client/v1/computer/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Computer Files */
+        get: operations["computer_files_client_v1_computer_files_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client/v1/computer/files/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Computer File Content */
+        get: operations["computer_file_content_client_v1_computer_files_content_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client/v1/computer/sleep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sleep Computer */
+        post: operations["sleep_computer_client_v1_computer_sleep_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client/v1/computer/wake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Wake Computer */
+        post: operations["wake_computer_client_v1_computer_wake_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/client/v1/conversations/{identity}/events": {
         parameters: {
             query?: never;
@@ -661,6 +780,172 @@ export interface components {
             /** Work Id */
             work_id: string;
         };
+        /** ComputerControlBody */
+        ComputerControlBody: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "take" | "return" | "transfer";
+            /** Lease Id */
+            lease_id?: string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Request Id
+             * Format: uuid4
+             */
+            request_id: string;
+        };
+        /** ComputerControlView */
+        ComputerControlView: {
+            /** Device Id */
+            device_id?: string | null;
+            /** Device Label */
+            device_label?: string | null;
+            /** Device Online */
+            device_online?: boolean | null;
+            /**
+             * Holder
+             * @enum {string}
+             */
+            holder: "none" | "agent" | "human";
+            /** Lease Id */
+            lease_id?: string | null;
+            /** Since */
+            since?: string | null;
+            /** Work Id */
+            work_id?: string | null;
+        };
+        /** ComputerFile */
+        ComputerFile: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "directory" | "file" | "link";
+            /** Mtime */
+            mtime: number;
+            /** Name */
+            name: string;
+            /** Size */
+            size: number;
+        };
+        /** ComputerFiles */
+        ComputerFiles: {
+            /** Items */
+            items: components["schemas"]["ComputerFile"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Path */
+            path: string;
+        };
+        /** ComputerHelp */
+        ComputerHelp: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "help" | "wait_control";
+            /** Note */
+            note: string | null;
+            /** Since */
+            since: string;
+            /** Wait Id */
+            wait_id: string;
+            /** Work Id */
+            work_id: string | null;
+        };
+        /** ComputerHint */
+        ComputerHint: {
+            /** Revision */
+            revision: number;
+        };
+        /** ComputerRequest */
+        ComputerRequest: {
+            /**
+             * Request Id
+             * Format: uuid4
+             */
+            request_id: string;
+        };
+        /** ComputerResources */
+        ComputerResources: {
+            /** Cpus */
+            cpus: number;
+            /** Memory Mib */
+            memory_mib: number;
+        };
+        /** ComputerResult */
+        ComputerResult: {
+            /** At */
+            at?: string | null;
+            /** By */
+            by?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | string | null;
+            control?: components["schemas"]["ComputerControlView"] | null;
+            /** Display */
+            display?: ("running" | "stopped" | "starting" | "unavailable") | null;
+            /** Note */
+            note?: string | null;
+            /** Replay */
+            replay?: boolean | null;
+        };
+        /** ComputerSleepBody */
+        ComputerSleepBody: {
+            /**
+             * Confirm Active Work Tabs
+             * @default false
+             */
+            confirm_active_work_tabs: boolean;
+            /**
+             * Request Id
+             * Format: uuid4
+             */
+            request_id: string;
+        };
+        /** ComputerTab */
+        ComputerTab: {
+            /**
+             * Ownership
+             * @enum {string}
+             */
+            ownership: "work" | "unknown";
+            /** Target Id */
+            target_id: string;
+            /** Title */
+            title: string;
+            /** Url Host */
+            url_host: string;
+            /** Work Id */
+            work_id: string | null;
+            /** Work State */
+            work_state: string | null;
+        };
+        /** ComputerView */
+        ComputerView: {
+            control: components["schemas"]["ComputerControlView"] | null;
+            /**
+             * Display
+             * @enum {string}
+             */
+            display: "running" | "stopped" | "starting" | "unavailable";
+            /**
+             * Environment
+             * @enum {string}
+             */
+            environment: "running" | "stopped" | "unavailable";
+            /** Help Requests */
+            help_requests: components["schemas"]["ComputerHelp"][];
+            resources: components["schemas"]["ComputerResources"] | null;
+            /** Revision */
+            revision: number;
+            /** Tabs */
+            tabs: components["schemas"]["ComputerTab"][];
+            /** Tabs Available */
+            tabs_available: boolean;
+        };
         /** ConversationCondition */
         ConversationCondition: {
             /**
@@ -705,6 +990,15 @@ export interface components {
             /** Revoked */
             revoked: boolean;
         };
+        /** DisplayTicket */
+        DisplayTicket: {
+            /** Expires At */
+            expires_at: string;
+            /** Ticket */
+            ticket: string;
+            /** Ws Path */
+            ws_path: string;
+        };
         /** Entry */
         Entry: {
             /** Binding Id */
@@ -740,9 +1034,25 @@ export interface components {
         Envelope_CharacterStatus_: {
             data: components["schemas"]["CharacterStatus"];
         };
+        /** Envelope[ComputerFiles] */
+        Envelope_ComputerFiles_: {
+            data: components["schemas"]["ComputerFiles"];
+        };
+        /** Envelope[ComputerResult] */
+        Envelope_ComputerResult_: {
+            data: components["schemas"]["ComputerResult"];
+        };
+        /** Envelope[ComputerView] */
+        Envelope_ComputerView_: {
+            data: components["schemas"]["ComputerView"];
+        };
         /** Envelope[DeviceRevocation] */
         Envelope_DeviceRevocation_: {
             data: components["schemas"]["DeviceRevocation"];
+        };
+        /** Envelope[DisplayTicket] */
+        Envelope_DisplayTicket_: {
+            data: components["schemas"]["DisplayTicket"];
         };
         /** Envelope[EventsPage] */
         Envelope_EventsPage_: {
@@ -1129,6 +1439,11 @@ export interface components {
             activity: components["schemas"]["Activity"][];
             /** Character Revision */
             character_revision: number;
+            /**
+             * Computer Revision
+             * @default null
+             */
+            computer_revision: number | null;
             /** Conversations */
             conversations: components["schemas"]["Entry"][];
             /** Works */
@@ -2108,6 +2423,636 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_CharacterStatus_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+        };
+    };
+    get_computer_client_v1_computer_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-yuki-entry"?: string | null;
+                "x-yuki-conversation"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ComputerView_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+        };
+    };
+    control_computer_client_v1_computer_control_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-yuki-entry"?: string | null;
+                "x-yuki-conversation"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComputerControlBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ComputerResult_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+        };
+    };
+    display_ticket_client_v1_computer_display_tickets_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-yuki-entry"?: string | null;
+                "x-yuki-conversation"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DisplayTicket_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+        };
+    };
+    computer_files_client_v1_computer_files_get: {
+        parameters: {
+            query?: {
+                path?: string;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "x-yuki-entry"?: string | null;
+                "x-yuki-conversation"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ComputerFiles_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+        };
+    };
+    computer_file_content_client_v1_computer_files_content_get: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: {
+                authorization?: string | null;
+                "x-yuki-entry"?: string | null;
+                "x-yuki-conversation"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    "Content-Length"?: number;
+                    "X-Yuki-Sha256"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "application/octet-stream": unknown;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+        };
+    };
+    sleep_computer_client_v1_computer_sleep_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-yuki-entry"?: string | null;
+                "x-yuki-conversation"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComputerSleepBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ComputerResult_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemEnvelope"];
+                };
+            };
+        };
+    };
+    wake_computer_client_v1_computer_wake_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-yuki-entry"?: string | null;
+                "x-yuki-conversation"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComputerRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ComputerResult_"];
                 };
             };
             /** @description Unauthorized */

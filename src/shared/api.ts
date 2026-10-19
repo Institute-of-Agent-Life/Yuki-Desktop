@@ -16,6 +16,22 @@ export type Work = components['schemas']['WorkView']
 export type WorkSteps = components['schemas']['WorkSteps']
 export type WorkPage = components['schemas']['WorkPage']
 export type ArtifactPage = components['schemas']['ArtifactPage']
+export type Computer = components['schemas']['ComputerView']
+export type ComputerResult = components['schemas']['ComputerResult']
+export type ComputerFiles = components['schemas']['ComputerFiles']
+export type ComputerCommand =
+  | { action: 'take'; note?: string }
+  | { action: 'return' | 'transfer'; leaseId: string; note?: string }
+  | { action: 'wake' }
+  | { action: 'sleep'; confirmActiveWorkTabs: boolean }
+export interface ComputerCommandItem {
+  requestId: string
+  command: ComputerCommand
+  payloadHash: string
+  state: 'submitted' | 'result'
+  problem: string | null
+  result: ComputerResult | null
+}
 export type WorkCommand =
   | { kind: 'input'; workId: string; text: string }
   | { kind: 'cancel'; workId: string; expectedRevision: number }
@@ -84,7 +100,8 @@ export interface ArtifactSource {
   version: string
 }
 export type ApiRead =
-  | { kind: 'me' | 'home' | 'character' }
+  | { kind: 'me' | 'home' | 'character' | 'computer' }
+  | { kind: 'computer-files'; path: string; cursor?: string }
   | { kind: 'events'; conversationId: string; after?: number; before?: number; limit?: 1 | 50 }
   | { kind: 'request'; requestId: string }
   | { kind: 'work'; workId: string }
@@ -99,6 +116,19 @@ export type ApiRead =
   | { kind: 'activity'; conversationId: string }
 
 export interface ConversationBridge {
+  computerTicket(characterId: string): Promise<ApiReply<string>>
+  saveComputerFile(characterId: string, path: string): Promise<ApiReply<boolean>>
+  computerCommand(
+    characterId: string,
+    command: ComputerCommand,
+  ): Promise<ApiReply<ComputerCommandItem>>
+  computerCommands(characterId: string): Promise<ApiReply<ComputerCommandItem[]>>
+  verifyComputerCommand(
+    characterId: string,
+    requestId: string,
+  ): Promise<ApiReply<ComputerCommandItem>>
+  keyboardCapture(captured: boolean): Promise<ApiReply<void>>
+  saveScreenshot(characterId: string, bytes: Uint8Array): Promise<ApiReply<boolean>>
   connections(): Promise<ApiReply<Connection[]>>
   meta(server: string): Promise<ApiReply<Meta>>
   pair(server: string, code: string, label: string): Promise<ApiReply<Connection>>
