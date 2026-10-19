@@ -7,6 +7,7 @@ import type {
   Me,
   Meta,
   OutboxItem,
+  WorkCommand,
 } from '../shared/api'
 import { REQUIRED_API_REVISION } from '../shared/api'
 import { ApiClient, ApiError, normalizeServer } from './api/client'
@@ -14,6 +15,7 @@ import { meetsMinimum } from '../shared/version'
 import { readStream } from './api/stream'
 import { Credentials } from './credentials'
 import { Outbox } from './outbox'
+import { WorkCommands } from './outbox/work-commands'
 import type { LocalStore } from './store'
 import { Uploads } from './media/uploads'
 import { ContentCache } from './media/content'
@@ -34,6 +36,7 @@ export class Connections {
   private readonly identified = new Map<string, Promise<void>>()
   private readonly states = new Map<string, unknown>()
   private readonly uploadStores = new Map<Outbox, Uploads>()
+  private readonly commandStores = new Map<Outbox, WorkCommands>()
   private closed = false
   constructor(
     readonly store: LocalStore,
@@ -105,6 +108,40 @@ export class Connections {
       this.outboxes.set(key, box)
     }
     return box
+  }
+  commands(id: string) {
+    const box = this.box(id)
+    let commands = this.commandStores.get(box)
+    if (!commands) {
+      commands = new WorkCommands(box)
+      this.commandStores.set(box, commands)
+    }
+    return commands
+  }
+  async workCommand(id: string, command: WorkCommand) {
+    uuid(command.workId)
+    const commands = this.commands(id),
+      client = this.client(id)
+    const draftSnapshot = commands.draft(command.workId)
+    let offline = false
+    try {
+      await this.identify(id)
+      await this.box(id).verifyOwner(client)
+    } catch (error) {
+      if (error instanceof ApiError && ['transport_unknown', 'unavailable'].includes(error.code))
+        offline = true
+      else throw error
+    }
+    const item = commands.prepare(command, offline ? 'draft' : 'submitted', draftSnapshot)
+    const result = offline ? item : await commands.send(client, item.requestId)
+    this.emit(id, 'commands', {})
+    return result
+  }
+  async verifyWorkCommand(id: string, requestId: string) {
+    await this.identify(id)
+    const result = await this.commands(id).verify(this.client(id), uuid(requestId))
+    if (!this.closed) this.emit(id, 'commands', {})
+    return result
   }
   uploads(id: string) {
     const box = this.box(id)
@@ -316,7 +353,19 @@ export class Connections {
     else if (route.kind === 'work') path = `works/${uuid(route.workId)}`
     else if (route.kind === 'activity')
       path = `activity?conversation_id=${uuid(route.conversationId)}`
-    else if (route.kind === 'events') {
+    else if (route.kind === 'works') {
+      const params = new URLSearchParams({ group: route.group, origin: route.origin, limit: '50' })
+      if (route.before) params.set('before', route.before)
+      path = `works?${params}`
+    } else if (route.kind === 'steps') {
+      const params = new URLSearchParams({ limit: '100' })
+      if (route.after) params.set('after', route.after)
+      path = `works/${uuid(route.workId)}/steps?${params}`
+    } else if (route.kind === 'artifacts') {
+      const params = new URLSearchParams({ kind: route.category, limit: '50' })
+      if (route.cursor) params.set('cursor', route.cursor)
+      path = `artifacts?${params}`
+    } else if (route.kind === 'events') {
       const query = new URLSearchParams({ limit: route.limit === 1 ? '1' : '50' })
       if (route.after !== undefined) query.set('after', String(route.after))
       if (route.before !== undefined) query.set('before', String(route.before))
@@ -415,9 +464,13 @@ export class Connections {
               (!item.problem ||
                 ['transport_unknown', 'unavailable', 'unknown'].includes(item.problem)),
           )
-        void Promise.all(
-          work.map((item) => this.verify(id, item.requestId).catch(() => {})),
-        ).finally(() => this.retry(id, Math.min(delay * 2, 60000)))
+        void Promise.all([
+          ...work.map((item) => this.verify(id, item.requestId).catch(() => {})),
+          ...this.commands(id)
+            .list()
+            .filter((item) => item.state !== 'result')
+            .map((item) => this.verifyWorkCommand(id, item.requestId).catch(() => {})),
+        ]).finally(() => this.retry(id, Math.min(delay * 2, 60000)))
       }, delay),
     )
   }
@@ -436,6 +489,10 @@ export class Connections {
             this.emit(id, 'connection', { state: 'online' })
           }
           if (['sync', 'conversation', 'work'].includes(kind)) {
+            for (const item of this.commands(id)
+              .list()
+              .filter((item) => item.state !== 'result'))
+              void this.verifyWorkCommand(id, item.requestId).catch(() => {})
             for (const item of this.box(id)
               .list()
               .filter((item) => item.state !== 'result'))
@@ -484,6 +541,7 @@ export class Connections {
     void Promise.allSettled([
       ...this.checking.values(),
       ...[...this.uploadStores.values()].map((uploads) => uploads.settled()),
+      ...[...this.commandStores.values()].map((commands) => commands.settle()),
     ]).then(() => this.outboxes.forEach((box) => box.db.close()))
   }
 }

@@ -1,0 +1,144 @@
+.list {
+  overflow: auto;
+  min-height: 0;
+  padding: 24px;
+  flex: 1;
+}
+.list > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.list section {
+  margin-bottom: 24px;
+}
+.list h3,
+.detail h3 {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.list h4 {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  margin: 16px 8px 4px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 56px;
+  padding: 0 8px;
+  border-radius: 8px;
+  text-align: left;
+}
+.row:hover {
+  background: var(--fill-hover);
+}
+.row[aria-current] {
+  background: var(--fill-selected);
+}
+.state {
+  width: 92px;
+  flex-shrink: 0;
+}
+.goal {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.row small,
+.row time {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.row small {
+  max-width: 144px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  overflow: auto;
+}
+.detail > h2 {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.detail > span {
+  align-self: flex-start;
+}
+.detail section {
+  display: flex;
+  flex-direction: column;
+}
+.secondary {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-secondary);
+}
+.question {
+  background: var(--accent-subtle);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 22px;
+}
+.question p {
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+}
+.reply {
+  min-width: 0;
+}
+.reply > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 8px 24px;
+}
+.reply > header > span {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reply [data-region='composer'] {
+  margin: 0;
+  max-width: none;
+  width: auto;
+}
+.command {
+  padding: 12px;
+  border: 1px solid var(--separator);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.command p {
+  margin-top: 8px;
+  white-space: pre-wrap;
+}
+@media (max-width: 1100px) {
+  .row small {
+    display: none;
+  }
+  .row time {
+    max-width: 96px;
+  }
+}

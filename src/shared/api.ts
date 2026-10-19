@@ -12,6 +12,22 @@ export type EventsPage = components['schemas']['EventsPage']
 export type PublicEvent = components['schemas']['PublicEvent']
 export type OriginalRequest = components['schemas']['OriginalRequest']
 export type MessageResult = components['schemas']['MessageResult']
+export type Work = components['schemas']['WorkView']
+export type WorkSteps = components['schemas']['WorkSteps']
+export type WorkPage = components['schemas']['WorkPage']
+export type ArtifactPage = components['schemas']['ArtifactPage']
+export type WorkCommand =
+  | { kind: 'input'; workId: string; text: string }
+  | { kind: 'cancel'; workId: string; expectedRevision: number }
+export interface WorkCommandItem {
+  requestId: string
+  command: WorkCommand
+  payloadHash: string
+  state: 'draft' | 'submitted' | 'result'
+  result: components['schemas']['JsonValue'] | null
+  problem: string | null
+  createdAt: number
+}
 
 export interface Connection {
   characterId: string
@@ -68,6 +84,14 @@ export type ApiRead =
   | { kind: 'events'; conversationId: string; after?: number; before?: number; limit?: 1 | 50 }
   | { kind: 'request'; requestId: string }
   | { kind: 'work'; workId: string }
+  | {
+      kind: 'works'
+      group: 'active' | 'ended'
+      origin: 'all' | 'this_entry' | 'other'
+      before?: string
+    }
+  | { kind: 'steps'; workId: string; after?: string }
+  | { kind: 'artifacts'; category: 'all' | 'image' | 'document' | 'code'; cursor?: string }
   | { kind: 'activity'; conversationId: string }
 
 export interface ConversationBridge {
@@ -87,6 +111,10 @@ export interface ConversationBridge {
   saveContent(characterId: string, source: AttachmentSource): Promise<ApiReply<boolean>>
   outbox(characterId: string): Promise<ApiReply<OutboxItem[]>>
   verify(characterId: string, requestId: string): Promise<ApiReply<OutboxItem>>
+  workCommand(characterId: string, command: WorkCommand): Promise<ApiReply<WorkCommandItem>>
+  workCommands(characterId: string): Promise<ApiReply<WorkCommandItem[]>>
+  verifyWorkCommand(characterId: string, requestId: string): Promise<ApiReply<WorkCommandItem>>
+  workDraft(characterId: string, workId: string, text?: string): Promise<ApiReply<string>>
   draft(characterId: string, text?: string): Promise<ApiReply<string>>
   onHint(callback: (characterId: string, kind: string, data: unknown) => void): () => void
   reconnect(): Promise<ApiReply<void>>

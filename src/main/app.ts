@@ -20,7 +20,7 @@ import { createWindow, setWindowMode } from './windows'
 import { installMenu } from './menu'
 import { LocalStore } from './store'
 import type { BootInfo, Preferences, NavigationTarget } from '../shared/desktop'
-import type { ApiRead, ApiReply, AttachmentSource } from '../shared/api'
+import type { ApiRead, ApiReply, AttachmentSource, WorkCommand } from '../shared/api'
 import { Connections } from './connections'
 import { ApiError } from './api/client'
 import { NativeShell } from './native'
@@ -208,6 +208,16 @@ else {
       connections.send(id, text, uploads),
     )
     action('uploads', (id: string) => connections.uploads(id).list())
+    action('work-command', (id: string, command: WorkCommand) =>
+      connections.workCommand(id, command),
+    )
+    action('work-commands', (id: string) => connections.commands(id).list())
+    action('verify-work-command', (id: string, request: string) =>
+      connections.verifyWorkCommand(id, request),
+    )
+    action('work-draft', (id: string, work: string, text?: string) =>
+      connections.commands(id).draft(work, text),
+    )
     action('attach', async (id: string) => {
       const picked = await dialog.showOpenDialog(win!, {
         title: '附加檔案',

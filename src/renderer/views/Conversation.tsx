@@ -9,6 +9,7 @@ import type {
   PublicEvent,
   AttachmentSource,
   Activity,
+  Work,
 } from '../../shared/api'
 import type { Preferences } from '../../shared/desktop'
 import { Composer } from '../components/Composer'
@@ -25,6 +26,7 @@ import { VoiceRecorder } from './VoiceRecorder'
 import mediaStyles from './Media.module.css'
 import { useMarkdown } from '../text/markdown'
 import { useHistory } from '../queries/history'
+import { ConversationWork, WorkDetail, WorkList, WorkReply } from './Works'
 
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
   window.yuki.client.read<T>(id, route).then(unwrap)
@@ -71,6 +73,9 @@ export function Conversation({
     [connectionProblem, setConnectionProblem] = useState('')
   const [references, setReferences] = useState<MessageReference[]>([]),
     [selection, setSelection] = useState<number>()
+  const [selectedWork, setSelectedWork] = useState<string>()
+  const [replyWork, setReplyWork] = useState<Work>()
+  const [knownWorks, setKnownWorks] = useState<Work[]>([])
   const currentReferences = useRef<MessageReference[]>([])
   const [search, setSearch] = useState<string | null>(null)
   const list = useRef<HTMLDivElement>(null),
@@ -103,6 +108,19 @@ export function Conversation({
     queryFn: () => read<Activity>(id, { kind: 'activity', conversationId: conversation }),
   })
   const events = useHistory(id, conversation, anchor)
+  useEffect(() => {
+    if (target?.characterId === id && target.workId) {
+      setSelectedWork(target.workId)
+      useWorkspace.setState({ inspector: true })
+    }
+  }, [id, target])
+  useEffect(() => {
+    if (home.data && !home.error)
+      setKnownWorks((known) => [
+        ...new Map([...known, ...home.data.works].map((work) => [work.work_id, work])).values(),
+      ])
+    if (hidesPrivateData(home.error)) setKnownWorks([])
+  }, [home.data, home.error])
   const accessLost = hidesPrivateData(new ClientProblem(connectionProblem))
   const eventData = accessLost || hidesPrivateData(events.error) ? undefined : events.data,
     homeData = accessLost || hidesPrivateData(home.error) ? undefined : home.data,
@@ -116,6 +134,7 @@ export function Conversation({
     void query.invalidateQueries({ queryKey: [id, 'uploads'] })
     void query.invalidateQueries({ queryKey: [id, 'content'] })
     void query.invalidateQueries({ queryKey: [id, 'activity'] })
+    void query.invalidateQueries({ queryKey: [id, 'work'] })
   }, [id, query])
   useEffect(() => {
     const deadlines = (eventData?.items ?? [])
@@ -145,6 +164,7 @@ export function Conversation({
     }
   }
   const openAttachment = (source: AttachmentSource) => {
+    setSelectedWork(undefined)
     setPreview(source)
     useWorkspace.setState({ inspector: true })
   }
@@ -257,6 +277,7 @@ export function Conversation({
     void window.yuki.client.draft(id, referencedMessage(next, currentDraft.current))
   }
   const addReference = (event: PublicEvent) => {
+    setReplyWork(undefined)
     if (
       !currentReferences.current.some(
         (item) => item.conversationId === event.conversation_id && item.eventId === event.event_id,
@@ -341,6 +362,16 @@ export function Conversation({
   }
   const name = profileData?.display_name ?? connection.name,
     isMain = conversation === connection.conversationId
+  const openWork = (workId: string) => {
+    setPreview(undefined)
+    setSelectedWork(workId)
+    useWorkspace.setState({ inspector: true })
+  }
+  const answerWork = (work: Work) => {
+    setReplyWork(work)
+    choose(connection.conversationId)
+    useWorkspace.setState({ inspector: false, focusMode: false })
+  }
   const entry = homeData?.entries.find((item) => item.conversation_id === conversation)
   const pending = isMain
     ? (outbox.data ?? []).filter(
@@ -381,7 +412,16 @@ export function Conversation({
         </>
       }
       inspector={
-        preview ? (
+        selectedWork && !accessLost ? (
+          <WorkDetail
+            key={selectedWork}
+            id={id}
+            workId={selectedWork}
+            open={openWork}
+            replyInChat={answerWork}
+            commandEnter={preferences.sendKey === 'command-enter'}
+          />
+        ) : preview ? (
           <AttachmentPreview id={id} source={preview} close={() => setPreview(undefined)} />
         ) : (
           <div className={styles.inspector}>
@@ -405,18 +445,22 @@ export function Conversation({
         )
       }
     >
-      {view !== 'chat' ? (
+      {view === 'works' ? (
+        accessLost ? (
+          <Banner status="failed">{problemText(connectionProblem)}</Banner>
+        ) : (
+          <WorkList id={id} selected={selectedWork} open={openWork} />
+        )
+      ) : view !== 'chat' ? (
         <EmptyState
           title={
             view === 'settings'
               ? '設定'
               : view === 'about'
                 ? name
-                : view === 'works'
-                  ? '工作'
-                  : view === 'computer'
-                    ? `${name} 的電腦`
-                    : '檔案與成果'
+                : view === 'computer'
+                  ? `${name} 的電腦`
+                  : '檔案與成果'
           }
         >
           <span>{view === 'about' ? profileData?.bio : '正在接入此單元的伺服器介面。'}</span>
@@ -529,6 +573,22 @@ export function Conversation({
                   }}
                   onAttachment={openAttachment}
                 />
+                {!accessLost &&
+                  knownWorks
+                    .filter(
+                      (work) =>
+                        work.trigger_event_id === event.event_id &&
+                        work.conversation_id === conversation,
+                    )
+                    .map((work) => (
+                      <ConversationWork
+                        key={work.work_id}
+                        id={id}
+                        work={work}
+                        open={openWork}
+                        reply={answerWork}
+                      />
+                    ))}
               </Fragment>
             ))}
             {pending.map((item) => (
@@ -567,7 +627,16 @@ export function Conversation({
               {name} 正在處理
             </div>
           )}
-          {isMain ? (
+          {isMain && replyWork ? (
+            <WorkReply
+              key={replyWork.work_id}
+              id={id}
+              work={replyWork}
+              done={refresh}
+              close={() => setReplyWork(undefined)}
+              commandEnter={preferences.sendKey === 'command-enter'}
+            />
+          ) : isMain ? (
             <Composer
               name={name}
               draft={draft}

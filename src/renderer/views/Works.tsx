@@ -1,0 +1,640 @@
+import { useEffect, useRef, useState } from 'react'
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
+import { X } from 'lucide-react'
+import type { Work, WorkCommandItem, WorkPage, WorkSteps } from '../../shared/api'
+import { Composer } from '../components/Composer'
+import { WorkCard, StepRow } from '../components/Content'
+import {
+  Banner,
+  Button,
+  EmptyState,
+  IconButton,
+  Segmented,
+  Sheet,
+  StatusPill,
+  type Status,
+} from '../components/Controls'
+import { hidesPrivateData, problemText, unwrap } from '../queries/client'
+import { useWorkspace } from '../state/workspace'
+import styles from './Works.module.css'
+
+const terminal = (work: Work) => ['completed', 'failed', 'cancelled'].includes(work.state)
+const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
+  window.yuki.client.read<T>(id, route).then(unwrap)
+const states: Record<Work['state'], [Status, string]> = {
+  queued: ['running', '執行中'],
+  running: ['running', '執行中'],
+  waiting_external: ['waiting', '等待中'],
+  waiting_user: ['waiting', '等你回覆'],
+  suspended: ['waiting', '已暫停'],
+  completed: ['done', '已完成'],
+  failed: ['failed', '失敗'],
+  cancelled: ['offline', '已取消'],
+}
+export const workState = (work: Work) => states[work.state]
+const time = (date: number | string) =>
+  new Date(typeof date === 'number' ? date * 1000 : date).toLocaleString(undefined, {
+    timeZone: 'Asia/Taipei',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+const source = (work: Work) =>
+  work.source.platform === 'app'
+    ? '桌面對話'
+    : `${work.source.platform?.toUpperCase() ?? '原入口'} ${work.source.kind === 'group' ? '群' : '私聊'}${work.source.display_name ? ` · ${work.source.display_name}` : ''}`
+export function waitText(wait: Work['wait']): string {
+  if (!wait) return ''
+  const parts = wait.conditions.map((condition) => {
+    if (condition.kind === 'time_due') return `等到 ${time(condition.due_at)}`
+    if (condition.kind === 'conversation') return '等待新的訊息'
+    if (condition.kind === 'plugin_event') return '等待外掛事件'
+    return condition.run_kind === 'terminal'
+      ? '等待終端工作完成'
+      : condition.run_kind === 'acp'
+        ? '等待其他 Agent 回覆'
+        : ['wait_control', 'help_request'].includes(condition.run_kind)
+          ? '等待電腦交回'
+          : '等待執行結果'
+  })
+  return (
+    (parts.length === 1
+      ? parts[0]!
+      : `等待${wait.mode === 'any' ? '其中一項' : '全部完成'}：${parts.slice(0, 2).join('、')}${parts.length > 2 ? ` 等 ${parts.length} 項` : ''}`) +
+    (wait.deadline_at ? ` · 最晚 ${time(wait.deadline_at)}` : '')
+  )
+}
+
+export function WorkList({
+  id,
+  selected,
+  open,
+}: {
+  id: string
+  selected?: string
+  open(workId: string): void
+}) {
+  const [origin, setOrigin] = useState<'all' | 'this_entry' | 'other'>('all')
+  const query = useQueryClient()
+  const active = useInfiniteQuery({
+    queryKey: [id, 'works', 'active', origin],
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      read<WorkPage>(id, {
+        kind: 'works',
+        group: 'active',
+        origin,
+        ...(pageParam ? { before: pageParam } : {}),
+      }),
+    getNextPageParam: (page) => page.next_before ?? undefined,
+  })
+  const ended = useInfiniteQuery({
+    queryKey: [id, 'works', 'ended', origin],
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      read<WorkPage>(id, {
+        kind: 'works',
+        group: 'ended',
+        origin,
+        ...(pageParam ? { before: pageParam } : {}),
+      }),
+    getNextPageParam: (page) => page.next_before ?? undefined,
+  })
+  useEffect(
+    () =>
+      window.yuki.client.onHint((character, kind) => {
+        if (character === id && ['sync', 'work', 'commands'].includes(kind))
+          void query.invalidateQueries({ queryKey: [id, 'works'] })
+      }),
+    [id, query],
+  )
+  const failed = active.error ?? ended.error
+  const activeWorks = hidesPrivateData(failed)
+    ? []
+    : unique(active.data?.pages.flatMap((page) => page.works) ?? [])
+  const endedWorks = hidesPrivateData(failed)
+    ? []
+    : unique(ended.data?.pages.flatMap((page) => page.works) ?? [])
+  const needs = (work: Work) => work.state === 'waiting_user' || work.help_requested
+  const rows = (works: Work[]) =>
+    works.map((work) => (
+      <button
+        key={work.work_id}
+        className={styles.row}
+        aria-current={selected === work.work_id ? 'true' : undefined}
+        onClick={() => open(work.work_id)}
+        onDoubleClick={() => {
+          open(work.work_id)
+          useWorkspace.setState({ focusMode: true })
+        }}
+      >
+        <span className={styles.state}>
+          <StatusPill status={states[work.state][0]}>{states[work.state][1]}</StatusPill>
+        </span>
+        <span className={styles.goal}>{work.goal}</span>
+        <small>{source(work)}</small>
+        <time>{time(work.updated_at)}</time>
+      </button>
+    ))
+  const scroll = (element: HTMLDivElement) => {
+    if (element.scrollHeight - element.scrollTop - element.clientHeight > 160) return
+    if (active.hasNextPage && !active.isFetchingNextPage) void active.fetchNextPage()
+    else if (ended.hasNextPage && !ended.isFetchingNextPage) void ended.fetchNextPage()
+  }
+  return (
+    <div className={styles.list} onScroll={(event) => scroll(event.currentTarget)}>
+      <header>
+        <h2>工作</h2>
+        <Segmented
+          label="工作來源"
+          value={origin}
+          onChange={setOrigin}
+          items={[
+            { value: 'all', label: '全部' },
+            { value: 'this_entry', label: '我在桌面交辦的' },
+            { value: 'other', label: '來自其他入口' },
+          ]}
+        />
+      </header>
+      {failed && (
+        <Banner status="failed">
+          {failed.message}
+          <Button
+            variant="plain"
+            onClick={() => {
+              void active.refetch()
+              void ended.refetch()
+            }}
+          >
+            重試
+          </Button>
+        </Banner>
+      )}
+      {!!activeWorks.filter(needs).length && (
+        <section>
+          <h3>需要你</h3>
+          {rows(activeWorks.filter(needs))}
+        </section>
+      )}
+      {!!activeWorks.filter((work) => !needs(work)).length && (
+        <section>
+          <h3>進行中</h3>
+          {rows(activeWorks.filter((work) => !needs(work)))}
+        </section>
+      )}
+      {!!endedWorks.length && (
+        <section>
+          <h3>已結束</h3>
+          {endedWorks.map((work, index) => (
+            <div key={work.work_id}>
+              {(!index ||
+                dateGroup(work.updated_at) !== dateGroup(endedWorks[index - 1]!.updated_at)) && (
+                <h4>{dateGroup(work.updated_at)}</h4>
+              )}
+              {rows([work])}
+            </div>
+          ))}
+        </section>
+      )}
+      {active.hasNextPage && (
+        <Button
+          variant="plain"
+          loading={active.isFetchingNextPage}
+          onClick={() => void active.fetchNextPage()}
+        >
+          載入更多進行中工作
+        </Button>
+      )}
+      {ended.hasNextPage && (
+        <Button
+          variant="plain"
+          loading={ended.isFetchingNextPage}
+          onClick={() => void ended.fetchNextPage()}
+        >
+          載入更早工作
+        </Button>
+      )}
+      {!active.isPending &&
+        !ended.isPending &&
+        !failed &&
+        !activeWorks.length &&
+        !endedWorks.length && (
+          <EmptyState title="目前沒有工作">在對話中交給 Yuki 的事會出現在這裡。</EmptyState>
+        )}
+    </div>
+  )
+}
+
+export function WorkDetail({
+  id,
+  workId,
+  open,
+  replyInChat,
+  commandEnter = false,
+}: {
+  id: string
+  workId: string
+  open(workId: string): void
+  replyInChat(work: Work): void
+  commandEnter?: boolean
+}) {
+  const query = useQueryClient(),
+    [cancel, setCancel] = useState<Work | null>(null)
+  const work = useQuery({
+    queryKey: [id, 'work', workId],
+    queryFn: () => read<Work>(id, { kind: 'work', workId }),
+  })
+  const steps = useInfiniteQuery({
+    queryKey: [id, 'steps', workId],
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      read<WorkSteps>(id, { kind: 'steps', workId, ...(pageParam ? { after: pageParam } : {}) }),
+    getNextPageParam: (page) => page.next_after ?? undefined,
+  })
+  const commands = useQuery({
+    queryKey: [id, 'commands'],
+    queryFn: () => window.yuki.client.workCommands(id).then(unwrap),
+  })
+  const allSteps = [
+    ...new Map(
+      steps.data?.pages.flatMap((page) => page.steps).map((step) => [step.step_id, step]),
+    ).values(),
+  ]
+  useEffect(
+    () =>
+      window.yuki.client.onHint((character, kind, data) => {
+        if (character !== id) return
+        const original = data as { work_id?: string }
+        const needsSync =
+          !work.data ||
+          !terminal(work.data) ||
+          allSteps.some((step) => ['recorded', 'running'].includes(step.status))
+        if (
+          (kind === 'sync' && needsSync) ||
+          (['work', 'work_steps'].includes(kind) && original.work_id === workId) ||
+          kind === 'commands'
+        ) {
+          void query.invalidateQueries({ queryKey: [id, 'work', workId] })
+          void query.invalidateQueries({ queryKey: [id, 'steps', workId] })
+        }
+        if (kind === 'commands') void query.invalidateQueries({ queryKey: [id, 'commands'] })
+      }),
+    [id, workId, query, work.data, allSteps],
+  )
+  const failure = work.error ?? steps.error
+  const data = hidesPrivateData(failure) ? undefined : work.data
+  const latest = steps.data?.pages.at(-1)
+  const refresh = () => {
+    void query.invalidateQueries({ queryKey: [id, 'work', workId] })
+    void query.invalidateQueries({ queryKey: [id, 'steps', workId] })
+  }
+  return (
+    <div className={styles.detail}>
+      {failure && (
+        <Banner status="failed">
+          {failure.message}
+          <Button variant="plain" onClick={refresh}>
+            重試
+          </Button>
+        </Banner>
+      )}
+      {data && (
+        <>
+          <StatusPill status={states[data.state][0]}>{states[data.state][1]}</StatusPill>
+          <h2>{data.goal}</h2>
+          <p className={styles.secondary}>
+            {source(data)} · 結果會傳到：
+            {data.result_delivery.platform === 'app'
+              ? '桌面對話'
+              : `${data.result_delivery.platform?.toUpperCase() ?? '原入口'} ${data.result_delivery.display_name}`}
+          </p>
+          {data.state === 'suspended' && (
+            <Banner>
+              {data.reason || '已暫停'}。補充要求會送進原工作；是否繼續由 Yuki 依目前狀況決定。
+            </Banner>
+          )}
+          {data.wait && <p className={styles.secondary}>{waitText(data.wait)}</p>}
+          {data.waiting_question && (
+            <div className={styles.question}>
+              <p>{data.waiting_question.text}</p>
+              <Button
+                onClick={() =>
+                  document.querySelector<HTMLTextAreaElement>('[data-work-reply] textarea')?.focus()
+                }
+              >
+                回覆
+              </Button>
+              <Button variant="plain" onClick={() => replyInChat(data)}>
+                在對話中回答
+              </Button>
+            </div>
+          )}
+          <section>
+            <h3>步驟</h3>
+            {allSteps.map((step) => (
+              <StepRow
+                key={step.step_id}
+                label={`${step.label}${step.status === 'recorded' ? ' · 已開始，結果尚未記錄' : ''}`}
+                status={
+                  step.status === 'succeeded'
+                    ? 'done'
+                    : step.status === 'failed'
+                      ? 'failed'
+                      : step.status === 'unknown'
+                        ? 'unknown'
+                        : step.status === 'recorded'
+                          ? 'unknown'
+                          : 'running'
+                }
+                time={time(step.updated_at)}
+              />
+            ))}
+            {steps.hasNextPage && (
+              <Button
+                variant="plain"
+                loading={steps.isFetchingNextPage}
+                onClick={() => void steps.fetchNextPage()}
+              >
+                載入更多步驟
+              </Button>
+            )}
+            {allSteps.some((step) => step.status === 'unknown') && (
+              <p className={styles.secondary}>Yuki 正在確認原操作是否已生效。</p>
+            )}
+          </section>
+          {!!latest?.children.length && (
+            <section>
+              <h3>子工作</h3>
+              {latest.children.map((child) => (
+                <Button key={child.work_id} variant="plain" onClick={() => open(child.work_id)}>
+                  {child.goal} · {states[child.state as Work['state']]?.[1] ?? child.state}
+                </Button>
+              ))}
+            </section>
+          )}
+          {!!data.results.length && (
+            <section>
+              <h3>已傳送的訊息與成果</h3>
+              {data.results.map((result) => (
+                <p key={result.event_id}>{result.text}</p>
+              ))}
+            </section>
+          )}
+          <p className={styles.secondary}>
+            模型請求 {data.budget.models}／{data.budget.model_limit ?? '無上限'} · 工具呼叫{' '}
+            {data.budget.tools}
+            {data.budget.tool_limit === null ? '' : `／${data.budget.tool_limit}`}
+          </p>
+          {!terminal(data) && (
+            <>
+              <WorkReply id={id} work={data} done={refresh} commandEnter={commandEnter} />
+              <Button variant="destructive" onClick={() => setCancel(data)}>
+                取消工作
+              </Button>
+            </>
+          )}
+          {(commands.data ?? [])
+            .filter(
+              (item) => item.command.workId === workId && (item.state !== 'result' || item.problem),
+            )
+            .map((item) => (
+              <CommandStatus key={item.requestId} id={id} item={item} />
+            ))}
+        </>
+      )}
+      <CancelWorkSheet id={id} work={cancel} close={() => setCancel(null)} />
+    </div>
+  )
+}
+
+export function WorkReply({
+  id,
+  work,
+  done,
+  close,
+  commandEnter = false,
+}: {
+  id: string
+  work: Work
+  done(): void
+  close?: () => void
+  commandEnter?: boolean
+}) {
+  const [draft, setDraft] = useState(''),
+    [problem, setProblem] = useState(''),
+    current = useRef('')
+  const edited = useRef(0)
+  useEffect(() => {
+    let active = true
+    const version = edited.current
+    void window.yuki.client
+      .workDraft(id, work.work_id)
+      .then(unwrap)
+      .then((text) => {
+        if (active && edited.current === version) {
+          current.current = text
+          setDraft(text)
+        }
+      })
+      .catch((error) => {
+        if (active) setProblem(error.message)
+      })
+    return () => {
+      active = false
+    }
+  }, [id, work.work_id])
+  return (
+    <div data-work-reply className={styles.reply}>
+      <header>
+        <span>補充給：{work.goal}</span>
+        {close && (
+          <IconButton label="取消回覆工作" onClick={close}>
+            <X size={14} />
+          </IconButton>
+        )}
+      </header>
+      <Composer
+        name={work.goal}
+        commandEnter={commandEnter}
+        draft={draft}
+        onDraft={(text) => {
+          edited.current++
+          current.current = text
+          setDraft(text)
+          void window.yuki.client
+            .workDraft(id, work.work_id, text)
+            .then(unwrap)
+            .catch((error) => setProblem(error.message))
+        }}
+        onSubmit={async () => {
+          const submitted = current.current
+          const result = unwrap(
+            await window.yuki.client.workCommand(id, {
+              kind: 'input',
+              workId: work.work_id,
+              text: submitted,
+            }),
+          )
+          if (result.problem) setProblem(problemText(result.problem))
+          if (current.current === submitted) {
+            current.current = ''
+            setDraft('')
+          }
+          done()
+        }}
+      />
+      {problem && <Banner status="failed">{problem}</Banner>}
+    </div>
+  )
+}
+function CommandStatus({ id, item }: { id: string; item: WorkCommandItem }) {
+  const [problem, setProblem] = useState(''),
+    [busy, setBusy] = useState(false)
+  return (
+    <div className={styles.command}>
+      <span>
+        {item.problem
+          ? problemText(item.problem)
+          : item.state === 'draft'
+            ? '連線後送出原請求'
+            : '原請求狀態未確認'}
+      </span>
+      {item.command.kind === 'input' && <p>{item.command.text}</p>}
+      {item.state !== 'result' && (
+        <Button
+          variant="plain"
+          loading={busy}
+          onClick={() => {
+            setBusy(true)
+            void window.yuki.client
+              .verifyWorkCommand(id, item.requestId)
+              .then(unwrap)
+              .catch((error) => setProblem(error.message))
+              .finally(() => setBusy(false))
+          }}
+        >
+          查詢
+        </Button>
+      )}
+      {problem && <span>{problem}</span>}
+    </div>
+  )
+}
+export function ConversationWork({
+  id,
+  work,
+  open,
+  reply,
+}: {
+  id: string
+  work: Work
+  open(workId: string): void
+  reply(work: Work): void
+}) {
+  const [cancel, setCancel] = useState<Work | null>(null)
+  const detail = useQuery({
+    queryKey: [id, 'work', work.work_id],
+    queryFn: () => read<Work>(id, { kind: 'work', workId: work.work_id }),
+    initialData: work,
+  })
+  if (hidesPrivateData(detail.error)) return null
+  const data = detail.data,
+    [status, label] = states[data.state]
+  return (
+    <>
+      <WorkCard
+        title={data.goal}
+        status={status}
+        statusLabel={label}
+        detail={`${data.step_count ?? 0} 個步驟 · ${data.child_count} 個子工作${data.wait ? ` · ${waitText(data.wait)}` : ''}`}
+        question={data.waiting_question?.text}
+        onOpen={() => open(data.work_id)}
+        onReply={() => reply(data)}
+        onCancel={!terminal(data) ? () => setCancel(data) : undefined}
+      />
+      <CancelWorkSheet id={id} work={cancel} close={() => setCancel(null)} />
+    </>
+  )
+}
+function CancelWorkSheet({ id, work, close }: { id: string; work: Work | null; close(): void }) {
+  const query = useQueryClient(),
+    [busy, setBusy] = useState(false),
+    [problem, setProblem] = useState('')
+  useEffect(() => {
+    if (work) setProblem('')
+  }, [work])
+  const submit = async () => {
+    if (!work) return
+    setBusy(true)
+    try {
+      const result = unwrap(
+        await window.yuki.client.workCommand(id, {
+          kind: 'cancel',
+          workId: work.work_id,
+          expectedRevision: work.revision,
+        }),
+      )
+      setProblem(
+        result.problem === 'version_conflict'
+          ? '工作狀態已改變，請確認最新狀態後再取消。'
+          : result.problem
+            ? problemText(result.problem)
+            : result.state !== 'result'
+              ? '取消狀態未確認，正在查證原請求。'
+              : '',
+      )
+      close()
+      void query.invalidateQueries({ queryKey: [id, 'work', work.work_id] })
+      void query.invalidateQueries({ queryKey: [id, 'works'] })
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : '取消未完成。')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <>
+      {problem && <Banner status="failed">{problem}</Banner>}
+      <Sheet
+        title="取消這項工作？"
+        open={!!work}
+        onClose={close}
+        actions={
+          <>
+            <Button onClick={close}>保持執行</Button>
+            <Button variant="destructive" loading={busy} onClick={() => void submit()}>
+              仍然取消
+            </Button>
+          </>
+        }
+      >
+        <p>{work?.goal}</p>
+        <p>這會停止原工作；已完成的步驟不會被撤銷。</p>
+      </Sheet>
+    </>
+  )
+}
+function unique(works: Work[]) {
+  return [...new Map(works.map((work) => [work.work_id, work])).values()]
+}
+function dateGroup(seconds: number) {
+  const date = new Date(seconds * 1000),
+    today = new Date()
+  const day = (value: Date) => value.toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' })
+  if (day(date) === day(today)) return '今天'
+  const local = new Date(Date.now() + 8 * 3600000)
+  const monday =
+    Date.UTC(
+      local.getUTCFullYear(),
+      local.getUTCMonth(),
+      local.getUTCDate() - ((local.getUTCDay() + 6) % 7),
+    ) -
+    8 * 3600000
+  if (seconds * 1000 >= monday) return '本週'
+  return date.toLocaleDateString(undefined, {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: 'long',
+  })
+}

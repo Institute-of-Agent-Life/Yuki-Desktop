@@ -31,6 +31,10 @@ const bridge: DesktopBridge = {
     saveContent: (id, source) => ipcRenderer.invoke('yuki:save-content', id, source),
     outbox: (id) => ipcRenderer.invoke('yuki:outbox', id),
     verify: (id, requestId) => ipcRenderer.invoke('yuki:verify', id, requestId),
+    workCommand: (id, command) => ipcRenderer.invoke('yuki:work-command', id, command),
+    workCommands: (id) => ipcRenderer.invoke('yuki:work-commands', id),
+    verifyWorkCommand: (id, request) => ipcRenderer.invoke('yuki:verify-work-command', id, request),
+    workDraft: (id, work, text) => ipcRenderer.invoke('yuki:work-draft', id, work, text),
     draft: (id, text) => ipcRenderer.invoke('yuki:draft', id, text),
     onHint(callback) {
       const listener = (
