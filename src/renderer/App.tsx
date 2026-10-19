@@ -1,15 +1,40 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Snowflake } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import type { BootInfo, Preferences } from '../shared/desktop'
-import { Button, Segmented, TextField, Toggle } from './components/Controls'
+import { Button, Segmented, Toggle } from './components/Controls'
 import styles from './App.module.css'
 import { useCommands } from './state/commands'
+import type { Connection } from '../shared/api'
+import { Pairing } from './views/Pairing'
+import { Conversation } from './views/Conversation'
+import { useWorkspace } from './state/workspace'
 
 export function App({ boot }: { boot: BootInfo }) {
   const [step, setStep] = useState<'welcome' | 'server' | 'settings'>('welcome')
   const [preferences, setPreferences] = useState(boot.preferences)
   const [appearance, setAppearance] = useState(boot)
-  const [server, setServer] = useState('')
+  const [connection, setConnection] = useState<Connection>()
+  const [pairingTarget, setPairingTarget] = useState<Connection>()
+  const [pairLink, setPairLink] = useState(boot.pairLink)
+  useEffect(() => {
+    void window.yuki.client.connections().then((result) => {
+      if (result.ok) {
+        const first = result.value[0]
+        if (first?.needsPairing) setPairingTarget(first)
+        else setConnection(first)
+      }
+    })
+  }, [])
+  useEffect(
+    () =>
+      window.yuki.onPairLink((link) => {
+        setPairLink(link)
+        setPairingTarget(connection)
+        setConnection(undefined)
+        setStep('welcome')
+      }),
+    [connection],
+  )
   const save = async (patch: Partial<Preferences>) =>
     setPreferences(await window.yuki.preferences(patch))
   useEffect(() => {
@@ -35,7 +60,13 @@ export function App({ boot }: { boot: BootInfo }) {
       {step === 'settings' ? (
         <div className={styles.settings}>
           <header>
-            <Button variant="plain" onClick={() => setStep('welcome')}>
+            <Button
+              variant="plain"
+              onClick={() => {
+                setStep('welcome')
+                useWorkspace.getState().setView('chat')
+              }}
+            >
               <ArrowLeft size={16} />
               返回
             </Button>
@@ -86,42 +117,33 @@ export function App({ boot }: { boot: BootInfo }) {
             <p>版本 {boot.version}</p>
           </section>
         </div>
+      ) : connection ? (
+        <Conversation
+          key={connection.characterId}
+          connection={connection}
+          platform={boot.platform}
+          preferences={preferences}
+          save={(patch) => void save(patch)}
+          onSettings={() => setStep('settings')}
+          onPairAgain={() => {
+            setPairingTarget(connection)
+            setConnection(undefined)
+            setStep('welcome')
+          }}
+        />
       ) : (
-        <div className={styles.welcome}>
-          <div className={styles.welcomeInner}>
-            <Snowflake className={styles.welcomeMark} size={120} strokeWidth={1} />
-            <h1>{step === 'welcome' ? 'Yuki' : '連接你的角色'}</h1>
-            <p>
-              {step === 'welcome'
-                ? '和她聊聊，一起把事情做好。無論從哪裡回來，都是同一個她。'
-                : '輸入 Yuki 伺服器位址，或貼上你收到的綁定連結。'}
-            </p>
-            {step === 'welcome' ? (
-              <Button variant="primary" large onClick={() => setStep('server')}>
-                開始
-              </Button>
-            ) : (
-              <form className={styles.server} onSubmit={(event) => event.preventDefault()}>
-                <label htmlFor="server-url">伺服器位址</label>
-                <TextField
-                  id="server-url"
-                  autoFocus
-                  type="url"
-                  autoComplete="url"
-                  value={server}
-                  onChange={(event) => setServer(event.target.value)}
-                  placeholder="https://"
-                />
-                <small>可包含角色的路徑前綴。</small>
-                <div>
-                  <Button variant="plain" onClick={() => setStep('welcome')}>
-                    返回
-                  </Button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
+        <Pairing
+          label={boot.deviceLabel}
+          initialLink={pairLink}
+          initialServer={pairingTarget?.baseUrl}
+          reconnect={!!pairingTarget}
+          onDone={(value) => {
+            setConnection(value)
+            setPairingTarget(undefined)
+            setPairLink(null)
+            useWorkspace.getState().setView('chat')
+          }}
+        />
       )}
     </main>
   )

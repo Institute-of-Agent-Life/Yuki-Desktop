@@ -21,8 +21,10 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - run: npm exec install-electron -- --no
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm run check:contract
       - run: npm test
       - run: npm exec playwright install chromium
       - if: runner.os != 'Linux'

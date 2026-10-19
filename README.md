@@ -17,6 +17,7 @@ npm run dev
 ```sh
 npm run lint
 npm run typecheck
+npm run check:contract
 npm test
 npm exec playwright install chromium
 npm run test:e2e
@@ -27,6 +28,20 @@ npm run check:package
 `npm run package` 產生目前平台的安裝檔，設定涵蓋 macOS DMG／zip、Windows NSIS、Linux AppImage／deb／rpm。打包成功、原生平台驗收及簽章發行分別驗證。建置命令預設不發布。
 
 本機資料保存在作業系統的應用程式資料目錄；視窗與外觀偏好使用 SQLite。Renderer 隔離於 Node.js，透過明列的 IPC 操作本機功能。
+
+開啟 App 後輸入實例的完整網址（可含路徑前綴），確認角色後，貼上綁定碼、完整回覆或 `yuki://pair` 連結。裝置憑據由主程序使用系統金鑰圈加密；Linux 沒有可用金鑰圈時，只保留在本次執行的記憶體，重啟後需重新配對。
+
+待確認訊息與草稿依原角色、本人及 App 入口分開保存在 SQLite。斷線後以原請求 ID 查證回執，只有確認不存在才同號重送；無法查證時保留原文。其他本人入口的歷史唯讀，可引用到桌面對話。最近讀取的內容可離線查看；伺服器確認失去讀權時清除讀快取。
+
+`contracts/` 保存固定版本的 OpenAPI 與來源提交、內容雜湊。`npm run check:contract` 核對快照及生成型別，建置不讀取其他本機倉庫。需要與後端聯調時，可明確指定隔離的測試 checkout 與 Python 環境：
+
+```sh
+YUKI_BACKEND_TEST_ROOT=/path/to/test-checkout \
+YUKI_BACKEND_TEST_PYTHON=/path/to/test-checkout/.venv/bin/python \
+npm run test:e2e -- tests/e2e/backend.spec.ts
+```
+
+該測試使用實際 Yuki 容器、帳本與 App Gateway，在臨時目錄建立測試資料，模型回覆使用固定測試 Provider，不呼叫付費服務。
 
 任務書、調研、設計文件、互動原型與其預覽／檢查材料只在本地維護，不在此發布。安裝包以產品檔案白名單建置，並經封裝內容檢查。測試截圖與 trace 保留在本機暫存目錄。
 

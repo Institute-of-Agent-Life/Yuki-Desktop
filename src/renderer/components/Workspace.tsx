@@ -30,6 +30,7 @@ interface Props {
   children: ReactNode
   inspector?: ReactNode
   entries?: ReactNode
+  onSettings?: () => void
 }
 const views = [
   ['chat', '對話', MessageCircle],
@@ -165,7 +166,13 @@ export function Workspace(props: Props) {
           </button>
         ))}
       <div className={styles.group} />
-      <button className={styles.nav} onClick={() => state.setView('settings')}>
+      <button
+        className={styles.nav}
+        onClick={() => {
+          state.setView('settings')
+          props.onSettings?.()
+        }}
+      >
         <Settings2 size={16} strokeWidth={1.5} />
         設定
       </button>

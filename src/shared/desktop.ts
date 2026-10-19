@@ -1,3 +1,5 @@
+import type { ConversationBridge } from './api'
+
 export type Theme = 'system' | 'light' | 'dark'
 export type View = 'chat' | 'works' | 'computer' | 'files' | 'about' | 'settings'
 export type Command =
@@ -41,6 +43,7 @@ export interface BootInfo {
 }
 
 export interface DesktopBridge {
+  client: ConversationBridge
   boot(): Promise<BootInfo>
   preferences(patch: Partial<Preferences>): Promise<Preferences>
   onCommand(callback: (command: Command) => void): () => void

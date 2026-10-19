@@ -48,6 +48,12 @@
 .server input {
   height: 36px;
 }
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
 .settings {
   overflow: auto;
   padding: 32px;

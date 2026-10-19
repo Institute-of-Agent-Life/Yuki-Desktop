@@ -1,4 +1,15 @@
-import { app, BrowserWindow, ipcMain, nativeTheme, net, protocol, session } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  nativeTheme,
+  net,
+  powerMonitor,
+  protocol,
+  session,
+  shell,
+} from 'electron'
 import { hostname } from 'node:os'
 import { join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -6,6 +17,9 @@ import { createWindow } from './windows'
 import { installMenu } from './menu'
 import { LocalStore } from './store'
 import type { BootInfo, Preferences } from '../shared/desktop'
+import type { ApiRead, ApiReply } from '../shared/api'
+import { Connections } from './connections'
+import { ApiError } from './api/client'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -19,7 +33,7 @@ let pairLink: string | null = null
 const receiveLink = (link: string) => {
   if (!link.startsWith('yuki://pair?')) return
   pairLink = link
-  win?.webContents.send('yuki:pair-link', link)
+  if (win && !win.isDestroyed()) win.webContents.send('yuki:pair-link', link)
   win?.show()
   win?.focus()
 }
@@ -70,6 +84,53 @@ else {
       )
         throw new Error('untrusted_ipc')
     }
+    const connections = new Connections(
+      store,
+      app.getPath('userData'),
+      app.getVersion(),
+      (id, kind, data) => win?.webContents.send('yuki:hint', id, kind, data),
+    )
+    const action = <A extends unknown[], T>(name: string, run: (...args: A) => T | Promise<T>) => {
+      ipcMain.handle(`yuki:${name}`, async (event, ...args: A): Promise<ApiReply<T>> => {
+        authorize(event)
+        try {
+          return { ok: true, value: await run(...args) }
+        } catch (error) {
+          return { ok: false, code: error instanceof ApiError ? error.code : 'unknown' }
+        }
+      })
+    }
+    action('connections', () => connections.publicList())
+    action('subscribe', () => connections.publishStates())
+    action('reconnect', () => connections.reconnect())
+    powerMonitor.on('resume', () => connections.reconnect())
+    action('external', async (raw: string) => {
+      const url = new URL(raw)
+      if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password)
+        throw new ApiError('validation_error')
+      const result = await dialog.showMessageBox(win!, {
+        type: 'question',
+        title: '開啟外部連結',
+        message: `在瀏覽器開啟 ${url.hostname}？`,
+        detail: url.toString(),
+        buttons: ['取消', '開啟'],
+        defaultId: 0,
+        cancelId: 0,
+      })
+      if (result.response === 1) await shell.openExternal(url.toString())
+    })
+    action('meta', (server: string) => connections.meta(server))
+    action('pair', async (server: string, code: string, label: string) => {
+      const result = await connections.pair(server, code, label)
+      pairLink = null
+      return result
+    })
+    action('read', (id: string, route: ApiRead) => connections.read(id, route))
+    action('send', (id: string, text: string) => connections.send(id, text))
+    action('outbox', (id: string) => connections.box(id).list())
+    action('verify', (id: string, requestId: string) => connections.verify(id, requestId))
+    action('draft', (id: string, text?: string) => connections.box(id).draft(text))
+    for (const connection of connections.list()) connections.start(connection.characterId)
     const appearance = () => ({
       dark: nativeTheme.shouldUseDarkColors,
       reducedTransparency: nativeTheme.prefersReducedTransparency,
@@ -106,15 +167,24 @@ else {
       return current
     })
     nativeTheme.on('updated', () => win?.webContents.send('yuki:theme', appearance()))
-    win = createWindow(store)
-    installMenu(() => win)
+    const openWindow = () => {
+      const created = createWindow(store)
+      win = created
+      created.once('closed', () => {
+        if (win === created) win = undefined
+      })
+      installMenu(() => win)
+    }
+    openWindow()
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        win = createWindow(store)
-        installMenu(() => win)
+        openWindow()
       } else win?.show()
     })
-    app.on('will-quit', () => store.db.close())
+    app.on('will-quit', () => {
+      connections.close()
+      store.db.close()
+    })
   })
 }
 app.on('window-all-closed', () => {

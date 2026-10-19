@@ -16,6 +16,19 @@ import { Workspace } from '../../src/renderer/components/Workspace'
 import '../../src/renderer/tokens.css'
 
 window.yuki = {
+  client: {
+    reconnect: async () => ({ ok: true, value: undefined }),
+    external: async () => ({ ok: false, code: 'fixture_only' }),
+    connections: async () => ({ ok: true, value: [] }),
+    meta: async () => ({ ok: false, code: 'fixture_only' }),
+    pair: async () => ({ ok: false, code: 'fixture_only' }),
+    read: async () => ({ ok: false, code: 'fixture_only' }),
+    send: async () => ({ ok: false, code: 'fixture_only' }),
+    outbox: async () => ({ ok: false, code: 'fixture_only' }),
+    verify: async () => ({ ok: false, code: 'fixture_only' }),
+    draft: async () => ({ ok: false, code: 'fixture_only' }),
+    onHint: () => () => {},
+  },
   boot: async () => {
     throw new Error('fixture only')
   },

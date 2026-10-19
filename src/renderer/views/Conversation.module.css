@@ -1,0 +1,156 @@
+.chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.messages {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 24px max(24px, calc((100% - 712px) / 2));
+  overflow-anchor: none;
+}
+.message {
+  display: flex;
+  gap: 12px;
+  margin: 0 0 24px;
+  padding: 8px;
+  border-radius: 10px;
+}
+.messageBody {
+  flex: 1;
+  min-width: 0;
+}
+.message header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.message time {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.ownMessage {
+  margin-left: auto;
+  width: fit-content;
+  max-width: 88%;
+  background: var(--fill-inactive);
+  padding: 12px 16px;
+  border-radius: 14px;
+  margin-bottom: 24px;
+  white-space: pre-wrap;
+}
+.selected {
+  outline: 2px solid var(--accent);
+}
+.messageActions {
+  display: flex;
+  justify-content: flex-end;
+  opacity: 0;
+}
+.message:hover .messageActions,
+.message:focus-within .messageActions {
+  opacity: 1;
+}
+.markdown {
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.markdown p {
+  margin: 0 0 8px;
+}
+.markdown pre {
+  overflow: auto;
+  background: var(--fill-code);
+  border-radius: 8px;
+  padding: 12px;
+}
+.markdown :is(ul, ol) {
+  padding-left: 24px;
+}
+.markdown table {
+  border-collapse: collapse;
+  max-width: 100%;
+  display: block;
+  overflow: auto;
+}
+.markdown :is(th, td) {
+  border: var(--line) solid var(--separator);
+  padding: 6px 10px;
+}
+.markdown a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.entry {
+  text-align: left;
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.entry[aria-current] {
+  background: var(--fill-selected);
+  color: var(--accent);
+}
+.pending {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+.newMessages {
+  position: absolute;
+  bottom: 164px;
+  right: 24px;
+  padding: 6px 14px;
+  background: var(--bg-content);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sheet);
+  color: var(--accent);
+}
+.readonly {
+  padding: 16px 24px;
+  border-top: var(--line) solid var(--separator);
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  font-size: 12px;
+}
+.reference {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 0 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.reference span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.search {
+  display: flex;
+  align-items: center;
+  padding: 8px 24px;
+  gap: 8px;
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+}
+.inspector {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}

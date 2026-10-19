@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowUp, Mic, Plus } from 'lucide-react'
 import { IconButton } from './Controls'
 import styles from '../App.module.css'
+import { normalizeMessageText } from '../../shared/message'
 
 export function Composer({
   name,
@@ -11,6 +12,7 @@ export function Composer({
   onAttach,
   onRecord,
   commandEnter = false,
+  hasContent = false,
   children,
 }: {
   name: string
@@ -20,6 +22,7 @@ export function Composer({
   onAttach?: () => void
   onRecord?: () => void
   commandEnter?: boolean
+  hasContent?: boolean
   children?: ReactNode
 }) {
   const input = useRef<HTMLTextAreaElement>(null)
@@ -33,7 +36,7 @@ export function Composer({
     }
   }, [draft])
   const submit = async () => {
-    if (sending || !draft.trim()) return
+    if (sending || (!normalizeMessageText(draft) && !hasContent)) return
     setSending(true)
     setError('')
     try {
@@ -58,6 +61,7 @@ export function Composer({
             event.key === 'Enter' &&
             !event.shiftKey &&
             !event.nativeEvent.isComposing &&
+            event.nativeEvent.keyCode !== 229 &&
             (!commandEnter || event.metaKey || event.ctrlKey)
           ) {
             event.preventDefault()
@@ -73,7 +77,11 @@ export function Composer({
           <Mic size={18} strokeWidth={1.6} />
         </IconButton>
         <small>{error || (commandEnter ? '⌘ / Ctrl ↩ 送出' : '↩ 送出 · ⇧↩ 換行')}</small>
-        <IconButton label="送出" disabled={sending || !draft.trim()} onClick={() => void submit()}>
+        <IconButton
+          label="送出"
+          disabled={sending || (!normalizeMessageText(draft) && !hasContent)}
+          onClick={() => void submit()}
+        >
           <ArrowUp size={18} strokeWidth={1.6} />
         </IconButton>
       </div>
