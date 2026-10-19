@@ -335,3 +335,7 @@
   border-radius: 50%;
   outline: 2px solid var(--bg-sidebar);
 }
+.customToolbar {
+  height: auto;
+  min-height: 52px;
+}

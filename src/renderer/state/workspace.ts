@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { View, NavigationTarget } from '../../shared/desktop'
+import { requestNavigation } from './navigation'
 
 interface WorkspaceState {
   view: View
@@ -17,7 +18,11 @@ export const useWorkspace = create<WorkspaceState>((set) => ({
   sidebar: true,
   focusMode: false,
   target: null,
-  navigate: (target) => set({ target, view: target.view, focusMode: false }),
-  setView: (view) => set({ view, target: null, focusMode: false }),
-  toggle: (key) => set((state) => ({ [key]: !state[key] })),
+  navigate: (target) =>
+    requestNavigation(() => set({ target, view: target.view, focusMode: false })),
+  setView: (view) => requestNavigation(() => set({ view, target: null, focusMode: false })),
+  toggle: (key) =>
+    key === 'focusMode'
+      ? requestNavigation(() => set((state) => ({ focusMode: !state.focusMode })))
+      : set((state) => ({ [key]: !state[key] })),
 }))

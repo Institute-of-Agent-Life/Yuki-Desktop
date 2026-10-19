@@ -3,6 +3,13 @@ import type { BootInfo, Command, DesktopBridge } from '../shared/desktop'
 
 const bridge: DesktopBridge = {
   client: {
+    promptDocuments: (id) => ipcRenderer.invoke('yuki:prompt-documents', id),
+    promptEdit: (id, edit) => ipcRenderer.invoke('yuki:prompt-edit', id, edit),
+    promptDrafts: (id) => ipcRenderer.invoke('yuki:prompt-drafts', id),
+    promptCommand: (id, command) => ipcRenderer.invoke('yuki:prompt-command', id, command),
+    promptCommands: (id) => ipcRenderer.invoke('yuki:prompt-commands', id),
+    verifyPromptCommand: (id, request) =>
+      ipcRenderer.invoke('yuki:verify-prompt-command', id, request),
     letterDecoration: (id, revision, avatarRevision, bytes) =>
       ipcRenderer.invoke('yuki:letter-decoration', id, revision, avatarRevision, bytes),
     pickAvatar: () => ipcRenderer.invoke('yuki:pick-avatar'),
@@ -80,6 +87,15 @@ const bridge: DesktopBridge = {
     },
   },
   boot: () => ipcRenderer.invoke('yuki:boot'),
+  onLeaveRequest(callback) {
+    const listener = (_event: Electron.IpcRendererEvent, request: string) => callback(request)
+    ipcRenderer.on('yuki:leave-request', listener)
+    void ipcRenderer.invoke('yuki:leave-ready').catch(() => {})
+    return () => ipcRenderer.removeListener('yuki:leave-request', listener)
+  },
+  leaveResponse: (request, allowed) => {
+    void ipcRenderer.invoke('yuki:leave-response', request, allowed).catch(() => {})
+  },
   preferences: (patch) => ipcRenderer.invoke('yuki:preferences', patch),
   onCommand(callback) {
     const listener = (_event: Electron.IpcRendererEvent, command: Command) => callback(command)

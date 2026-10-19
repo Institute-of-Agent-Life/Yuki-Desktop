@@ -9,6 +9,7 @@ import { Pairing } from './views/Pairing'
 import { Conversation } from './views/Conversation'
 import { useWorkspace } from './state/workspace'
 import { problemText } from './queries/client'
+import { requestNavigation } from './state/navigation'
 
 export function App({ boot }: { boot: BootInfo }) {
   const [step, setStep] = useState<'welcome' | 'server' | 'settings'>('welcome')
@@ -54,20 +55,34 @@ export function App({ boot }: { boot: BootInfo }) {
   useEffect(
     () =>
       window.yuki.onOpenTarget((target) => {
-        setTarget(target)
-        setNavigationError('')
-        setStep('welcome')
+        requestNavigation(() => {
+          setTarget(target)
+          setNavigationError('')
+          setStep('welcome')
+        })
       }),
     [],
   )
   useEffect(
     () =>
       window.yuki.onPairLink((link) => {
-        setTarget(null)
-        setPairLink(link)
-        setPairingTarget(undefined)
-        setConnection(undefined)
-        setStep('welcome')
+        requestNavigation(() => {
+          setTarget(null)
+          setPairLink(link)
+          setPairingTarget(undefined)
+          setConnection(undefined)
+          setStep('welcome')
+        })
+      }),
+    [],
+  )
+  useEffect(
+    () =>
+      window.yuki.onLeaveRequest((request) => {
+        requestNavigation(
+          () => window.yuki.leaveResponse(request, true),
+          () => window.yuki.leaveResponse(request, false),
+        )
       }),
     [],
   )
@@ -87,8 +102,8 @@ export function App({ boot }: { boot: BootInfo }) {
     [],
   )
   useCommands((command) => {
-    if (command === 'settings') setStep('settings')
-    if (command === 'back') setStep('welcome')
+    if (command === 'settings') requestNavigation(() => setStep('settings'))
+    if (command === 'back' && step === 'settings') setStep('welcome')
   })
   return (
     <main className={styles.app}>
@@ -207,7 +222,7 @@ export function App({ boot }: { boot: BootInfo }) {
           platform={boot.platform}
           preferences={preferences}
           save={(patch) => void save(patch)}
-          onSettings={() => setStep('settings')}
+          onSettings={() => requestNavigation(() => setStep('settings'))}
           onPairAgain={() => {
             setPairingTarget(connection)
             setConnection(undefined)

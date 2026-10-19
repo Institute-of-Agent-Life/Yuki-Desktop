@@ -66,6 +66,8 @@ export interface DesktopBridge {
   boot(): Promise<BootInfo>
   preferences(patch: Partial<Preferences>): Promise<Preferences>
   onCommand(callback: (command: Command) => void): () => void
+  onLeaveRequest(callback: (requestId: string) => void): () => void
+  leaveResponse(requestId: string, allowed: boolean): void
   onTheme(
     callback: (theme: Pick<BootInfo, 'dark' | 'reducedTransparency' | 'highContrast'>) => void,
   ): () => void

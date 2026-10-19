@@ -13,6 +13,9 @@ import type {
   OutboxItem,
   WorkCommand,
   Profile,
+  PromptCommand,
+  PromptDocuments,
+  PromptEdit,
 } from '../shared/api'
 import { REQUIRED_API_REVISION } from '../shared/api'
 import { ApiClient, ApiError, normalizeServer } from './api/client'
@@ -24,6 +27,7 @@ import { WorkCommands } from './outbox/work-commands'
 import { ComputerCommands } from './outbox/computer-commands'
 import { CharacterCommands } from './outbox/character-commands'
 import { AvatarCommands } from './outbox/avatar-commands'
+import { Prompts } from './outbox/prompts'
 import { ComputerTickets } from './computer-tickets'
 import type { LocalStore } from './store'
 import { Uploads } from './media/uploads'
@@ -56,6 +60,8 @@ export class Connections {
   private readonly characterStores = new Map<Outbox, CharacterCommands>()
   private readonly avatarStores = new Map<Outbox, AvatarCommands>()
   private readonly avatarReads = new Map<string, Promise<Uint8Array>>()
+  private readonly promptStores = new Map<Outbox, Prompts>()
+  private readonly promptReads = new Set<Promise<unknown>>()
   readonly computerTickets = new ComputerTickets()
   private closed = false
   constructor(
@@ -164,6 +170,45 @@ export class Connections {
       this.avatarStores.set(box, commands)
     }
     return commands
+  }
+  prompts(id: string) {
+    const box = this.box(id)
+    let prompts = this.promptStores.get(box)
+    if (!prompts) {
+      prompts = new Prompts(box)
+      this.promptStores.set(box, prompts)
+    }
+    return prompts
+  }
+  promptDocuments(id: string) {
+    if (this.closed) return Promise.reject(new ApiError('unavailable'))
+    const work = this.fetchPromptDocuments(id).finally(() => this.promptReads.delete(work))
+    this.promptReads.add(work)
+    return work
+  }
+  private async fetchPromptDocuments(id: string) {
+    const prompts = this.prompts(id),
+      version = prompts.captureRead()
+    await this.identify(id)
+    const documents = await this.client(id).get<PromptDocuments>('character/prompts')
+    return { documents, drafts: prompts.observe(documents, version) }
+  }
+  promptEdit(id: string, edit: PromptEdit) {
+    return this.prompts(id).edit(edit)
+  }
+  async promptCommand(id: string, command: PromptCommand) {
+    await this.identify(id)
+    const prompts = this.prompts(id),
+      item = prompts.prepare(command)
+    const result = await prompts.run(this.client(id), item.requestId)
+    this.emit(id, 'prompt-command', {})
+    return result
+  }
+  async verifyPromptCommand(id: string, requestId: string) {
+    await this.identify(id)
+    const result = await this.prompts(id).run(this.client(id), uuid(requestId))
+    this.emit(id, 'prompt-command', {})
+    return result
   }
   async avatarCommand(id: string, expectedRevision: number, bytes?: Uint8Array) {
     await this.identify(id)
@@ -737,6 +782,10 @@ export class Connections {
             this.emit(id, 'connection', { state: 'online' })
           }
           if (['sync', 'conversation', 'work'].includes(kind)) {
+            for (const item of this.prompts(id)
+              .list()
+              .filter((item) => item.state !== 'result'))
+              void this.verifyPromptCommand(id, item.requestId).catch(() => {})
             for (const item of this.avatarCommands(id)
               .list()
               .filter((item) => item.state !== 'result'))
@@ -800,11 +849,13 @@ export class Connections {
     // Reads already in flight settle before their database is closed.
     void Promise.allSettled([
       ...this.avatarReads.values(),
+      ...this.promptReads,
       ...this.checking.values(),
       ...[...this.uploadStores.values()].map((uploads) => uploads.settled()),
       ...[...this.commandStores.values()].map((commands) => commands.settle()),
       ...[...this.characterStores.values()].map((commands) => commands.settle()),
       ...[...this.avatarStores.values()].map((commands) => commands.settle()),
+      ...[...this.promptStores.values()].map((prompts) => prompts.settled()),
     ]).then(() => this.outboxes.forEach((box) => box.db.close()))
   }
 }

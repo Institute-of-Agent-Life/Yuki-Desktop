@@ -19,6 +19,7 @@ import { PresenceCard } from './PresenceCard'
 import type { Preferences, View } from '../../shared/desktop'
 import styles from '../App.module.css'
 import { useCommands } from '../state/commands'
+import { requestNavigation } from '../state/navigation'
 
 interface Props {
   name: string
@@ -33,6 +34,7 @@ interface Props {
   inspector?: ReactNode
   entries?: ReactNode
   onSettings?: () => void
+  toolbar?: ReactNode
 }
 const views = [
   ['chat', '對話', MessageCircle],
@@ -61,7 +63,8 @@ export function Workspace(props: Props) {
     if (command === 'sidebar') toggleSidebar()
     else if (command === 'inspector') state.toggle(command)
     else if (command === 'focus-mode') state.toggle('focusMode')
-    else if (views.some(([view]) => view === command)) state.setView(command as View)
+    else if (command !== 'settings' && views.some(([view]) => view === command))
+      state.setView(command as View)
   })
   const layout = columns(
     width,
@@ -174,8 +177,10 @@ export function Workspace(props: Props) {
       <button
         className={styles.nav}
         onClick={() => {
-          state.setView('settings')
-          props.onSettings?.()
+          requestNavigation(() => {
+            state.setView('settings')
+            props.onSettings?.()
+          })
         }}
       >
         <Settings2 size={16} strokeWidth={1.5} />
@@ -235,27 +240,34 @@ export function Workspace(props: Props) {
         </>
       )}
       <section className={styles.main} style={{ gridColumn: state.focusMode ? 1 : 3, gridRow: 1 }}>
-        <header data-region="toolbar" className={styles.toolbar}>
+        <header
+          data-region="toolbar"
+          className={`${styles.toolbar} ${props.toolbar ? styles.customToolbar : ''}`}
+        >
           <IconButton label="側邊欄" onClick={toggleSidebar}>
             <PanelLeft size={16} strokeWidth={1.5} />
           </IconButton>
-          <span className={styles.toolbarTitle}>
-            {state.view === 'chat' || state.focusMode
-              ? props.name
-              : views.find(([view]) => view === state.view)?.[1]}
-          </span>
-          <IconButton label="展開工作區" onClick={() => state.toggle('focusMode')}>
-            <Maximize2 size={16} strokeWidth={1.5} />
-          </IconButton>
-          <IconButton label="檢視器" onClick={() => state.toggle('inspector')}>
-            <PanelRight size={16} strokeWidth={1.5} />
-          </IconButton>
-          <IconButton
-            label="搜尋已載入內容"
-            onClick={() => window.dispatchEvent(new Event('yuki:search'))}
-          >
-            <Search size={16} strokeWidth={1.5} />
-          </IconButton>
+          {props.toolbar ?? (
+            <>
+              <span className={styles.toolbarTitle}>
+                {state.view === 'chat' || state.focusMode
+                  ? props.name
+                  : views.find(([view]) => view === state.view)?.[1]}
+              </span>
+              <IconButton label="展開工作區" onClick={() => state.toggle('focusMode')}>
+                <Maximize2 size={16} strokeWidth={1.5} />
+              </IconButton>
+              <IconButton label="檢視器" onClick={() => state.toggle('inspector')}>
+                <PanelRight size={16} strokeWidth={1.5} />
+              </IconButton>
+              <IconButton
+                label="搜尋已載入內容"
+                onClick={() => window.dispatchEvent(new Event('yuki:search'))}
+              >
+                <Search size={16} strokeWidth={1.5} />
+              </IconButton>
+            </>
+          )}
         </header>
         <div className={styles.content} data-region="content" tabIndex={-1}>
           {props.children}

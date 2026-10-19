@@ -18,6 +18,7 @@ import { Composer } from '../components/Composer'
 import { Banner, Button, EmptyState, IconButton } from '../components/Controls'
 import { CharacterAvatar, CharacterVisuals } from '../components/CharacterAvatar'
 import { characterPresence } from '../../shared/presence'
+import { PromptEditor } from './PromptEditor'
 import { Copy, Reply } from 'lucide-react'
 import { Workspace } from '../components/Workspace'
 import { unwrap, problemText, hidesPrivateData, ClientProblem } from '../queries/client'
@@ -58,6 +59,11 @@ export function Conversation({
     view = useWorkspace((state) => state.view)
   const target = useWorkspace((state) => state.target)
   const focusMode = useWorkspace((state) => state.focusMode)
+  const [promptEditing, setPromptEditing] = useState(false)
+  const [promptToolbar, setPromptToolbar] = useState<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (view !== 'about' || focusMode) setPromptEditing(false)
+  }, [view, focusMode])
   const [artifact, setArtifact] = useState<ArtifactSource>()
   const [conversation, setConversation] = useState(connection.conversationId),
     [draft, setDraft] = useState('')
@@ -272,7 +278,7 @@ export function Conversation({
   useCommands((command) => {
     if (command === 'focus-composer')
       document.querySelector<HTMLTextAreaElement>('textarea')?.focus()
-    if (command === 'search' || command === 'find') setSearch('')
+    if (command === 'search' || (command === 'find' && !promptEditing)) setSearch('')
   })
   useEffect(() => {
     const range = `${conversation}/${anchor}`
@@ -460,6 +466,11 @@ export function Conversation({
   return (
     <CharacterVisuals.Provider value={{ id, name, profile: profileData, presence }}>
       <Workspace
+        toolbar={
+          promptEditing && view === 'about' && !focusMode ? (
+            <div className={styles.promptToolbar} ref={setPromptToolbar} />
+          ) : undefined
+        }
         name={name}
         avatar={<CharacterAvatar />}
         status={presence.text}
@@ -577,7 +588,24 @@ export function Conversation({
           accessLost ? (
             <Banner status="failed">{problemText(connectionProblem)}</Banner>
           ) : profileData ? (
-            <About key={id} id={id} profile={profileData} jump={jumpTo} />
+            promptEditing && profileData.viewer.is_owner ? (
+              <PromptEditor
+                key={id}
+                id={id}
+                name={name}
+                platform={platform}
+                back={() => setPromptEditing(false)}
+                toolbar={promptToolbar}
+              />
+            ) : (
+              <About
+                key={id}
+                id={id}
+                profile={profileData}
+                jump={jumpTo}
+                editPrompts={() => setPromptEditing(true)}
+              />
+            )
           ) : (
             <EmptyState title="角色資料">{profile.error?.message ?? '正在讀取…'}</EmptyState>
           )
@@ -759,9 +787,11 @@ export function Conversation({
             )}
             {online === 'online' && !activity.error && activity.data?.evidence === 'executing' && (
               <div className={styles.processing} role="status">
-                <CharacterAvatar size={20} />
+                <span aria-hidden="true">
+                  <CharacterAvatar size={20} />
+                </span>
                 <span aria-hidden="true">•••</span>
-                {name} 正在處理
+                <span>{name} 正在處理</span>
               </div>
             )}
             {isMain && replyWork ? (

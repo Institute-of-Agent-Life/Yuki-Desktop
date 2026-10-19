@@ -8,6 +8,30 @@ export type Me = components['schemas']['Me']
 export type Home = components['schemas']['Home']
 export type Profile = components['schemas']['CharacterProfile']
 export type CharacterStatus = components['schemas']['CharacterStatus']
+export type PromptDocument = components['schemas']['PromptDocument']
+export type PromptDocuments = components['schemas']['PromptDocuments']
+export type PromptKey = PromptDocument['key']
+export interface PromptEdit {
+  key: PromptKey
+  baseRevision: string
+  baseContent: string
+  draft: string
+}
+export interface PromptDraft extends PromptEdit {
+  remote: PromptDocument
+}
+export type PromptCommand =
+  { kind: 'save'; key: PromptKey; expectedRevision: string; content: string } | { kind: 'reload' }
+export interface PromptCommandItem {
+  requestId: string
+  command: PromptCommand
+  payloadHash: string
+  state: 'submitted' | 'result'
+  problem: string | null
+  result:
+    components['schemas']['PromptSaveResult'] | components['schemas']['PromptReloadResult'] | null
+  details: Record<string, components['schemas']['JsonValue']> | null
+}
 export interface AvatarInput {
   filename: string
   bytes: Uint8Array
@@ -175,6 +199,14 @@ export type ApiRead =
   | { kind: 'activity'; conversationId: string }
 
 export interface ConversationBridge {
+  promptDocuments(
+    characterId: string,
+  ): Promise<ApiReply<{ documents: PromptDocuments; drafts: PromptDraft[] }>>
+  promptEdit(characterId: string, edit: PromptEdit): Promise<ApiReply<PromptDraft>>
+  promptDrafts(characterId: string): Promise<ApiReply<PromptDraft[]>>
+  promptCommand(characterId: string, command: PromptCommand): Promise<ApiReply<PromptCommandItem>>
+  promptCommands(characterId: string): Promise<ApiReply<PromptCommandItem[]>>
+  verifyPromptCommand(characterId: string, requestId: string): Promise<ApiReply<PromptCommandItem>>
   letterDecoration(
     characterId: string,
     revision: number,

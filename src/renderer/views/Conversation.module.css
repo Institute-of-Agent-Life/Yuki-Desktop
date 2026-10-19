@@ -295,3 +295,8 @@
   color: var(--text-secondary);
   margin: 0;
 }
+.promptToolbar {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}

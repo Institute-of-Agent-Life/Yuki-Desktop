@@ -53,10 +53,12 @@ export function About({
   id,
   profile,
   jump,
+  editPrompts,
 }: {
   id: string
   profile: Profile
   jump: (source: MessageReference) => Promise<boolean>
+  editPrompts(): void
 }) {
   const query = useQueryClient()
   const [tab, setTab] = useState<'me' | 'self' | 'arrangements' | 'capabilities'>('me')
@@ -144,14 +146,17 @@ export function About({
             <>
               <p>{profile.bio}</p>
               {profile.viewer.is_owner && (
-                <Button
-                  onClick={() => {
-                    setAvatarRestore(undefined)
-                    setAvatarEditing(true)
-                  }}
-                >
-                  更換頭像
-                </Button>
+                <div className={styles.heroActions}>
+                  <Button
+                    onClick={() => {
+                      setAvatarRestore(undefined)
+                      setAvatarEditing(true)
+                    }}
+                  >
+                    更換頭像
+                  </Button>
+                  <Button onClick={editPrompts}>編輯提示詞</Button>
+                </div>
               )}
             </>
           )}

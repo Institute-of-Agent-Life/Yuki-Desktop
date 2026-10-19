@@ -17,6 +17,12 @@ import '../../src/renderer/tokens.css'
 
 window.yuki = {
   client: {
+    promptDocuments: async () => ({ ok: false, code: 'fixture_only' }),
+    promptEdit: async () => ({ ok: false, code: 'fixture_only' }),
+    promptDrafts: async () => ({ ok: true, value: [] }),
+    promptCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    promptCommands: async () => ({ ok: true, value: [] }),
+    verifyPromptCommand: async () => ({ ok: false, code: 'fixture_only' }),
     letterDecoration: async () => ({ ok: true, value: undefined }),
     pickAvatar: async () => ({ ok: true, value: null }),
     dropAvatar: async () => ({ ok: false, code: 'fixture_only' }),
@@ -77,6 +83,8 @@ window.yuki = {
   },
   preferences: async (patch) => ({ ...defaultPreferences, ...patch }),
   onCommand: () => () => {},
+  onLeaveRequest: () => () => {},
+  leaveResponse: () => {},
   onTheme: () => () => {},
   onPairLink: () => () => {},
   onOpenTarget: () => () => {},

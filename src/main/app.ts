@@ -34,6 +34,8 @@ import type {
   WorkCommand,
   ComputerCommand,
   Profile,
+  PromptCommand,
+  PromptEdit,
 } from '../shared/api'
 import { Connections } from './connections'
 import { ApiError } from './api/client'
@@ -171,6 +173,32 @@ else {
     native.update(store.preferences())
     let quitAllowed = false,
       askingToQuit = false
+    let leaveReady: number | undefined
+    let leaving:
+      { id: string; promise: Promise<boolean>; resolve(allowed: boolean): void } | undefined
+    const askToLeave = () => {
+      if (!win || win.webContents.isCrashed() || win.webContents.id !== leaveReady)
+        return Promise.resolve(true)
+      if (leaving) return leaving.promise
+      const id = randomUUID()
+      let resolve!: (allowed: boolean) => void
+      const promise = new Promise<boolean>((done) => {
+        resolve = done
+      }).finally(() => {
+        leaving = undefined
+      })
+      leaving = { id, promise, resolve }
+      win.webContents.send('yuki:leave-request', id)
+      return promise
+    }
+    ipcMain.handle('yuki:leave-ready', (event) => {
+      authorize(event)
+      leaveReady = event.sender.id
+    })
+    ipcMain.handle('yuki:leave-response', (event, id: string, allowed: boolean) => {
+      authorize(event)
+      if (leaving?.id === id && typeof allowed === 'boolean') leaving.resolve(allowed)
+    })
     powerMonitor.on('shutdown', () => {
       quitAllowed = true
     })
@@ -180,6 +208,7 @@ else {
       if (askingToQuit) return
       askingToQuit = true
       void (async () => {
+        if (!(await askToLeave())) return false
         const held = await heldComputers(connections)
         if (!held.length) return true
         reveal?.()
@@ -310,6 +339,16 @@ else {
       return result
     })
     action('read', (id: string, route: ApiRead) => connections.read(id, route))
+    action('prompt-documents', (id: string) => connections.promptDocuments(id))
+    action('prompt-edit', (id: string, edit: PromptEdit) => connections.promptEdit(id, edit))
+    action('prompt-drafts', (id: string) => connections.prompts(id).drafts())
+    action('prompt-command', (id: string, command: PromptCommand) =>
+      connections.promptCommand(id, command),
+    )
+    action('prompt-commands', (id: string) => connections.prompts(id).list())
+    action('verify-prompt-command', (id: string, request: string) =>
+      connections.verifyPromptCommand(id, request),
+    )
     action(
       'letter-decoration',
       (id: string, revision: number, avatarRevision: number, bytes: Uint8Array) => {
@@ -583,16 +622,32 @@ else {
         !connections.publicList().some((connection) => !connection.needsPairing),
       )
       win = created
+      let closeAllowed = false
       created.on('close', (event) => {
-        if (!quitAllowed && !store.preferences().keepInTray) {
+        if (quitAllowed || closeAllowed) return
+        if (!store.preferences().keepInTray) {
           event.preventDefault()
           app.quit()
+        } else {
+          event.preventDefault()
+          void askToLeave().then((allowed) => {
+            if (allowed && !created.isDestroyed()) {
+              closeAllowed = true
+              created.close()
+            }
+          })
         }
+      })
+      created.webContents.on('render-process-gone', () => {
+        leaveReady = undefined
+        leaving?.resolve(true)
       })
       created.on('session-end', () => {
         quitAllowed = true
       })
       created.once('closed', () => {
+        leaving?.resolve(false)
+        leaveReady = undefined
         if (win === created) win = undefined
       })
       installMenu(() => win)

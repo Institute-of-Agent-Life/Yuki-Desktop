@@ -6,7 +6,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createServer } from 'node:net'
 
-export async function yukiFixture(options: { computer?: boolean; character?: boolean } = {}) {
+export async function yukiFixture(
+  options: { computer?: boolean; character?: boolean; prompts?: boolean | 'readonly' } = {},
+) {
   const backend = process.env.YUKI_BACKEND_TEST_ROOT,
     python = process.env.YUKI_BACKEND_TEST_PYTHON
   test.skip(
@@ -30,6 +32,8 @@ export async function yukiFixture(options: { computer?: boolean; character?: boo
           ...process.env,
           YUKI_DESKTOP_COMPUTER_FIXTURE: options.computer ? '1' : '0',
           YUKI_DESKTOP_CHARACTER_FIXTURE: options.character ? '1' : '0',
+          YUKI_DESKTOP_PROMPT_FIXTURE:
+            options.prompts === 'readonly' ? 'readonly' : options.prompts ? '1' : '0',
         },
         stdio: ['ignore', log, log],
       }),
@@ -74,9 +78,11 @@ export async function yukiFixture(options: { computer?: boolean; character?: boo
       ).code
     },
     async restart() {
-      const stopped = new Promise<void>((resolve) => server.once('exit', () => resolve()))
-      server.kill('SIGKILL')
-      await stopped
+      if (server.exitCode === null && server.signalCode === null) {
+        const stopped = new Promise<void>((resolve) => server.once('exit', () => resolve()))
+        server.kill('SIGKILL')
+        await stopped
+      }
       server = spawnServer()
       await ready()
     },
