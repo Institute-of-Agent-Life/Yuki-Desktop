@@ -2,6 +2,10 @@ export class ApiError extends Error {
   constructor(
     readonly code: string,
     readonly reason?: string,
+    readonly details?: Record<
+      string,
+      import('../../shared/contract.gen').components['schemas']['JsonValue']
+    >,
   ) {
     super(code)
   }
@@ -62,14 +66,19 @@ export class ApiClient {
     if (!response.ok) {
       let code = 'unknown'
       let reason: string | undefined
+      let details: ApiError['details']
       try {
-        const body = (await response.json()) as { problem?: { code?: string; reason?: string } }
-        code = body.problem?.code ?? code
-        reason = typeof body.problem?.reason === 'string' ? body.problem.reason : undefined
+        const body = (await response.json()) as {
+          problem?: NonNullable<ApiError['details']> & { code?: string }
+        }
+        const { code: problemCode, ...facts } = body.problem ?? {}
+        code = problemCode ?? code
+        reason = typeof facts.reason === 'string' ? facts.reason : undefined
+        details = Object.keys(facts).length ? facts : undefined
       } catch {
         /* The HTTP result contains no usable receipt. */
       }
-      throw new ApiError(code, reason)
+      throw new ApiError(code, reason, details)
     }
     return response
   }
@@ -84,8 +93,11 @@ export class ApiClient {
     }
   }
   async post<T>(path: string, body: unknown): Promise<T> {
+    return this.mutate<T>(path, body, 'POST')
+  }
+  async mutate<T>(path: string, body: unknown, method: 'POST' | 'PATCH' | 'PUT'): Promise<T> {
     const response = await this.response(path, {
-      method: 'POST',
+      method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })

@@ -97,6 +97,7 @@ function setup(initial: Work[] = [work()]) {
   const profile: Profile = {
     accent: { light: '#123456', dark: '#abcdef' },
     avatar: null,
+    avatar_revision: 0,
     bio: '',
     default_avatar: null,
     display_name: '目前角色',

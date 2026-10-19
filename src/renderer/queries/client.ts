@@ -34,6 +34,8 @@ export function hidesPrivateData(error: unknown) {
   )
 }
 const messages: Record<string, string> = {
+  unsupported_image: '無法讀取這張圖片，請選擇 PNG、JPEG 或 WebP 圖片。',
+  image_dimensions: '圖片尺寸不符，請重新裁切為 1024 × 1024 像素。',
   invalid_server: '請輸入完整的 http 或 https 伺服器位址。',
   invalid_response: '伺服器回應不完整，請確認這是 Yuki 伺服器。',
   transport_unknown: '無法連到伺服器，已保留本機內容。',

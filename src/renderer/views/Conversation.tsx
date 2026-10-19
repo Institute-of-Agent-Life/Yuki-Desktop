@@ -30,6 +30,7 @@ import { useHistory } from '../queries/history'
 import { ConversationWork, WorkDetail, WorkList, WorkReply } from './Works'
 import { Files, ArtifactInspector } from './Files'
 import { Computer, ComputerInspector } from './Computer'
+import { About } from './About'
 
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
   window.yuki.client.read<T>(id, route).then(unwrap)
@@ -139,6 +140,8 @@ export function Conversation({
     void query.invalidateQueries({ queryKey: [id, 'content'] })
     void query.invalidateQueries({ queryKey: [id, 'activity'] })
     void query.invalidateQueries({ queryKey: [id, 'work'] })
+    for (const key of ['memory', 'automations', 'capabilities', 'character-commands'])
+      void query.invalidateQueries({ queryKey: [id, key] })
   }, [id, query])
   useEffect(() => {
     const deadlines = (eventData?.items ?? [])
@@ -361,8 +364,10 @@ export function Conversation({
       bottom.current = false
       setJump(reference)
       useWorkspace.getState().setView('chat')
+      return true
     } catch (error) {
       setHistoryError(error instanceof Error ? error.message : '引用的訊息無法讀取')
+      return false
     }
   }
   const name = profileData?.display_name ?? connection.name,
@@ -511,19 +516,21 @@ export function Conversation({
         ) : (
           <WorkList id={id} selected={selectedWork} open={openWork} />
         )
+      ) : view === 'about' && !focusMode ? (
+        accessLost ? (
+          <Banner status="failed">{problemText(connectionProblem)}</Banner>
+        ) : profileData ? (
+          <About key={id} id={id} profile={profileData} jump={jumpTo} />
+        ) : (
+          <EmptyState title="角色資料">{profile.error?.message ?? '正在讀取…'}</EmptyState>
+        )
       ) : view !== 'chat' && !focusMode ? (
         <EmptyState
           title={
-            view === 'settings'
-              ? '設定'
-              : view === 'about'
-                ? name
-                : view === 'computer'
-                  ? `${name} 的電腦`
-                  : '檔案與成果'
+            view === 'settings' ? '設定' : view === 'computer' ? `${name} 的電腦` : '檔案與成果'
           }
         >
-          <span>{view === 'about' ? profileData?.bio : '正在接入此單元的伺服器介面。'}</span>
+          <span>正在接入此單元的伺服器介面。</span>
         </EmptyState>
       ) : (
         <div

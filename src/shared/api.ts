@@ -7,6 +7,42 @@ export type Meta = components['schemas']['Meta']
 export type Me = components['schemas']['Me']
 export type Home = components['schemas']['Home']
 export type Profile = components['schemas']['CharacterProfile']
+export type MemoryFact = components['schemas']['MemoryFactView']
+export type MemoryDetail = components['schemas']['MemoryDetail']
+export type MemoryPage = components['schemas']['MemoryPage']
+export type Automation = components['schemas']['AutomationView']
+export type AutomationPage = components['schemas']['AutomationPage']
+export type Capabilities = components['schemas']['CharacterCapabilities']
+export type CharacterCommand =
+  | {
+      kind: 'profile'
+      expectedRevision: number
+      displayName: string
+      bio: string
+      accent: Profile['accent']
+    }
+  | {
+      kind: 'memory'
+      factId: number
+      expectedRevision: string
+      action: 'correct' | 'retract'
+      text?: string
+    }
+  | {
+      kind: 'automation'
+      automationId: number
+      expectedRevision: string
+      action: 'pause' | 'resume' | 'delete'
+    }
+export interface CharacterCommandItem {
+  requestId: string
+  command: CharacterCommand
+  payloadHash: string
+  state: 'submitted' | 'result'
+  problem: string | null
+  result: components['schemas']['JsonValue'] | null
+  details: Record<string, components['schemas']['JsonValue']> | null
+}
 export type Activity = components['schemas']['Activity']
 export type EventsPage = components['schemas']['EventsPage']
 export type PublicEvent = components['schemas']['PublicEvent']
@@ -101,6 +137,10 @@ export interface ArtifactSource {
 }
 export type ApiRead =
   | { kind: 'me' | 'home' | 'character' | 'computer' }
+  | { kind: 'memory'; about: 'me' | 'self'; cursor?: string }
+  | { kind: 'memory-fact'; factId: number }
+  | { kind: 'automations'; scope: 'mine' | 'self' }
+  | { kind: 'capabilities' }
   | { kind: 'computer-files'; path: string; cursor?: string }
   | { kind: 'events'; conversationId: string; after?: number; before?: number; limit?: 1 | 50 }
   | { kind: 'request'; requestId: string }
@@ -116,6 +156,15 @@ export type ApiRead =
   | { kind: 'activity'; conversationId: string }
 
 export interface ConversationBridge {
+  characterCommand(
+    characterId: string,
+    command: CharacterCommand,
+  ): Promise<ApiReply<CharacterCommandItem>>
+  characterCommands(characterId: string): Promise<ApiReply<CharacterCommandItem[]>>
+  verifyCharacterCommand(
+    characterId: string,
+    requestId: string,
+  ): Promise<ApiReply<CharacterCommandItem>>
   computerTicket(characterId: string): Promise<ApiReply<string>>
   saveComputerFile(characterId: string, path: string): Promise<ApiReply<boolean>>
   computerCommand(

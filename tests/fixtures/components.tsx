@@ -17,6 +17,9 @@ import '../../src/renderer/tokens.css'
 
 window.yuki = {
   client: {
+    characterCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    characterCommands: async () => ({ ok: true, value: [] }),
+    verifyCharacterCommand: async () => ({ ok: false, code: 'fixture_only' }),
     computerTicket: async () => ({ ok: false, code: 'fixture_only' }),
     saveComputerFile: async () => ({ ok: false, code: 'fixture_only' }),
     computerCommand: async () => ({ ok: false, code: 'fixture_only' }),

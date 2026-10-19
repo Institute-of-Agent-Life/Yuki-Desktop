@@ -26,6 +26,7 @@ import type { BootInfo, Preferences, NavigationTarget } from '../shared/desktop'
 import type {
   ApiRead,
   ApiReply,
+  CharacterCommand,
   AttachmentSource,
   ArtifactSource,
   WorkCommand,
@@ -294,6 +295,13 @@ else {
       return result
     })
     action('read', (id: string, route: ApiRead) => connections.read(id, route))
+    action('character-command', (id: string, command: CharacterCommand) =>
+      connections.characterCommand(id, command),
+    )
+    action('character-commands', (id: string) => connections.characterCommands(id).list())
+    action('verify-character-command', (id: string, request: string) =>
+      connections.verifyCharacterCommand(id, request),
+    )
     action('computer-ticket', (id: string) => connections.computerTicket(id))
     action('save-computer-file', async (id: string, path: string) => {
       const item = await connections.computerFile(id, path)

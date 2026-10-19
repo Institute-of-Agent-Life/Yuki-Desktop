@@ -5,6 +5,7 @@ import type {
   ArtifactSource,
   Connection,
   ComputerCommand,
+  CharacterCommand,
   EventsPage,
   Me,
   Meta,
@@ -19,6 +20,7 @@ import { Credentials } from './credentials'
 import { Outbox } from './outbox'
 import { WorkCommands } from './outbox/work-commands'
 import { ComputerCommands } from './outbox/computer-commands'
+import { CharacterCommands } from './outbox/character-commands'
 import { ComputerTickets } from './computer-tickets'
 import type { LocalStore } from './store'
 import { Uploads } from './media/uploads'
@@ -47,6 +49,7 @@ export class Connections {
   private readonly uploadStores = new Map<Outbox, Uploads>()
   private readonly commandStores = new Map<Outbox, WorkCommands>()
   private readonly computerStores = new Map<Outbox, ComputerCommands>()
+  private readonly characterStores = new Map<Outbox, CharacterCommands>()
   readonly computerTickets = new ComputerTickets()
   private closed = false
   constructor(
@@ -137,6 +140,29 @@ export class Connections {
       this.computerStores.set(box, commands)
     }
     return commands
+  }
+  characterCommands(id: string) {
+    const box = this.box(id)
+    let commands = this.characterStores.get(box)
+    if (!commands) {
+      commands = new CharacterCommands(box)
+      this.characterStores.set(box, commands)
+    }
+    return commands
+  }
+  async characterCommand(id: string, command: CharacterCommand) {
+    await this.identify(id)
+    const commands = this.characterCommands(id)
+    const item = commands.prepare(command)
+    const result = await commands.run(this.client(id), item.requestId, true)
+    this.emit(id, 'character-command', {})
+    return result
+  }
+  async verifyCharacterCommand(id: string, requestId: string) {
+    await this.identify(id)
+    const result = await this.characterCommands(id).run(this.client(id), uuid(requestId), true)
+    this.emit(id, 'character-command', {})
+    return result
   }
   async computerCommand(id: string, command: ComputerCommand) {
     await this.identify(id)
@@ -448,6 +474,19 @@ export class Connections {
     let path: string
     if (route.kind === 'me' || route.kind === 'character' || route.kind === 'computer')
       path = route.kind
+    else if (route.kind === 'memory') {
+      if (!['me', 'self'].includes(route.about)) throw new ApiError('validation_error')
+      const params = new URLSearchParams({ about: route.about, limit: '50' })
+      if (route.cursor) params.set('cursor', route.cursor)
+      path = `memory/facts?${params}`
+    } else if (route.kind === 'memory-fact') {
+      if (!Number.isSafeInteger(route.factId) || route.factId < 1)
+        throw new ApiError('validation_error')
+      path = `memory/facts/${route.factId}`
+    } else if (route.kind === 'automations') {
+      if (!['mine', 'self'].includes(route.scope)) throw new ApiError('validation_error')
+      path = `automations?scope=${route.scope}`
+    } else if (route.kind === 'capabilities') path = 'character/capabilities'
     else if (route.kind === 'computer-files') {
       const params = new URLSearchParams({ path: route.path })
       if (route.cursor) params.set('cursor', route.cursor)
@@ -483,6 +522,12 @@ export class Connections {
       return value
     } catch (error) {
       if (error instanceof ApiError) {
+        if (
+          error.code === 'owner_required' &&
+          route.kind === 'automations' &&
+          route.scope === 'self'
+        )
+          box.db.prepare('DELETE FROM read_cache WHERE key=?').run(path)
         if (error.code === 'owner_required' && route.kind.startsWith('computer')) {
           box.db
             .prepare("DELETE FROM read_cache WHERE key='computer' OR key GLOB 'computer/*'")
@@ -600,6 +645,10 @@ export class Connections {
             this.emit(id, 'connection', { state: 'online' })
           }
           if (['sync', 'conversation', 'work'].includes(kind)) {
+            for (const item of this.characterCommands(id)
+              .list()
+              .filter((item) => item.state !== 'result'))
+              void this.verifyCharacterCommand(id, item.requestId).catch(() => {})
             for (const item of this.computerCommands(id)
               .list()
               .filter((item) => item.state !== 'result'))
@@ -657,6 +706,7 @@ export class Connections {
       ...this.checking.values(),
       ...[...this.uploadStores.values()].map((uploads) => uploads.settled()),
       ...[...this.commandStores.values()].map((commands) => commands.settle()),
+      ...[...this.characterStores.values()].map((commands) => commands.settle()),
     ]).then(() => this.outboxes.forEach((box) => box.db.close()))
   }
 }
