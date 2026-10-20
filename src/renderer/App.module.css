@@ -182,6 +182,24 @@
   gap: 8px;
   -webkit-app-region: drag;
   flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  background: var(--bg-content);
+}
+.toolbarScrolled {
+  background: color-mix(in srgb, var(--bg-content) 82%, transparent);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: 0 var(--line) 0 var(--separator);
+}
+:global([data-opaque='true']) .toolbarScrolled {
+  background: var(--bg-content);
+  backdrop-filter: none;
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .toolbarScrolled {
+    background: var(--bg-content);
+    backdrop-filter: none;
+  }
 }
 .toolbarTitle {
   margin-right: auto;

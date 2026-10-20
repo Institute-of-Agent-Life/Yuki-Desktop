@@ -114,6 +114,11 @@ export function Conversation({
   const list = useRef<HTMLDivElement>(null),
     bottom = useRef(true),
     [newMessages, setNewMessages] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const attachList = useCallback((element: HTMLDivElement | null) => {
+    list.current = element
+    setScrolled((element?.scrollTop ?? 0) > 0)
+  }, [])
   const [anchor, setAnchor] = useState<number | null>(null)
   const [jump, setJump] = useState<MessageReference>()
   const [historyError, setHistoryError] = useState('')
@@ -689,6 +694,7 @@ export function Conversation({
   return (
     <CharacterVisuals.Provider value={{ id, name, profile: profileData, presence }}>
       <Workspace
+        scrolled={scrolled}
         settings={settings}
         onView={settings ? onSettingsBack : undefined}
         toolbar={
@@ -1004,9 +1010,10 @@ export function Conversation({
               role="log"
               aria-label="對話訊息"
               aria-live="polite"
-              ref={list}
+              ref={attachList}
               onScroll={(event) => {
                 const node = event.currentTarget
+                setScrolled(node.scrollTop > 0)
                 bottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 64
                 needsEarlier.current = node.scrollTop < 48 && !bottom.current
                 if (needsEarlier.current) void more()

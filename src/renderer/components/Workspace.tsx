@@ -38,6 +38,7 @@ interface Props {
   onSettings?: () => void
   toolbar?: ReactNode
   toolbarTitle?: ReactNode
+  scrolled?: boolean
   settings?: ReactNode
   onView?(): void
 }
@@ -327,7 +328,7 @@ export function Workspace(props: Props) {
       <section className={styles.main} style={{ gridColumn: focusMode ? 1 : 3, gridRow: 1 }}>
         <header
           data-region="toolbar"
-          className={`${styles.toolbar} ${props.toolbar ? styles.customToolbar : ''}`}
+          className={`${styles.toolbar} ${props.toolbar ? styles.customToolbar : ''} ${props.scrolled && !showingSettings ? styles.toolbarScrolled : ''}`}
         >
           <IconButton label="側邊欄" onClick={toggleSidebar}>
             <PanelLeft size={16} strokeWidth={1.5} />

@@ -143,8 +143,7 @@ export function App({ boot }: { boot: BootInfo }) {
       preferences.opaque ||
       preferences.highContrast ||
       appearance.reducedTransparency ||
-      appearance.highContrast ||
-      boot.nativeMaterial === 'none'
+      appearance.highContrast
     root.dataset.opaque = String(opaque)
     root.dataset.material = opaque ? 'none' : boot.nativeMaterial
     root.dataset.platform = boot.platform

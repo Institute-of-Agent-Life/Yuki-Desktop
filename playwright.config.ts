@@ -22,6 +22,7 @@ export default defineConfig({
     'windows-window-controls.spec.ts',
     'native-materials.spec.ts',
     'mac-material-contrast.spec.ts',
+    'native-toolbar-scroll.spec.ts',
   ],
   outputDir: join(tmpdir(), 'yuki-desktop-e2e'),
   workers: 1,
