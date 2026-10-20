@@ -1,5 +1,7 @@
 import { expect, test, type ElectronApplication } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { launchShell } from '../fixtures/shell-app'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { contentSize } from '../fixtures/visual'
 
@@ -25,11 +27,22 @@ async function savedBounds(app: ElectronApplication) {
 test('native move events persist before an App crash and clamp an offscreen titlebar after movement settles', async () => {
   test.setTimeout(90000)
   const rig = await yukiFixture()
-  let app = await rig.launch('native-window-moves'),
+  let app = await launchShell(
+      join(rig.root, 'native-window-moves'),
+      process.env.YUKI_DESKTOP_EXECUTABLE,
+    ),
     success = false
   try {
     let page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
+    const security = await app.evaluate(({ app, BrowserWindow }) => {
+      const renderer = BrowserWindow.getAllWindows()[0]!.webContents.getOSProcessId()
+      return {
+        sandboxed: app.getAppMetrics().find((item) => item.pid === renderer)?.sandboxed,
+        noSandbox: app.commandLine.hasSwitch('no-sandbox'),
+      }
+    })
+    expect(security).toEqual({ sandboxed: true, noSandbox: false })
     const area = await app.evaluate(
       ({ BrowserWindow, screen }) =>
         screen.getDisplayMatching(BrowserWindow.getAllWindows()[0]!.getBounds()).workArea,
@@ -56,7 +69,10 @@ test('native move events persist before an App crash and clamp an offscreen titl
     await expect.poll(() => savedBounds(app)).toEqual(before)
     app.process().kill('SIGKILL')
     await app.close().catch(() => {})
-    app = await rig.launch('native-window-moves')
+    app = await launchShell(
+      join(rig.root, 'native-window-moves'),
+      process.env.YUKI_DESKTOP_EXECUTABLE,
+    )
     page = await app.firstWindow()
     await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
     expect(

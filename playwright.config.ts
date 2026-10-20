@@ -18,6 +18,7 @@ export default defineConfig({
     'windows-executor-submissions.spec.ts',
     'windows-character-data.spec.ts',
     'windows-roles.spec.ts',
+    'windows-window-geometry.spec.ts',
   ],
   outputDir: join(tmpdir(), 'yuki-desktop-e2e'),
   workers: 1,

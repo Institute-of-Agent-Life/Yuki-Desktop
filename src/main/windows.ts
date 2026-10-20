@@ -54,6 +54,24 @@ export function createWindow(store: LocalStore, pairing = false) {
       spellcheck: true,
     },
   })
+  const applyBounds = (bounds: Rect) => {
+    if (process.platform !== 'win32') {
+      win.setBounds(bounds)
+      return
+    }
+    // At fractional DPI, reapplying outer bounds can grow an overlay window.
+    // Move first, then size its client area using the measured frame difference.
+    const current = win.getBounds()
+    if (current.x !== bounds.x || current.y !== bounds.y) win.setPosition(bounds.x, bounds.y)
+    const outer = win.getBounds()
+    if (outer.width !== bounds.width || outer.height !== bounds.height) {
+      const content = win.getContentBounds()
+      win.setContentSize(
+        bounds.width - outer.width + content.width,
+        bounds.height - outer.height + content.height,
+      )
+    }
+  }
   let adjusting = false
   let moveTimer: ReturnType<typeof setTimeout> | undefined
   const cancelMove = () => {
@@ -72,8 +90,8 @@ export function createWindow(store: LocalStore, pairing = false) {
     )
     win.setMinimumSize(next.minimum.width, next.minimum.height)
     if (Object.keys(old).some((key) => old[key as keyof Rect] !== next.bounds[key as keyof Rect]))
-      win.setBounds(next.bounds)
-    if (!pairing && !win.isMaximized()) store.set('window', next.bounds)
+      applyBounds(next.bounds)
+    if (!pairing && !win.isMaximized()) store.set('window', win.getBounds())
     adjusting = false
   }
   modes.set(win, (nextPairing) => {
@@ -87,7 +105,7 @@ export function createWindow(store: LocalStore, pairing = false) {
       pairing ? 'pairing' : 'workspace',
     )
     win.setMinimumSize(next.minimum.width, next.minimum.height)
-    win.setBounds(next.bounds)
+    applyBounds(next.bounds)
     adjusting = false
   })
   screen.on('display-metrics-changed', fit)
@@ -126,7 +144,7 @@ export function createWindow(store: LocalStore, pairing = false) {
   })
   win.once('ready-to-show', () => {
     // Windows resolves its frame and per-monitor DPI during creation.
-    if (process.platform === 'win32' && pairing) win.setBounds(geometry.bounds)
+    if (process.platform === 'win32') applyBounds(geometry.bounds)
     win.show()
   })
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL)
