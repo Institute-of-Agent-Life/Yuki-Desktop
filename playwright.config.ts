@@ -9,6 +9,7 @@ export default defineConfig({
     'windows-onboarding.spec.ts',
     'windows-files.spec.ts',
     'windows-avatar.spec.ts',
+    'windows-media.spec.ts',
   ],
   outputDir: join(tmpdir(), 'yuki-desktop-e2e'),
   workers: 1,
