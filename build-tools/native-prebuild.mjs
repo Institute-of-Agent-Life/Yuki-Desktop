@@ -2,8 +2,8 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath, URL } from 'node:url'
 import { Arch } from 'builder-util'
 
-export async function inspectPrebuild(file, platform, arch) {
-  const bytes = await readFile(file)
+export function binaryArchitecture(bytes, platform) {
+  if (bytes.length < 64) return undefined
   let machine
   if (platform === 'darwin' && bytes.readUInt32LE(0) === 0xfeedfacf)
     machine =
@@ -22,7 +22,10 @@ export async function inspectPrebuild(file, platform, arch) {
       bytes.readUInt16LE(18) === 183 ? 'arm64' : bytes.readUInt16LE(18) === 62 ? 'x64' : undefined
   else if (platform === 'win32' && bytes.subarray(0, 2).toString() === 'MZ') {
     const header = bytes.readUInt32LE(0x3c)
-    if (bytes.subarray(header, header + 4).toString('hex') === '50450000')
+    if (
+      header <= bytes.length - 6 &&
+      bytes.subarray(header, header + 4).toString('hex') === '50450000'
+    )
       machine =
         bytes.readUInt16LE(header + 4) === 0xaa64
           ? 'arm64'
@@ -30,8 +33,16 @@ export async function inspectPrebuild(file, platform, arch) {
             ? 'x64'
             : undefined
   }
+  return machine
+}
+export async function inspectExecutable(file, platform, arch) {
+  if (binaryArchitecture(await readFile(file), platform) !== arch)
+    throw Error(`Executable architecture mismatch: ${platform}/${arch}`)
+}
+export async function inspectPrebuild(file, platform, arch) {
+  const bytes = await readFile(file)
   if (
-    machine !== arch ||
+    binaryArchitecture(bytes, platform) !== arch ||
     !bytes.includes(Buffer.from('napi_register_module_v1')) ||
     !bytes.includes(Buffer.from('node_api_module_get_api_version_v1'))
   )

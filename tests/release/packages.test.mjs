@@ -210,3 +210,17 @@ test('real archive inspection rejects local material before extracting or upload
     await run(await getPath7za(), ['a', '-tzip', extra, 'state-fixture.png'], { cwd: source })
     await assert.rejects(auditInstaller(extra), /Unexpected Mac zip root content/)
   }))
+test('real archive inspection rejects an application whose CPU differs from its release label', async () =>
+  fixture(async (root) => {
+    const source = join(root, 'wrong-architecture')
+    await mkdir(join(source, 'Yuki.app/Contents/Resources'), { recursive: true })
+    await mkdir(join(source, 'Yuki.app/Contents/MacOS'), { recursive: true })
+    await writeFile(join(source, 'Yuki.app/Contents/Resources/app.asar'), 'not a real app archive')
+    const executable = Buffer.alloc(64)
+    executable.writeUInt32LE(0xfeedfacf, 0)
+    executable.writeUInt32LE(0x01000007, 4)
+    await writeFile(join(source, 'Yuki.app/Contents/MacOS/Yuki'), executable)
+    const file = join(root, 'Yuki-1.0.0-beta.1-mac-arm64.zip')
+    await run(await getPath7za(), ['a', '-tzip', file, 'Yuki.app'], { cwd: source })
+    await assert.rejects(auditInstaller(file), /Executable architecture mismatch: darwin\/arm64/)
+  }))

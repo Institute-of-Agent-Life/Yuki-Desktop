@@ -71,6 +71,7 @@ deb:
   depends:
     [libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libsecret-1-0, fonts-noto-cjk]
 rpm:
+  fpm: [--rpm-rpmbuild-define, _rpmformat 4]
   appArmorProfile: resources/linux/apparmor-profile.tpl
   depends:
     [

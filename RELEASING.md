@@ -20,7 +20,7 @@ npm run check:package
 node build-tools/prepare-upload.mjs dist/upload dist
 ```
 
-macOS 產生兩架構各自的 DMG、zip；Windows 為每使用者 NSIS x64；Linux 各架構產生 AppImage、deb、rpm。固定 SQLite 13 使用 Node-API 10 預建模組，打包不重編譯 V8 ABI；beforePack 會核對已安裝版本與目標 Mach-O／PE／ELF 架構及 Node-API 匯出，缺失或不符即失敗。實際 SQLite 執行由 shipped Electron 的單元測試驗證。Linux 打包主機需 rpm 工具；AppImage 內容審查用固定 builder 的 7-Zip 直接解出 SquashFS，不執行 ELF 或安裝系統套件。Ubuntu 與 Fedora 的實際安裝、Wayland／X11、portal、libsecret、AppIndicator 與縮放仍須原生驗收。
+macOS 產生兩架構各自的 DMG、zip；Windows 為每使用者 NSIS x64；Linux 各架構產生 AppImage、deb、rpm。固定 SQLite 13 使用 Node-API 10 預建模組，打包不重編譯 V8 ABI；beforePack 會核對已安裝版本與目標 Mach-O／PE／ELF 架構及 Node-API 匯出，缺失或不符即失敗。實際 SQLite 執行由 shipped Electron 的單元測試驗證。Linux 打包主機需 rpm 工具；設定明確產生 RPM 4 格式，避免建置主機升級 rpm 後改變套件相容性與解包稽核能力。AppImage 內容審查用固定 builder 的 7-Zip 直接解出 SquashFS，不執行 ELF 或安裝系統套件。Ubuntu 與 Fedora 的實際安裝、Wayland／X11、portal、libsecret、AppIndicator 與縮放仍須原生驗收。
 
 `build-tools/builder-config.mjs` 由版本決定 feed：正式版為 `latest*.yml`，`-beta.N` 為 `beta*.yml`。不要省略這個設定直接呼叫 builder，GitHub provider 不會自行推導 beta feed。檔名使用 `Yuki-<version>-<mac|win|linux>-<架構>.<ext>`；架構沿 builder 的格式慣例：mac／win 為 x64／arm64，Linux x64 的 AppImage／rpm 為 x86_64、deb 為 amd64，Linux arm64 的 rpm 為 aarch64、其他為 arm64。GitHub tag 為 `desktop-v<version>`。App 的 provider 支援此標籤前綴，beta 通道也能採用較新的正式版；兩個通道均禁止降版。
 
@@ -28,7 +28,7 @@ Linux `.desktop` 的名稱與 Electron app_id 使用同一個 `yuki.desktop`。L
 
 ## 內容與完整性
 
-`check:package` 審查 ASAR 產品白名單。`prepare-upload` 另解開實際 zip、DMG、NSIS、deb、rpm 或 AppImage，檢查外層與解出的 ASAR，再核對 feed 中每個檔案的 SHA-512。它拒絕本地文件／原型路徑、未知待上傳檔案、跨版本／跨平台 feed、缺失檔案、衝突檔名與逃逸路徑。DMG 以唯讀方式掛載並卸載；Windows 使用 builder 固定版本的 7-Zip；包裝工具下載走既有 builder 工具鏈。
+`check:package` 審查 ASAR 產品白名單。`prepare-upload` 另解開實際 zip、DMG、NSIS、deb、rpm 或 AppImage，檢查外層與解出的 ASAR，核對真正應用程式執行檔的 CPU 與發行檔名一致、Linux 保留已核准的 sandbox 啟動器，再核對 feed 中每個檔案的 SHA-512。它拒絕本地文件／原型路徑、未知待上傳檔案、跨版本／跨平台 feed、缺失檔案、衝突檔名與逃逸路徑。DMG 以唯讀方式掛載並卸載；Windows 使用 builder 固定版本的 7-Zip；包裝工具下載走既有 builder 工具鏈。
 
 只上傳新生成的 upload 目錄，不能直接上傳整個 dist、工作目錄、測試報告或暫存目錄。upload 只含安裝檔、對應 blockmap、feed 與 `SHA256SUMS`。產物審查 JSON 寫在旁邊的 `<upload目錄>.local-audit.json`，僅供本地核對，不可上傳或加入 CI artifacts。審查紀錄不等於簽章或原生安裝通過。
 
