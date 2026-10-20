@@ -21,7 +21,7 @@ import { CharacterAvatar, CharacterVisuals } from '../components/CharacterAvatar
 import { characterPresence } from '../../shared/presence'
 import { PromptEditor } from './PromptEditor'
 import { useDisplayTime } from '../state/time'
-import { Copy, Reply } from 'lucide-react'
+import { ArrowLeft, Copy, Reply } from 'lucide-react'
 import { Workspace } from '../components/Workspace'
 import { unwrap, problemText, hidesPrivateData, ClientProblem } from '../queries/client'
 import { useWorkspace, useSessionActive } from '../state/workspace'
@@ -51,6 +51,8 @@ export function Conversation({
   onSettings,
   onPairAgain,
   roleSwitcher,
+  settings,
+  onSettingsBack,
 }: {
   connection: Connection
   platform: string
@@ -58,6 +60,8 @@ export function Conversation({
   onSettings(target?: 'folder'): void
   onPairAgain(): void
   roleSwitcher?: React.ReactNode
+  settings?: React.ReactNode
+  onSettingsBack?(): void
 }) {
   const workspace = useWorkspace()
   const active = useSessionActive()
@@ -71,8 +75,8 @@ export function Conversation({
   const [promptToolbar, setPromptToolbar] = useState<HTMLDivElement | null>(null)
   const [computerToolbar, setComputerToolbar] = useState<HTMLDivElement | null>(null)
   useEffect(() => {
-    if (view !== 'about' || focusMode) setPromptEditing(false)
-  }, [view, focusMode])
+    if (settings || view !== 'about' || focusMode) setPromptEditing(false)
+  }, [view, focusMode, settings])
   const { artifact, preview, selectedWork, messageStage } = workspace
   const conversation = workspace.conversationId ?? connection.conversationId
   const [draft, setDraft] = useState('')
@@ -324,12 +328,13 @@ export function Conversation({
     [id, refresh],
   )
   useEffect(() => {
-    if (!active) return
+    if (!active || settings) return
     const search = () => setPalette(true)
     window.addEventListener('yuki:search', search)
     return () => window.removeEventListener('yuki:search', search)
-  }, [active])
+  }, [active, settings])
   useCommands((command) => {
+    if (settings) return
     if (command === 'focus-composer')
       document
         .querySelector<HTMLTextAreaElement>(`[data-character-session="${id}"] textarea`)
@@ -394,8 +399,8 @@ export function Conversation({
     }
   }, [profileData?.accent, preferences.theme, active])
   useEffect(() => {
-    if (!active) setPalette(false)
-  }, [active])
+    if (!active || settings) setPalette(false)
+  }, [active, settings])
   const choose = (next: string) => {
     needsEarlier.current = false
     setAnchor(null)
@@ -684,8 +689,18 @@ export function Conversation({
   return (
     <CharacterVisuals.Provider value={{ id, name, profile: profileData, presence }}>
       <Workspace
+        settings={settings}
+        onView={settings ? onSettingsBack : undefined}
         toolbar={
-          promptEditing && view === 'about' && !focusMode ? (
+          settings ? (
+            <>
+              <Button variant="plain" onClick={onSettingsBack}>
+                <ArrowLeft size={16} />
+                返回
+              </Button>
+              <strong>設定</strong>
+            </>
+          ) : promptEditing && view === 'about' && !focusMode ? (
             <div className={styles.promptToolbar} ref={setPromptToolbar} />
           ) : undefined
         }
@@ -714,13 +729,22 @@ export function Conversation({
                   className={styles.entry}
                   key={item.conversation_id}
                   aria-current={item.conversation_id === conversation ? 'page' : undefined}
-                  onClick={() => choose(item.conversation_id)}
+                  onClick={() => {
+                    choose(item.conversation_id)
+                    if (settings) onSettingsBack?.()
+                  }}
                 >
                   {item.platform.toUpperCase()} · {item.display_name}
                 </button>
               ))}
             {!isMain && (
-              <Button variant="plain" onClick={() => choose(connection.conversationId)}>
+              <Button
+                variant="plain"
+                onClick={() => {
+                  choose(connection.conversationId)
+                  if (settings) onSettingsBack?.()
+                }}
+              >
                 回到桌面對話
               </Button>
             )}

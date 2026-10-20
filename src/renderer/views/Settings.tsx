@@ -51,6 +51,7 @@ export function Row({
 }
 export function Settings({
   boot,
+  embedded = false,
   preferences,
   save,
   back,
@@ -63,6 +64,7 @@ export function Settings({
   onAddCharacter,
 }: {
   boot: BootInfo
+  embedded?: boolean
   preferences: Preferences
   save(patch: Partial<Preferences>): Promise<void>
   back(): void
@@ -123,13 +125,15 @@ export function Settings({
         : '登入這台電腦時開啟 Yuki。'
   return (
     <section className={styles.settings} aria-label="設定">
-      <header className={styles.header}>
-        <Button variant="plain" onClick={back} disabled={!!connection?.logout}>
-          <ArrowLeft size={16} />
-          返回
-        </Button>
-        <strong>設定</strong>
-      </header>
+      {!embedded && (
+        <header className={styles.header}>
+          <Button variant="plain" onClick={back} disabled={!!connection?.logout}>
+            <ArrowLeft size={16} />
+            返回
+          </Button>
+          <strong>設定</strong>
+        </header>
+      )}
       <div className={styles.layout}>
         <nav
           className={styles.categories}

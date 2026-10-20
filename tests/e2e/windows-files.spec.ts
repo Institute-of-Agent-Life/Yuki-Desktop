@@ -51,6 +51,16 @@ test('Windows native diagnostics export uses the real file dialog and excludes p
     })
     const destination = join(data, '原生診斷.json')
     await page.keyboard.press('Control+,')
+    const sidebar = page.getByRole('navigation', { name: '主要導覽', exact: true })
+    await expect(sidebar).toBeVisible()
+    await expect(sidebar.getByRole('button', { name: '設定', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(
+      (await page.getByRole('tablist', { name: '設定分類', exact: true }).boundingBox())!.width,
+    ).toBe(200)
+    await expect(page.getByRole('complementary', { name: '檢視器', exact: true })).toHaveCount(0)
     await page.getByRole('tab', { name: '進階', exact: true }).click()
     const nativeOwner = await windowsFileDialogOwner(app)
     await page.getByRole('button', { name: '匯出…', exact: true }).click()

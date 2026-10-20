@@ -38,6 +38,8 @@ interface Props {
   onSettings?: () => void
   toolbar?: ReactNode
   toolbarTitle?: ReactNode
+  settings?: ReactNode
+  onView?(): void
 }
 const views = [
   ['chat', '對話', MessageCircle],
@@ -51,15 +53,26 @@ const views = [
 export function Workspace(props: Props) {
   const state = useWorkspace()
   const active = useSessionActive()
+  const focusMode = !props.settings && state.focusMode
+  const inspector = !props.settings && state.inspector
+  const selectedView = props.settings ? 'settings' : state.view
+  const selectView = (view: View) => {
+    state.setView(view)
+    props.onView?.()
+  }
   const [width, setWidth] = useState(window.innerWidth)
   const stopDrag = useRef<(() => void) | undefined>(undefined)
   useLayoutEffect(
     () => () => stopDrag.current?.(),
-    [active, width, state.sidebar, state.inspector, state.focusMode],
+    [active, width, state.sidebar, inspector, focusMode],
   )
   const [overlaySidebar, setOverlaySidebar] = useState(false)
+  const showingSettings = !!props.settings
+  useEffect(() => {
+    if (showingSettings) setOverlaySidebar(false)
+  }, [showingSettings])
   const toggleSidebar = () => {
-    if (state.focusMode)
+    if (focusMode)
       requestNavigation(() => {
         state.patch({ focusMode: false, sidebar: true })
         if (width < 1100) setOverlaySidebar(true)
@@ -79,11 +92,11 @@ export function Workspace(props: Props) {
         if (target?.offsetWidth && !target.closest('[inert]')) target.focus()
       })
     }
-    if (state.focusMode) requestNavigation(close)
+    if (focusMode) requestNavigation(close)
     else close()
   }
   const toggleInspector = () => {
-    if (state.inspector || state.focusMode) closeInspector()
+    if (inspector || focusMode) closeInspector()
     else state.toggle('inspector')
   }
   const inspectorTabs = [
@@ -100,17 +113,17 @@ export function Workspace(props: Props) {
   }, [])
   useCommands((command) => {
     if (command === 'sidebar') toggleSidebar()
-    else if (command === 'inspector') toggleInspector()
-    else if (command === 'focus-mode') state.toggle('focusMode')
+    else if (!props.settings && command === 'inspector') toggleInspector()
+    else if (!props.settings && command === 'focus-mode') state.toggle('focusMode')
     else if (command !== 'settings' && views.some(([view]) => view === command))
-      state.setView(command as View)
+      selectView(command as View)
   })
   const layout = columns(
     width,
     state.sidebarWidth,
     state.inspectorWidth,
     state.sidebar,
-    state.inspector,
+    inspector,
     !state.inspectorWidthCustom,
   )
   const sidebar = layout.overlaySidebar ? overlaySidebar : state.sidebar
@@ -152,7 +165,7 @@ export function Workspace(props: Props) {
   const divider = (kind: 'sidebarWidth' | 'inspectorWidth') => (
     <div
       className={styles.divider}
-      style={{ gridColumn: kind === 'sidebarWidth' ? 2 : state.focusMode ? 2 : 4, gridRow: 1 }}
+      style={{ gridColumn: kind === 'sidebarWidth' ? 2 : focusMode ? 2 : 4, gridRow: 1 }}
     >
       <button
         aria-label={kind === 'sidebarWidth' ? '調整側邊欄' : '調整檢視器'}
@@ -187,7 +200,7 @@ export function Workspace(props: Props) {
           status={props.status}
           color={props.presence}
           avatar={props.avatar}
-          open={() => state.setView('about')}
+          open={() => selectView('about')}
         />
         {props.roleSwitcher}
       </div>
@@ -198,8 +211,8 @@ export function Workspace(props: Props) {
           <button
             className={styles.nav}
             key={view}
-            aria-current={state.view === view ? 'page' : undefined}
-            onClick={() => state.setView(view)}
+            aria-current={selectedView === view ? 'page' : undefined}
+            onClick={() => selectView(view)}
           >
             <Icon size={16} strokeWidth={1.5} />
             {label}
@@ -216,8 +229,8 @@ export function Workspace(props: Props) {
           <button
             className={styles.nav}
             key={view}
-            aria-current={state.view === view ? 'page' : undefined}
-            onClick={() => state.setView(view)}
+            aria-current={selectedView === view ? 'page' : undefined}
+            onClick={() => selectView(view)}
           >
             <Icon size={16} strokeWidth={1.5} />
             {view === 'computer'
@@ -230,6 +243,7 @@ export function Workspace(props: Props) {
       <div className={styles.group} />
       <button
         className={styles.nav}
+        aria-current={selectedView === 'settings' ? 'page' : undefined}
         onClick={() => {
           requestNavigation(() => {
             if (props.onSettings) props.onSettings()
@@ -245,9 +259,9 @@ export function Workspace(props: Props) {
   return (
     <div
       ref={root}
-      className={`${styles.shell} ${props.platform === 'darwin' && (!layout.sidebar || state.focusMode) ? styles.macCollapsed : ''}`}
+      className={`${styles.shell} ${props.platform === 'darwin' && (!layout.sidebar || focusMode) ? styles.macCollapsed : ''}`}
       style={{
-        gridTemplateColumns: state.focusMode
+        gridTemplateColumns: focusMode
           ? '400px 0 minmax(0,1fr)'
           : `${layout.sidebar}px 0 minmax(0,1fr) 0 ${layout.inspector}px`,
       }}
@@ -255,9 +269,9 @@ export function Workspace(props: Props) {
         const target = event.target as HTMLElement
         if (target.closest('dialog,[role="dialog"]')) return
         if (
-          !state.focusMode &&
+          !focusMode &&
           layout.overlayInspector &&
-          state.inspector &&
+          inspector &&
           !target.closest('[data-region="inspector"],button[aria-label="檢視器"]')
         )
           state.patch({ inspector: false })
@@ -271,7 +285,7 @@ export function Workspace(props: Props) {
       onKeyDown={(event) => {
         if ((event.target as HTMLElement).closest('dialog')) return
         if (event.key === 'Escape') {
-          if (state.inspector || state.focusMode) closeInspector()
+          if (inspector || focusMode) closeInspector()
           else if (layout.overlaySidebar && overlaySidebar) setOverlaySidebar(false)
         }
         if (event.key === 'F6') {
@@ -293,7 +307,7 @@ export function Workspace(props: Props) {
         }
       }}
     >
-      {!state.focusMode && (
+      {!focusMode && (
         <>
           <nav
             data-region="sidebar"
@@ -310,7 +324,7 @@ export function Workspace(props: Props) {
           {layout.sidebar > 0 && divider('sidebarWidth')}
         </>
       )}
-      <section className={styles.main} style={{ gridColumn: state.focusMode ? 1 : 3, gridRow: 1 }}>
+      <section className={styles.main} style={{ gridColumn: focusMode ? 1 : 3, gridRow: 1 }}>
         <header
           data-region="toolbar"
           className={`${styles.toolbar} ${props.toolbar ? styles.customToolbar : ''}`}
@@ -322,16 +336,16 @@ export function Workspace(props: Props) {
             <>
               {props.toolbarTitle ?? (
                 <span className={styles.toolbarTitle}>
-                  {state.view === 'chat' || state.focusMode
+                  {state.view === 'chat' || focusMode
                     ? props.name
                     : views.find(([view]) => view === state.view)?.[1]}
                 </span>
               )}
               <IconButton
-                label={state.focusMode ? '收合工作區' : '展開工作區'}
+                label={focusMode ? '收合工作區' : '展開工作區'}
                 onClick={() => state.toggle('focusMode')}
               >
-                {state.focusMode ? (
+                {focusMode ? (
                   <Minimize2 size={16} strokeWidth={1.5} />
                 ) : (
                   <Maximize2 size={16} strokeWidth={1.5} />
@@ -351,17 +365,17 @@ export function Workspace(props: Props) {
           <UpdateReadyButton />
         </header>
         <div className={styles.content} data-region="content" tabIndex={-1}>
-          {props.children}
+          {props.settings ?? props.children}
         </div>
       </section>
-      {(state.inspector || state.focusMode) && (
+      {(inspector || focusMode) && (
         <>
-          {!state.focusMode && layout.inspector > 0 && divider('inspectorWidth')}
+          {!focusMode && layout.inspector > 0 && divider('inspectorWidth')}
           <aside
-            style={{ gridColumn: state.focusMode ? 3 : 5, gridRow: 1 }}
+            style={{ gridColumn: focusMode ? 3 : 5, gridRow: 1 }}
             data-region="inspector"
             aria-label="檢視器"
-            className={`${styles.inspector} ${layout.overlayInspector && !state.focusMode ? styles.overlay : ''}`}
+            className={`${styles.inspector} ${layout.overlayInspector && !focusMode ? styles.overlay : ''}`}
           >
             <header className={styles.inspectorHeader}>
               {props.inspectorTitle ? (

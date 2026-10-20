@@ -177,6 +177,44 @@ export function App({ boot }: { boot: BootInfo }) {
   })
   const pairing = step === 'adding' || !connection || !!pairingTarget
   const showingSettings = step === 'settings' || (step !== 'adding' && !!connection?.logout)
+  const settingsInWorkspace =
+    showingSettings && connection && !connection.logout && !connection.needsPairing && !pairing
+  const settings = (
+    <Settings
+      key={connection?.characterId ?? 'desktop'}
+      embedded={!!settingsInWorkspace}
+      folderRequest={folderSettings}
+      serverRequest={serverSettings}
+      boot={boot}
+      preferences={preferences}
+      save={save}
+      connection={connection}
+      onConnection={updateConnection}
+      onAddCharacter={adding}
+      onLoggedOut={async () => {
+        const previous = connection!
+        await query.cancelQueries({ queryKey: [previous.characterId] })
+        query.removeQueries({ queryKey: [previous.characterId] })
+        forgetWorkspace(previous)
+        setTarget(null)
+        setPairLink(null)
+        setNavigationError('')
+        const remaining = unwrap(await window.yuki.client.connections())
+        setConnections(remaining)
+        setConnection(remaining[0])
+        setPairingTarget(
+          remaining[0] ? undefined : { ...previous, logout: undefined, needsPairing: true },
+        )
+        selection.current = remaining[0]?.characterId
+        setStep('welcome')
+      }}
+      about={() => {
+        workspace?.setView('about')
+        setStep('welcome')
+      }}
+      back={() => setStep('welcome')}
+    />
+  )
   return (
     <UpdateProvider>
       <UpdatePending />
@@ -185,15 +223,9 @@ export function App({ boot }: { boot: BootInfo }) {
           <div className={styles.titlebar} />
           {navigationError && <Banner status="failed">{navigationError}</Banner>}
           {connections
-            .filter(
-              (item) =>
-                !item.logout &&
-                !item.needsPairing &&
-                !(showingSettings && item.characterId === connection?.characterId),
-            )
+            .filter((item) => !item.logout && !item.needsPairing)
             .map((item) => {
-              const active =
-                item.characterId === connection?.characterId && !showingSettings && !pairing
+              const active = item.characterId === connection?.characterId && !pairing
               const scope = workspaceScope(item)
               return (
                 <WorkspaceSession key={scope} scope={scope} active={active}>
@@ -207,6 +239,8 @@ export function App({ boot }: { boot: BootInfo }) {
                       connection={item}
                       platform={boot.platform}
                       preferences={preferences}
+                      settings={settingsInWorkspace && active ? settings : undefined}
+                      onSettingsBack={() => setStep('welcome')}
                       roleSwitcher={
                         connections.length > 1 ? (
                           <RoleSwitcher
@@ -236,39 +270,7 @@ export function App({ boot }: { boot: BootInfo }) {
               )
             })}
           {showingSettings ? (
-            <Settings
-              key={connection?.characterId ?? 'desktop'}
-              folderRequest={folderSettings}
-              serverRequest={serverSettings}
-              boot={boot}
-              preferences={preferences}
-              save={save}
-              connection={connection}
-              onConnection={updateConnection}
-              onAddCharacter={adding}
-              onLoggedOut={async () => {
-                const previous = connection!
-                await query.cancelQueries({ queryKey: [previous.characterId] })
-                query.removeQueries({ queryKey: [previous.characterId] })
-                forgetWorkspace(previous)
-                setTarget(null)
-                setPairLink(null)
-                setNavigationError('')
-                const remaining = unwrap(await window.yuki.client.connections())
-                setConnections(remaining)
-                setConnection(remaining[0])
-                setPairingTarget(
-                  remaining[0] ? undefined : { ...previous, logout: undefined, needsPairing: true },
-                )
-                selection.current = remaining[0]?.characterId
-                setStep('welcome')
-              }}
-              about={() => {
-                workspace?.setView('about')
-                setStep('welcome')
-              }}
-              back={() => setStep('welcome')}
-            />
+            !settingsInWorkspace && settings
           ) : pairing ? (
             <Pairing
               key={`${step}/${pairingTarget?.characterId ?? 'new'}`}
