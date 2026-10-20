@@ -44,6 +44,9 @@ test('real workspace handles long conversations, separate entries, work details 
       },
       {
         verify: async () => {
+          const heading = page.getByRole('heading', { name: '長文字與中英混排', exact: true })
+          await heading.scrollIntoViewIfNeeded()
+          await expect(heading).toBeInViewport({ ratio: 1 })
           await expect(composer).toBeInViewport({ ratio: 1 })
           await expect(page.getByRole('button', { name: '送出', exact: true })).toBeInViewport({
             ratio: 1,
@@ -82,11 +85,21 @@ test('real workspace handles long conversations, separate entries, work details 
       .getByRole('article')
       .filter({ has: page.getByRole('heading', { name: '原工作整合測試', exact: true }) })
     await expect(card.getByText('等你回覆', { exact: true })).toBeVisible({ timeout: 20000 })
-    await captureWorkspace(app, page, 'state-chat-waiting', async () => {
-      await page.keyboard.press('ControlOrMeta+1')
-      await expect(card.getByText('等你回覆', { exact: true })).toBeVisible()
-      await card.scrollIntoViewIfNeeded()
-    })
+    await captureWorkspace(
+      app,
+      page,
+      'state-chat-waiting',
+      async () => {
+        await page.keyboard.press('ControlOrMeta+1')
+        await expect(card.getByText('等你回覆', { exact: true })).toBeVisible()
+      },
+      {
+        verify: async () => {
+          await card.scrollIntoViewIfNeeded()
+          await expect(card).toBeInViewport({ ratio: 1 })
+        },
+      },
+    )
     await captureWorkspace(app, page, 'state-works-waiting', async () => {
       await page.keyboard.press('ControlOrMeta+2')
       await expect(page.getByRole('button', { name: /等你回覆.*原工作整合測試/ })).toBeVisible()
