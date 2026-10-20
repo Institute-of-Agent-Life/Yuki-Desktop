@@ -2,7 +2,7 @@ import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { readFile, writeFile, readdir } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { pairUI, yukiFixture } from '../fixtures/backend'
@@ -62,9 +62,12 @@ test('real QR pixels pair a second device once; original device revocation survi
     const link = (await sheet.getByLabel('一次性綁定連結', { exact: true }).textContent())!
     await expect(sheet.getByRole('img', { name: '綁定連結 QR', exact: true })).toBeVisible()
     if (process.platform === 'darwin') {
-      const source = (await sheet.getByRole('img').getAttribute('src'))!,
-        path = join(rig.root, 'actual-qr.png')
-      await writeFile(path, Buffer.from(source.split(',')[1]!, 'base64'))
+      const qr = sheet.getByRole('img', { name: '綁定連結 QR', exact: true })
+      await expect(sheet.getByRole('button', { name: '另外產生綁定碼', exact: true })).toBeEnabled()
+      await expect(qr).toHaveCSS('width', '120px')
+      await expect(qr).toBeInViewport({ ratio: 1 })
+      const path = join(rig.root, 'actual-rendered-qr.png')
+      await qr.screenshot({ path })
       const decoded = await promisify(execFile)(
         '/usr/bin/swift',
         [fileURLToPath(new URL('../fixtures/decode-qr.swift', import.meta.url)), path],
@@ -296,8 +299,19 @@ test('device and one-time-code sheets keep actual controls reachable in four the
         )
         await page.getByRole('button', { name: '產生綁定碼', exact: true }).click()
         const sheet = page.getByRole('dialog', { name: '連接另一台裝置', exact: true })
-        await expect(sheet.getByRole('img', { name: '綁定連結 QR', exact: true })).toBeVisible()
-        await expect(sheet.getByRole('button', { name: '完成', exact: true })).toBeVisible()
+        const qr = sheet.getByRole('img', { name: '綁定連結 QR', exact: true })
+        await expect(qr).toBeVisible()
+        await expect(
+          sheet.getByRole('button', { name: '另外產生綁定碼', exact: true }),
+        ).toBeEnabled()
+        await expect(qr).toHaveCSS('width', '120px')
+        await expect(qr).toBeInViewport({ ratio: 1 })
+        await expect(sheet.getByRole('button', { name: '完成', exact: true })).toBeInViewport({
+          ratio: 1,
+        })
+        await expect(
+          sheet.getByRole('button', { name: '複製綁定連結', exact: true }),
+        ).toBeInViewport({ ratio: 1 })
         await captureViewport(
           app,
           page,

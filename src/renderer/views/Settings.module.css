@@ -125,17 +125,23 @@
   align-items: center;
   margin: 12px 0;
 }
+.pairDetails {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
 .qr {
   display: block;
   max-width: 100%;
   height: auto;
-  margin: 16px auto;
+  margin: 0;
   background: #fff;
   border-radius: 8px;
 }
 .secret {
   font: 13px/20px var(--font-mono);
-  text-align: center;
+  text-align: left;
   overflow-wrap: anywhere;
   user-select: text;
 }

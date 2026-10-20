@@ -310,7 +310,9 @@ export function DeviceSecurity({
         width={600}
         actions={
           <>
-            <Button onClick={close}>完成</Button>
+            <Button variant="primary" onClick={close}>
+              完成
+            </Button>
             <Button disabled={busy || lost} onClick={() => void issue()}>
               另外產生綁定碼
             </Button>
@@ -334,22 +336,34 @@ export function DeviceSecurity({
             </Banner>
           ) : issued.code && !expired ? (
             <>
-              {qr ? (
-                <img className={styles.qr} src={qr} width={256} height={256} alt="綁定連結 QR" />
-              ) : (
-                !qrError && <Spinner />
-              )}
-              {qrError && <p className={styles.notice}>{qrError}</p>}
-              <p className={styles.secret} aria-label="一次性綁定碼">
-                {issued.code}
-              </p>
-              <p className={styles.link} aria-label="一次性綁定連結">
-                {link}
-              </p>
-              <p className={styles.notice}>有效至 {date(expires ?? null)}</p>
-              <div className={styles.actions}>
-                <Button onClick={() => void copy(issued.code!)}>複製綁定碼</Button>
-                <Button onClick={() => void copy(link)}>複製綁定連結</Button>
+              <div className={styles.pairDetails}>
+                <div>
+                  {qr ? (
+                    <img
+                      className={styles.qr}
+                      src={qr}
+                      width={120}
+                      height={120}
+                      alt="綁定連結 QR"
+                    />
+                  ) : (
+                    !qrError && <Spinner />
+                  )}
+                </div>
+                <div>
+                  {qrError && <p className={styles.notice}>{qrError}</p>}
+                  <p className={styles.secret} aria-label="一次性綁定碼">
+                    {issued.code}
+                  </p>
+                  <p className={styles.link} aria-label="一次性綁定連結">
+                    {link}
+                  </p>
+                  <p className={styles.notice}>有效至 {date(expires ?? null)}</p>
+                  <div className={styles.actions}>
+                    <Button onClick={() => void copy(issued.code!)}>複製綁定碼</Button>
+                    <Button onClick={() => void copy(link)}>複製綁定連結</Button>
+                  </div>
+                </div>
               </div>
             </>
           ) : (
