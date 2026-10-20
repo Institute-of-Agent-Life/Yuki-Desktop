@@ -308,3 +308,15 @@
   line-height: 28px;
   font-weight: 600;
 }
+
+.computerToolbar {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+.computerToolbarFallback {
+  font-weight: 600;
+}
+.computerToolbar:has(> [data-computer-toolbar]) > .computerToolbarFallback {
+  display: none;
+}

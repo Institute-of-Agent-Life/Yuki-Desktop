@@ -69,6 +69,7 @@ export function Conversation({
   const focusMode = useWorkspace((state) => state.focusMode)
   const [promptEditing, setPromptEditing] = useState(false)
   const [promptToolbar, setPromptToolbar] = useState<HTMLDivElement | null>(null)
+  const [computerToolbar, setComputerToolbar] = useState<HTMLDivElement | null>(null)
   useEffect(() => {
     if (view !== 'about' || focusMode) setPromptEditing(false)
   }, [view, focusMode])
@@ -688,6 +689,13 @@ export function Conversation({
             <div className={styles.promptToolbar} ref={setPromptToolbar} />
           ) : undefined
         }
+        toolbarTitle={
+          view === 'computer' && !focusMode && !accessLost && profileData?.viewer.is_owner ? (
+            <div className={styles.computerToolbar} ref={setComputerToolbar}>
+              <span className={styles.computerToolbarFallback}>{name} 的電腦</span>
+            </div>
+          ) : undefined
+        }
         roleSwitcher={roleSwitcher}
         name={name}
         avatar={<CharacterAvatar />}
@@ -849,7 +857,13 @@ export function Conversation({
               {accessLost ? problemText(connectionProblem) : '這項操作需要角色擁有者權限。'}
             </Banner>
           ) : (
-            <Computer key={id} connection={connection} name={name} work={openWork} />
+            <Computer
+              key={id}
+              connection={connection}
+              name={name}
+              work={openWork}
+              toolbar={computerToolbar}
+            />
           )
         ) : view === 'files' && !focusMode ? (
           accessLost ? (

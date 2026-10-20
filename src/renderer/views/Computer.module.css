@@ -26,16 +26,9 @@
   margin: 0 0 5px;
 }
 .header span,
-.status,
-.refreshing {
+.status {
   color: var(--text-secondary);
   font-size: 12px;
-}
-.refreshing {
-  position: absolute;
-  right: 24px;
-  top: 4px;
-  font-size: 11px;
 }
 .helpText {
   flex: 1;
@@ -251,4 +244,44 @@
   .status {
     font-size: 11px;
   }
+}
+
+.toolbarHeader {
+  width: 100%;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.toolbarHeader > div:first-child {
+  min-width: 0;
+  overflow: hidden;
+}
+.toolbarHeader h2 {
+  font-size: 13px;
+  line-height: 18px;
+  margin: 0;
+}
+.toolbarHeader span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 15px;
+}
+.toolbarHeader > button {
+  flex-shrink: 0;
+}
+
+.toolbarHeader h2,
+.toolbarHeader .returnLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.header .returnLabel {
+  color: inherit;
+  font: inherit;
+}
+.toolbarHeader .returnLabel {
+  max-width: 180px;
 }

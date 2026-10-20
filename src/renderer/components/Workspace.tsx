@@ -37,6 +37,7 @@ interface Props {
   entries?: ReactNode
   onSettings?: () => void
   toolbar?: ReactNode
+  toolbarTitle?: ReactNode
 }
 const views = [
   ['chat', '對話', MessageCircle],
@@ -319,11 +320,13 @@ export function Workspace(props: Props) {
           </IconButton>
           {props.toolbar ?? (
             <>
-              <span className={styles.toolbarTitle}>
-                {state.view === 'chat' || state.focusMode
-                  ? props.name
-                  : views.find(([view]) => view === state.view)?.[1]}
-              </span>
+              {props.toolbarTitle ?? (
+                <span className={styles.toolbarTitle}>
+                  {state.view === 'chat' || state.focusMode
+                    ? props.name
+                    : views.find(([view]) => view === state.view)?.[1]}
+                </span>
+              )}
               <IconButton
                 label={state.focusMode ? '收合工作區' : '展開工作區'}
                 onClick={() => state.toggle('focusMode')}

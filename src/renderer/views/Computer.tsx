@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import RFB from '@novnc/novnc'
 import { Camera, ClipboardPaste, Keyboard, Maximize2, Moon, Monitor, RefreshCw } from 'lucide-react'
@@ -40,11 +41,13 @@ export function Computer({
   name,
   work,
   compact,
+  toolbar,
 }: {
   connection: Connection
   name: string
   work(id: string): void
   compact?: { expand(): void }
+  toolbar?: HTMLElement | null
 }) {
   const id = connection.characterId,
     query = useComputer(id),
@@ -128,7 +131,9 @@ export function Computer({
           </Button>
         )}
         <Button variant={held ? 'primary' : 'secondary'} disabled={blocked} onClick={release}>
-          交回給 {name}
+          <span className={styles.returnLabel} title={`交回給 ${name}`}>
+            交回給 {name}
+          </span>
         </Button>
       </>
     ) : (
@@ -140,45 +145,54 @@ export function Computer({
         接手
       </Button>
     )
+  const header = (
+    <div
+      className={`${styles.header} ${toolbar ? styles.toolbarHeader : ''}`}
+      data-computer-toolbar={toolbar ? '' : undefined}
+      role="group"
+      aria-label="電腦狀態與控制"
+    >
+      <div>
+        <h2>{name} 的電腦</h2>
+        <span>
+          {state.display === 'running'
+            ? '運作中'
+            : state.display === 'starting'
+              ? '正在啟動桌面'
+              : state.display === 'stopped'
+                ? '休息中'
+                : '目前無法讀取'}{' '}
+          · 控制：
+          {control?.holder === 'human'
+            ? held
+              ? '你'
+              : control.device_label
+            : control?.holder === 'agent'
+              ? name
+              : '無'}
+          {query.isFetching && !query.isPending ? ' · 正在確認最新狀態' : ''}
+        </span>
+      </div>
+      {!compact && (
+        <>
+          {controls}
+          <IconButton
+            label="讓電腦休息"
+            disabled={blocked || state.display !== 'running'}
+            onClick={() => setSheet({ kind: 'sleep', snapshot: state })}
+          >
+            <Moon size={16} />
+          </IconButton>
+        </>
+      )}
+    </div>
+  )
   return (
     <section
       className={`${styles.computer} ${compact ? styles.compact : ''}`}
       aria-label={`${name} 的電腦${compact ? '預覽' : ''}`}
     >
-      <header className={styles.header}>
-        <div>
-          <h2>{name} 的電腦</h2>
-          <span>
-            {state.display === 'running'
-              ? '運作中'
-              : state.display === 'starting'
-                ? '正在啟動桌面'
-                : state.display === 'stopped'
-                  ? '休息中'
-                  : '目前無法讀取'}{' '}
-            · 控制：
-            {control?.holder === 'human'
-              ? held
-                ? '你'
-                : control.device_label
-              : control?.holder === 'agent'
-                ? name
-                : '無'}
-          </span>
-        </div>
-        {!compact && (
-          <>
-            {controls}
-            <IconButton
-              label="讓電腦休息"
-              disabled={blocked || state.display !== 'running'}
-              onClick={() => setSheet({ kind: 'sleep', snapshot: state })}
-            >
-              <Moon size={16} />
-            </IconButton>
-          </>
-        )}
-      </header>
+      {toolbar ? createPortal(header, toolbar) : header}
       {help.length > 0 &&
         (compact ? (
           <p className={styles.previewHelp} role="status">
@@ -209,9 +223,6 @@ export function Computer({
           </Banner>
         ))}
       {problem && <Banner status="failed">{problem}</Banner>}
-      {!compact && query.isFetching && !query.isPending && (
-        <span className={styles.refreshing}>正在確認最新狀態</span>
-      )}
       {state.display === 'running' ? (
         <RemoteScreen key={id} id={id} held={held && !compact} preview={!!compact} />
       ) : (
