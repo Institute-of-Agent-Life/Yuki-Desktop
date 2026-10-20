@@ -193,6 +193,11 @@ export function Conversation({
     }
   }, [id, target])
   const accessLost = hidesPrivateData(new ClientProblem(connectionProblem))
+  const updateRequired =
+    connectionProblem === 'client_upgrade_required' ||
+    [events.error, home.error, profile.error].some(
+      (error) => error instanceof ClientProblem && error.code === 'client_upgrade_required',
+    )
   const eventData = accessLost || hidesPrivateData(events.error) ? undefined : events.data,
     homeData = accessLost || hidesPrivateData(home.error) ? undefined : home.data,
     profileData = accessLost || hidesPrivateData(profile.error) ? undefined : profile.data
@@ -780,6 +785,14 @@ export function Conversation({
           )
         }
       >
+        {updateRequired && (
+          <Banner status="failed">
+            {problemText('client_upgrade_required')}
+            <Button variant="plain" onClick={() => onSettings()}>
+              查看 App 更新
+            </Button>
+          </Banner>
+        )}
         {mediaError && view !== 'chat' && <Banner status="failed">{mediaError}</Banner>}
         {view === 'computer' && !focusMode ? (
           accessLost || !profileData?.viewer.is_owner ? (
@@ -864,7 +877,7 @@ export function Conversation({
             {dragging && <div className={mediaStyles.drop}>放開以附加</div>}
             {mediaError && <Banner status="failed">{mediaError}</Banner>}
             {historyError && <Banner status="failed">{historyError}</Banner>}
-            {online !== 'online' && (
+            {online !== 'online' && !updateRequired && (
               <Banner>
                 {connectionProblem
                   ? problemText(connectionProblem)

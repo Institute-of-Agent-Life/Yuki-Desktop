@@ -105,6 +105,21 @@ const bridge: DesktopBridge = {
       return () => ipcRenderer.removeListener('yuki:hint', listener)
     },
   },
+  updates: {
+    state: () => ipcRenderer.invoke('yuki:update-state'),
+    check: () => ipcRenderer.invoke('yuki:update-check'),
+    download: () => ipcRenderer.invoke('yuki:update-download'),
+    cancel: () => ipcRenderer.invoke('yuki:update-cancel'),
+    install: () => ipcRenderer.invoke('yuki:update-install'),
+    onChange(callback) {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        state: import('../shared/updates').UpdateState,
+      ) => callback(state)
+      ipcRenderer.on('yuki:update', listener)
+      return () => ipcRenderer.removeListener('yuki:update', listener)
+    },
+  },
   boot: () => ipcRenderer.invoke('yuki:boot'),
   onLeaveRequest(callback) {
     const listener = (_event: Electron.IpcRendererEvent, request: string) => callback(request)

@@ -11,6 +11,8 @@ import { problemText, unwrap } from './queries/client'
 import { requestNavigation } from './state/navigation'
 import { TimeZoneContext } from './state/time'
 import { Settings } from './views/Settings'
+import { UpdatePending } from './components/Updates'
+import { UpdateProvider } from './state/updates'
 import { RoleSwitcher } from './components/RoleSwitcher'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -176,136 +178,144 @@ export function App({ boot }: { boot: BootInfo }) {
   const pairing = step === 'adding' || !connection || !!pairingTarget
   const showingSettings = step === 'settings' || !!connection?.logout
   return (
-    <TimeZoneContext.Provider value={preferences.timeZone}>
-      <main className={styles.app}>
-        <div className={styles.titlebar} />
-        {navigationError && <Banner status="failed">{navigationError}</Banner>}
-        {connections
-          .filter(
-            (item) =>
-              !item.logout &&
-              !item.needsPairing &&
-              !(showingSettings && item.characterId === connection?.characterId),
-          )
-          .map((item) => {
-            const active =
-              item.characterId === connection?.characterId && !showingSettings && !pairing
-            const scope = workspaceScope(item)
-            return (
-              <WorkspaceSession key={scope} scope={scope} active={active}>
-                <div
-                  className={styles.roleSession}
-                  hidden={!active}
-                  inert={!active}
-                  data-character-session={item.characterId}
-                >
-                  <Conversation
-                    connection={item}
-                    platform={boot.platform}
-                    preferences={preferences}
-                    roleSwitcher={
-                      connections.length > 1 ? (
-                        <RoleSwitcher
-                          connections={connections}
-                          selected={item.characterId}
-                          select={select}
-                        />
-                      ) : undefined
-                    }
-                    onSettings={(next) =>
-                      requestNavigation(() => {
-                        setFolderSettings(next === 'folder')
-                        setServerSettings(false)
-                        setStep('settings')
-                      })
-                    }
-                    onPairAgain={() =>
-                      requestNavigation(() => {
-                        setPairingTarget(item)
-                        setConnection(item)
-                        setStep('welcome')
-                      })
-                    }
-                  />
-                </div>
-              </WorkspaceSession>
+    <UpdateProvider>
+      <UpdatePending />
+      <TimeZoneContext.Provider value={preferences.timeZone}>
+        <main className={styles.app}>
+          <div className={styles.titlebar} />
+          {navigationError && <Banner status="failed">{navigationError}</Banner>}
+          {connections
+            .filter(
+              (item) =>
+                !item.logout &&
+                !item.needsPairing &&
+                !(showingSettings && item.characterId === connection?.characterId),
             )
-          })}
-        {showingSettings ? (
-          <Settings
-            key={connection?.characterId ?? 'desktop'}
-            folderRequest={folderSettings}
-            serverRequest={serverSettings}
-            boot={boot}
-            preferences={preferences}
-            save={save}
-            connection={connection}
-            onConnection={updateConnection}
-            onAddCharacter={adding}
-            onLoggedOut={async () => {
-              const previous = connection!
-              await query.cancelQueries({ queryKey: [previous.characterId] })
-              query.removeQueries({ queryKey: [previous.characterId] })
-              forgetWorkspace(previous)
-              setTarget(null)
-              setPairLink(null)
-              setNavigationError('')
-              const remaining = unwrap(await window.yuki.client.connections())
-              setConnections(remaining)
-              setConnection(remaining[0])
-              setPairingTarget(
-                remaining[0] ? undefined : { ...previous, logout: undefined, needsPairing: true },
+            .map((item) => {
+              const active =
+                item.characterId === connection?.characterId && !showingSettings && !pairing
+              const scope = workspaceScope(item)
+              return (
+                <WorkspaceSession key={scope} scope={scope} active={active}>
+                  <div
+                    className={styles.roleSession}
+                    hidden={!active}
+                    inert={!active}
+                    data-character-session={item.characterId}
+                  >
+                    <Conversation
+                      connection={item}
+                      platform={boot.platform}
+                      preferences={preferences}
+                      roleSwitcher={
+                        connections.length > 1 ? (
+                          <RoleSwitcher
+                            connections={connections}
+                            selected={item.characterId}
+                            select={select}
+                          />
+                        ) : undefined
+                      }
+                      onSettings={(next) =>
+                        requestNavigation(() => {
+                          setFolderSettings(next === 'folder')
+                          setServerSettings(false)
+                          setStep('settings')
+                        })
+                      }
+                      onPairAgain={() =>
+                        requestNavigation(() => {
+                          setPairingTarget(item)
+                          setConnection(item)
+                          setStep('welcome')
+                        })
+                      }
+                    />
+                  </div>
+                </WorkspaceSession>
               )
-              selection.current = remaining[0]?.characterId
-              setStep('welcome')
-            }}
-            about={() => {
-              workspace?.setView('about')
-              setStep('welcome')
-            }}
-            back={() => setStep('welcome')}
-          />
-        ) : pairing ? (
-          <Pairing
-            key={`${step}/${pairingTarget?.characterId ?? 'new'}`}
-            label={boot.deviceLabel}
-            initialLink={pairLink}
-            initialServer={pairingTarget?.baseUrl}
-            reconnect={!!pairingTarget}
-            startAtServer={step === 'adding'}
-            onCancel={
-              step === 'adding' && connection
-                ? () => {
-                    setPairLink(null)
-                    setStep('settings')
-                  }
-                : undefined
-            }
-            onResumeLogout={async (id) => {
-              const candidate = unwrap(await window.yuki.client.connections()).find(
-                (item) => item.characterId === id,
-              )
-              if (!candidate) throw new Error('原連線已處理完成，可以重新配對。')
-              setPairLink(null)
-              setPairingTarget(undefined)
-              updateConnection(candidate)
-              setStep('settings')
-            }}
-            onDone={(value) => {
-              void query.cancelQueries({ queryKey: [value.characterId] })
-              query.removeQueries({ queryKey: [value.characterId] })
-              updateConnection(value)
-              setPairingTarget(undefined)
-              setPairLink(null)
-              setStep('welcome')
-              if (target?.characterId === value.characterId) {
-                workspaceFor(workspaceScope(value)).getState().navigate(target)
-                void window.yuki.client.acknowledgeTarget(target)
+            })}
+          {showingSettings ? (
+            <Settings
+              key={connection?.characterId ?? 'desktop'}
+              folderRequest={folderSettings}
+              serverRequest={serverSettings}
+              boot={boot}
+              preferences={preferences}
+              save={save}
+              connection={connection}
+              onConnection={updateConnection}
+              onAddCharacter={adding}
+              onLoggedOut={async () => {
+                const previous = connection!
+                await query.cancelQueries({ queryKey: [previous.characterId] })
+                query.removeQueries({ queryKey: [previous.characterId] })
+                forgetWorkspace(previous)
+                setTarget(null)
+                setPairLink(null)
+                setNavigationError('')
+                const remaining = unwrap(await window.yuki.client.connections())
+                setConnections(remaining)
+                setConnection(remaining[0])
+                setPairingTarget(
+                  remaining[0] ? undefined : { ...previous, logout: undefined, needsPairing: true },
+                )
+                selection.current = remaining[0]?.characterId
+                setStep('welcome')
+              }}
+              about={() => {
+                workspace?.setView('about')
+                setStep('welcome')
+              }}
+              back={() => setStep('welcome')}
+            />
+          ) : pairing ? (
+            <Pairing
+              key={`${step}/${pairingTarget?.characterId ?? 'new'}`}
+              label={boot.deviceLabel}
+              onUpdate={() => {
+                setFolderSettings(false)
+                setServerSettings(false)
+                setStep('settings')
+              }}
+              initialLink={pairLink}
+              initialServer={pairingTarget?.baseUrl}
+              reconnect={!!pairingTarget}
+              startAtServer={step === 'adding'}
+              onCancel={
+                step === 'adding' && connection
+                  ? () => {
+                      setPairLink(null)
+                      setStep('settings')
+                    }
+                  : undefined
               }
-            }}
-          />
-        ) : null}
-      </main>
-    </TimeZoneContext.Provider>
+              onResumeLogout={async (id) => {
+                const candidate = unwrap(await window.yuki.client.connections()).find(
+                  (item) => item.characterId === id,
+                )
+                if (!candidate) throw new Error('原連線已處理完成，可以重新配對。')
+                setPairLink(null)
+                setPairingTarget(undefined)
+                updateConnection(candidate)
+                setStep('settings')
+              }}
+              onDone={(value) => {
+                void query.cancelQueries({ queryKey: [value.characterId] })
+                query.removeQueries({ queryKey: [value.characterId] })
+                updateConnection(value)
+                setPairingTarget(undefined)
+                setPairLink(null)
+                setStep('welcome')
+                if (target?.characterId === value.characterId) {
+                  workspaceFor(workspaceScope(value)).getState().navigate(target)
+                  void window.yuki.client.acknowledgeTarget(target)
+                }
+              }}
+            />
+          ) : null}
+        </main>
+      </TimeZoneContext.Provider>
+    </UpdateProvider>
   )
 }

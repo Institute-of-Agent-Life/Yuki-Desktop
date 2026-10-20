@@ -32,6 +32,7 @@ publish:
   owner: Institute-of-Agent-Life
   repo: Yuki-Desktop
   releaseType: draft
+  tagNamePrefix: desktop-v
 mac:
   icon: resources/icons/app/1024x1024.png
   category: public.app-category.productivity

@@ -1342,6 +1342,20 @@ export class Connections {
       delay = Math.min(delay * 2, 30000)
     }
   }
+  suspendForUpdate() {
+    const owned = this.list()
+      .filter((item) => !this.frozen.has(item.characterId) && !item.logout)
+      .map((item) => item.characterId)
+    for (const id of owned) this.freeze(id)
+    return { ids: owned, settled: Promise.all(owned.map((id) => this.drain(id))) }
+  }
+  resumeAfterUpdate(ids: string[]) {
+    for (const id of ids) {
+      this.frozen.delete(id)
+      if (!this.closed && this.list().some((item) => item.characterId === id && !item.logout))
+        this.start(id)
+    }
+  }
   close() {
     this.closed = true
     this.executorStores.forEach((context) => context.runtime.disconnect())
@@ -1364,9 +1378,10 @@ export class Connections {
       ...[...this.linkCodeStores.values()].map((codes) => codes.settled()),
       ...[...this.executorStores.values()].map((context) => context.commands.settled()),
       ...[...this.executorStores.values()].map((context) => context.setup.settled()),
+      ...[...this.executorStores.values()].map((context) => context.runtime.settled()),
     ]).then(() =>
       this.outboxes.forEach((box) => {
-        if (!this.executorStores.get(box)?.runtime.hasWork) box.db.close()
+        if (box.db.open && !this.executorStores.get(box)?.runtime.hasWork) box.db.close()
       }),
     )
   }

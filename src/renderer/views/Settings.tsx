@@ -11,6 +11,7 @@ import {
   Laptop,
 } from 'lucide-react'
 import type { Connection } from '../../shared/api'
+import { UpdatePanel } from '../components/Updates'
 import { ServerSettings } from './ServerSettings'
 import { DeviceSecurity } from './DeviceSecurity'
 import { LocalConnection } from './LocalConnection'
@@ -184,6 +185,7 @@ export function Settings({
           {category === 'general' ? (
             <>
               <div className={styles.group}>
+                <UpdatePanel preferences={preferences} save={save} />
                 <Row title="登入時開啟" description={loginDescription}>
                   {login.isPending ? (
                     <Spinner />

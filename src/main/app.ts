@@ -1,3 +1,6 @@
+import electronUpdater from 'electron-updater'
+import { AppUpdates } from './updates'
+import { FeedOnlyUpdater } from './feed-updater'
 import {
   app,
   clipboard,
@@ -202,6 +205,32 @@ else {
     native.update(store.preferences())
     let quitAllowed = false,
       askingToQuit = false
+    let installAfterQuit = false
+    let closingResources = false
+    let suspendedForUpdate: string[] = []
+    const updates = new AppUpdates(
+      {
+        version: app.getVersion(),
+        packaged: app.isPackaged,
+        platform: process.platform,
+        appImage: process.env.APPIMAGE,
+        channel: store.preferences().updateChannel,
+      },
+      () =>
+        process.platform === 'linux' && !process.env.APPIMAGE
+          ? new FeedOnlyUpdater()
+          : electronUpdater.autoUpdater,
+      (state) => {
+        if (win && !win.webContents.isDestroyed()) win.webContents.send('yuki:update', state)
+        if (state.phase === 'error' && installAfterQuit && !closingResources) {
+          installAfterQuit = false
+          quitAllowed = false
+          connections.resumeAfterUpdate(suspendedForUpdate)
+          suspendedForUpdate = []
+          reveal?.()
+        }
+      },
+    )
     let leaveReady: number | undefined
     let leaving:
       { id: string; promise: Promise<boolean>; resolve(allowed: boolean): void } | undefined
@@ -274,14 +303,31 @@ else {
         }
         return true
       })()
-        .then((allowed) => {
-          askingToQuit = false
-          if (allowed) {
+        .then(async (allowed) => {
+          if (!allowed) {
+            installAfterQuit = false
+            return
+          }
+          if (installAfterQuit) {
+            updates.prepareInstall()
+            const suspension = connections.suspendForUpdate()
+            suspendedForUpdate = suspension.ids
+            await suspension.settled
+            quitAllowed = true
+            updates.installNow()
+          } else {
             quitAllowed = true
             app.quit()
           }
         })
         .catch(() => {
+          updates.installFailed()
+          installAfterQuit = false
+          quitAllowed = false
+          connections.resumeAfterUpdate(suspendedForUpdate)
+          suspendedForUpdate = []
+        })
+        .finally(() => {
           askingToQuit = false
         })
     })
@@ -299,6 +345,17 @@ else {
         }
       })
     }
+    action('update-state', () => updates.state())
+    action('update-check', () => updates.check())
+    action('update-download', () => updates.download())
+    action('update-cancel', () => updates.cancel())
+    action('update-install', () => {
+      if (!updates.canInstall()) throw new ApiError('update_not_downloaded')
+      if (askingToQuit || installAfterQuit) return false
+      installAfterQuit = true
+      app.quit()
+      return true
+    })
     const clientAction = <A extends unknown[], T>(
       name: string,
       run: (id: string, ...args: A) => T | Promise<T>,
@@ -735,6 +792,13 @@ else {
       if (['system', 'light', 'dark'].includes(patch.theme ?? '')) current.theme = patch.theme!
       if (patch.timeZone === 'Asia/Taipei' || patch.timeZone === 'system')
         current.timeZone = patch.timeZone
+      if (
+        (patch.updateChannel === 'stable' || patch.updateChannel === 'beta') &&
+        !['preparing', 'installing'].includes(updates.state().phase)
+      ) {
+        current.updateChannel = patch.updateChannel
+        void updates.channel(current.updateChannel).catch(() => {})
+      }
       if (patch.sendKey === 'enter' || patch.sendKey === 'command-enter')
         current.sendKey = patch.sendKey
       if (typeof patch.sidebarWidth === 'number' && Number.isFinite(patch.sidebarWidth))
@@ -804,12 +868,30 @@ else {
     app.on('window-all-closed', () => {
       if (!store.preferences().keepInTray) app.quit()
     })
-    app.on('will-quit', () => {
-      native.close()
-      void notifications
+    let resourcesClosed = false
+    let closing: Promise<void> | undefined
+    app.on('will-quit', (event) => {
+      if (resourcesClosed) return
+      event.preventDefault()
+      if (closing) return
+      closingResources = true
+      closing = notifications
         .close()
         .then(() => connections.close())
-        .then(() => store.db.close())
+        .then(() => {
+          native.close()
+          if (store.db.open) store.db.close()
+          resourcesClosed = true
+          // Electron must finish cancelling this will-quit before a new quit request.
+          setImmediate(() => app.quit())
+        })
+        .catch(() => {
+          closing = undefined
+          void dialog.showMessageBox({
+            type: 'error',
+            message: '本機資料尚未完成關閉，請重新嘗試結束 App。',
+          })
+        })
     })
   })
 }

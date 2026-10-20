@@ -35,6 +35,7 @@ export interface Preferences {
   notifyWaiting: boolean
   notifyCompleted: boolean
   notifyHelp: boolean
+  updateChannel: import('./updates').UpdateChannel
 }
 
 export const defaultPreferences: Preferences = {
@@ -51,6 +52,7 @@ export const defaultPreferences: Preferences = {
   notifyWaiting: true,
   notifyCompleted: true,
   notifyHelp: true,
+  updateChannel: 'stable',
 }
 export interface NavigationTarget {
   characterId: string
@@ -73,6 +75,14 @@ export interface BootInfo {
 
 export interface DesktopBridge {
   client: ConversationBridge
+  updates: {
+    state(): Promise<import('./api').ApiReply<import('./updates').UpdateState>>
+    check(): Promise<import('./api').ApiReply<import('./updates').UpdateState>>
+    download(): Promise<import('./api').ApiReply<import('./updates').UpdateState>>
+    cancel(): Promise<import('./api').ApiReply<import('./updates').UpdateState>>
+    install(): Promise<import('./api').ApiReply<boolean>>
+    onChange(callback: (state: import('./updates').UpdateState) => void): () => void
+  }
   boot(): Promise<BootInfo>
   preferences(patch: Partial<Preferences>): Promise<Preferences>
   loginItem(enabled?: boolean): Promise<import('./api').ApiReply<LoginItemState>>

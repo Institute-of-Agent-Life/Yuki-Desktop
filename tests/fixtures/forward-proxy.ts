@@ -13,6 +13,7 @@ export async function forwardProxy(target: string, prefix: string) {
     holdResponseSuffixes: new Set<string>(),
     rejectPostSuffixes: new Set<string>(),
     loseNextSuffix: '',
+    minDesktop: null as string | null,
   }
   const lostStatuses: number[] = []
   const held = new Map<string, (() => void)[]>()
@@ -65,7 +66,18 @@ export async function forwardProxy(target: string, prefix: string) {
           active.delete(response)
           if (!active.size) responses.delete(path)
         })
-        if (loseResponse) {
+        if (faults.minDesktop && path.endsWith('/client/v1/meta')) {
+          const chunks: Buffer[] = []
+          response.on('data', (part) => chunks.push(Buffer.from(part)))
+          response.on('end', () => {
+            const body = JSON.parse(Buffer.concat(chunks).toString())
+            body.data.min_client.desktop = faults.minDesktop
+            const headers = { ...response.headers }
+            delete headers['content-length']
+            res.writeHead(response.statusCode!, headers)
+            res.end(JSON.stringify(body))
+          })
+        } else if (loseResponse) {
           lostStatuses.push(response.statusCode!)
           response.resume()
           response.on('end', () => {

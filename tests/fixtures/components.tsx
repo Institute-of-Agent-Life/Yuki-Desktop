@@ -16,6 +16,14 @@ import { Workspace } from '../../src/renderer/components/Workspace'
 import '../../src/renderer/tokens.css'
 
 window.yuki = {
+  updates: {
+    state: async () => ({ ok: false, code: 'unavailable' }),
+    check: async () => ({ ok: false, code: 'unavailable' }),
+    download: async () => ({ ok: false, code: 'unavailable' }),
+    cancel: async () => ({ ok: false, code: 'unavailable' }),
+    install: async () => ({ ok: false, code: 'unavailable' }),
+    onChange: () => () => {},
+  },
   client: {
     executorState: async () => ({ ok: false, code: 'fixture_only' }),
     clearUnavailableExecutor: async () => ({ ok: false, code: 'fixture_only' }),

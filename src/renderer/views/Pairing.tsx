@@ -16,6 +16,7 @@ export function Pairing({
   onResumeLogout,
   startAtServer = false,
   onCancel,
+  onUpdate,
 }: {
   label: string
   initialLink: string | null
@@ -23,6 +24,7 @@ export function Pairing({
   reconnect?: boolean
   startAtServer?: boolean
   onCancel?(): void
+  onUpdate(): void
   onDone(connection: Connection): void
   onResumeLogout(characterId: string): Promise<void>
 }) {
@@ -37,6 +39,7 @@ export function Pairing({
     [connection, setConnection] = useState<Connection>()
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('')
+  const [updateNeeded, setUpdateNeeded] = useState(false)
   const [pendingLogout, setPendingLogout] = useState<string>()
   const parsed = parsePairing(codeInput)
   const prefill = (link: string) => {
@@ -54,10 +57,12 @@ export function Pairing({
   const run = async (action: () => Promise<void>) => {
     setBusy(true)
     setError('')
+    setUpdateNeeded(false)
     setPendingLogout(undefined)
     try {
       await action()
     } catch (error) {
+      setUpdateNeeded(error instanceof ClientProblem && error.code === 'client_upgrade_required')
       setError(error instanceof Error ? error.message : '操作未完成。')
       if (error instanceof ClientProblem && error.code === 'logout_pending' && meta)
         setPendingLogout(meta.character.id)
@@ -115,6 +120,7 @@ export function Pairing({
                 : '你在其他入口的對話與工作，也能在這裡接續。'}
         </p>
         {error && <Banner status="failed">{error}</Banner>}
+        {updateNeeded && <Button onClick={onUpdate}>查看 App 更新</Button>}
         {pendingLogout && (
           <Button loading={busy} onClick={() => void run(() => onResumeLogout(pendingLogout))}>
             處理登出中的本機資料

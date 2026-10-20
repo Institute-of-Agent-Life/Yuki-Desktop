@@ -16,6 +16,7 @@ import {
 import { columns } from '../../main/geometry'
 import { useWorkspace } from '../state/workspace'
 import { IconButton } from './Controls'
+import { UpdateReadyButton } from './Updates'
 import { PresenceCard } from './PresenceCard'
 import type { Preferences, View } from '../../shared/desktop'
 import styles from '../App.module.css'
@@ -280,6 +281,7 @@ export function Workspace(props: Props) {
               </IconButton>
             </>
           )}
+          <UpdateReadyButton />
         </header>
         <div className={styles.content} data-region="content" tabIndex={-1}>
           {props.children}

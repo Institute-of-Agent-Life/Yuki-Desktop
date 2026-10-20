@@ -155,17 +155,20 @@ export function Segmented<T extends string>({
   items,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string
   items: readonly { value: T; label: string }[]
   value: T
   onChange: (value: T) => void
+  disabled?: boolean
 }) {
   return (
     <div className={styles.segment} role="tablist" aria-label={label}>
       {items.map((item, index) => (
         <button
           key={item.value}
+          disabled={disabled}
           type="button"
           role="tab"
           aria-selected={value === item.value}
