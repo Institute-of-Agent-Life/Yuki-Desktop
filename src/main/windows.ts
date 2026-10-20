@@ -55,7 +55,13 @@ export function createWindow(store: LocalStore, pairing = false) {
     },
   })
   let adjusting = false
+  let moveTimer: ReturnType<typeof setTimeout> | undefined
+  const cancelMove = () => {
+    clearTimeout(moveTimer)
+    moveTimer = undefined
+  }
   const fit = () => {
+    cancelMove()
     if (win.isDestroyed() || win.isMinimized() || win.isFullScreen() || adjusting) return
     adjusting = true
     const old = win.getBounds()
@@ -87,10 +93,18 @@ export function createWindow(store: LocalStore, pairing = false) {
   screen.on('display-metrics-changed', fit)
   screen.on('display-added', fit)
   screen.on('display-removed', fit)
-  win.on('moved', fit)
+  // `moved` is unavailable on Linux. Wait for movement to settle before
+  // clamping so intermediate positions can cross into another display.
+  win.on('move', () => {
+    if (adjusting || win.isDestroyed()) return
+    cancelMove()
+    moveTimer = setTimeout(fit, 150)
+    moveTimer.unref()
+  })
   win.on('resize', fit)
   win.on('close', fit)
   win.once('closed', () => {
+    cancelMove()
     modes.delete(win)
     screen.removeListener('display-metrics-changed', fit)
     screen.removeListener('display-added', fit)
