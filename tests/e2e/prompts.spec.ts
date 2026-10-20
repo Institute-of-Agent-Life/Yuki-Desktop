@@ -640,3 +640,130 @@ test('a crashed renderer can quit normally and reopen the original unsaved draft
     await rig.close(success)
   }
 })
+
+test('short prompt workspace keeps its explanation accessible and saves through actual keyboard navigation', async () => {
+  test.setTimeout(60000)
+  const rig = await yukiFixture({ character: true, prompts: true }),
+    app = await rig.launch('short-prompt-device')
+  let success = false
+  try {
+    const page = await app.firstWindow()
+    await pairUI(page, rig.base, await rig.code())
+    await open(page)
+    const region = page.getByRole('region', { name: '提示詞編輯器', exact: true }),
+      explanation = region.locator('p').filter({ hasText: '下一次開始新的回覆' }),
+      hint = page.getByRole('button', { name: '提示詞生效說明', exact: true })
+    await expect(explanation).toBeVisible()
+    await expect(hint).toBeHidden()
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0]!
+      window.setMinimumSize(960, 492)
+      window.setContentSize(960, 492)
+    })
+    await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([960, 492])
+    await expect(explanation).toBeHidden()
+    await expect(hint).toBeVisible()
+    await edit(page, '# 小工作區的實際鍵盤儲存\r\n{{YUKI_PERSONA_CORE}}')
+    await expect(save(page)).toBeEnabled()
+    const nativePlatform = await page.evaluate(() => document.documentElement.dataset.platform!)
+    // CSS reservation checks on this real Electron are emulation, not native OS acceptance.
+    for (const platform of ['darwin', 'win32', 'linux']) {
+      await page.evaluate((value) => {
+        document.documentElement.dataset.platform = value
+      }, platform)
+      expect((await page.locator('[data-region="toolbar"]').boundingBox())!.height).toBe(52)
+      expect((await region.locator(':scope > footer').boundingBox())!.height).toBe(28)
+      expect((await region.locator('.cm-scroller').boundingBox())!.height).toBeGreaterThanOrEqual(
+        160,
+      )
+      await expect(save(page)).toBeInViewport({ ratio: 1 })
+      await expect(hint).toBeInViewport({ ratio: 1 })
+      const action = (await save(page).boundingBox())!
+      expect(action.x + action.width).toBeLessThanOrEqual(platform === 'darwin' ? 960 : 810)
+    }
+    await page.evaluate((value) => {
+      document.documentElement.dataset.platform = value
+    }, nativePlatform)
+    await editor(page).click()
+    const regions = await page.locator('[data-region]:visible').count()
+    for (let index = 0; index < regions; index++) {
+      await page.keyboard.press('F6')
+      if (
+        await page.evaluate(
+          () =>
+            document.activeElement?.closest('[data-region]')?.getAttribute('data-region') ===
+            'toolbar',
+        )
+      )
+        break
+    }
+    for (let index = 0; index < 3; index++) await page.keyboard.press('Tab')
+    await expect(hint).toBeFocused()
+    await expect(page.getByRole('tooltip')).toBeVisible()
+    await expect(page.getByRole('tooltip')).toContainText('正在進行的那一段用原本的內容做完')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('tooltip')).toBeHidden()
+    await expect(hint).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(page.getByRole('button', { name: '還原', exact: true })).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(save(page)).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(save(page)).toBeDisabled()
+    await expect
+      .poll(
+        async () =>
+          (await commands(page)).filter(
+            (item) => item.state === 'result' && item.result !== null && item.problem === null,
+          ).length,
+      )
+      .toBe(1)
+    await hint.hover()
+    await expect(page.getByRole('tooltip')).toBeVisible()
+    await page.screenshot({
+      path: test.info().outputPath('darwin-2x-light-state-short-960x492-prompt-info.png'),
+    })
+    await page.mouse.move(0, 0)
+    await expect(page.getByRole('tooltip')).toBeHidden()
+    const other = await rig.launch('short-prompt-other-device')
+    try {
+      const second = await other.firstWindow()
+      await pairUI(second, rig.base, await rig.code())
+      await open(second)
+      await edit(page, '# 原裝置未儲存的草稿\r\n{{YUKI_PERSONA_CORE}}')
+      await edit(second, '# 另一台裝置的新版本\r\n{{YUKI_PERSONA_CORE}}')
+      await save(second).click()
+      await expect(save(second)).toBeDisabled()
+      const conflict = page.getByText('另一台裝置儲存了新版本。你的草稿基於較早的版本。', {
+        exact: true,
+      })
+      await expect(conflict).toBeVisible()
+      expect((await conflict.locator('..').boundingBox())!.height).toBe(32)
+      expect((await region.locator('.cm-scroller').boundingBox())!.height).toBeGreaterThanOrEqual(
+        160,
+      )
+      await expect(page.getByRole('button', { name: '比較差異', exact: true })).toBeInViewport({
+        ratio: 1,
+      })
+      await expect(save(page)).toBeInViewport({ ratio: 1 })
+      await page.screenshot({
+        path: test.info().outputPath('darwin-2x-light-state-short-960x492-prompt.png'),
+      })
+      await page.getByRole('button', { name: '放棄我的修改', exact: true }).click()
+      await expect(conflict).toBeHidden()
+    } finally {
+      other.process().kill('SIGKILL')
+      await other.close().catch(() => {})
+    }
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0]!.setContentSize(1100, 760),
+    )
+    await expect(explanation).toBeVisible()
+    await expect(hint).toBeHidden()
+    success = true
+  } finally {
+    if (!success) app.process().kill('SIGKILL')
+    await app.close().catch(() => {})
+    await rig.close(success)
+  }
+})

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { diffLines } from 'diff'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Info } from 'lucide-react'
 import type {
   PromptCommand,
   PromptCommandItem,
@@ -45,6 +45,8 @@ export function PromptEditor({
 }) {
   const { timeLabel } = useDisplayTime()
   const active = useSessionActive()
+  const hintId = useId()
+  const [hintDismissed, setHintDismissed] = useState(false)
   const [drafts, setDrafts] = useState<PromptDraft[]>([])
   const current = useRef(drafts)
   const versions = useRef({ system_prompt: 0, persona: 0 })
@@ -305,6 +307,10 @@ export function PromptEditor({
   const applied =
     !!documents && documents.documents.some((item) => documents.active[item.key] !== item.revision)
   const returnToAbout = () => requestNavigation(back)
+  const effectExplanation = `儲存後，${name}下一次開始新的回覆或恢復工作時採用新版；正在進行的那一段用原本的內容做完。記憶與歷史不變。`
+  const cacheExplanation = !commands.some((item) => item.command.kind === 'save')
+    ? '修改可能影響模型的前綴快取，實際情況以上游 Provider 回報的 usage 為準。'
+    : ''
   const header = (
     <div className={styles.toolbar}>
       <Button
@@ -338,6 +344,31 @@ export function PromptEditor({
       >
         {changed ? '● 未儲存' : savedAt ? `已儲存 ${timeLabel(savedAt)}` : ''}
       </span>
+      <div
+        className={styles.compactHint}
+        data-dismissed={hintDismissed}
+        onMouseEnter={() => setHintDismissed(false)}
+      >
+        <Button
+          variant="plain"
+          className={styles.infoButton}
+          aria-label="提示詞生效說明"
+          aria-describedby={hintId}
+          onFocus={() => setHintDismissed(false)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              event.stopPropagation()
+              setHintDismissed(true)
+            }
+          }}
+        >
+          <Info size={16} strokeWidth={1.5} aria-hidden="true" />
+        </Button>
+        <span id={hintId} role="tooltip" className={styles.hintText}>
+          {effectExplanation} {cacheExplanation}
+        </span>
+      </div>
       <Button
         disabled={!changed || readOnly}
         onClick={() => {
@@ -370,13 +401,8 @@ export function PromptEditor({
     <section className={styles.editor} aria-label="提示詞編輯器">
       {toolbar ? createPortal(header, toolbar) : header}
       <div className={styles.explanation}>
-        <p>
-          儲存後，{name}
-          下一次開始新的回覆或恢復工作時採用新版；正在進行的那一段用原本的內容做完。記憶與歷史不變。
-        </p>
-        {!commands.some((item) => item.command.kind === 'save') && (
-          <p>修改可能影響模型的前綴快取，實際情況以上游 Provider 回報的 usage 為準。</p>
-        )}
+        <p>{effectExplanation}</p>
+        {cacheExplanation && <p>{cacheExplanation}</p>}
       </div>
       {error && <Banner status="failed">{error}</Banner>}
       {!draft.remote.writable && <Banner>{reason(draft.remote.reason)}</Banner>}

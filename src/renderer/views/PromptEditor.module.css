@@ -136,14 +136,56 @@
 }
 .footer {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   flex-shrink: 0;
+  height: 28px;
   gap: 4px 16px;
-  padding: 10px 24px;
+  padding: 0 24px;
   border-top: var(--line) solid var(--separator);
   font-size: 11px;
   line-height: 14px;
   color: var(--text-tertiary);
+}
+.footer > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.footer > :first-child {
+  flex-shrink: 0;
+}
+.compactHint {
+  display: none;
+  position: relative;
+  flex-shrink: 0;
+}
+.infoButton {
+  width: 28px;
+  padding: 0;
+}
+.hintText {
+  display: none;
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(360px, calc(100vw - 48px));
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-popover);
+  font-size: 12px;
+  line-height: 18px;
+  pointer-events: none;
+}
+.compactHint:hover .hintText,
+.compactHint:focus-within .hintText {
+  display: block;
+}
+.compactHint[data-dismissed='true'] .hintText {
+  display: none;
 }
 .comparison {
   display: flex;
@@ -218,4 +260,31 @@
 .toolbar kbd {
   font: 11px var(--font-ui);
   opacity: 0.8;
+}
+@media (max-height: 599px) {
+  .toolbar {
+    flex-wrap: nowrap;
+    padding: 0;
+  }
+  .toolbar > :first-child {
+    flex-shrink: 1;
+  }
+  .status,
+  .unsaved,
+  .saved {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .toolbar kbd,
+  .explanation {
+    display: none;
+  }
+  .compactHint {
+    display: block;
+  }
+  .code,
+  .comparison {
+    min-height: 160px;
+  }
 }
