@@ -48,6 +48,8 @@ npm run test:e2e -- tests/e2e/backend.spec.ts
 
 該測試使用實際 Yuki 應用程式容器、帳本與 App Gateway，在臨時目錄建立測試資料，模型回覆使用固定測試 Provider，不呼叫付費服務。執行器核心的真後端測試使用同一組環境變數，執行 `npm test -- tests/unit/executor-backend.test.ts`；它經由真 Main、HTTP/SSE 與原生檔案系統，驗證成果版本、建立與回執遺失及冷恢復。`tests/e2e/executor.spec.ts` 另從桌面按鈕驗證授權、原成果寫入、通知提交，以及實際 Electron SIGKILL 後以原操作收尾。自動化只替換資料夾選擇器的返回值；原生選擇器與三平台執行仍需各自驗收。
 
+`tests/e2e/real-computer-host.spec.ts` 使用 `YUKI_DESKTOP_REAL_BACKEND_URL` 指向操作者另行啟動的隔離測試 API，要求外部真 Manager 與角色桌面，測試不啟停 Manager。`YUKI_DESKTOP_EXECUTABLE` 指定打包程式；故障後可用 `YUKI_DESKTOP_REAL_PROFILE_ROOT` 指定該測試保留的臨時資料目錄，按原 Work ID 接續。測試在真瀏覽器確認完整輸入已到達後才交回，再核對原執行、預算、回執及實際發布的成果內容。
+
 對話可透過「附加檔案」或拖放加入附件；主程序先保存原件快照並核對上傳回執，附件可送出後才建立含附件的訊息。另一台裝置可從原事件預覽及存檔，內容會核對伺服器提供的 SHA-256。到期或原來源無法取得時會顯示原因。
 
 語音按一下開始錄製，再按一下或「結束錄音」完成；Esc 取消。語音使用 Opus／WebM，上傳到目前角色的伺服器。轉寫沿伺服器既有 ASR 設定，沒有轉寫時會如實顯示。

@@ -1,6 +1,6 @@
 import { _electron as electron } from '@playwright/test'
 
-export function launchShell(data: string) {
+export function launchShell(data: string, executablePath = process.env.YUKI_ELECTRON_EXECUTABLE) {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(
       (entry): entry is [string, string] =>
@@ -9,8 +9,8 @@ export function launchShell(data: string) {
   )
   env.YUKI_DESKTOP_DATA = data
   return electron.launch({
-    executablePath: process.env.YUKI_ELECTRON_EXECUTABLE,
-    args: process.env.YUKI_ELECTRON_EXECUTABLE ? [] : ['.'],
+    executablePath,
+    args: executablePath ? [] : ['.'],
     env,
     chromiumSandbox: true,
   })
