@@ -3,12 +3,13 @@ param(
   [Parameter(Mandatory)][long]$OwnerWindowHandle,
   [Parameter(Mandatory)][string]$ExpectedExecutable,
   [Parameter(Mandatory)][string]$SelectionPath,
-  [Parameter(Mandatory)][ValidateSet('open', 'save')][string]$Action
+  [Parameter(Mandatory)][ValidateSet('open', 'save', 'folder')][string]$Action
 )
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 if ($Action -eq 'open' -and -not (Test-Path -LiteralPath $SelectionPath -PathType Leaf)) { throw 'Test input does not exist' }
+if ($Action -eq 'folder' -and -not (Test-Path -LiteralPath $SelectionPath -PathType Container)) { throw 'Test folder does not exist' }
 if ($Action -eq 'save' -and (Test-Path -LiteralPath $SelectionPath)) { throw 'Refusing to overwrite an existing test destination' }
 $owner = Get-Process -Id $OwnerProcessId
 if ($owner.SessionId -le 0 -or -not [string]::Equals($owner.Path, $ExpectedExecutable, [StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected app process or desktop session' }
@@ -25,9 +26,8 @@ while ($watch.Elapsed.TotalSeconds -lt 15) {
   Start-Sleep -Milliseconds 100
 }
 if (-not $nativeDialog -or $nativeDialog.Current.ProcessId -ne $OwnerProcessId) { throw 'Own native file dialog did not open' }
-# Electron uses the classic filename combo in its Open dialog and the modern
-# FileNameControlHost in its Save dialog on this Windows host.
-$filenameId = if ($Action -eq 'open') { 1148 } else { 1001 }
+# Native control IDs were observed on this host's Open, Save and folder pickers.
+$filenameId = switch ($Action) { 'open' { 1148 } 'save' { 1001 } 'folder' { 1152 } }
 $filenameRoot = $nativeDialog
 if ($Action -eq 'save') {
   $hostCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, 'FileNameControlHost')

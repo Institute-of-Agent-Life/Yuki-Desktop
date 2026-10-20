@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
 
 export interface NativeFileDialogReceipt {
-  Action: 'open' | 'save'
+  Action: 'open' | 'save' | 'folder'
   ProcessId: number
   SessionId: number
   DialogClass: string
@@ -39,7 +39,7 @@ export async function windowsFileDialogOwner(
 export async function completeWindowsFileDialog(
   owner: NativeFileDialogOwner,
   selectionPath: string,
-  action: 'open' | 'save',
+  action: 'open' | 'save' | 'folder',
 ): Promise<NativeFileDialogReceipt> {
   if (process.platform !== 'win32') throw Error('Requires a Windows interactive desktop')
   const script = await readFile(new URL('./windows-file-dialog.ps1', import.meta.url), 'utf8')
