@@ -7,6 +7,11 @@ import { keyboardCommand } from '../shared/commands'
 
 const modes = new WeakMap<BrowserWindow, (pairing: boolean) => void>()
 const captures = new WeakSet<BrowserWindow>()
+const overlayAppearance = () => ({
+  height: 52,
+  color: '#00000000',
+  symbolColor: nativeTheme.shouldUseDarkColors ? '#F2F2F4' : '#1D1D1F',
+})
 export function setKeyboardCapture(window: BrowserWindow, captured: boolean) {
   if (captured) captures.add(window)
   else captures.delete(window)
@@ -39,11 +44,7 @@ export function createWindow(store: LocalStore, pairing = false) {
           visualEffectState: 'followWindow' as const,
         }
       : {
-          titleBarOverlay: {
-            height: 52,
-            color: '#00000000',
-            symbolColor: nativeTheme.shouldUseDarkColors ? '#F2F2F4' : '#1D1D1F',
-          },
+          titleBarOverlay: overlayAppearance(),
         }),
     ...(process.platform === 'win32' && !opaque ? { backgroundMaterial: 'mica' as const } : {}),
     autoHideMenuBar: !mac,
@@ -55,6 +56,10 @@ export function createWindow(store: LocalStore, pairing = false) {
       spellcheck: true,
     },
   })
+  const updateControls = () => {
+    if (!win.isDestroyed()) win.setTitleBarOverlay(overlayAppearance())
+  }
+  if (process.platform === 'win32') nativeTheme.on('updated', updateControls)
   const applyBounds = (bounds: Rect) => {
     if (process.platform !== 'win32') {
       win.setBounds(bounds)
@@ -123,6 +128,7 @@ export function createWindow(store: LocalStore, pairing = false) {
   win.on('resize', fit)
   win.on('close', fit)
   win.once('closed', () => {
+    if (process.platform === 'win32') nativeTheme.removeListener('updated', updateControls)
     cancelMove()
     modes.delete(win)
     screen.removeListener('display-metrics-changed', fit)

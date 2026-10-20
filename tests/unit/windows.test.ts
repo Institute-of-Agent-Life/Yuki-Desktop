@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { screen, type BrowserWindow } from 'electron'
+import { screen, nativeTheme, type BrowserWindow } from 'electron'
 import { createWindow } from '../../src/main/windows'
 import type { LocalStore } from '../../src/main/store'
 import { defaultPreferences } from '../../src/shared/desktop'
@@ -70,7 +70,10 @@ vi.mock('electron', async () => {
       getPrimaryDisplay: () => ({ workArea: { ...os.work } }),
       getDisplayMatching: () => ({ workArea: { ...os.work } }),
     }),
-    nativeTheme: { shouldUseDarkColors: false, prefersReducedTransparency: false },
+    nativeTheme: Object.assign(new EventEmitter(), {
+      shouldUseDarkColors: false,
+      prefersReducedTransparency: false,
+    }),
     app: { isPackaged: true, getAppPath: () => process.cwd() },
   }
 })
@@ -134,4 +137,19 @@ it('saves an unsettled position on close and removes pending work and display li
   expect(vi.getTimerCount()).toBe(0)
   for (const kind of ['display-metrics-changed', 'display-added', 'display-removed'])
     expect(screen.listenerCount(kind)).toBe(0)
+})
+
+it('closing a Windows window releases its native theme observers while the App remains alive', () => {
+  const listeners = nativeTheme.listenerCount('updated')
+  const windowsProcess = Object.create(process) as NodeJS.Process
+  Object.defineProperty(windowsProcess, 'platform', { value: 'win32', configurable: true })
+  vi.stubGlobal('process', windowsProcess)
+  try {
+    const { window } = localStore()
+    window.destroy()
+    expect(nativeTheme.listenerCount('updated')).toBe(listeners)
+    expect(() => nativeTheme.emit('updated')).not.toThrow()
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })
