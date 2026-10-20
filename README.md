@@ -36,6 +36,8 @@ Windows 對話相關驗證需 operator 啟動全新隔離的 Yuki 參考服務�
 - `windows-client.spec.ts`：配對、送出回應遺失、程序強制結束後沿原 DPAPI／outbox／草稿接回，以及原事件引用刪除。
 - `windows-files.spec.ts`：透過實際原生儲存對話框匯出已有對話的診斷，核對敏感內容排除。測試只操作本次 App HWND 子樹，並以原生 PID、控制項 ID 與 owner 核對後輸入，保留真正的對話框回傳。
 
+`windows-avatar.spec.ts` 另需啟用參考服務的角色夾具，將其 `__test/avatar-inputs` 產生的旋轉 JPEG 複製到 Windows，並以 `YUKI_NATIVE_AVATAR_INPUT` 指向該本機檔案。案例走真開啟對話框、EXIF 方向與裁切儲存，核對另一裝置的 SSE 更新及冷重開；不替換選擇器回傳值。
+
 未提供服務或非 Windows 時明確跳過，不讀取部署設定。
 
 設定 →「一般」可選一般或測試版本並檢查更新。App 不會自行下載或在工作中途重新啟動；下載完成後可按工具列的「重新啟動以更新」。更新沿用離頁確認與電腦控制權的交回選擇，並等待已開始的本機操作收尾。安裝被拒絕時可繼續使用原連線與資料，再次檢查或前往官方下載頁。macOS、Windows 與 AppImage 使用更新安裝流程；deb／rpm 提供新版提示及手動下載。開發模式不檢查更新。
