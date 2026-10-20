@@ -1093,6 +1093,14 @@ export function Conversation({
                 done={refresh}
                 close={() => setReplyWork(undefined)}
                 commandEnter={preferences.sendKey === 'command-enter'}
+                question={
+                  replyWork.waiting_question
+                    ? {
+                        conversationId: replyWork.waiting_question.conversation_id,
+                        eventId: replyWork.waiting_question.event_id,
+                      }
+                    : undefined
+                }
               />
             ) : isMain ? (
               <Composer

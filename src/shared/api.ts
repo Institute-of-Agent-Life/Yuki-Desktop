@@ -1,6 +1,7 @@
 import type { components } from './contract.gen'
 import type { NavigationTarget } from './desktop'
 import type { ExecutorAction, ExecutorCommandItem, LocalExecutorState } from './executor'
+import type { MessageReference } from './message'
 
 export const REQUIRED_API_REVISION = 5
 
@@ -129,6 +130,11 @@ export interface ComputerCommandItem {
 export type WorkCommand =
   | { kind: 'input'; workId: string; text: string }
   | { kind: 'cancel'; workId: string; expectedRevision: number }
+export type WorkDraftQuestion = MessageReference
+export interface WorkQuestionDraft {
+  question: WorkDraftQuestion
+  text: string
+}
 export interface WorkCommandItem {
   requestId: string
   command: WorkCommand
@@ -331,10 +337,20 @@ export interface ConversationBridge {
   openArtifact(characterId: string, source: ArtifactSource): Promise<ApiReply<void>>
   outbox(characterId: string): Promise<ApiReply<OutboxItem[]>>
   verify(characterId: string, requestId: string): Promise<ApiReply<OutboxItem>>
-  workCommand(characterId: string, command: WorkCommand): Promise<ApiReply<WorkCommandItem>>
+  workCommand(
+    characterId: string,
+    command: WorkCommand,
+    question?: WorkDraftQuestion,
+  ): Promise<ApiReply<WorkCommandItem>>
   workCommands(characterId: string): Promise<ApiReply<WorkCommandItem[]>>
+  workQuestionDrafts(characterId: string, workId: string): Promise<ApiReply<WorkQuestionDraft[]>>
   verifyWorkCommand(characterId: string, requestId: string): Promise<ApiReply<WorkCommandItem>>
-  workDraft(characterId: string, workId: string, text?: string): Promise<ApiReply<string>>
+  workDraft(
+    characterId: string,
+    workId: string,
+    text?: string,
+    question?: WorkDraftQuestion,
+  ): Promise<ApiReply<string>>
   draft(characterId: string, text?: string): Promise<ApiReply<string>>
   onHint(callback: (characterId: string, kind: string, data: unknown) => void): () => void
   reconnect(): Promise<ApiReply<void>>

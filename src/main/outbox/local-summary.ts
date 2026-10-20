@@ -11,7 +11,10 @@ export function localSummary(box: Outbox) {
           }
         ).n
       : 0
-  let drafts = Number(box.draft().length > 0) + count('work_drafts', 'length(text)>0')
+  let drafts =
+    Number(box.draft().length > 0) +
+    count('work_drafts', 'length(text)>0') +
+    count('work_question_drafts', 'length(text)>0')
   const promptSaves = exists('prompt_commands')
     ? (
         box.db.prepare("SELECT command FROM prompt_commands WHERE state!='result'").all() as {

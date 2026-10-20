@@ -124,6 +124,46 @@
   margin-bottom: 8px;
   white-space: pre-wrap;
 }
+.questionLabel {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.questionLabel > svg {
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.inlineReply {
+  min-width: 0;
+}
+.inputLabel {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.inputRow {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.inlineField {
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  max-height: 132px;
+  border: 1px solid var(--separator-strong);
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: var(--bg-elevated);
+  font: 13px/20px var(--font-ui);
+  color: var(--text-primary);
+  resize: none;
+}
+.retained .inlineField {
+  width: 100%;
+  min-height: 60px;
+}
 .reply {
   min-width: 0;
 }

@@ -97,6 +97,7 @@ window.yuki = {
     verify: async () => ({ ok: false, code: 'fixture_only' }),
     workCommand: async () => ({ ok: false, code: 'fixture_only' }),
     workCommands: async () => ({ ok: true, value: [] }),
+    workQuestionDrafts: async () => ({ ok: true, value: [] }),
     verifyWorkCommand: async () => ({ ok: false, code: 'fixture_only' }),
     workDraft: async () => ({ ok: true, value: '' }),
     draft: async () => ({ ok: false, code: 'fixture_only' }),

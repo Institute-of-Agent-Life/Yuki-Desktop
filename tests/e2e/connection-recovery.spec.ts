@@ -151,7 +151,9 @@ test('two actual devices submit different answers to one work and recover their 
     await fetch(`${rig.base}/__test/model-delay/2`, { method: 'POST' })
     await fetch(`${rig.base}/__test/lose-next-work-response/inputs`, { method: 'POST' })
     await Promise.all(
-      details.map((detail) => detail.getByRole('button', { name: '送出', exact: true }).click()),
+      details.map((detail) =>
+        detail.getByRole('button', { name: '傳送給這項工作', exact: true }).click(),
+      ),
     )
     for (const page of [pa, pb])
       await expect

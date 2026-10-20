@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import type { OriginalRequest, WorkCommand, WorkCommandItem } from '../../shared/api'
+import type {
+  OriginalRequest,
+  WorkCommand,
+  WorkCommandItem,
+  WorkDraftQuestion,
+  WorkQuestionDraft,
+} from '../../shared/api'
 import { normalizeMessageText } from '../../shared/message'
 import { ApiClient, ApiError } from '../api/client'
 import type { Outbox } from './index'
@@ -23,13 +29,27 @@ const terminalProblems = new Set([
   'validation_error',
   'owner_required',
 ])
+function checkQuestion(question: WorkDraftQuestion | undefined) {
+  if (
+    question !== undefined &&
+    (!question ||
+      typeof question.conversationId !== 'string' ||
+      !question.conversationId ||
+      !Number.isSafeInteger(question.eventId) ||
+      question.eventId <= 0)
+  )
+    throw new ApiError('validation_error')
+}
 export class WorkCommands {
   private readonly pending = new Map<string, Promise<WorkCommandItem>>()
   constructor(readonly box: Outbox) {
     box.db.exec(`CREATE TABLE IF NOT EXISTS work_commands(
       request_id TEXT PRIMARY KEY, command TEXT NOT NULL, hash TEXT NOT NULL,
       state TEXT NOT NULL, result TEXT, problem TEXT, created REAL NOT NULL);
-      CREATE TABLE IF NOT EXISTS work_drafts(work_id TEXT PRIMARY KEY, text TEXT NOT NULL)`)
+      CREATE TABLE IF NOT EXISTS work_drafts(work_id TEXT PRIMARY KEY, text TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS work_question_drafts(
+        work_id TEXT NOT NULL, conversation_id TEXT NOT NULL, event_id INTEGER NOT NULL,
+        text TEXT NOT NULL, PRIMARY KEY(work_id,conversation_id,event_id))`)
   }
   private item(row: Row): WorkCommandItem {
     return {
@@ -53,7 +73,26 @@ export class WorkCommands {
     if (!row) throw new ApiError('not_found')
     return this.item(row)
   }
-  draft(workId: string, text?: string) {
+  draft(workId: string, text?: string, question?: WorkDraftQuestion) {
+    checkQuestion(question)
+    if (question) {
+      const scope = [workId, question.conversationId, question.eventId]
+      if (text !== undefined)
+        this.box.db
+          .prepare(
+            'INSERT INTO work_question_drafts VALUES(?,?,?,?) ON CONFLICT(work_id,conversation_id,event_id) DO UPDATE SET text=excluded.text',
+          )
+          .run(...scope, text)
+      return (
+        (
+          this.box.db
+            .prepare(
+              'SELECT text FROM work_question_drafts WHERE work_id=? AND conversation_id=? AND event_id=?',
+            )
+            .get(...scope) as { text: string } | undefined
+        )?.text ?? ''
+      )
+    }
     if (text !== undefined)
       this.box.db
         .prepare(
@@ -67,7 +106,25 @@ export class WorkCommands {
       )?.text ?? ''
     )
   }
-  prepare(command: WorkCommand, state: 'draft' | 'submitted', draftSnapshot?: string) {
+  questionDrafts(workId: string): WorkQuestionDraft[] {
+    return (
+      this.box.db
+        .prepare(
+          'SELECT conversation_id,event_id,text FROM work_question_drafts WHERE work_id=? AND length(text)>0 ORDER BY event_id DESC,conversation_id',
+        )
+        .all(workId) as { conversation_id: string; event_id: number; text: string }[]
+    ).map((row) => ({
+      question: { conversationId: row.conversation_id, eventId: row.event_id },
+      text: row.text,
+    }))
+  }
+  prepare(
+    command: WorkCommand,
+    state: 'draft' | 'submitted',
+    draftSnapshot?: string,
+    question?: WorkDraftQuestion,
+  ) {
+    checkQuestion(question)
     if (command.kind === 'input') {
       command = { ...command, text: normalizeMessageText(command.text) }
       if (!command.text) throw new ApiError('validation_error')
@@ -88,9 +145,9 @@ export class WorkCommands {
       if (
         command.kind === 'input' &&
         draftSnapshot !== undefined &&
-        this.draft(command.workId) === draftSnapshot
+        this.draft(command.workId, undefined, question) === draftSnapshot
       )
-        this.draft(command.workId, '')
+        this.draft(command.workId, '', question)
       return this.get(id)
     })()
   }

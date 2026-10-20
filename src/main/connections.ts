@@ -13,6 +13,7 @@ import type {
   Meta,
   OutboxItem,
   WorkCommand,
+  WorkDraftQuestion,
   Profile,
   PromptCommand,
   PromptDocuments,
@@ -755,11 +756,11 @@ export class Connections {
     )
     return { ...item, cache }
   }
-  async workCommand(id: string, command: WorkCommand) {
+  async workCommand(id: string, command: WorkCommand, question?: WorkDraftQuestion) {
     uuid(command.workId)
     const commands = this.commands(id),
       client = this.client(id)
-    const draftSnapshot = commands.draft(command.workId)
+    const draftSnapshot = commands.draft(command.workId, undefined, question)
     let offline = false
     try {
       await this.identify(id)
@@ -769,7 +770,7 @@ export class Connections {
         offline = true
       else throw error
     }
-    const item = commands.prepare(command, offline ? 'draft' : 'submitted', draftSnapshot)
+    const item = commands.prepare(command, offline ? 'draft' : 'submitted', draftSnapshot, question)
     const result = offline ? item : await commands.send(client, item.requestId)
     this.emit(id, 'commands', {})
     return result

@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
-import { File, X } from 'lucide-react'
-import type { ArtifactSource, Work, WorkCommandItem, WorkPage, WorkSteps } from '../../shared/api'
+import { CircleHelp, File, X } from 'lucide-react'
+import type {
+  ArtifactSource,
+  Work,
+  WorkCommandItem,
+  WorkDraftQuestion,
+  WorkQuestionDraft,
+  WorkPage,
+  WorkSteps,
+} from '../../shared/api'
+import { normalizeMessageText } from '../../shared/message'
 import { Composer } from '../components/Composer'
 import { WorkCard, StepRow, middleTruncate } from '../components/Content'
 import {
@@ -259,6 +268,10 @@ export function WorkDetail({
     queryKey: [id, 'commands'],
     queryFn: () => window.yuki.client.workCommands(id).then(unwrap),
   })
+  const questionDrafts = useQuery({
+    queryKey: [id, 'work-question-drafts', workId],
+    queryFn: () => window.yuki.client.workQuestionDrafts(id, workId).then(unwrap),
+  })
   const allSteps = [
     ...new Map(
       steps.data?.pages.flatMap((page) => page.steps).map((step) => [step.step_id, step]),
@@ -282,7 +295,10 @@ export function WorkDetail({
           void query.invalidateQueries({ queryKey: [id, 'work', workId] })
           void query.invalidateQueries({ queryKey: [id, 'steps', workId] })
         }
-        if (kind === 'commands') void query.invalidateQueries({ queryKey: [id, 'commands'] })
+        if (kind === 'commands') {
+          void query.invalidateQueries({ queryKey: [id, 'commands'] })
+          void query.invalidateQueries({ queryKey: [id, 'work-question-drafts', workId] })
+        }
       }),
     [id, workId, query, work.data, allSteps],
   )
@@ -292,6 +308,7 @@ export function WorkDetail({
   const refresh = () => {
     void query.invalidateQueries({ queryKey: [id, 'work', workId] })
     void query.invalidateQueries({ queryKey: [id, 'steps', workId] })
+    void query.invalidateQueries({ queryKey: [id, 'work-question-drafts', workId] })
   }
   return (
     <div className={styles.detail}>
@@ -319,20 +336,16 @@ export function WorkDetail({
             </Banner>
           )}
           {data.wait && <p className={styles.secondary}>{waitText(data.wait, zone)}</p>}
-          {data.waiting_question && (
-            <div className={styles.question}>
-              <p>{data.waiting_question.text}</p>
-              <Button
-                onClick={() =>
-                  document.querySelector<HTMLTextAreaElement>('[data-work-reply] textarea')?.focus()
-                }
-              >
-                回覆
-              </Button>
-              <Button variant="plain" onClick={() => replyInChat(data)}>
-                在對話中回答
-              </Button>
-            </div>
+          {data.waiting_question && !terminal(data) && (
+            <QuestionBox
+              key={`${data.waiting_question.conversation_id}/${data.waiting_question.event_id}`}
+              id={id}
+              work={data}
+              question={data.waiting_question}
+              done={refresh}
+              replyInChat={replyInChat}
+              commandEnter={commandEnter}
+            />
           )}
           <section>
             <h3>步驟</h3>
@@ -392,18 +405,39 @@ export function WorkDetail({
               <WorkArtifacts work={data} open={artifact} />
             </section>
           )}
+          {questionDrafts.error && (
+            <Banner status="failed">
+              未送出的回答暫時無法讀取。
+              <Button variant="plain" onClick={() => void questionDrafts.refetch()}>
+                重新讀取草稿
+              </Button>
+            </Banner>
+          )}
+          <RetainedAnswers
+            drafts={(questionDrafts.data ?? []).filter(
+              (draft) =>
+                terminal(data) ||
+                draft.question.eventId !== data.waiting_question?.event_id ||
+                draft.question.conversationId !== data.waiting_question?.conversation_id,
+            )}
+          />
+          <WorkReply
+            id={id}
+            work={data}
+            done={refresh}
+            commandEnter={commandEnter}
+            inline
+            readOnly={terminal(data)}
+          />
           <p className={styles.secondary}>
             模型請求 {data.budget.models}／{data.budget.model_limit ?? '無上限'} · 工具呼叫{' '}
             {data.budget.tools}
             {data.budget.tool_limit === null ? '' : `／${data.budget.tool_limit}`}
           </p>
           {!terminal(data) && (
-            <>
-              <WorkReply id={id} work={data} done={refresh} commandEnter={commandEnter} />
-              <Button variant="destructive" onClick={() => setCancel(data)}>
-                取消工作
-              </Button>
-            </>
+            <Button variant="destructive" onClick={() => setCancel(data)}>
+              取消工作
+            </Button>
           )}
           {(commands.data ?? [])
             .filter(
@@ -419,28 +453,130 @@ export function WorkDetail({
   )
 }
 
+function RetainedAnswers({ drafts }: { drafts: WorkQuestionDraft[] }) {
+  const [problem, setProblem] = useState('')
+  if (!drafts.length) return null
+  return (
+    <section aria-label="未送出的回答" className={styles.retained}>
+      <h3>未送出的回答</h3>
+      <p className={styles.secondary}>
+        原問題已結束或更新。這些回答保留在這台電腦，不會送給下一個問題。
+      </p>
+      {drafts.map(({ question, text }, index) => (
+        <div
+          key={`${question.conversationId}/${question.eventId}`}
+          data-question-event={question.eventId}
+        >
+          <textarea
+            className={styles.inlineField}
+            readOnly
+            aria-label={`未送出的回答 ${index + 1}`}
+            value={text}
+          />
+          <Button
+            variant="plain"
+            onClick={() =>
+              void window.yuki.client
+                .copy(text)
+                .then(unwrap)
+                .catch((error) => setProblem(error.message))
+            }
+          >
+            複製回答
+          </Button>
+        </div>
+      ))}
+      {problem && <Banner status="failed">{problem}</Banner>}
+    </section>
+  )
+}
+
+function QuestionBox({
+  id,
+  work,
+  question,
+  done,
+  replyInChat,
+  commandEnter,
+}: {
+  id: string
+  work: Work
+  question: NonNullable<Work['waiting_question']>
+  done(): void
+  replyInChat(work: Work): void
+  commandEnter: boolean
+}) {
+  const [answer, setAnswer] = useState(false),
+    root = useRef<HTMLDivElement>(null)
+  return (
+    <div className={styles.question} ref={root}>
+      <p className={styles.questionLabel}>
+        <CircleHelp size={16} />
+        <span>{question.text}</span>
+      </p>
+      {answer ? (
+        <WorkReply
+          id={id}
+          work={work}
+          done={done}
+          commandEnter={commandEnter}
+          inline
+          autoFocus
+          question={{ conversationId: question.conversation_id, eventId: question.event_id }}
+          close={() => {
+            setAnswer(false)
+            requestAnimationFrame(() =>
+              root.current?.querySelector<HTMLButtonElement>('button[data-answer]')?.focus(),
+            )
+          }}
+        />
+      ) : (
+        <>
+          <Button data-answer onClick={() => setAnswer(true)}>
+            回覆
+          </Button>
+          <Button variant="plain" onClick={() => replyInChat(work)}>
+            在對話中回答
+          </Button>
+        </>
+      )}
+    </div>
+  )
+}
+
 export function WorkReply({
   id,
   work,
   done,
   close,
   commandEnter = false,
+  inline = false,
+  autoFocus = false,
+  question,
+  readOnly = false,
 }: {
   id: string
   work: Work
   done(): void
   close?: () => void
   commandEnter?: boolean
+  inline?: boolean
+  autoFocus?: boolean
+  question?: WorkDraftQuestion
+  readOnly?: boolean
 }) {
+  const query = useQueryClient()
   const [draft, setDraft] = useState(''),
     [problem, setProblem] = useState(''),
+    [sending, setSending] = useState(false),
     current = useRef('')
+  const input = useRef<HTMLTextAreaElement>(null)
   const edited = useRef(0)
   useEffect(() => {
     let active = true
     const version = edited.current
     void window.yuki.client
-      .workDraft(id, work.work_id)
+      .workDraft(id, work.work_id, undefined, question)
       .then(unwrap)
       .then((text) => {
         if (active && edited.current === version) {
@@ -454,47 +590,136 @@ export function WorkReply({
     return () => {
       active = false
     }
-  }, [id, work.work_id])
+  }, [id, work.work_id, question?.conversationId, question?.eventId])
+  useEffect(() => {
+    if (inline && input.current) {
+      input.current.style.height = 'auto'
+      input.current.style.height = `${Math.max(28, input.current.scrollHeight + 2)}px`
+    }
+  }, [inline, draft])
+  const update = (text: string) => {
+    edited.current++
+    current.current = text
+    setDraft(text)
+    void window.yuki.client
+      .workDraft(id, work.work_id, text, question)
+      .then(unwrap)
+      .then(() => query.invalidateQueries({ queryKey: [id, 'work-question-drafts', work.work_id] }))
+      .catch((error) => setProblem(error.message))
+  }
+  const submit = async () => {
+    const submitted = current.current
+    const result = unwrap(
+      await window.yuki.client.workCommand(
+        id,
+        { kind: 'input', workId: work.work_id, text: submitted },
+        question,
+      ),
+    )
+    if (result.problem) setProblem(problemText(result.problem))
+    if (current.current === submitted) {
+      current.current = ''
+      setDraft('')
+    }
+    done()
+  }
+  const sendInline = async () => {
+    if (readOnly || sending || !normalizeMessageText(current.current)) return
+    setSending(true)
+    setProblem('')
+    try {
+      await submit()
+    } catch {
+      setProblem('尚未送出，已保留內容。')
+    } finally {
+      setSending(false)
+    }
+  }
+  if (readOnly && !draft) return null
   return (
-    <div data-work-reply className={styles.reply}>
-      <header>
-        <span>補充給：{work.goal}</span>
-        {close && (
-          <IconButton label="取消回覆工作" onClick={close}>
-            <X size={14} />
-          </IconButton>
-        )}
-      </header>
-      <Composer
-        name={work.goal}
-        commandEnter={commandEnter}
-        draft={draft}
-        onDraft={(text) => {
-          edited.current++
-          current.current = text
-          setDraft(text)
-          void window.yuki.client
-            .workDraft(id, work.work_id, text)
-            .then(unwrap)
-            .catch((error) => setProblem(error.message))
-        }}
-        onSubmit={async () => {
-          const submitted = current.current
-          const result = unwrap(
-            await window.yuki.client.workCommand(id, {
-              kind: 'input',
-              workId: work.work_id,
-              text: submitted,
-            }),
-          )
-          if (result.problem) setProblem(problemText(result.problem))
-          if (current.current === submitted) {
-            current.current = ''
-            setDraft('')
-          }
-          done()
-        }}
-      />
+    <div data-work-reply className={`${styles.reply} ${inline ? styles.inlineReply : ''}`}>
+      {!inline && (
+        <header>
+          <span>補充給：{work.goal}</span>
+          {close && (
+            <IconButton label="取消回覆工作" onClick={close}>
+              <X size={14} />
+            </IconButton>
+          )}
+        </header>
+      )}
+      {inline ? (
+        <>
+          {!question && <div className={styles.inputLabel}>補充要求</div>}
+          <div className={styles.inputRow}>
+            <textarea
+              ref={input}
+              className={styles.inlineField}
+              rows={1}
+              autoFocus={autoFocus}
+              aria-label={question ? '回答這個問題' : `補充給：${work.goal}`}
+              placeholder={question ? '回答這個問題' : '傳送給這項工作'}
+              value={draft}
+              readOnly={readOnly}
+              onChange={(event) => update(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && close) {
+                  event.stopPropagation()
+                  close()
+                } else if (
+                  event.key === 'Enter' &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing &&
+                  event.nativeEvent.keyCode !== 229 &&
+                  (!commandEnter || event.metaKey || event.ctrlKey)
+                ) {
+                  event.preventDefault()
+                  void sendInline()
+                }
+              }}
+            />
+            {readOnly ? (
+              <Button
+                aria-label="複製未送出的補充"
+                onClick={() =>
+                  void window.yuki.client
+                    .copy(draft)
+                    .then(unwrap)
+                    .catch((error) => setProblem(error.message))
+                }
+              >
+                複製補充
+              </Button>
+            ) : (
+              <Button
+                variant={question ? 'primary' : 'secondary'}
+                aria-label={question ? '送出回答' : '傳送給這項工作'}
+                loading={sending}
+                disabled={readOnly || !normalizeMessageText(draft)}
+                onClick={() => void sendInline()}
+              >
+                {question ? '送出' : '傳送'}
+              </Button>
+            )}
+            {close && (
+              <IconButton label="收起回答" onClick={close}>
+                <X size={14} />
+              </IconButton>
+            )}
+          </div>
+          {readOnly && (
+            <p className={styles.secondary}>工作已結束，未送出的補充保留在這裡，可選取複製。</p>
+          )}
+        </>
+      ) : (
+        <Composer
+          name={work.goal}
+          commandEnter={commandEnter}
+          draft={draft}
+          onDraft={update}
+          onSubmit={submit}
+        />
+      )}
       {problem && <Banner status="failed">{problem}</Banner>}
     </div>
   )

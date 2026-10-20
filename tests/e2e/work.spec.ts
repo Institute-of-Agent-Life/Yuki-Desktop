@@ -103,7 +103,7 @@ test('continues the original work through an actual reply and confirms cancellat
     await other.getByRole('button', { name: /等你回覆.*原工作整合測試/ }).click()
     const otherDetail = other.getByRole('complementary', { name: '檢視器' })
     await otherDetail.getByRole('textbox').fill('另一台裝置回答：台北')
-    await otherDetail.getByRole('button', { name: '送出', exact: true }).click()
+    await otherDetail.getByRole('button', { name: '傳送給這項工作', exact: true }).click()
     await expect(otherDetail.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
     // The original confirmation keeps the revision observed before the other device's reply.
     await page.getByRole('button', { name: '仍然取消', exact: true }).click()

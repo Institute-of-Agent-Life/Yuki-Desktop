@@ -37,6 +37,7 @@ import type {
   AttachmentSource,
   ArtifactSource,
   WorkCommand,
+  WorkDraftQuestion,
   ComputerCommand,
   Profile,
   PromptCommand,
@@ -672,15 +673,20 @@ else {
       connections.send(id, text, uploads),
     )
     clientAction('uploads', (id: string) => connections.uploads(id).list())
-    clientAction('work-command', (id: string, command: WorkCommand) =>
-      connections.workCommand(id, command),
+    clientAction('work-command', (id: string, command: WorkCommand, question?: WorkDraftQuestion) =>
+      connections.workCommand(id, command, question),
     )
     clientAction('work-commands', (id: string) => connections.commands(id).list())
+    clientAction('work-question-drafts', (id: string, work: string) =>
+      connections.commands(id).questionDrafts(work),
+    )
     clientAction('verify-work-command', (id: string, request: string) =>
       connections.verifyWorkCommand(id, request),
     )
-    clientAction('work-draft', (id: string, work: string, text?: string) =>
-      connections.commands(id).draft(work, text),
+    clientAction(
+      'work-draft',
+      (id: string, work: string, text?: string, question?: WorkDraftQuestion) =>
+        connections.commands(id).draft(work, text, question),
     )
     clientAction('attach', async (id: string) => {
       const picked = await dialog.showOpenDialog(win!, {

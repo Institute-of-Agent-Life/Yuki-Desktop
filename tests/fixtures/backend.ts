@@ -109,14 +109,62 @@ export async function yukiFixture(
   }
 }
 export async function pairUI(page: Page, base: string, code: string, label?: string) {
+  type ProbeWindow = Window & {
+    __yukiPairProbe?: { online: Record<string, boolean>; dispose(): void }
+  }
   const start = page.getByRole('button', { name: '開始', exact: true })
   await expect(start.or(page.getByLabel('伺服器位址'))).toBeVisible()
-  if (await start.isVisible()) await start.click()
-  await page.getByLabel('伺服器位址').fill(base)
-  await page.getByRole('button', { name: '繼續', exact: true }).click()
-  await page.getByLabel('綁定碼或完整回覆').fill(code)
-  if (label) await page.getByLabel('裝置名稱').fill(label)
-  await page.getByRole('button', { name: '配對', exact: true }).click()
-  await page.getByRole('button', { name: '進入', exact: true }).click()
-  await expect(page.getByText('已連線', { exact: true }).filter({ visible: true })).toBeVisible()
+  await page.evaluate(() => {
+    const target = window as ProbeWindow
+    target.__yukiPairProbe?.dispose()
+    const online: Record<string, boolean> = {}
+    const dispose = window.yuki.client.onHint((id, kind, data) => {
+      if (kind === 'connection') online[id] = (data as { state: string }).state === 'online'
+    })
+    target.__yukiPairProbe = { online, dispose }
+  })
+  try {
+    if (await start.isVisible()) await start.click()
+    await page.getByLabel('伺服器位址').fill(base)
+    await page.getByRole('button', { name: '繼續', exact: true }).click()
+    await page.getByLabel('綁定碼或完整回覆').fill(code)
+    if (label) await page.getByLabel('裝置名稱').fill(label)
+    await page.getByRole('button', { name: '配對', exact: true }).click()
+    await page.getByRole('button', { name: '進入', exact: true }).click()
+    let pairedId = ''
+    await expect
+      .poll(
+        async () => {
+          const value = await page.evaluate(async (base) => {
+            const list = await window.yuki.client.connections()
+            const connection = list.ok
+              ? list.value.find(
+                  (item) => item.baseUrl.replace(/\/+$/, '') === base.replace(/\/+$/, ''),
+                )
+              : undefined
+            return {
+              id: connection?.characterId ?? '',
+              online:
+                !!connection &&
+                !!(window as ProbeWindow).__yukiPairProbe?.online[connection.characterId],
+            }
+          }, base)
+          pairedId = value.id
+          return value.online
+        },
+        { timeout: 10000 },
+      )
+      .toBe(true)
+    await expect(
+      page.locator(`[data-character-session="${pairedId}"] [data-region="toolbar"]`),
+    ).toBeVisible()
+  } finally {
+    await page
+      .evaluate(() => {
+        const target = window as ProbeWindow
+        target.__yukiPairProbe?.dispose()
+        delete target.__yukiPairProbe
+      })
+      .catch(() => {})
+  }
 }

@@ -7,6 +7,7 @@ import { WorkCommands } from '../../src/main/outbox/work-commands'
 import { ApiClient } from '../../src/main/api/client'
 import type { Me, OriginalRequest, OutboxOwner, WorkCommandItem } from '../../src/shared/api'
 import { validateFixture } from '../fixtures/schema'
+import { localSummary } from '../../src/main/outbox/local-summary'
 
 const owner: OutboxOwner = {
   characterId: '00000000-0000-4000-8000-000000000001',
@@ -88,6 +89,111 @@ it('atomically queues the normalized original input while keeping a newer work d
   ).toThrow('disk full')
   expect(commands.list()).toHaveLength(1)
   expect(commands.draft(workId)).toBe('等待網路期間的新稿')
+})
+it('isolates exact question drafts from supplements, later questions and other entries across a cold restart', () => {
+  const { box, commands, path } = setup(),
+    question = { conversationId: owner.conversationId, eventId: 8 },
+    next = { ...question, eventId: 9 },
+    other = { ...question, conversationId: owner.bindingId }
+  commands.draft(workId, '原補充\n第二行')
+  commands.draft(workId, '原問題的回答', question)
+  commands.draft(workId, '下一問題的回答', next)
+  commands.draft(workId, '另一入口的回答', other)
+  box.db.close()
+  const recoveredBox = new Outbox(path, owner),
+    recovered = new WorkCommands(recoveredBox)
+  try {
+    expect(recovered.draft(workId)).toBe('原補充\n第二行')
+    expect(recovered.draft(workId, undefined, question)).toBe('原問題的回答')
+    expect(recovered.draft(workId, undefined, next)).toBe('下一問題的回答')
+    expect(recovered.draft(workId, undefined, other)).toBe('另一入口的回答')
+    expect(recovered.draft(owner.personId, undefined, question)).toBe('')
+    expect(localSummary(recoveredBox).drafts).toBe(4)
+    expect(
+      recovered
+        .questionDrafts(workId)
+        .map((draft) => draft.text)
+        .sort(),
+    ).toEqual(['原問題的回答', '下一問題的回答', '另一入口的回答'].sort())
+    recovered.prepare(
+      { kind: 'input', workId, text: '原問題的回答' },
+      'draft',
+      '原問題的回答',
+      question,
+    )
+    expect(recovered.draft(workId, undefined, question)).toBe('')
+    expect(recovered.draft(workId)).toBe('原補充\n第二行')
+    expect(recovered.draft(workId, undefined, next)).toBe('下一問題的回答')
+    expect(recovered.questionDrafts(workId)).toHaveLength(2)
+    expect(localSummary(recoveredBox)).toMatchObject({ drafts: 4, pending: 0 })
+  } finally {
+    recoveredBox.db.close()
+  }
+})
+it('rolls back a failed question draft handoff and keeps edits made after its send snapshot', () => {
+  const { box, commands } = setup(),
+    question = { conversationId: owner.conversationId, eventId: 8 }
+  commands.draft(workId, '補充不要清除')
+  commands.draft(workId, '舊回答', question)
+  const snapshot = commands.draft(workId, undefined, question)
+  commands.draft(workId, '網路等待時的新回答', question)
+  const first = commands.prepare(
+    { kind: 'input', workId, text: snapshot },
+    'draft',
+    snapshot,
+    question,
+  )
+  expect(commands.draft(workId, undefined, question)).toBe('網路等待時的新回答')
+  box.db.exec(
+    "CREATE TRIGGER fail_question_draft BEFORE UPDATE ON work_question_drafts BEGIN SELECT RAISE(ABORT,'disk full'); END",
+  )
+  expect(() =>
+    commands.prepare(
+      { kind: 'input', workId, text: '網路等待時的新回答' },
+      'draft',
+      '網路等待時的新回答',
+      question,
+    ),
+  ).toThrow('disk full')
+  expect(commands.list()).toEqual([first])
+  expect(commands.draft(workId, undefined, question)).toBe('網路等待時的新回答')
+  expect(commands.draft(workId)).toBe('補充不要清除')
+})
+it('keeps question metadata outside the API payload and recovers its original receipt after restart', async () => {
+  const { box, commands, path } = setup(),
+    question = { conversationId: owner.conversationId, eventId: 8 }
+  commands.draft(workId, '原回答', question)
+  const item = commands.prepare(
+    { kind: 'input', workId, text: '原回答' },
+    'submitted',
+    '原回答',
+    question,
+  )
+  let posts = 0
+  const client = api(async (url, init) => {
+    if (String(url).endsWith('/me')) return data('Envelope_Me_', me)
+    if (init?.method === 'POST') {
+      posts++
+      expect(JSON.parse(String(init.body))).toEqual({ request_id: item.requestId, text: '原回答' })
+      throw new Error('response lost after commit')
+    }
+    return receipt(item)
+  })
+  expect((await commands.send(client, item.requestId)).state).toBe('submitted')
+  box.db.close()
+  const recoveredBox = new Outbox(path, owner),
+    recovered = new WorkCommands(recoveredBox)
+  try {
+    expect(recovered.draft(workId, undefined, question)).toBe('')
+    expect(await recovered.verify(client, item.requestId)).toMatchObject({
+      state: 'result',
+      problem: null,
+      payloadHash: item.payloadHash,
+    })
+    expect(posts).toBe(1)
+  } finally {
+    recoveredBox.db.close()
+  }
 })
 it('recovers a committed input after cold restart using the original hash, target and request namespace', async () => {
   const { box, commands, path } = setup(),
