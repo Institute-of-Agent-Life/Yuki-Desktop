@@ -765,3 +765,50 @@ test('short prompt workspace keeps its explanation accessible and saves through 
     await rig.close(success)
   }
 })
+
+test('prompt save shortcut works after a modal returns toolbar focus and does not save behind that modal', async () => {
+  test.setTimeout(90000)
+  const rig = await yukiFixture({ character: true, prompts: true })
+  const app = await rig.launch('prompt-shortcut-focus')
+  let success = false
+  try {
+    const page = await app.firstWindow()
+    await pairUI(page, rig.base, await rig.code())
+    await open(page)
+    const original = await readFile(join(rig.root, 'system_prompt.md'), 'utf8')
+    const content = '# 從工具列儲存提示詞\r\n{{YUKI_PERSONA_CORE}}'
+    await edit(page, content)
+    const back = page
+      .locator('[data-region="toolbar"]')
+      .getByRole('button', { name: '關於 Yuki', exact: true })
+    await back.press('Enter')
+    const guard = page.getByRole('dialog', { name: '要儲存變更嗎？', exact: true })
+    await expect(guard).toBeVisible()
+    await page.keyboard.press('ControlOrMeta+S')
+    expect(await commands(page)).toEqual([])
+    expect(await readFile(join(rig.root, 'system_prompt.md'), 'utf8')).toBe(original)
+    await expect(guard).toBeVisible()
+    await guard.getByRole('button', { name: '取消', exact: true }).click()
+    await expect(back).toBeFocused()
+    await page.keyboard.press('ControlOrMeta+S')
+    await expect.poll(() => readFile(join(rig.root, 'system_prompt.md'), 'utf8')).toBe(content)
+    await expect
+      .poll(async () => (await commands(page)).filter((item) => item.state === 'result'))
+      .toHaveLength(1)
+    await expect(save(page)).toBeDisabled()
+    const next = '# 編輯框仍只儲存一次\r\n{{YUKI_PERSONA_CORE}}'
+    await edit(page, next)
+    await page.keyboard.press('ControlOrMeta+S')
+    await expect.poll(() => readFile(join(rig.root, 'system_prompt.md'), 'utf8')).toBe(next)
+    await expect
+      .poll(async () => (await commands(page)).filter((item) => item.state === 'result'))
+      .toHaveLength(2)
+    expect(await commands(page)).toHaveLength(2)
+    success = true
+  } finally {
+    const mainPid = await app.evaluate(() => process.pid).catch(() => undefined)
+    if (mainPid) process.kill(mainPid, 'SIGKILL')
+    await app.close().catch(() => {})
+    await rig.close(success)
+  }
+})

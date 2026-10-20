@@ -10,6 +10,7 @@ export default defineConfig({
     'windows-files.spec.ts',
     'windows-avatar.spec.ts',
     'windows-media.spec.ts',
+    'windows-prompts.spec.ts',
   ],
   outputDir: join(tmpdir(), 'yuki-desktop-e2e'),
   workers: 1,

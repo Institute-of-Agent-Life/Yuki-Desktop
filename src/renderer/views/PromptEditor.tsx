@@ -303,6 +303,30 @@ export function PromptEditor({
     !draft?.remote.writable ||
     pending.some((item) => item.command.kind === 'reload' || item.command.key === key)
   const changed = !!draft && dirty(draft)
+  const saveFromKeyboard = useRef<() => void>(() => {})
+  saveFromKeyboard.current = () => {
+    const currentDraft = current.current.find((item) => item.key === keyRef.current)
+    if (!readOnly && currentDraft && dirty(currentDraft)) void save(currentDraft)
+  }
+  useEffect(() => {
+    if (!active) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      const modifier = platform === 'darwin' ? event.metaKey : event.ctrlKey
+      if (
+        event.defaultPrevented ||
+        !modifier ||
+        event.altKey ||
+        event.shiftKey ||
+        event.key.toLowerCase() !== 's' ||
+        document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')
+      )
+        return
+      event.preventDefault()
+      saveFromKeyboard.current()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [active, platform])
   const conflicted = !!draft && conflict(draft)
   const applied =
     !!documents && documents.documents.some((item) => documents.active[item.key] !== item.revision)
@@ -504,9 +528,7 @@ export function PromptEditor({
             onChange={(content) => {
               void persist({ ...current.current.find((item) => item.key === key)!, draft: content })
             }}
-            onSave={() => {
-              if (!readOnly && dirty(current.current.find((item) => item.key === key)!)) void save()
-            }}
+            onSave={() => saveFromKeyboard.current()}
             onBack={returnToAbout}
             onCursor={(line, column) => setCursor({ line, column })}
           />
