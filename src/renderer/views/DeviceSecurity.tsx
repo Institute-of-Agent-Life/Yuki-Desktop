@@ -307,14 +307,13 @@ export function DeviceSecurity({
         title="連接另一台裝置"
         open={open}
         onClose={close}
-        width={600}
         actions={
           <>
-            <Button variant="primary" onClick={close}>
-              完成
-            </Button>
             <Button disabled={busy || lost} onClick={() => void issue()}>
               另外產生綁定碼
+            </Button>
+            <Button variant="primary" autoFocus onClick={close}>
+              完成
             </Button>
           </>
         }

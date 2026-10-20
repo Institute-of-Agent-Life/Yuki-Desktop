@@ -304,6 +304,8 @@ test('device and one-time-code sheets keep actual controls reachable in four the
         await expect(
           sheet.getByRole('button', { name: '另外產生綁定碼', exact: true }),
         ).toBeEnabled()
+        await expect(sheet).toHaveCSS('width', '480px')
+        await expect(sheet.getByRole('button', { name: '完成', exact: true })).toBeFocused()
         await expect(qr).toHaveCSS('width', '120px')
         await expect(qr).toBeInViewport({ ratio: 1 })
         await expect(sheet.getByRole('button', { name: '完成', exact: true })).toBeInViewport({
@@ -321,7 +323,7 @@ test('device and one-time-code sheets keep actual controls reachable in four the
               `darwin-2x-${mode}-pair-code-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
             ),
         )
-        await sheet.getByRole('button', { name: '完成', exact: true }).click()
+        await sheet.getByRole('button', { name: '完成', exact: true }).press('Enter')
         await expect(page.getByRole('dialog')).not.toBeVisible()
       }
     }
