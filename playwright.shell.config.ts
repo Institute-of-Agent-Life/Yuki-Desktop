@@ -16,6 +16,7 @@ export default defineConfig({
     'windows-local-executor.spec.ts',
     'windows-executor-recovery.spec.ts',
     'windows-executor-enrollment.spec.ts',
+    'windows-work.spec.ts',
   ],
   outputDir: process.env.YUKI_NATIVE_TEST_OUTPUT ?? join(tmpdir(), 'yuki-desktop-native-e2e'),
   workers: 1,
