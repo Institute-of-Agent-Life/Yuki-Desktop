@@ -3,7 +3,7 @@ import { pairUI, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
 import type { Connection, Me, Home, ProactiveRoute } from '../../src/shared/api'
 async function settings(page: Page) {
-  await page.keyboard.press('Meta+,')
+  await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
   await expect(page.getByText('已連線', { exact: true })).toBeVisible()
 }
@@ -112,7 +112,7 @@ test('new server address proves real identity before bearer and resumes the orig
   }
 })
 async function settingsWithoutWaiting(page: Page) {
-  await page.keyboard.press('Meta+,')
+  await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
 }
 

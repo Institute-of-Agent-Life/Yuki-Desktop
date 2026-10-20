@@ -11,7 +11,7 @@ async function selected(page: Page) {
   })
 }
 async function security(page: Page) {
-  await page.keyboard.press('Meta+,')
+  await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: '裝置與安全', exact: true }).click()
   await expect(page.getByRole('button', { name: '登出…', exact: true })).toBeVisible()
 }
@@ -64,7 +64,7 @@ test('logout drains a real delayed read; kept original pending content survives 
     expect(seeded.status).toBe(200)
     await page.getByRole('button', { name: '關於 Yuki', exact: true }).click()
     await expect(page.getByRole('button', { name: '已核對的記錄 52', exact: false })).toBeVisible()
-    await page.keyboard.press('Meta+1')
+    await page.keyboard.press('ControlOrMeta+1')
     const source = join(rig.root, 'private-local-attachment.txt'),
       bytes = Buffer.from('原附件快照內容')
     await writeFile(source, bytes)
@@ -285,7 +285,7 @@ test('logging out the actual human controller releases its original Manager leas
     await pairUI(page, rig.base, await rig.code(), 'Human controller')
     await pairUI(other, rig.base, await rig.code(), 'Lease observer')
     const original = await selected(page)
-    await page.keyboard.press('Meta+3')
+    await page.keyboard.press('ControlOrMeta+3')
     const initial = (await (await fetch(`${rig.base}/__test/computer`)).json()) as {
       control: { holder: string; lease_id: string | null }
     }

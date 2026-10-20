@@ -5,7 +5,7 @@ import type { Connection } from '../../src/shared/api'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 
 async function local(page: Page) {
-  await page.keyboard.press('Meta+,')
+  await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: '本機連接', exact: true }).click()
 }
 async function state(page: Page, connection: Connection) {
@@ -68,13 +68,13 @@ test('actual role switches retain independent leases, folder grants and executor
     await page.getByRole('button', { name: '接手', exact: true }).click()
     await expect.poll(async () => (await facts(second.base)).control.holder).toBe('human')
     const mikaLease = (await facts(second.base)).control.lease_id
-    await page.keyboard.press('Meta+Shift+[')
+    await page.keyboard.press('ControlOrMeta+Shift+[')
     await page.getByRole('button', { name: 'Yuki 的電腦', exact: true }).click()
     await page.getByRole('button', { name: '接手', exact: true }).click()
     await expect.poll(async () => (await facts(first.base)).control.holder).toBe('human')
     const yukiLease = (await facts(first.base)).control.lease_id
     expect((await facts(second.base)).control.lease_id).toBe(mikaLease)
-    await page.keyboard.press('Meta+Shift+]')
+    await page.keyboard.press('ControlOrMeta+Shift+]')
     await expect(page.getByRole('button', { name: '交回給 Mika', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '交回給 Mika', exact: true }).click()
     await page.getByRole('dialog').getByRole('button', { name: '交回', exact: true }).click()
@@ -101,7 +101,7 @@ test('actual role switches retain independent leases, folder grants and executor
     expect(firstState.installation?.executorId).not.toBe(
       (await state(page, next)).installation?.executorId,
     )
-    await page.keyboard.press('Meta+Shift+[')
+    await page.keyboard.press('ControlOrMeta+Shift+[')
     await expect(page.getByRole('button', { name: '交回給 Yuki', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '交回給 Yuki', exact: true }).click()
     await page.getByRole('dialog').getByRole('button', { name: '交回', exact: true }).click()

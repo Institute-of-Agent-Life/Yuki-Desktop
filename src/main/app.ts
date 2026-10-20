@@ -1,6 +1,7 @@
 import electronUpdater from 'electron-updater'
 import { AppUpdates } from './updates'
 import { FeedOnlyUpdater } from './feed-updater'
+import { DesktopReleaseProvider } from './release-provider'
 import {
   app,
   clipboard,
@@ -216,10 +217,14 @@ else {
         appImage: process.env.APPIMAGE,
         channel: store.preferences().updateChannel,
       },
-      () =>
-        process.platform === 'linux' && !process.env.APPIMAGE
-          ? new FeedOnlyUpdater()
-          : electronUpdater.autoUpdater,
+      () => {
+        const sdk =
+          process.platform === 'linux' && !process.env.APPIMAGE
+            ? new FeedOnlyUpdater()
+            : electronUpdater.autoUpdater
+        sdk.setFeedURL({ provider: 'custom', updateProvider: DesktopReleaseProvider })
+        return sdk
+      },
       (state) => {
         if (win && !win.webContents.isDestroyed()) win.webContents.send('yuki:update', state)
         if (state.phase === 'error' && installAfterQuit && !closingResources) {

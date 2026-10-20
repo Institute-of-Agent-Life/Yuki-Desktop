@@ -45,13 +45,13 @@ test('uses the real paste/copy, send-key and close/reopen UI paths with isolated
       animations: 'disabled',
       path: test.info().outputPath('conversation-code.png'),
     })
-    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+,' : 'Control+,')
+    await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '⌘ / Ctrl Enter', exact: true }).click()
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await composer.fill('用選定的送出鍵送出')
     await composer.press('Enter')
     await expect(composer).toHaveValue('用選定的送出鍵送出\n')
-    await composer.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter')
+    await composer.press('ControlOrMeta+Enter')
     await expect(composer).toHaveValue('')
     const pid = app.process().pid,
       reopened = app.waitForEvent('window')

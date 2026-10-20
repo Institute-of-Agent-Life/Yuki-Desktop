@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 
 async function send(page: Page, text: string) {
-  await page.keyboard.press('Meta+N')
+  await page.keyboard.press('ControlOrMeta+N')
   const input = page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
   await expect(input).toBeFocused()
   await input.fill(text)
@@ -22,7 +22,7 @@ test('two equally named real roles send to their own original Main and recover s
     let page = await app.firstWindow()
     await pairUI(page, first.base, await first.code())
     await send(page, '第一個角色的原始訊息')
-    await page.keyboard.press('Meta+,')
+    await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
     await page.getByRole('button', { name: '加入另一個角色', exact: true }).click()
     await pairUI(page, second.base, await second.code())
@@ -30,7 +30,7 @@ test('two equally named real roles send to their own original Main and recover s
       page.getByText('第一個角色的原始訊息', { exact: true }).filter({ visible: true }),
     ).toHaveCount(0)
     await send(page, '第二個角色的原始訊息')
-    await page.keyboard.press('Meta+Shift+[')
+    await page.keyboard.press('ControlOrMeta+Shift+[')
     await expect(
       page.getByText('第一個角色的原始訊息', { exact: true }).filter({ visible: true }),
     ).toBeVisible()
@@ -52,7 +52,7 @@ test('two equally named real roles send to their own original Main and recover s
     await expect(
       page.getByText('第一個角色的原始訊息', { exact: true }).filter({ visible: true }),
     ).toBeVisible()
-    await page.keyboard.press('Meta+Shift+]')
+    await page.keyboard.press('ControlOrMeta+Shift+]')
     await expect(
       page.getByText('第二個角色的原始訊息', { exact: true }).filter({ visible: true }),
     ).toBeVisible()

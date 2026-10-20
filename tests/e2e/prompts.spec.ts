@@ -59,7 +59,7 @@ async function open(page: Page) {
 async function edit(page: Page, content: string, key = 'system_prompt') {
   await expect(editor(page, key)).toHaveAttribute('aria-readonly', 'false')
   await editor(page, key).click()
-  await page.keyboard.press('Meta+A')
+  await page.keyboard.press('ControlOrMeta+A')
   const lines = content.split(/\r?\n/)
   for (let index = 0; index < lines.length; index++) {
     if (index) await page.keyboard.press('Enter')
@@ -155,13 +155,13 @@ test('real prompt editor keeps CAS baselines, compares conflicts, supports undo 
       .poll(async () => (await drafts(pa)).find((item) => item.key === 'system_prompt')?.draft)
       .toBe(third)
     await editor(pa).click()
-    await pa.keyboard.press('Meta+Z')
+    await pa.keyboard.press('ControlOrMeta+Z')
     await expect
       .poll(async () => (await drafts(pa)).find((item) => item.key === 'system_prompt')?.draft)
       .toBe(fourth)
     const rebased = (await drafts(pa)).find((item) => item.key === 'system_prompt')!
     expect(rebased.baseContent).toBe(third)
-    await pa.keyboard.press('Meta+Shift+Z')
+    await pa.keyboard.press('ControlOrMeta+Shift+Z')
     await expect
       .poll(async () => (await drafts(pa)).find((item) => item.key === 'system_prompt')?.draft)
       .toBe(third)
@@ -189,11 +189,11 @@ test('real prompt editor keeps CAS baselines, compares conflicts, supports undo 
     await pa.getByRole('dialog').getByRole('button', { name: '不儲存', exact: true }).click()
     await expect(editor(pa, 'persona')).toBeVisible()
     await edit(pa, 'PERSONA 修改\n真實角色資料', 'persona')
-    await pa.keyboard.press('Meta+S')
+    await pa.keyboard.press('ControlOrMeta+S')
     await expect
       .poll(() => readFile(join(rig.root, 'persona.md'), 'utf8'))
       .toBe('PERSONA 修改\n真實角色資料')
-    await pa.keyboard.press('Meta+F')
+    await pa.keyboard.press('ControlOrMeta+F')
     await expect(pa.locator('.cm-search input[name="search"]')).toBeVisible()
     await pa.locator('.cm-search input[name="search"]').fill('修改')
     await pa.locator('.cm-search input[name="search"]').press('Enter')
@@ -201,7 +201,7 @@ test('real prompt editor keeps CAS baselines, compares conflicts, supports undo 
     await pa.keyboard.press('Escape')
     await expect(pa.locator('.cm-search')).not.toBeVisible()
     await edit(pa, '離頁前未儲存', 'persona')
-    await pa.keyboard.press('Meta+,')
+    await pa.keyboard.press('ControlOrMeta+,')
     await expect(pa.getByRole('dialog', { name: '要儲存變更嗎？' })).toBeVisible()
     await pa.getByRole('dialog').getByRole('button', { name: '不儲存', exact: true }).click()
     await pa.getByRole('tab', { name: '外觀', exact: true }).click()
@@ -581,14 +581,14 @@ test('cross-platform LF and CRLF changes preserve raw drafts through discard, un
       .poll(async () => (await drafts(page)).find((item) => item.key === 'system_prompt')?.draft)
       .toBe(remote)
     await editor(page).click()
-    await page.keyboard.press('Meta+Z')
+    await page.keyboard.press('ControlOrMeta+Z')
     await expect
       .poll(async () => (await drafts(page)).find((item) => item.key === 'system_prompt')?.draft)
       .toBe(mine)
     expect((await drafts(page)).find((item) => item.key === 'system_prompt')?.baseContent).toBe(
       remote,
     )
-    await page.keyboard.press('Meta+Shift+Z')
+    await page.keyboard.press('ControlOrMeta+Shift+Z')
     await expect
       .poll(async () => (await drafts(page)).find((item) => item.key === 'system_prompt')?.draft)
       .toBe(remote)

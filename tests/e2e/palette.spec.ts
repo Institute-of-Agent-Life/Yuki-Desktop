@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
 async function open(page: Page, text = '') {
-  await page.keyboard.press('Meta+k')
+  await page.keyboard.press('ControlOrMeta+k')
   const dialog = page.getByRole('dialog', { name: '指令面板', exact: true }),
     input = dialog.getByRole('combobox')
   await expect(input).toBeFocused()
@@ -44,14 +44,14 @@ test('palette searches only actual loaded entries and exact-event verification n
     await page.keyboard.press('Escape')
     await expect(composer).toBeFocused()
     palette = await open(page, 'QQ 原入口')
-    await page.keyboard.press('Meta+Enter')
+    await page.keyboard.press('ControlOrMeta+Enter')
     await expect(palette.dialog).not.toBeVisible()
     await expect(
       page
         .getByRole('region', { name: '原訊息舞台' })
         .locator(`article[data-event-id="${source.event_id}"]`),
     ).toBeVisible()
-    await page.keyboard.press('Meta+Shift+e')
+    await page.keyboard.press('ControlOrMeta+Shift+e')
     await page.getByRole('button', { name: '回到桌面對話', exact: true }).click()
     const nextResponse = await fetch(`${rig.base}/__test/qq-entry`, { method: 'POST' })
     expect(nextResponse.status).toBe(200)
@@ -105,13 +105,13 @@ test('real cached work and immutable artifacts open through Enter and the stage 
     await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('請建立原工作整合測試')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(page.getByText('需要你提供城市', { exact: true }).first()).toBeVisible()
-    await page.keyboard.press('Meta+2')
+    await page.keyboard.press('ControlOrMeta+2')
     await expect(page.getByRole('button', { name: /原工作整合測試/ }).first()).toBeVisible()
     let palette = await open(page, '原工作整合測試')
     const work = palette.dialog.locator('[role="option"][data-item-id^="work/"]')
     await expect(work).toHaveCount(1)
     await work.hover()
-    await page.keyboard.press('Meta+Enter')
+    await page.keyboard.press('ControlOrMeta+Enter')
     await expect(
       page
         .getByRole('complementary', { name: '檢視器' })
@@ -119,9 +119,9 @@ test('real cached work and immutable artifacts open through Enter and the stage 
         .first(),
     ).toBeVisible()
     await expect(page.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
-    await page.keyboard.press('Meta+Shift+e')
+    await page.keyboard.press('ControlOrMeta+Shift+e')
     await fetch(`${rig.base}/__test/artifacts`, { method: 'POST' })
-    await page.keyboard.press('Meta+4')
+    await page.keyboard.press('ControlOrMeta+4')
     await expect(page.getByRole('button', { name: /same.md/ }).first()).toBeVisible()
     palette = await open(page, 'same.md')
     let files = palette.dialog.locator('[role="option"][data-item-id^="file/"]')
@@ -140,7 +140,7 @@ test('real cached work and immutable artifacts open through Enter and the stage 
     files = palette.dialog.locator('[role="option"][data-item-id^="file/"]')
     await files.first().hover()
     await page.keyboard.press('ArrowDown')
-    await page.keyboard.press('Meta+Enter')
+    await page.keyboard.press('ControlOrMeta+Enter')
     await expect(page.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
     await expect(
       page
@@ -182,7 +182,7 @@ test('palette navigation preserves the original unsaved prompt guard', async () 
     const editor = page.getByRole('textbox', { name: 'system_prompt.md 內容', exact: true })
     await expect(editor).toHaveAttribute('aria-readonly', 'false')
     await editor.click()
-    await page.keyboard.press('Meta+A')
+    await page.keyboard.press('ControlOrMeta+A')
     await page.keyboard.insertText('尚未儲存的原角色提示詞')
     await open(page, '開啟設定')
     await page.keyboard.press('Enter')
@@ -217,7 +217,7 @@ test('palette geometry, keyboard focus and footer remain usable across themes, s
       await app.evaluate(({ BrowserWindow }) =>
         BrowserWindow.getAllWindows()[0]!.setContentSize(1440, 900),
       )
-      await page.keyboard.press('Meta+,')
+      await page.keyboard.press('ControlOrMeta+,')
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
       await page.getByRole('tab', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
       for (const [label, value] of [

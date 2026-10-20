@@ -58,7 +58,7 @@ test('actual settings paths retain native preferences, timezone, notifications a
       originalTimestamp,
     )
     await expect(time).toHaveText(expectedTaipei)
-    await page.keyboard.press('Meta+,')
+    await page.keyboard.press('ControlOrMeta+,')
     await expect(page.getByRole('tab', { name: '一般', exact: true })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -100,7 +100,7 @@ test('actual settings paths retain native preferences, timezone, notifications a
     )
     await expect(time).toHaveText(expectedSystem)
     expect(await time.getAttribute('datetime')).toBe(originalTimestamp)
-    await page.keyboard.press('Meta+,')
+    await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '進階', exact: true }).click()
     await page.getByRole('button', { name: '匯出…', exact: true }).click()
     await expect(page.getByText('診斷記錄已匯出。', { exact: true })).toBeVisible()
@@ -148,7 +148,7 @@ test('settings categories remain keyboard reachable in all four themes and small
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
-    await page.keyboard.press('Meta+,')
+    await page.keyboard.press('ControlOrMeta+,')
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
       await app.evaluate(({ BrowserWindow }) =>
         BrowserWindow.getAllWindows()[0]!.setContentSize(1440, 900),
@@ -192,7 +192,7 @@ test('settings categories remain keyboard reachable in all four themes and small
         }
       }
     }
-    await page.keyboard.press('Meta+1')
+    await page.keyboard.press('ControlOrMeta+1')
     await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
     success = true
   } finally {

@@ -7,7 +7,7 @@ import type { Connection } from '../../src/shared/api'
 import type { ExecutorView } from '../../src/shared/executor'
 
 async function settings(page: Page) {
-  await page.keyboard.press('Meta+,')
+  await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: '本機連接', exact: true }).click()
 }
 async function connection(page: Page) {
@@ -361,7 +361,7 @@ test('S10 and folder command use the real settings flow in four themes and small
     await mkdir(folder)
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
-    await page.keyboard.press('Meta+k')
+    await page.keyboard.press('ControlOrMeta+k')
     await page
       .getByRole('combobox', { name: '搜尋已載入的對話、工作與檔案' })
       .fill('授權本機資料夾')

@@ -8,7 +8,6 @@ Yuki 的跨平台桌面客戶端專案。
 
 ```sh
 npm ci
-npm exec install-electron -- --no
 npm run dev
 ```
 
@@ -26,6 +25,8 @@ npm run check:package
 ```
 
 `npm run package` 產生目前平台的安裝檔，設定涵蓋 macOS DMG／zip、Windows NSIS、Linux AppImage／deb／rpm。打包成功、原生平台驗收及簽章發行分別驗證。建置命令預設不發布。
+
+指定架構、產物檢查與正式簽章程序見 [RELEASING.md](RELEASING.md)。一般打包不公證；正式 macOS／Windows 設定另行要求簽章，缺少憑證時會失敗。
 
 設定 →「一般」可選一般或測試版本並檢查更新。App 不會自行下載或在工作中途重新啟動；下載完成後可按工具列的「重新啟動以更新」。更新沿用離頁確認與電腦控制權的交回選擇，並等待已開始的本機操作收尾。安裝被拒絕時可繼續使用原連線與資料，再次檢查或前往官方下載頁。macOS、Windows 與 AppImage 使用更新安裝流程；deb／rpm 提供新版提示及手動下載。開發模式不檢查更新。
 

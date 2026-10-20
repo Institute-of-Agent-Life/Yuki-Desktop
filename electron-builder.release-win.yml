@@ -1,0 +1,8 @@
+extends: build-tools/builder-config.mjs
+forceCodeSigning: true
+win:
+  azureSignOptions:
+    publisherName: '${env.YUKI_WINDOWS_PUBLISHER}'
+    endpoint: '${env.YUKI_AZURE_SIGNING_ENDPOINT}'
+    certificateProfileName: '${env.YUKI_AZURE_CERTIFICATE_PROFILE}'
+    codeSigningAccountName: '${env.YUKI_AZURE_SIGNING_ACCOUNT}'

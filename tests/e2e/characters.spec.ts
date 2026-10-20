@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 
 async function add(page: Page) {
-  await page.keyboard.press('Meta+,')
+  await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
   await page.getByRole('button', { name: '加入另一個角色', exact: true }).click()
   await expect(page.getByLabel('伺服器位址')).toBeVisible()
@@ -66,7 +66,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
         ),
       )
       .toBe('#3a6bd6')
-    await page.keyboard.press('Meta+Shift+]')
+    await page.keyboard.press('ControlOrMeta+Shift+]')
     await expect(page.getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })).toHaveValue(
       '只有 Mika 的草稿',
     )
@@ -74,13 +74,13 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     const editor = page.getByRole('textbox', { name: 'system_prompt.md 內容', exact: true })
     await editor.click()
-    await page.keyboard.press('Meta+End')
+    await page.keyboard.press('ControlOrMeta+End')
     await page.keyboard.insertText('\n只屬於 Mika 的提示詞')
-    await page.keyboard.press('Meta+Shift+[')
+    await page.keyboard.press('ControlOrMeta+Shift+[')
     await expect(page.getByRole('dialog', { name: '要儲存變更嗎？' })).toBeVisible()
     await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click()
     await expect(editor).toContainText('只屬於 Mika 的提示詞')
-    await page.keyboard.press('Meta+Shift+[')
+    await page.keyboard.press('ControlOrMeta+Shift+[')
     await page.getByRole('dialog').getByRole('button', { name: '儲存', exact: true }).click()
     await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '關於 Yuki', exact: true }).click()
@@ -97,7 +97,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await page.getByRole('slider', { name: '頭像縮放', exact: true }).focus()
     await page.keyboard.press('ArrowRight')
     const zoom = await page.getByRole('slider', { name: '頭像縮放', exact: true }).inputValue()
-    await page.keyboard.press('Meta+Shift+]')
+    await page.keyboard.press('ControlOrMeta+Shift+]')
     await expect(page.getByRole('dialog', { name: '更換 Yuki 的頭像' })).toHaveCount(0)
     await expect(editor).toBeVisible()
     await expect(editor).toContainText('只屬於 Mika 的提示詞')
@@ -108,7 +108,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await page.getByRole('button', { name: '編輯頭像', exact: true }).click()
     await expect(page.getByRole('dialog', { name: '更換 Mika 的頭像' })).toBeVisible()
     await expect(page.getByRole('button', { name: '選擇圖片…', exact: true })).toBeVisible()
-    await page.keyboard.press('Meta+Shift+[')
+    await page.keyboard.press('ControlOrMeta+Shift+[')
     await expect(page.getByRole('dialog', { name: '更換 Yuki 的頭像' })).toBeVisible()
     await expect(page.getByRole('button', { name: '選擇其他圖片…', exact: true })).toBeVisible()
     await expect(page.getByRole('slider', { name: '頭像縮放', exact: true })).toHaveValue(zoom)
@@ -120,7 +120,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await switchRole(page, 'Mika')
     await expect(page.getByRole('dialog', { name: '更換 Mika 的頭像' })).toBeVisible()
     await page.keyboard.press('Escape')
-    await page.keyboard.press('Meta+1')
+    await page.keyboard.press('ControlOrMeta+1')
     await expect(page.getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })).toHaveValue(
       '只有 Mika 的草稿',
     )
@@ -146,7 +146,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
       '264',
     )
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
-      await page.keyboard.press('Meta+,')
+      await page.keyboard.press('ControlOrMeta+,')
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
       await page.getByRole('tab', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
       for (const [name, checked] of [
@@ -195,7 +195,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
             path: test.info().outputPath(`S12-${mode}-${width}-${name}.png`),
           })
           await page.keyboard.press('Escape')
-          await page.keyboard.press('Meta+Shift+]')
+          await page.keyboard.press('ControlOrMeta+Shift+]')
         }
       }
     }

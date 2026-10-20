@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
 async function security(page: Page) {
-  await page.keyboard.press('Meta+,')
+  await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: '裝置與安全', exact: true }).click()
   await expect(page.getByRole('button', { name: '產生綁定碼', exact: true })).toBeEnabled()
 }

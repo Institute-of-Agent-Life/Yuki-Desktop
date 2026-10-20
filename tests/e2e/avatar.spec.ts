@@ -249,7 +249,7 @@ test('actual avatar crop, EXIF orientation, two-device CAS, reset and cold recov
     await choose(a, pa, inputs.small)
     await expect(editor(pa)).not.toContainText('剪貼簿圖片.png')
     await editor(pa).getByRole('button', { name: '選擇其他圖片…', exact: true }).focus()
-    await pa.keyboard.press(process.platform === 'darwin' ? 'Meta+V' : 'Control+V')
+    await pa.keyboard.press('ControlOrMeta+V')
     await expect(editor(pa)).toContainText('剪貼簿圖片.png')
     await editor(pa).getByRole('button', { name: '取消', exact: true }).click()
     if (process.platform === 'darwin') {

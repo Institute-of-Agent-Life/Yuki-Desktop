@@ -1,9 +1,12 @@
 appId: life.yuki.desktop
 productName: Yuki
+artifactName: 'Yuki-${version}-${os}-${arch}.${ext}'
 directories:
   output: dist
   buildResources: resources
 asar: true
+# Fixed SQLite 13 ships Node-API 10 binaries; validate target prebuilts in beforePack.
+npmRebuild: false
 files:
   - out/main/**
   - out/preload/**
@@ -39,6 +42,7 @@ mac:
   minimumSystemVersion: '13.0.0'
   target: [dmg, zip]
   hardenedRuntime: true
+  notarize: false
   entitlements: resources/entitlements.mac.plist
   entitlementsInherit: resources/entitlements.mac.plist
   extendInfo:
@@ -51,17 +55,23 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
 linux:
+  maintainer: Institute of Agent Life
+  executableName: yuki
+  syncDesktopName: true
   icon: resources/icons/app
   category: Utility
   target: [AppImage, deb, rpm]
   desktop:
     entry:
       MimeType: x-scheme-handler/yuki;
-      StartupWMClass: Yuki
+appImage:
+  executableArgs: []
 deb:
+  appArmorProfile: resources/linux/apparmor-profile.tpl
   depends:
     [libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libsecret-1-0, fonts-noto-cjk]
 rpm:
+  appArmorProfile: resources/linux/apparmor-profile.tpl
   depends:
     [
       gtk3,

@@ -1,6 +1,6 @@
 import electron from 'electron'
 import { spawnSync } from 'node:child_process'
-// Native storage is built for the shipped Electron ABI, so exercise that exact runtime.
+// Exercise native storage with the exact Electron runtime shipped by the product.
 const result = spawnSync(
   electron,
   ['node_modules/vitest/vitest.mjs', 'run', ...process.argv.slice(2)],

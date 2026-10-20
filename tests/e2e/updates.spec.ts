@@ -167,7 +167,7 @@ test('actual update buttons wait for a started native operation, recover a rejec
     await page
       .getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
       .fill('更新前要保留的草稿')
-    await page.keyboard.press('Meta+,')
+    await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '本機連接', exact: true }).click()
     await page.getByRole('button', { name: '允許 Yuki 使用這台電腦', exact: true }).click()
     await page.getByRole('switch', { name: '允許開啟網址', exact: true }).click()
@@ -229,7 +229,7 @@ test('actual update buttons wait for a started native operation, recover a rejec
       ;(globalThis as unknown as { __updateFixture: FixtureState }).__updateFixture.rejectInstall =
         false
     })
-    await page.keyboard.press('Meta+,')
+    await page.keyboard.press('ControlOrMeta+,')
     await download(page)
     const stopped = app.waitForEvent('close')
     await page.getByRole('button', { name: '重新啟動以更新', exact: true }).click()
@@ -330,7 +330,7 @@ test('update controls cancel an active download, reject corrupt content, retain 
     await mockInstaller(app)
     await pairUI(page, rig.base, await rig.code())
     expect((await snapshot(app)).checks).toBe(0)
-    await page.keyboard.press('Meta+,')
+    await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '測試版本', exact: true }).click()
     await expect.poll(async () => (await updateState(page)).channel).toBe('beta')
     await configure(app, { holdDownload: true })
@@ -393,7 +393,7 @@ test('update controls cancel an active download, reject corrupt content, retain 
         await expect(ready).toBeFocused()
         await expect(ready).toBeInViewport()
         await page.screenshot({ path: test.info().outputPath(`S16-toolbar-${mode}-${width}.png`) })
-        await page.keyboard.press('Meta+,')
+        await page.keyboard.press('ControlOrMeta+,')
       }
     }
     expect((await snapshot(app)).installs).toBe(0)
@@ -401,7 +401,7 @@ test('update controls cancel an active download, reject corrupt content, retain 
     app = await rig.launch('update-controls')
     page = await app.firstWindow()
     await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })).toBeVisible()
-    await page.keyboard.press('Meta+,')
+    await page.keyboard.press('ControlOrMeta+,')
     await expect(page.getByRole('tab', { name: '測試版本', exact: true })).toHaveAttribute(
       'aria-selected',
       'true',
