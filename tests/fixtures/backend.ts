@@ -108,7 +108,13 @@ export async function yukiFixture(
     },
   }
 }
-export async function pairUI(page: Page, base: string, code: string, label?: string) {
+export async function pairUI(
+  page: Page,
+  base: string,
+  code: string,
+  label?: string,
+  timeout = 5000,
+) {
   type ProbeWindow = Window & {
     __yukiPairProbe?: { online: Record<string, boolean>; dispose(): void }
   }
@@ -130,7 +136,7 @@ export async function pairUI(page: Page, base: string, code: string, label?: str
     await page.getByLabel('綁定碼或完整回覆').fill(code)
     if (label) await page.getByLabel('裝置名稱').fill(label)
     await page.getByRole('button', { name: '配對', exact: true }).click()
-    await page.getByRole('button', { name: '進入', exact: true }).click()
+    await page.getByRole('button', { name: '進入', exact: true }).click({ timeout })
     let pairedId = ''
     await expect
       .poll(

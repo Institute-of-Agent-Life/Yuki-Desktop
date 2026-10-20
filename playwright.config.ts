@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 export default defineConfig({
   testDir: './tests/e2e',
-  testIgnore: 'windows-shell.spec.ts',
+  testIgnore: ['windows-shell.spec.ts', 'windows-client.spec.ts'],
   outputDir: join(tmpdir(), 'yuki-desktop-e2e'),
   workers: 1,
   webServer: {

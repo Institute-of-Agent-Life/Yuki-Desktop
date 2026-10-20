@@ -506,6 +506,7 @@ export class Connections {
   }
   async enableExecutor(id: string, label: string) {
     await this.identify(id)
+    await this.credentials.preparePersistence()
     const context = this.executors(id)
     await context.setup.enable(this.client(id), label, process.platform)
     await context.runtime.start(this.connection(id).baseUrl, this.version)
@@ -995,6 +996,7 @@ export class Connections {
     )
   }
   private async pairVerified(baseUrl: string, meta: Meta, code: string, label: string) {
+    await this.credentials.preparePersistence()
     const paired = await new ApiClient(baseUrl, undefined, undefined, this.version).post<{
       device_id: string
       token: string
