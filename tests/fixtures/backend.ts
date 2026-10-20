@@ -12,6 +12,7 @@ export async function yukiFixture(
     character?: boolean
     prompts?: boolean | 'readonly'
     executor?: boolean
+    longText?: boolean
   } = {},
 ) {
   const backend = process.env.YUKI_BACKEND_TEST_ROOT,
@@ -37,6 +38,7 @@ export async function yukiFixture(
           ...process.env,
           YUKI_DESKTOP_COMPUTER_FIXTURE: options.computer ? '1' : '0',
           YUKI_DESKTOP_EXECUTOR_FIXTURE: options.executor ? '1' : '0',
+          YUKI_DESKTOP_LONG_TEXT_FIXTURE: options.longText ? '1' : '0',
           YUKI_DESKTOP_CHARACTER_FIXTURE: options.character ? '1' : '0',
           YUKI_DESKTOP_PROMPT_FIXTURE:
             options.prompts === 'readonly' ? 'readonly' : options.prompts ? '1' : '0',
