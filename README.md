@@ -46,6 +46,8 @@ Windows 對話相關驗證需 operator 啟動全新隔離的 Yuki 參考服務�
 
 `windows-executor-recovery.spec.ts` 另以只攔截傳輸的 loopback proxy 注入 ack／result 中斷，唯讀核對本次設定檔的 SQLite journal，三次強制結束實際 Electron 主程序後以原入口接回，分別驗證 finished 補報不覆寫、已接納 ack 的 unknown 與未接納 ack 的原 ID 接續。
 
+`windows-executor-enrollment.spec.ts` 核對建立與撤銷回應遺失後的原請求查證、新 UUID 重建及 DPAPI 恢復，並以另一個真裝置觀察 App 關閉後拒絕新操作、不排隊，重開後只有新的明確請求才寫入；最後從另一裝置撤銷。
+
 未提供服務或非 Windows 時明確跳過，不讀取部署設定。
 
 設定 →「一般」可選一般或測試版本並檢查更新。App 不會自行下載或在工作中途重新啟動；下載完成後可按工具列的「重新啟動以更新」。更新沿用離頁確認與電腦控制權的交回選擇，並等待已開始的本機操作收尾。安裝被拒絕時可繼續使用原連線與資料，再次檢查或前往官方下載頁。macOS、Windows 與 AppImage 使用更新安裝流程；deb／rpm 提供新版提示及手動下載。開發模式不檢查更新。

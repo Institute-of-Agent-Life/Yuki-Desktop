@@ -13,6 +13,7 @@ export default defineConfig({
     'windows-prompts.spec.ts',
     'windows-local-executor.spec.ts',
     'windows-executor-recovery.spec.ts',
+    'windows-executor-enrollment.spec.ts',
   ],
   outputDir: join(tmpdir(), 'yuki-desktop-e2e'),
   workers: 1,
