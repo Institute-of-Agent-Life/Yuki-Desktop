@@ -4,7 +4,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ArtifactPage, Home, Work } from '../../src/shared/api'
 import { pairUI, yukiFixture } from '../fixtures/backend'
-import { contentSize } from '../fixtures/visual'
+import { captureWorkspace, contentSize } from '../fixtures/visual'
 
 interface Facts {
   phase: number | null
@@ -61,6 +61,26 @@ test('desktop returns the real CLI receipt to the original work and keeps its de
     })
     expect(initial.work_ids).toEqual([original.work.work_id])
     expect(initial.waits[0]!.work_id).toBe(original.work.work_id)
+    await captureWorkspace(
+      app,
+      page,
+      'state-chat-computer-help',
+      async () => {
+        await page.keyboard.press('ControlOrMeta+1')
+      },
+      {
+        verify: async () => {
+          await waiting().scrollIntoViewIfNeeded()
+          await expect(waiting()).toBeInViewport({ ratio: 1 })
+        },
+      },
+    )
+    await contentSize(app, page, 1440, 900)
+    await page.keyboard.press('ControlOrMeta+,')
+    await page.getByRole('tab', { name: '外觀', exact: true }).click()
+    await page.getByRole('switch', { name: '增加對比', exact: true }).click()
+    await page.getByRole('button', { name: '返回', exact: true }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-contrast', 'false')
     const desktopProcess = app.process()
     const stopped = new Promise<void>((resolve) => desktopProcess.once('exit', () => resolve()))
     desktopProcess.kill('SIGKILL')
@@ -79,6 +99,28 @@ test('desktop returns the real CLI receipt to the original work and keeps its de
       .getByRole('button', { name: '在電腦上查看', exact: true })
       .click()
     await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled()
+    await captureWorkspace(
+      app,
+      page,
+      'flow-03-computer-help',
+      async () => {
+        await page.keyboard.press('ControlOrMeta+3')
+        await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled()
+      },
+      {
+        verify: async () => {
+          await expect(
+            page.getByRole('status').getByRole('button', { name: '接手', exact: true }),
+          ).toBeInViewport({ ratio: 1 })
+        },
+      },
+    )
+    await contentSize(app, page, 1440, 900)
+    await page.keyboard.press('ControlOrMeta+,')
+    await page.getByRole('tab', { name: '外觀', exact: true }).click()
+    await page.getByRole('switch', { name: '增加對比', exact: true }).click()
+    await page.getByRole('button', { name: '返回', exact: true }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-contrast', 'false')
     await page.screenshot({
       path: test
         .info()
@@ -114,6 +156,7 @@ test('desktop returns the real CLI receipt to the original work and keeps its de
     })
     await sheet.getByRole('button', { name: '交回', exact: true }).click()
     await expect.poll(async () => (await facts()).phase, { timeout: 30000 }).toBe(6)
+    await page.keyboard.press('ControlOrMeta+1')
     await expect(waiting().getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
     const final = await facts()
     expect(final.work_ids).toEqual(initial.work_ids)

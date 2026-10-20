@@ -1,4 +1,5 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
 
 export const workspaceSizes = [
   [1440, 900],
@@ -58,12 +59,70 @@ export async function captureWorkspace(
       await contentSize(app, page, width, height)
       await options.verify?.()
       const dpr = await page.evaluate(() => devicePixelRatio)
+      const path = test
+        .info()
+        .outputPath(`${process.platform}-${dpr}x-${theme}-${scenario}-${width}x${height}.png`)
       await page.screenshot({
-        path: test
-          .info()
-          .outputPath(`${process.platform}-${dpr}x-${theme}-${scenario}-${width}x${height}.png`),
+        path,
         animations: 'disabled',
       })
+      // CSS measurements are review evidence, not an automatic visual approval.
+      const metrics = await page.evaluate(() => {
+        const describe = (element: Element) => {
+          const rect = element.getBoundingClientRect()
+          const style = getComputedStyle(element)
+          return {
+            tag: element.tagName,
+            region: element.getAttribute('data-region'),
+            role: element.getAttribute('role'),
+            name:
+              element.getAttribute('aria-label') ??
+              (element.tagName === 'BUTTON'
+                ? element.textContent?.trim().slice(0, 160)
+                : undefined),
+            rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+            fontFamily: style.fontFamily,
+            fontSize: style.fontSize,
+            lineHeight: style.lineHeight,
+            fontWeight: style.fontWeight,
+            color: style.color,
+            backgroundColor: style.backgroundColor,
+            borderWidth: style.borderWidth,
+            padding: style.padding,
+          }
+        }
+        const visible = (element: Element) => {
+          const box = element.getBoundingClientRect()
+          return (
+            box.width > 0 &&
+            box.height > 0 &&
+            box.bottom > 0 &&
+            box.top < innerHeight &&
+            box.right > 0 &&
+            box.left < innerWidth &&
+            getComputedStyle(element).visibility !== 'hidden'
+          )
+        }
+        return {
+          viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio },
+          appearance: { ...document.documentElement.dataset },
+          regions: [...document.querySelectorAll('[data-region]')].filter(visible).map(describe),
+          typography: [
+            ...document.querySelectorAll('h1,h2,h3,[role="log"] p,textarea,[role="status"],small'),
+          ]
+            .filter(visible)
+            .slice(0, 24)
+            .map(describe),
+          controls: [...document.querySelectorAll('button')]
+            .filter(visible)
+            .slice(0, 48)
+            .map(describe),
+        }
+      })
+      await writeFile(
+        path.replace(/\.png$/, '.metrics.json'),
+        JSON.stringify(metrics, null, 2) + '\n',
+      )
     }
     await options.cleanup?.()
   }

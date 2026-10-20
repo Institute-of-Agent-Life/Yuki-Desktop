@@ -21,6 +21,7 @@
 }
 .header h2 {
   font-size: 17px;
+  line-height: 22px;
   font-weight: 600;
   margin: 0 0 5px;
 }
@@ -34,7 +35,11 @@
   position: absolute;
   right: 24px;
   top: 4px;
-  font-size: 10px;
+  font-size: 11px;
+}
+.helpText {
+  flex: 1;
+  min-width: 0;
 }
 .remote {
   display: flex;
@@ -83,7 +88,7 @@
   color: white;
 }
 .floating small {
-  font-size: 10px;
+  font-size: 11px;
   padding-left: 6px;
 }
 .connecting {

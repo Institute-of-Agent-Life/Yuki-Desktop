@@ -163,7 +163,7 @@ export function Computer({
       </header>
       {help.length > 0 && (
         <Banner status="waiting">
-          <span>
+          <span className={styles.helpText}>
             {name} 需要你幫忙：
             {help
               .map((item) => item.note)
