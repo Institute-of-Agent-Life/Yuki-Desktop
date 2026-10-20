@@ -9,6 +9,7 @@ import { createServer } from 'node:net'
 export async function yukiFixture(
   options: {
     computer?: boolean
+    computerWork?: boolean
     character?: boolean
     prompts?: boolean | 'readonly'
     executor?: boolean
@@ -36,7 +37,8 @@ export async function yukiFixture(
         cwd: backend,
         env: {
           ...process.env,
-          YUKI_DESKTOP_COMPUTER_FIXTURE: options.computer ? '1' : '0',
+          YUKI_DESKTOP_COMPUTER_FIXTURE: options.computer || options.computerWork ? '1' : '0',
+          YUKI_DESKTOP_COMPUTER_WORK_FIXTURE: options.computerWork ? '1' : '0',
           YUKI_DESKTOP_EXECUTOR_FIXTURE: options.executor ? '1' : '0',
           YUKI_DESKTOP_LONG_TEXT_FIXTURE: options.longText ? '1' : '0',
           YUKI_DESKTOP_CHARACTER_FIXTURE: options.character ? '1' : '0',
