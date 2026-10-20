@@ -9,6 +9,7 @@ export default defineConfig({
     'windows-shell.spec.ts',
     'windows-client.spec.ts',
     'windows-onboarding.spec.ts',
+    'windows-files.spec.ts',
   ],
   outputDir: process.env.YUKI_NATIVE_TEST_OUTPUT ?? join(tmpdir(), 'yuki-desktop-native-e2e'),
   workers: 1,
