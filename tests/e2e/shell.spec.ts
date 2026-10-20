@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { launchShell } from '../fixtures/shell-app'
@@ -7,10 +7,39 @@ import { launchShell } from '../fixtures/shell-app'
 test('native startup, actual button and keyboard paths, preferences survive restart', async () => {
   const data = await mkdtemp(join(tmpdir(), 'yuki-desktop-test-'))
   const launch = () => launchShell(data)
+  const started = performance.now()
+  const timings: Record<string, number> = {}
+  let success = false
   let app = await launch()
+  timings.mainConnectedMs = performance.now() - started
   try {
     let page = await app.firstWindow()
+    timings.windowOpenedMs = performance.now() - started
+    await page.waitForLoadState('domcontentloaded')
+    timings.domReadyMs = performance.now() - started
+    const runtime = await app.evaluate(({ app, BrowserWindow }) => ({
+      platform: process.platform,
+      arch: process.arch,
+      packaged: app.isPackaged,
+      electron: process.versions.electron,
+      translated: app.runningUnderARM64Translation,
+      sandboxed: app
+        .getAppMetrics()
+        .find(
+          (entry) => entry.pid === BrowserWindow.getAllWindows()[0]!.webContents.getOSProcessId(),
+        )?.sandboxed,
+      noSandbox: app.commandLine.hasSwitch('no-sandbox'),
+    }))
+    if (process.env.YUKI_NATIVE_EXPECT_ARCH)
+      expect(runtime.arch).toBe(process.env.YUKI_NATIVE_EXPECT_ARCH)
+    if (process.env.YUKI_NATIVE_EXPECT_TRANSLATION === '1') expect(runtime.translated).toBe(true)
+    await writeFile(
+      test.info().outputPath('native-runtime.json'),
+      JSON.stringify(runtime, null, 2) + '\n',
+    )
+
     await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible()
+    timings.firstControlReadyMs = performance.now() - started
     await page.getByRole('button', { name: '開始', exact: true }).click()
     await expect(page.getByLabel('伺服器位址')).toBeFocused()
     await page.getByLabel('伺服器位址').fill('https://example.invalid/mika')
@@ -33,11 +62,21 @@ test('native startup, actual button and keyboard paths, preferences survive rest
     await page.evaluate(() => window.open('https://example.invalid'))
     expect(app.windows()).toHaveLength(1)
     await app.close()
+    const reopenStarted = performance.now()
     app = await launch()
     page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+    timings.reopenedControlReadyMs = performance.now() - reopenStarted
+    success = true
   } finally {
+    // Debugger-attached functional timing is separate from cold-start SLA acceptance.
+    await writeFile(
+      test.info().outputPath('native-functional-timings.json'),
+      JSON.stringify(timings, null, 2) + '\n',
+    )
     await app.close()
-    await rm(data, { recursive: true, force: true })
+    if (success) await rm(data, { recursive: true, force: true })
+    else console.log(`Native shell evidence profile: ${data}`)
   }
 })
