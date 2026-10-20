@@ -1,12 +1,28 @@
 import { createContext, createElement, useContext, useMemo, type ReactNode } from 'react'
 import { createStore, useStore, type StoreApi } from 'zustand'
 import type { View, NavigationTarget } from '../../shared/desktop'
-import type { Connection } from '../../shared/api'
+import type { ArtifactSource, AttachmentSource, Connection } from '../../shared/api'
+import type { MessageReference } from '../../shared/message'
 import { requestNavigation } from './navigation'
 
+export type InspectorTab = 'work' | 'computer' | 'files'
+const inspectorFor = (view: View): InspectorTab | undefined =>
+  view === 'computer'
+    ? 'computer'
+    : view === 'files'
+      ? 'files'
+      : view === 'works'
+        ? 'work'
+        : undefined
 interface WorkspaceState {
   view: View
   inspector: boolean
+  inspectorTab: InspectorTab
+  selectedWork?: string
+  conversationId?: string
+  artifact?: ArtifactSource
+  preview?: AttachmentSource
+  messageStage?: MessageReference
   sidebar: boolean
   focusMode: boolean
   sidebarWidth: number
@@ -26,34 +42,60 @@ export function workspaceFor(scope: string) {
   let store = sessions.get(scope)
   if (!store) {
     let widths = { sidebarWidth: 260, inspectorWidth: 380 }
+    let inspectorTab: InspectorTab = 'work'
     try {
       const saved = JSON.parse(localStorage.getItem(`workspace-layout/${scope}`) ?? 'null')
       if (saved && Number.isFinite(saved.sidebarWidth) && Number.isFinite(saved.inspectorWidth))
         widths = { sidebarWidth: saved.sidebarWidth, inspectorWidth: saved.inspectorWidth }
+      if (saved && ['work', 'computer', 'files'].includes(saved.inspectorTab))
+        inspectorTab = saved.inspectorTab
     } catch {
       /* Keep the live workspace usable when local layout storage is unavailable. */
     }
-    store = createStore<WorkspaceState>((set) => ({
+    store = createStore<WorkspaceState>((set, get) => ({
       view: 'chat',
       inspector: false,
+      inspectorTab,
       sidebar: true,
       focusMode: false,
       ...widths,
       target: null,
       navigate: (target) =>
-        requestNavigation(() => set({ target, view: target.view, focusMode: false })),
-      setView: (view) => requestNavigation(() => set({ view, target: null, focusMode: false })),
-      toggle: (key) =>
-        key === 'focusMode'
-          ? requestNavigation(() => set((state) => ({ focusMode: !state.focusMode })))
-          : set((state) => ({ [key]: !state[key] })),
+        requestNavigation(() =>
+          set((state) => ({
+            target,
+            view: target.view,
+            focusMode: false,
+            inspectorTab: inspectorFor(target.view) ?? state.inspectorTab,
+          })),
+        ),
+      setView: (view) =>
+        requestNavigation(() =>
+          set((state) => ({
+            view,
+            target: null,
+            focusMode: false,
+            inspectorTab: inspectorFor(view) ?? state.inspectorTab,
+          })),
+        ),
+      toggle: (key) => {
+        const change = () =>
+          set((state) =>
+            key === 'inspector' && state.focusMode
+              ? { inspector: false, focusMode: false }
+              : { [key]: !state[key] },
+          )
+        if (key === 'focusMode' || (key === 'inspector' && get().focusMode))
+          requestNavigation(change)
+        else change()
+      },
       patch: (value) => set(value),
     }))
-    store.subscribe(({ sidebarWidth, inspectorWidth }) => {
+    store.subscribe(({ sidebarWidth, inspectorWidth, inspectorTab }) => {
       try {
         localStorage.setItem(
           `workspace-layout/${scope}`,
-          JSON.stringify({ sidebarWidth, inspectorWidth }),
+          JSON.stringify({ sidebarWidth, inspectorWidth, inspectorTab }),
         )
       } catch {
         /* A storage failure does not discard the live workspace. */

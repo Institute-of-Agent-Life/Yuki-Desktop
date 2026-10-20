@@ -41,10 +41,20 @@ test('paginates real history without moving the visible message and jumps to the
     await expect(page.getByText('原始歷史錨點', { exact: true })).toBeVisible()
     await expect(original).toHaveClass(/selected/)
     await page.getByRole('button', { name: '回到最新訊息', exact: true }).click()
-    await expect(page.getByText('引用很早以前的原事件', { exact: true })).toBeVisible()
-    // Actual wheel input reaches the top and starts before= pagination.
+    await expect(page.getByText('引用很早以前的原事件', { exact: true })).toBeInViewport({
+      ratio: 1,
+    })
+    // Each real wheel reaches the top of the current page. Wait for its prepend
+    // before the next wheel, so coalesced input cannot skip the pagination check.
     await log.hover()
-    for (let index = 0; index < 5; index++) await page.mouse.wheel(0, -20000)
+    while (!(await page.getByText('原始歷史錨點', { exact: true }).count())) {
+      const first = () =>
+        log.locator('article[data-event-id]').first().getAttribute('data-event-id').then(Number)
+      const before = await first()
+      await page.mouse.wheel(0, -20000)
+      await expect.poll(first).toBeLessThan(before)
+      await expect(log.locator(`article[data-event-id="${before}"]`)).toBeInViewport()
+    }
     await expect(page.getByText('原始歷史錨點', { exact: true })).toHaveCount(1)
     await expect(page.getByRole('button', { name: '↓ 新訊息', exact: true })).toHaveCount(0)
     // A read-only sync does not pretend that another message arrived.

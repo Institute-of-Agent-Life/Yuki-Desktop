@@ -94,10 +94,12 @@ test('desktop returns the real CLI receipt to the original work and keeps its de
     })
     await contentSize(app, page, 1440, 900)
     await waiting().getByRole('button', { name: '查看詳情', exact: true }).click()
+    await page.getByRole('button', { name: '展開工作區', exact: true }).click()
     await page
       .getByRole('complementary', { name: '檢視器', exact: true })
       .getByRole('button', { name: '在電腦上查看', exact: true })
       .click()
+    await expect(page.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled()
     await captureWorkspace(
       app,

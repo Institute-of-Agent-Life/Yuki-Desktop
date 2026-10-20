@@ -51,6 +51,13 @@ test('palette searches only actual loaded entries and exact-event verification n
         .getByRole('region', { name: '原訊息舞台' })
         .locator(`article[data-event-id="${source.event_id}"]`),
     ).toBeVisible()
+    await page.keyboard.press('ControlOrMeta+,')
+    await page.getByRole('button', { name: '返回', exact: true }).click()
+    await expect(
+      page
+        .getByRole('region', { name: '原訊息舞台' })
+        .locator(`article[data-event-id="${source.event_id}"]`),
+    ).toBeVisible()
     await page.keyboard.press('ControlOrMeta+Shift+e')
     await page.getByRole('button', { name: '回到桌面對話', exact: true }).click()
     const nextResponse = await fetch(`${rig.base}/__test/qq-entry`, { method: 'POST' })

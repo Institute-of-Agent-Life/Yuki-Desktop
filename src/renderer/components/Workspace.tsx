@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { columns } from '../../main/geometry'
 import { useWorkspace } from '../state/workspace'
-import { IconButton } from './Controls'
+import { IconButton, Segmented } from './Controls'
 import { UpdateReadyButton } from './Updates'
 import { PresenceCard } from './PresenceCard'
 import type { Preferences, View } from '../../shared/desktop'
@@ -35,6 +35,7 @@ interface Props {
   savePreferences(patch: Partial<Preferences>): void
   children: ReactNode
   inspector?: ReactNode
+  inspectorTitle?: string
   entries?: ReactNode
   onSettings?: () => void
   toolbar?: ReactNode
@@ -53,10 +54,40 @@ export function Workspace(props: Props) {
   const [width, setWidth] = useState(window.innerWidth)
   const [overlaySidebar, setOverlaySidebar] = useState(false)
   const toggleSidebar = () => {
-    if (width < 1100) setOverlaySidebar((value) => !value)
+    if (state.focusMode)
+      requestNavigation(() => {
+        state.patch({ focusMode: false, sidebar: true })
+        if (width < 1100) setOverlaySidebar(true)
+      })
+    else if (width < 1100) setOverlaySidebar((value) => !value)
     else state.toggle('sidebar')
   }
   const root = useRef<HTMLDivElement>(null)
+  const closeInspector = () => {
+    const close = () => {
+      state.patch({ inspector: false, focusMode: false })
+      requestAnimationFrame(() => {
+        const target =
+          root.current?.querySelector<HTMLButtonElement>(
+            '[data-region="toolbar"] button[aria-label="檢視器"]',
+          ) ?? root.current?.querySelector<HTMLButtonElement>('[data-region="toolbar"] button')
+        if (target?.offsetWidth && !target.closest('[inert]')) target.focus()
+      })
+    }
+    if (state.focusMode) requestNavigation(close)
+    else close()
+  }
+  const toggleInspector = () => {
+    if (state.inspector || state.focusMode) closeInspector()
+    else state.toggle('inspector')
+  }
+  const inspectorTabs = [
+    { value: 'work' as const, label: '工作' },
+    ...(props.owner ? [{ value: 'computer' as const, label: '電腦' }] : []),
+    { value: 'files' as const, label: '檔案' },
+  ]
+  const selectedTab =
+    state.inspectorTab === 'computer' && !props.owner ? 'work' : state.inspectorTab
   useEffect(() => {
     const resize = () => setWidth(window.innerWidth)
     window.addEventListener('resize', resize)
@@ -64,7 +95,7 @@ export function Workspace(props: Props) {
   }, [])
   useCommands((command) => {
     if (command === 'sidebar') toggleSidebar()
-    else if (command === 'inspector') state.toggle(command)
+    else if (command === 'inspector') toggleInspector()
     else if (command === 'focus-mode') state.toggle('focusMode')
     else if (command !== 'settings' && views.some(([view]) => view === command))
       state.setView(command as View)
@@ -203,10 +234,27 @@ export function Workspace(props: Props) {
           ? '400px 0 minmax(0,1fr)'
           : `${layout.sidebar}px 0 minmax(0,1fr) 0 ${layout.inspector}px`,
       }}
+      onPointerDown={(event) => {
+        const target = event.target as HTMLElement
+        if (target.closest('dialog,[role="dialog"]')) return
+        if (
+          !state.focusMode &&
+          layout.overlayInspector &&
+          state.inspector &&
+          !target.closest('[data-region="inspector"],button[aria-label="檢視器"]')
+        )
+          state.patch({ inspector: false })
+        if (
+          layout.overlaySidebar &&
+          overlaySidebar &&
+          !target.closest('[data-region="sidebar"],button[aria-label="側邊欄"]')
+        )
+          setOverlaySidebar(false)
+      }}
       onKeyDown={(event) => {
         if ((event.target as HTMLElement).closest('dialog')) return
         if (event.key === 'Escape') {
-          if (state.inspector) state.toggle('inspector')
+          if (state.inspector || state.focusMode) closeInspector()
           else if (layout.overlaySidebar && overlaySidebar) setOverlaySidebar(false)
         }
         if (event.key === 'F6') {
@@ -242,7 +290,7 @@ export function Workspace(props: Props) {
           >
             {sidebarContent}
           </nav>
-          {divider('sidebarWidth')}
+          {layout.sidebar > 0 && divider('sidebarWidth')}
         </>
       )}
       <section className={styles.main} style={{ gridColumn: state.focusMode ? 1 : 3, gridRow: 1 }}>
@@ -270,7 +318,7 @@ export function Workspace(props: Props) {
                   <Maximize2 size={16} strokeWidth={1.5} />
                 )}
               </IconButton>
-              <IconButton label="檢視器" onClick={() => state.toggle('inspector')}>
+              <IconButton label="檢視器" onClick={toggleInspector}>
                 <PanelRight size={16} strokeWidth={1.5} />
               </IconButton>
               <IconButton
@@ -289,7 +337,7 @@ export function Workspace(props: Props) {
       </section>
       {(state.inspector || state.focusMode) && (
         <>
-          {divider('inspectorWidth')}
+          {!state.focusMode && layout.inspector > 0 && divider('inspectorWidth')}
           <aside
             style={{ gridColumn: state.focusMode ? 3 : 5, gridRow: 1 }}
             data-region="inspector"
@@ -297,12 +345,30 @@ export function Workspace(props: Props) {
             className={`${styles.inspector} ${layout.overlayInspector && !state.focusMode ? styles.overlay : ''}`}
           >
             <header className={styles.inspectorHeader}>
-              <strong>檢視器</strong>
-              <IconButton label="關閉檢視器" onClick={() => state.toggle('inspector')}>
+              {props.inspectorTitle ? (
+                <strong>{props.inspectorTitle}</strong>
+              ) : (
+                <Segmented
+                  label="檢視器內容"
+                  items={inspectorTabs}
+                  value={selectedTab}
+                  onChange={(inspectorTab) => state.patch({ inspectorTab })}
+                />
+              )}
+              <IconButton label="關閉檢視器" onClick={closeInspector}>
                 <X size={16} strokeWidth={1.5} />
               </IconButton>
             </header>
-            {props.inspector}
+            <div
+              className={styles.inspectorBody}
+              role="tabpanel"
+              aria-label={
+                props.inspectorTitle ??
+                inspectorTabs.find((tab) => tab.value === selectedTab)?.label
+              }
+            >
+              {props.inspector}
+            </div>
           </aside>
         </>
       )}

@@ -32,6 +32,12 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await separator.focus()
     await page.keyboard.press('ArrowRight')
     await expect(separator).toHaveAttribute('aria-valuenow', '264')
+    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await page
+      .getByRole('tablist', { name: '檢視器內容' })
+      .getByRole('tab', { name: '檔案', exact: true })
+      .click()
+    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
     await add(page)
     await page.getByRole('button', { name: '取消', exact: true }).click()
     await page.getByRole('button', { name: '加入另一個角色', exact: true }).click()
@@ -40,6 +46,13 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
       '',
     )
     await expect(separator).toHaveAttribute('aria-valuenow', '260')
+    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await expect(
+      page
+        .getByRole('tablist', { name: '檢視器內容' })
+        .getByRole('tab', { name: '工作', exact: true }),
+    ).toHaveAttribute('aria-selected', 'true')
+    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
     await page.getByRole('button', { name: '關於 Yuki', exact: true }).click()
     await page.getByRole('button', { name: '編輯角色資料', exact: true }).click()
     await page.getByLabel('名稱', { exact: true }).fill('Mika')
@@ -59,6 +72,13 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
       '只有第一角色的草稿',
     )
     await expect(separator).toHaveAttribute('aria-valuenow', '264')
+    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await expect(
+      page
+        .getByRole('tablist', { name: '檢視器內容' })
+        .getByRole('tab', { name: '檔案', exact: true }),
+    ).toHaveAttribute('aria-selected', 'true')
+    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
     await expect
       .poll(() =>
         page.evaluate(() =>
@@ -145,6 +165,13 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
       'aria-valuenow',
       '264',
     )
+    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await expect(
+      page
+        .getByRole('tablist', { name: '檢視器內容' })
+        .getByRole('tab', { name: '檔案', exact: true }),
+    ).toHaveAttribute('aria-selected', 'true')
+    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
       await page.keyboard.press('ControlOrMeta+,')
       await page.getByRole('tab', { name: '外觀', exact: true }).click()

@@ -72,12 +72,11 @@ export function Conversation({
   useEffect(() => {
     if (view !== 'about' || focusMode) setPromptEditing(false)
   }, [view, focusMode])
-  const [artifact, setArtifact] = useState<ArtifactSource>()
-  const [conversation, setConversation] = useState(connection.conversationId),
-    [draft, setDraft] = useState('')
+  const { artifact, preview, selectedWork, messageStage } = workspace
+  const conversation = workspace.conversationId ?? connection.conversationId
+  const [draft, setDraft] = useState('')
   const currentDraft = useRef(draft)
-  const [preview, setPreview] = useState<AttachmentSource>(),
-    [dragging, setDragging] = useState(false),
+  const [dragging, setDragging] = useState(false),
     [mediaError, setMediaError] = useState(''),
     [recording, setRecording] = useState(false)
   const finishRecording = useRef<(() => void) | undefined>(undefined)
@@ -87,7 +86,7 @@ export function Conversation({
   useEffect(() => {
     if (target?.characterId === id && target.conversationId) {
       setAnchor(null)
-      setConversation(target.conversationId)
+      workspace.patch({ conversationId: target.conversationId })
       setSelection(undefined)
       bottom.current = true
     }
@@ -96,12 +95,10 @@ export function Conversation({
     [connectionProblem, setConnectionProblem] = useState('')
   const [references, setReferences] = useState<MessageReference[]>([]),
     [selection, setSelection] = useState<number>()
-  const [selectedWork, setSelectedWork] = useState<string>()
   const [replyWork, setReplyWork] = useState<Work>()
   const currentReferences = useRef<MessageReference[]>([])
   const [search, setSearch] = useState<string | null>(null)
-  const [palette, setPalette] = useState(false),
-    [messageStage, setMessageStage] = useState<MessageReference>()
+  const [palette, setPalette] = useState(false)
   const alive = useRef(true)
   useEffect(() => {
     alive.current = true
@@ -181,15 +178,22 @@ export function Conversation({
   const events = useHistory(id, conversation, anchor)
   useEffect(() => {
     if (view === 'files') {
-      setSelectedWork(undefined)
-      setPreview(undefined)
-      workspace.patch({ inspector: false })
+      workspace.patch({ preview: undefined, inspector: false })
     }
+    if (view !== 'chat') workspace.patch({ messageStage: undefined })
   }, [view])
   useEffect(() => {
+    if (messageStage && !workspace.inspector && !focusMode)
+      workspace.patch({ messageStage: undefined })
+  }, [workspace.inspector, focusMode, messageStage])
+  useEffect(() => {
     if (target?.characterId === id && target.workId) {
-      setSelectedWork(target.workId)
-      workspace.patch({ inspector: true })
+      workspace.patch({
+        selectedWork: target.workId,
+        messageStage: undefined,
+        inspector: true,
+        inspectorTab: 'work',
+      })
     }
   }, [id, target])
   const accessLost = hidesPrivateData(new ClientProblem(connectionProblem))
@@ -249,11 +253,13 @@ export function Conversation({
     }
   }
   const openAttachment = (source: AttachmentSource) => {
-    setMessageStage(undefined)
-    setArtifact(undefined)
-    setSelectedWork(undefined)
-    setPreview(source)
-    workspace.patch({ inspector: true })
+    workspace.patch({
+      messageStage: undefined,
+      artifact: undefined,
+      preview: source,
+      inspector: true,
+      inspectorTab: 'files',
+    })
   }
   useEffect(() => {
     const wake = () => {
@@ -394,7 +400,7 @@ export function Conversation({
     setAnchor(null)
     setHistoryError('')
     setNewMessages(false)
-    setConversation(next)
+    workspace.patch({ conversationId: next })
     setSelection(undefined)
     bottom.current = true
     workspace.setView('chat')
@@ -474,17 +480,14 @@ export function Conversation({
       !eventData?.items.some((item) => item.event_id === reference.eventId)
     ) {
       setAnchor(reference.eventId + 1)
-      setConversation(reference.conversationId)
+      workspace.patch({ conversationId: reference.conversationId })
     }
     setSearch(null)
     bottom.current = false
     setJump(reference)
     workspace.setView('chat')
-    setMessageStage(stage ? reference : undefined)
+    workspace.patch({ messageStage: stage ? reference : undefined })
     if (stage) {
-      setSelectedWork(undefined)
-      setArtifact(undefined)
-      setPreview(undefined)
       query.setQueryData([id, 'reference', reference.conversationId, reference.eventId], event)
       workspace.patch({ inspector: true, focusMode: true })
     }
@@ -533,25 +536,34 @@ export function Conversation({
   }
   const name = profileData?.display_name ?? connection.name,
     isMain = conversation === connection.conversationId
+  const inspectorTab =
+    workspace.inspectorTab === 'computer' && !profileData?.viewer.is_owner
+      ? 'work'
+      : workspace.inspectorTab
   const openWork = (workId: string) => {
-    setMessageStage(undefined)
-    setArtifact(undefined)
-    setPreview(undefined)
-    setSelectedWork(workId)
-    workspace.patch({ inspector: true })
+    workspace.patch({
+      selectedWork: workId,
+      messageStage: undefined,
+      inspector: true,
+      inspectorTab: 'work',
+    })
   }
   const openArtifact = (source: ArtifactSource) => {
-    setMessageStage(undefined)
-    setArtifact(source)
-    setSelectedWork(undefined)
-    setPreview(undefined)
-    workspace.patch({ inspector: true })
+    workspace.patch({
+      messageStage: undefined,
+      artifact: source,
+      preview: undefined,
+      inspector: true,
+      inspectorTab: 'files',
+    })
   }
   const selectArtifact = (source: ArtifactSource) => {
-    setMessageStage(undefined)
-    setArtifact(source)
-    setSelectedWork(undefined)
-    setPreview(undefined)
+    workspace.patch({
+      artifact: source,
+      preview: undefined,
+      messageStage: undefined,
+      inspectorTab: 'files',
+    })
   }
   const answerWork = (work: Work) => {
     setReplyWork(work)
@@ -606,12 +618,18 @@ export function Conversation({
     {
       id: 'command/inspector',
       title: '開合檢視器',
-      run: () => paletteNavigate(() => workspace.toggle('inspector')),
+      run: () =>
+        paletteNavigate(() =>
+          window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'inspector' })),
+        ),
     },
     {
       id: 'command/sidebar',
       title: '開合側邊欄',
-      run: () => paletteNavigate(() => workspace.toggle('sidebar')),
+      run: () =>
+        paletteNavigate(() =>
+          window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'sidebar' })),
+        ),
     },
     {
       id: 'command/stage',
@@ -677,6 +695,7 @@ export function Conversation({
         presence={presence.color}
         owner={profileData?.viewer.is_owner ?? false}
         platform={platform}
+        inspectorTitle={messageStage && view === 'chat' ? '原訊息' : undefined}
         preferences={{
           ...preferences,
           sidebarWidth: workspace.sidebarWidth,
@@ -706,13 +725,16 @@ export function Conversation({
           </>
         }
         inspector={
-          view === 'computer' && !accessLost && profileData?.viewer.is_owner ? (
+          inspectorTab === 'computer' &&
+          !(messageStage && view === 'chat') &&
+          !accessLost &&
+          profileData?.viewer.is_owner ? (
             focusMode ? (
               <Computer key={id} connection={connection} name={name} work={openWork} />
             ) : (
               <ComputerInspector key={id} id={id} work={openWork} />
             )
-          ) : messageStage && !accessLost ? (
+          ) : messageStage && view === 'chat' && !accessLost ? (
             <MessageStage
               id={id}
               reference={messageStage}
@@ -735,14 +757,14 @@ export function Conversation({
                 />
               )}
             />
-          ) : artifact && !accessLost ? (
+          ) : inspectorTab === 'files' && artifact && !accessLost ? (
             <ArtifactInspector
               key={`${artifact.artifactId}/${artifact.version}`}
               id={id}
               source={artifact}
               library={() => workspace.setView('files')}
             />
-          ) : selectedWork && !accessLost ? (
+          ) : inspectorTab === 'work' && selectedWork && !accessLost ? (
             <WorkDetail
               key={selectedWork}
               id={id}
@@ -754,21 +776,35 @@ export function Conversation({
               computer={
                 profileData?.viewer.is_owner
                   ? () => {
-                      const state = workspace
-                      state.setView('computer')
-                      if (!state.focusMode) state.toggle('focusMode')
+                      requestNavigation(() => {
+                        workspace.setView('computer')
+                        workspace.patch({ inspector: true, focusMode: true })
+                      })
                     }
                   : undefined
               }
             />
-          ) : preview ? (
-            <AttachmentPreview id={id} source={preview} close={() => setPreview(undefined)} />
+          ) : inspectorTab === 'files' && preview && !accessLost ? (
+            <AttachmentPreview
+              id={id}
+              source={preview}
+              close={() => workspace.patch({ preview: undefined })}
+            />
+          ) : inspectorTab === 'files' ? (
+            <div className={styles.inspector}>
+              <h3>尚未選取檔案</h3>
+              <p>從對話附件或檔案與成果選取一項，查看原版本。</p>
+              <Button variant="plain" onClick={() => workspace.setView('files')}>
+                開啟檔案與成果
+              </Button>
+            </div>
           ) : (
             <div className={styles.inspector}>
-              <h3>
-                {isMain ? '桌面對話' : `${entry?.platform.toUpperCase()} · ${entry?.display_name}`}
-              </h3>
-              <p>這裡的內容來自原入口的對話紀錄。</p>
+              <h3>尚未選取工作</h3>
+              <p>從對話中的工作卡或工作清單選取一項，查看進度與回覆。</p>
+              <Button variant="plain" onClick={() => workspace.setView('works')}>
+                開啟工作清單
+              </Button>
               {outbox.data
                 ?.filter((item) => item.state !== 'result' || item.problem)
                 .map((item) => (
