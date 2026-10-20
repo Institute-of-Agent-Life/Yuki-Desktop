@@ -17,9 +17,14 @@
 :global([data-platform='darwin']) .header {
   padding-left: 92px;
 }
-:global([data-platform='win32']) .header,
-:global([data-platform='linux']) .header {
+:global([data-platform='win32']) .header {
   padding-right: 150px;
+}
+:global([data-platform='linux']) .header {
+  padding-right: max(
+    20px,
+    calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 12px)
+  );
 }
 .layout {
   display: grid;

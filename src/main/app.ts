@@ -55,7 +55,6 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ])
 if (process.env.YUKI_DESKTOP_DATA) app.setPath('userData', process.env.YUKI_DESKTOP_DATA)
-if (process.platform === 'linux') app.commandLine.appendSwitch('ozone-platform-hint', 'auto')
 app.setAppUserModelId('life.yuki.desktop')
 
 let win: BrowserWindow | undefined

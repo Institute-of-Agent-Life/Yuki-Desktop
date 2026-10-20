@@ -183,9 +183,14 @@
 .macCollapsed .toolbar {
   padding-left: 92px;
 }
-:global([data-platform='win32']) .toolbar,
-:global([data-platform='linux']) .toolbar {
+:global([data-platform='win32']) .toolbar {
   padding-right: 150px;
+}
+:global([data-platform='linux']) .toolbar {
+  padding-right: max(
+    20px,
+    calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 12px)
+  );
 }
 .content {
   flex: 1;

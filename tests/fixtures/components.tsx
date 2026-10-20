@@ -124,6 +124,7 @@ function Gallery() {
   const [sheet, setSheet] = useState(false)
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
   document.documentElement.dataset.theme = theme
+  document.documentElement.dataset.platform = 'linux'
   return (
     <Workspace name="角色" status="元件驗證" owner platform="linux" inspector={<p>檢視器內容</p>}>
       <Banner>離線狀態</Banner>

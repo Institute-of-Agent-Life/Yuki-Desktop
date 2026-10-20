@@ -1,4 +1,5 @@
-import { BrowserWindow, nativeTheme, screen, app } from 'electron'
+import { nativeTheme, screen, app, type BrowserWindow } from 'electron'
+import { createPlatformWindow } from './linux-frame'
 import { join } from 'node:path'
 import { windowGeometry, type Rect } from './geometry'
 import type { LocalStore } from './store'
@@ -22,7 +23,7 @@ export function createWindow(store: LocalStore, pairing = false) {
   const geometry = windowGeometry(work, saved, pairing ? 'pairing' : 'workspace')
   const mac = process.platform === 'darwin'
   const opaque = store.preferences().opaque || nativeTheme.prefersReducedTransparency
-  const win = new BrowserWindow({
+  const win = createPlatformWindow({
     ...geometry.bounds,
     minWidth: geometry.minimum.width,
     minHeight: geometry.minimum.height,

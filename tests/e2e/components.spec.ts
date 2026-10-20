@@ -74,3 +74,28 @@ test('sheet status contains long text while the workspace banner stays 32px and 
     }
   }
 })
+
+test('Linux native frame keeps a 52px app toolbar without reserving absent overlay controls', async ({
+  page,
+}) => {
+  for (const [width, height] of [
+    [1440, 900],
+    [960, 492],
+  ] as const) {
+    await page.setViewportSize({ width, height })
+    await page.goto('http://127.0.0.1:4178/components.html')
+    await expect(page.locator('html')).toHaveAttribute('data-platform', 'linux')
+    const toolbar = page.locator('[data-region="toolbar"]')
+    await expect(toolbar).toHaveCSS('height', '52px')
+    await expect(toolbar).toHaveCSS('padding-right', '20px')
+    const inspector = toolbar.getByRole('button', { name: '檢視器', exact: true })
+    await expect(inspector).toBeInViewport({ ratio: 1 })
+    await inspector.click()
+    await expect(page.locator('[data-region="inspector"]')).toBeVisible()
+    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+    await expect(page.locator('[data-region="inspector"]')).not.toBeVisible()
+    await page.screenshot({
+      path: test.info().outputPath(`linux-native-frame-toolbar-${width}x${height}.png`),
+    })
+  }
+})
