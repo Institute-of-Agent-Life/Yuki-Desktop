@@ -161,11 +161,18 @@
   position: relative;
   background: var(--bg-content);
 }
-:global([data-platform='darwin'][data-opaque='false']) .sidebar {
-  background: rgba(236, 236, 239, 0.84);
+:global([data-material='vibrancy']) .sidebar:not(.sidebarOverlay) {
+  background: rgba(255, 255, 255, 0.25);
+  border-right: 0;
 }
-:global([data-platform='darwin'][data-theme='dark'][data-opaque='false']) .sidebar {
-  background: rgba(42, 42, 45, 0.84);
+:global([data-material='vibrancy'][data-theme='dark']) .sidebar:not(.sidebarOverlay) {
+  background: rgba(28, 28, 30, 0.55);
+}
+:global([data-material='mica']) .sidebar:not(.sidebarOverlay) {
+  background: rgba(243, 243, 243, 0.55);
+}
+:global([data-material='mica'][data-theme='dark']) .sidebar:not(.sidebarOverlay) {
+  background: rgba(32, 32, 32, 0.45);
 }
 .toolbar {
   height: 52px;

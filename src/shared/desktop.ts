@@ -61,7 +61,10 @@ export interface NavigationTarget {
   workId?: string
 }
 
+export type NativeMaterial = 'none' | 'vibrancy' | 'mica'
+
 export interface BootInfo {
+  nativeMaterial: NativeMaterial
   platform: 'darwin' | 'win32' | 'linux'
   version: string
   deviceLabel: string

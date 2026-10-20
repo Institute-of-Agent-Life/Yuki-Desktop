@@ -139,9 +139,16 @@ export function App({ boot }: { boot: BootInfo }) {
       preferences.theme === 'system' ? (appearance.dark ? 'dark' : 'light') : preferences.theme
     root.dataset.contrast = String(preferences.highContrast || appearance.highContrast)
     root.dataset.motion = preferences.reducedMotion ? 'reduced' : 'normal'
-    root.dataset.opaque = String(preferences.opaque || appearance.reducedTransparency)
+    const opaque =
+      preferences.opaque ||
+      preferences.highContrast ||
+      appearance.reducedTransparency ||
+      appearance.highContrast ||
+      boot.nativeMaterial === 'none'
+    root.dataset.opaque = String(opaque)
+    root.dataset.material = opaque ? 'none' : boot.nativeMaterial
     root.dataset.platform = boot.platform
-  }, [preferences, appearance, boot.platform])
+  }, [preferences, appearance, boot.platform, boot.nativeMaterial])
   useEffect(
     () => window.yuki.onTheme((theme) => setAppearance((previous) => ({ ...previous, ...theme }))),
     [],

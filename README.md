@@ -28,6 +28,8 @@ npm run check:package
 
 Linux 跟隨目前的 Wayland／X11 桌面會話；需要 XWayland 時可傳入 `--ozone-platform=x11`。GNOME 自訂視窗按鈕配置由系統標題列呈現；overlay 無法建立時也會回退系統標題列，App 工具列維持 52px。
 
+macOS 側邊欄使用系統 vibrancy；Windows 11 22H2 以上使用 Mica，較早 Windows 與 Linux 使用實色背景。「永遠不透明」、系統降低透明度及高對比會立即改用實色，內容區保持不透明。
+
 指定架構、產物檢查與正式簽章程序見 [RELEASING.md](RELEASING.md)。一般打包不公證；正式 macOS／Windows 設定另行要求簽章，缺少憑證時會失敗。
 
 原生殼驗證可將 `YUKI_ELECTRON_EXECUTABLE` 設為打包後執行檔的絕對路徑，再執行 `npx playwright test --config playwright.shell.config.ts`，不需開發伺服器。測試使用獨立資料目錄並保留 sandbox；Windows 專項要求已登入的互動桌面，檢查視窗按鈕區域、Alt 選單與原生加密跨程序重開。這組檢查不涵蓋安裝、簽章或更新。可用 `YUKI_NATIVE_EXPECT_ARCH` 核對實際 App 程序架構；在已安裝 Rosetta 的 Apple Silicon 測試 x64 包時，另設 `YUKI_NATIVE_EXPECT_TRANSLATION=1`，將轉譯結果與 Intel 真機驗收分開記錄。
@@ -61,6 +63,8 @@ Windows 對話相關驗證需 operator 啟動全新隔離的 Yuki 參考服務�
 `windows-window-geometry.spec.ts` 從全新配對開始，實際調整原生視窗並讀取 SQLite 已保存的外框位置與尺寸，再強制結束主程序、連續冷重開兩次，核對外框、內容與邏輯視埠不逐次偏移，並驗證移出工作區後的收斂與實際尺寸保存。
 
 `windows-window-controls.spec.ts` 經設定頁切換淺／深主題，擷取本次 App 原生 HWND 的完整像素，量測系統視窗按鈕的對比與視窗尺寸；再以 UI Automation 的真正按鈕執行最大化／還原並核對外框。測試逐次核對程序、執行檔、互動會話與 HWND，不擷取整個桌面。
+
+`native-materials.spec.ts` 使用同一隔離服務與打包執行檔，經真外觀控制驗證側邊欄、內容與原生背景、材質關閉後的冷恢復及再次啟用；原生合成器觀感另行檢查。 `mac-material-contrast.spec.ts` 另以本次 App 的 CGWindowID 擷取系統合成後的視窗，檢查明暗材質、不透明及高對比下的側邊欄文字，不擷取整個螢幕；執行環境需允許視窗擷取。
 
 未提供服務或非 Windows 時明確跳過，不讀取部署設定。
 

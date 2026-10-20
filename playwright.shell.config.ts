@@ -22,6 +22,8 @@ export default defineConfig({
     'windows-roles.spec.ts',
     'windows-window-geometry.spec.ts',
     'windows-window-controls.spec.ts',
+    'native-materials.spec.ts',
+    'mac-material-contrast.spec.ts',
   ],
   outputDir: process.env.YUKI_NATIVE_TEST_OUTPUT ?? join(tmpdir(), 'yuki-desktop-native-e2e'),
   workers: 1,

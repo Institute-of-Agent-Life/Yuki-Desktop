@@ -69,6 +69,10 @@
   text-autospace: normal;
   line-break: strict;
 }
+:root[data-material='vibrancy'],
+:root[data-material='mica'] {
+  background: transparent;
+}
 :root[data-theme='dark'] {
   color-scheme: dark;
   --bg-window: #1c1c1e;

@@ -20,6 +20,8 @@ export default defineConfig({
     'windows-roles.spec.ts',
     'windows-window-geometry.spec.ts',
     'windows-window-controls.spec.ts',
+    'native-materials.spec.ts',
+    'mac-material-contrast.spec.ts',
   ],
   outputDir: join(tmpdir(), 'yuki-desktop-e2e'),
   workers: 1,

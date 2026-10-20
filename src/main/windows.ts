@@ -1,5 +1,6 @@
 import { nativeTheme, screen, app, type BrowserWindow } from 'electron'
 import { createPlatformWindow } from './linux-frame'
+import { applyWindowAppearance, windowAppearance } from './window-appearance'
 import { join } from 'node:path'
 import { windowGeometry, type Rect } from './geometry'
 import type { LocalStore } from './store'
@@ -27,7 +28,6 @@ export function createWindow(store: LocalStore, pairing = false) {
     : screen.getPrimaryDisplay().workArea
   const geometry = windowGeometry(work, saved, pairing ? 'pairing' : 'workspace')
   const mac = process.platform === 'darwin'
-  const opaque = store.preferences().opaque || nativeTheme.prefersReducedTransparency
   const win = createPlatformWindow({
     ...geometry.bounds,
     minWidth: geometry.minimum.width,
@@ -35,18 +35,16 @@ export function createWindow(store: LocalStore, pairing = false) {
     title: 'Yuki',
     icon: join(app.getAppPath(), 'resources/icons/app/256x256.png'),
     show: false,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1C1C1E' : '#F5F5F7',
+    ...windowAppearance(store.preferences()),
     titleBarStyle: mac ? 'hiddenInset' : 'hidden',
     ...(mac
       ? {
           trafficLightPosition: { x: 20, y: 18 },
-          vibrancy: opaque ? undefined : ('sidebar' as const),
           visualEffectState: 'followWindow' as const,
         }
       : {
           titleBarOverlay: overlayAppearance(),
         }),
-    ...(process.platform === 'win32' && !opaque ? { backgroundMaterial: 'mica' as const } : {}),
     autoHideMenuBar: !mac,
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
@@ -56,10 +54,13 @@ export function createWindow(store: LocalStore, pairing = false) {
       spellcheck: true,
     },
   })
-  const updateControls = () => {
-    if (!win.isDestroyed()) win.setTitleBarOverlay(overlayAppearance())
+  applyWindowAppearance(win, store.preferences())
+  const updateAppearance = () => {
+    applyWindowAppearance(win, store.preferences())
+    if (process.platform === 'win32' && !win.isDestroyed())
+      win.setTitleBarOverlay(overlayAppearance())
   }
-  if (process.platform === 'win32') nativeTheme.on('updated', updateControls)
+  nativeTheme.on('updated', updateAppearance)
   const applyBounds = (bounds: Rect) => {
     if (process.platform !== 'win32') {
       win.setBounds(bounds)
@@ -128,7 +129,7 @@ export function createWindow(store: LocalStore, pairing = false) {
   win.on('resize', fit)
   win.on('close', fit)
   win.once('closed', () => {
-    if (process.platform === 'win32') nativeTheme.removeListener('updated', updateControls)
+    nativeTheme.removeListener('updated', updateAppearance)
     cancelMove()
     modes.delete(win)
     screen.removeListener('display-metrics-changed', fit)

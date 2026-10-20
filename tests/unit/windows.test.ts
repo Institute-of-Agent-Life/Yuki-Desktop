@@ -15,6 +15,7 @@ vi.mock('electron', async () => {
     bounds: Rect
     minimum: number[]
     destroyed = false
+    background = ''
     webContents = Object.assign(new EventEmitter(), {
       setWindowOpenHandler() {},
       setIgnoreMenuShortcuts() {},
@@ -57,6 +58,15 @@ vi.mock('electron', async () => {
     isMaximized() {
       return false
     }
+    setBackgroundColor(color: string) {
+      this.background = color
+    }
+    getBackgroundColor() {
+      return this.background
+    }
+    setBackgroundMaterial() {}
+    setVibrancy() {}
+    setTitleBarOverlay() {}
     show() {}
     async loadURL() {}
     destroy() {
@@ -150,6 +160,27 @@ it('closing a Windows window releases its native theme observers while the App r
     expect(nativeTheme.listenerCount('updated')).toBe(listeners)
     expect(() => nativeTheme.emit('updated')).not.toThrow()
   } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
+it('system transparency changes update an existing native window without reopening it', () => {
+  const original = nativeTheme.prefersReducedTransparency
+  const macProcess = Object.create(process) as NodeJS.Process
+  Object.defineProperty(macProcess, 'platform', { value: 'darwin', configurable: true })
+  vi.stubGlobal('process', macProcess)
+  try {
+    const { window } = localStore()
+    expect(window.getBackgroundColor()).toBe('#00000000')
+    Object.assign(nativeTheme, { prefersReducedTransparency: true })
+    nativeTheme.emit('updated')
+    expect(window.getBackgroundColor()).toBe('#F5F5F7')
+    Object.assign(nativeTheme, { prefersReducedTransparency: false })
+    nativeTheme.emit('updated')
+    expect(window.getBackgroundColor()).toBe('#00000000')
+    window.destroy()
+  } finally {
+    Object.assign(nativeTheme, { prefersReducedTransparency: original })
     vi.unstubAllGlobals()
   }
 })

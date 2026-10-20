@@ -27,6 +27,7 @@ import { promisify } from 'node:util'
 import { basename, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createWindow, setWindowMode, setKeyboardCapture } from './windows'
+import { applyWindowAppearance, platformMaterial } from './window-appearance'
 import { installMenu } from './menu'
 import { LocalStore } from './store'
 import type { BootInfo, Preferences, NavigationTarget } from '../shared/desktop'
@@ -776,6 +777,7 @@ else {
       authorize(event)
       return {
         platform: process.platform as BootInfo['platform'],
+        nativeMaterial: platformMaterial(),
         version: app.getVersion(),
         deviceLabel: hostname(),
         ...appearance(),
@@ -818,10 +820,7 @@ else {
       store.set('appearance', current)
       native.update(current)
       nativeTheme.themeSource = current.theme
-      if (process.platform === 'darwin')
-        win?.setVibrancy(
-          current.opaque || nativeTheme.prefersReducedTransparency ? null : 'sidebar',
-        )
+      if (win) applyWindowAppearance(win, current)
       return current
     })
     nativeTheme.on('updated', () => win?.webContents.send('yuki:theme', appearance()))
