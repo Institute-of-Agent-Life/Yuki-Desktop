@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import RFB from '@novnc/novnc'
-import { Camera, ClipboardPaste, Keyboard, Moon, Monitor, RefreshCw } from 'lucide-react'
+import { Camera, ClipboardPaste, Keyboard, Maximize2, Moon, Monitor, RefreshCw } from 'lucide-react'
 import type {
   Computer as ComputerState,
   ComputerCommand,
@@ -39,10 +39,12 @@ export function Computer({
   connection,
   name,
   work,
+  compact,
 }: {
   connection: Connection
   name: string
   work(id: string): void
+  compact?: { expand(): void }
 }) {
   const id = connection.characterId,
     query = useComputer(id),
@@ -78,7 +80,14 @@ export function Computer({
             ? '操作結果尚未確認，已保留原請求供查證。'
             : problemText(result.problem),
         )
-      else setSheet(null)
+      else {
+        setSheet(null)
+        if (
+          result.state === 'result' &&
+          (command.action === 'take' || command.action === 'transfer')
+        )
+          compact?.expand()
+      }
     } catch (error) {
       setProblem(error instanceof Error ? error.message : '操作未完成。')
     } finally {
@@ -107,8 +116,35 @@ export function Computer({
       </EmptyState>
     )
   const help = state.help_requests.filter((item) => item.kind === 'help')
+  const controls =
+    control?.holder === 'human' ? (
+      <>
+        {!held && (
+          <Button
+            disabled={blocked}
+            onClick={() => setSheet({ kind: 'transfer', snapshot: state })}
+          >
+            改由這台控制
+          </Button>
+        )}
+        <Button variant={held ? 'primary' : 'secondary'} disabled={blocked} onClick={release}>
+          交回給 {name}
+        </Button>
+      </>
+    ) : (
+      <Button
+        variant={help.length && !compact ? 'secondary' : 'primary'}
+        disabled={blocked || state.display !== 'running' || !control}
+        onClick={() => void act({ action: 'take' })}
+      >
+        接手
+      </Button>
+    )
   return (
-    <section className={styles.computer} aria-label={`${name} 的電腦`}>
+    <section
+      className={`${styles.computer} ${compact ? styles.compact : ''}`}
+      aria-label={`${name} 的電腦${compact ? '預覽' : ''}`}
+    >
       <header className={styles.header}>
         <div>
           <h2>{name} 的電腦</h2>
@@ -130,63 +166,54 @@ export function Computer({
                 : '無'}
           </span>
         </div>
-        {control?.holder === 'human' ? (
+        {!compact && (
           <>
-            {!held && (
-              <Button
-                disabled={blocked}
-                onClick={() => setSheet({ kind: 'transfer', snapshot: state })}
-              >
-                改由這台控制
-              </Button>
-            )}
-            <Button variant={held ? 'primary' : 'secondary'} disabled={blocked} onClick={release}>
-              交回給 {name}
-            </Button>
+            {controls}
+            <IconButton
+              label="讓電腦休息"
+              disabled={blocked || state.display !== 'running'}
+              onClick={() => setSheet({ kind: 'sleep', snapshot: state })}
+            >
+              <Moon size={16} />
+            </IconButton>
           </>
-        ) : (
-          <Button
-            variant={help.length ? 'secondary' : 'primary'}
-            disabled={blocked || state.display !== 'running' || !control}
-            onClick={() => void act({ action: 'take' })}
-          >
-            接手
-          </Button>
         )}
-        <IconButton
-          label="讓電腦休息"
-          disabled={blocked || state.display !== 'running'}
-          onClick={() => setSheet({ kind: 'sleep', snapshot: state })}
-        >
-          <Moon size={16} />
-        </IconButton>
       </header>
-      {help.length > 0 && (
-        <Banner status="waiting">
-          <span className={styles.helpText}>
+      {help.length > 0 &&
+        (compact ? (
+          <p className={styles.previewHelp} role="status">
             {name} 需要你幫忙：
             {help
               .map((item) => item.note)
               .filter(Boolean)
               .join('；')}
-          </span>
-          {control?.holder !== 'human' && (
-            <Button
-              variant="primary"
-              disabled={blocked}
-              onClick={() => void act({ action: 'take' })}
-            >
-              接手
-            </Button>
-          )}
-        </Banner>
-      )}
+          </p>
+        ) : (
+          <Banner status="waiting">
+            <span className={styles.helpText}>
+              {name} 需要你幫忙：
+              {help
+                .map((item) => item.note)
+                .filter(Boolean)
+                .join('；')}
+            </span>
+            {control?.holder !== 'human' && (
+              <Button
+                variant="primary"
+                disabled={blocked}
+                onClick={() => void act({ action: 'take' })}
+              >
+                接手
+              </Button>
+            )}
+          </Banner>
+        ))}
       {problem && <Banner status="failed">{problem}</Banner>}
-      {query.isFetching && !query.isPending && (
+      {!compact && query.isFetching && !query.isPending && (
         <span className={styles.refreshing}>正在確認最新狀態</span>
       )}
       {state.display === 'running' ? (
-        <RemoteScreen key={id} id={id} held={held} />
+        <RemoteScreen key={id} id={id} held={held && !compact} preview={!!compact} />
       ) : (
         <div className={styles.resting}>
           {state.display === 'starting' ? <Spinner /> : <Moon size={40} strokeWidth={1} />}
@@ -220,12 +247,25 @@ export function Computer({
           )}
         </div>
       )}
+      {compact && (
+        <div className={styles.previewActions}>
+          {controls}
+          <Button onClick={compact.expand}>
+            <Maximize2 size={14} />
+            開啟完整畫面
+          </Button>
+        </div>
+      )}
       <footer className={styles.status}>
         {held
-          ? '按 Ctrl＋Alt 釋放鍵盤 · 只有這台裝置的輸入會送出'
+          ? compact
+            ? '預覽僅供觀看，請在完整畫面操作。'
+            : '按 Ctrl＋Alt 釋放鍵盤 · 只有這台裝置的輸入會送出'
           : control?.holder === 'human'
             ? `${control.device_label}（${control.device_online == null ? '連線狀態待確認' : control.device_online ? '在線' : '離線'}）正在控制；這台裝置只能觀看。`
-            : '只能觀看；接手後才能操作。'}
+            : compact
+              ? '只能觀看；接手後在完整畫面操作。'
+              : '只能觀看；接手後才能操作。'}
         {state.control?.work_id && (
           <Button variant="plain" onClick={() => work(state.control!.work_id!)}>
             正在使用此電腦的工作
@@ -329,7 +369,15 @@ export function Computer({
   )
 }
 
-function RemoteScreen({ id, held }: { id: string; held: boolean }) {
+function RemoteScreen({
+  id,
+  held,
+  preview = false,
+}: {
+  id: string
+  held: boolean
+  preview?: boolean
+}) {
   const target = useRef<HTMLDivElement>(null),
     rfb = useRef<RFB>(null),
     holder = useRef(held)
@@ -370,7 +418,7 @@ function RemoteScreen({ id, held }: { id: string; held: boolean }) {
           if (active) {
             setConnected(false)
             setProblem('畫面連線已中斷，正在重新連線。')
-            void window.yuki.client.keyboardCapture(false)
+            if (!preview) void window.yuki.client.keyboardCapture(false)
             retry = setTimeout(() => setAttempt((value) => value + 1), 1500)
           }
         })
@@ -390,18 +438,18 @@ function RemoteScreen({ id, held }: { id: string; held: boolean }) {
       clearTimeout(retry)
       instance?.disconnect()
       rfb.current = null
-      void window.yuki.client.keyboardCapture(false)
+      if (!preview) void window.yuki.client.keyboardCapture(false)
     }
-  }, [id, attempt])
+  }, [id, attempt, preview])
   useEffect(() => {
     if (rfb.current) {
       rfb.current.viewOnly = !held
       if (!held) {
         rfb.current.blur()
-        void window.yuki.client.keyboardCapture(false)
+        if (!preview) void window.yuki.client.keyboardCapture(false)
       }
     }
-  }, [held])
+  }, [held, preview])
   useEffect(() => {
     if (rfb.current) {
       rfb.current.scaleViewport = fit
@@ -417,9 +465,10 @@ function RemoteScreen({ id, held }: { id: string; held: boolean }) {
   }
   return (
     <div
-      className={`${styles.remote} ${held ? styles.held : ''}`}
+      className={`${styles.remote} ${held ? styles.held : ''} ${preview ? styles.preview : ''}`}
       tabIndex={-1}
       onKeyDownCapture={(event) => {
+        if (preview) return
         if (event.ctrlKey && event.altKey) {
           event.preventDefault()
           event.stopPropagation()
@@ -436,8 +485,8 @@ function RemoteScreen({ id, held }: { id: string; held: boolean }) {
             ? { maxWidth: dimensions.width, maxHeight: dimensions.height }
             : undefined
         }
-        role="application"
-        aria-label="遠端電腦畫面"
+        role={preview ? 'img' : 'application'}
+        aria-label={preview ? '遠端電腦預覽' : '遠端電腦畫面'}
         ref={target}
         onPointerDown={() => {
           if (held) {
@@ -445,7 +494,9 @@ function RemoteScreen({ id, held }: { id: string; held: boolean }) {
             void window.yuki.client.keyboardCapture(true)
           }
         }}
-        onBlur={() => void window.yuki.client.keyboardCapture(false)}
+        onBlur={() => {
+          if (!preview) void window.yuki.client.keyboardCapture(false)
+        }}
       />
       {!connected && (
         <div className={styles.connecting}>
@@ -456,54 +507,64 @@ function RemoteScreen({ id, held }: { id: string; held: boolean }) {
           </IconButton>
         </div>
       )}
-      <div className={styles.floating} aria-label="電腦畫面控制列">
-        <Button variant="plain" onClick={() => setFit((value) => !value)}>
-          {fit ? '適合' : '100%'}
-        </Button>
-        <IconButton
-          label="貼上到角色的電腦"
-          disabled={!held || !connected}
-          onClick={() =>
-            void action(async () => {
-              const text = unwrap(await window.yuki.client.paste())
-              if (holder.current) rfb.current?.clipboardPasteFrom(text)
-            })
-          }
-        >
-          <ClipboardPaste size={16} />
-        </IconButton>
-        <IconButton
-          label="傳送 Ctrl Alt Delete"
-          disabled={!held || !connected}
-          onClick={() => rfb.current?.sendCtrlAltDel()}
-        >
-          <Keyboard size={16} />
-        </IconButton>
-        <IconButton
-          label="截圖存檔"
-          disabled={!connected}
-          onClick={() =>
-            void action(async () => {
-              const image = rfb.current?.toDataURL('image/png')
-              if (image) {
-                const bytes = Uint8Array.from(atob(image.split(',')[1]!), (char) =>
-                  char.charCodeAt(0),
-                )
-                unwrap(await window.yuki.client.saveScreenshot(id, bytes))
-              }
-            })
-          }
-        >
-          <Camera size={16} />
-        </IconButton>
-        <small>{dimensions.width ? `${dimensions.width} × ${dimensions.height}` : ''}</small>
-      </div>
+      {!preview && (
+        <div className={styles.floating} aria-label="電腦畫面控制列">
+          <Button variant="plain" onClick={() => setFit((value) => !value)}>
+            {fit ? '適合' : '100%'}
+          </Button>
+          <IconButton
+            label="貼上到角色的電腦"
+            disabled={!held || !connected}
+            onClick={() =>
+              void action(async () => {
+                const text = unwrap(await window.yuki.client.paste())
+                if (holder.current) rfb.current?.clipboardPasteFrom(text)
+              })
+            }
+          >
+            <ClipboardPaste size={16} />
+          </IconButton>
+          <IconButton
+            label="傳送 Ctrl Alt Delete"
+            disabled={!held || !connected}
+            onClick={() => rfb.current?.sendCtrlAltDel()}
+          >
+            <Keyboard size={16} />
+          </IconButton>
+          <IconButton
+            label="截圖存檔"
+            disabled={!connected}
+            onClick={() =>
+              void action(async () => {
+                const image = rfb.current?.toDataURL('image/png')
+                if (image) {
+                  const bytes = Uint8Array.from(atob(image.split(',')[1]!), (char) =>
+                    char.charCodeAt(0),
+                  )
+                  unwrap(await window.yuki.client.saveScreenshot(id, bytes))
+                }
+              })
+            }
+          >
+            <Camera size={16} />
+          </IconButton>
+          <small>{dimensions.width ? `${dimensions.width} × ${dimensions.height}` : ''}</small>
+        </div>
+      )}
       {connected && problem && <span className={styles.screenProblem}>{problem}</span>}
     </div>
   )
 }
 
-export function ComputerInspector({ id, work }: { id: string; work(id: string): void }) {
+export function ComputerInspector({
+  id,
+  work,
+  preview,
+}: {
+  id: string
+  work(id: string): void
+  preview?: ReactNode
+}) {
   const computer = useComputer(id),
     [path, setPath] = useState('')
   const [problem, setProblem] = useState('')
@@ -529,6 +590,7 @@ export function ComputerInspector({ id, work }: { id: string; work(id: string): 
   })
   return (
     <aside className={styles.inspector}>
+      {preview}
       <h3>瀏覽器分頁</h3>
       {computer.error ? (
         <Banner status="failed">{computer.error.message}</Banner>

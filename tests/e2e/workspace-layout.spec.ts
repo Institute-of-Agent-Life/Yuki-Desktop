@@ -95,8 +95,11 @@ test('inspector segments preserve original work drafts and immutable file select
       {
         verify: async () => {
           await expect(tabs(page)).toBeInViewport({ ratio: 1 })
+          await expect(inspector(page).getByRole('img', { name: '遠端電腦預覽' })).toBeInViewport({
+            ratio: 1,
+          })
           await expect(
-            inspector(page).getByRole('heading', { name: '瀏覽器分頁', exact: true }),
+            inspector(page).getByRole('button', { name: '開啟完整畫面', exact: true }),
           ).toBeInViewport({ ratio: 1 })
         },
       },

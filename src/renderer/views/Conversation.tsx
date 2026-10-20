@@ -732,7 +732,26 @@ export function Conversation({
             focusMode ? (
               <Computer key={id} connection={connection} name={name} work={openWork} />
             ) : (
-              <ComputerInspector key={id} id={id} work={openWork} />
+              <ComputerInspector
+                key={id}
+                id={id}
+                work={openWork}
+                preview={
+                  view !== 'computer' ? (
+                    <Computer
+                      connection={connection}
+                      name={name}
+                      work={openWork}
+                      compact={{
+                        expand: () =>
+                          requestNavigation(() =>
+                            workspace.patch({ inspector: true, focusMode: true }),
+                          ),
+                      }}
+                    />
+                  ) : undefined
+                }
+              />
             )
           ) : messageStage && view === 'chat' && !accessLost ? (
             <MessageStage

@@ -166,6 +166,49 @@
   height: 100%;
   font-size: 13px;
 }
+.compact {
+  height: auto;
+  padding: 0;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.compact .header > div:first-child {
+  min-width: 0;
+}
+.compact .header h2 {
+  font-size: 13px;
+  line-height: 18px;
+  margin-bottom: 2px;
+}
+.compact .status {
+  font-size: 11px;
+  line-height: 16px;
+}
+.compact [role='status'] {
+  height: auto;
+  min-height: 32px;
+  flex-wrap: wrap;
+  padding: 8px;
+}
+.previewHelp {
+  color: var(--text-secondary);
+  margin: 0;
+}
+.previewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.preview {
+  flex: none;
+  height: 216px;
+  min-height: 0;
+}
+@media (max-height: 599px) {
+  .preview {
+    height: 160px;
+  }
+}
 .inspector h3 {
   font-size: 13px;
   font-weight: 600;
