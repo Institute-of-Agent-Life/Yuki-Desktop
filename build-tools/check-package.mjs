@@ -1,6 +1,7 @@
-import { extractFile, listPackage } from '@electron/asar'
+import { extractFile, listPackage, statFile, uncache } from '@electron/asar'
 import { readdirSync, lstatSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { createHash } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 
 export function checkPackage(root) {
@@ -15,6 +16,7 @@ export function checkPackage(root) {
   walk(root)
   if (!archives.length) throw new Error('No packaged app.asar found')
   for (const archive of archives) {
+    uncache(archive)
     const entries = listPackage(archive)
     for (const file of [
       'out/main/app.js',
@@ -68,8 +70,39 @@ export function checkPackage(root) {
         throw new Error(`Unexpected package content: ${path}`)
       if (/^(docs|assets|scripts|third-party|tests)\//.test(path) || /(^|\/)\._/.test(path))
         throw new Error(`Local material in package: ${path}`)
+      const info = statFile(archive, path)
+      // Native unpacked prebuilts are selected in afterPack and checked for their target.
+      // Packed JavaScript must match both the full-file and Electron block digests.
+      if (!info.files && !info.link && !info.unpacked) {
+        const content = extractFile(archive, path)
+        const integrity = info.integrity
+        const digest = (bytes) => createHash('sha256').update(bytes).digest('hex')
+        if (
+          !integrity ||
+          integrity.algorithm !== 'SHA256' ||
+          !/^[0-9a-f]{64}$/.test(integrity.hash) ||
+          !Number.isSafeInteger(integrity.blockSize) ||
+          integrity.blockSize <= 0 ||
+          !Array.isArray(integrity.blocks) ||
+          integrity.blocks.length !==
+            Math.max(1, Math.ceil(content.length / integrity.blockSize)) ||
+          !integrity.blocks.every((block) => /^[0-9a-f]{64}$/.test(block))
+        )
+          throw new Error(`Invalid packaged integrity: ${path}`)
+        if (content.length !== info.size || digest(content) !== integrity.hash)
+          throw new Error(`Corrupt packaged file: ${path}`)
+        for (let block = 0; block < integrity.blocks.length; block++) {
+          const start = block * integrity.blockSize
+          if (
+            digest(content.subarray(start, start + integrity.blockSize)) !== integrity.blocks[block]
+          )
+            throw new Error(`Corrupt packaged block: ${path} (${block})`)
+        }
+      }
     }
-    console.log(`${archive}: ${entries.length} entries checked; product allowlist only`)
+    console.log(
+      `${archive}: ${entries.length} entries checked; product allowlist and packed-file integrity verified`,
+    )
   }
 
   return archives.length

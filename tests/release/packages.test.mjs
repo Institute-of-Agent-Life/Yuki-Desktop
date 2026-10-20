@@ -4,6 +4,8 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, access } from 'node:fs/promise
 import { join, basename } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
+import { createPackage, statFile } from '@electron/asar'
+import { checkPackage } from '../../build-tools/check-package.mjs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { dump, load } from 'js-yaml'
@@ -223,4 +225,71 @@ test('real archive inspection rejects an application whose CPU differs from its 
     const file = join(root, 'Yuki-1.0.0-beta.1-mac-arm64.zip')
     await run(await getPath7za(), ['a', '-tzip', file, 'Yuki.app'], { cwd: source })
     await assert.rejects(auditInstaller(file), /Executable architecture mismatch: darwin\/arm64/)
+  }))
+
+async function packagedFixture(root) {
+  const source = join(root, 'product')
+  const directory = join(root, 'packaged')
+  const marker = 'unique packed runtime integrity fixture'
+  const files = {
+    'out/main/app.js': marker + 'x'.repeat(4 * 1024 * 1024),
+    'out/preload/index.cjs': '',
+    'out/renderer/index.html':
+      '<script src="assets/index.js"></script><link href="assets/index.css">',
+    'out/renderer/assets/index.js': 'export const fixture = true',
+    'out/renderer/assets/index.css': 'body { color: black }',
+    'out/renderer/assets/diff.worker-fixture.js': 'onmessage = () => {}',
+    'resources/icons/trayTemplate.png': 'icon fixture',
+    'resources/icons/trayTemplate@2x.png': 'icon fixture',
+    'package.json': '{"name":"integrity-fixture"}',
+    LICENSE: 'unit fixture',
+  }
+  for (const size of [16, 32, 64, 128, 256, 512, 1024])
+    files[`resources/icons/app/${size}x${size}.png`] = 'icon fixture'
+  for (const file of [
+    'AUTHORS',
+    'NOTICE.txt',
+    'LICENSE.MPL-2.0',
+    'LICENSE.BSD-2-Clause',
+    'LICENSE.BSD-3-Clause',
+    'LICENSE.OFL-1.1',
+  ])
+    files[`resources/legal/novnc/${file}`] = 'legal fixture'
+  for (const [path, content] of Object.entries(files)) {
+    const destination = join(source, path)
+    await mkdir(join(destination, '..'), { recursive: true })
+    await writeFile(destination, content)
+  }
+  await mkdir(directory)
+  const archive = join(directory, 'app.asar')
+  await createPackage(source, archive)
+  return { directory, archive, marker }
+}
+
+test('actual ASAR integrity accepts empty and multi-block files then rejects an altered payload with the original header', async () =>
+  fixture(async (root) => {
+    const { directory, archive, marker } = await packagedFixture(root)
+    assert.equal(checkPackage(directory), 1)
+    assert.equal(statFile(archive, 'out/main/app.js').integrity.blocks.length, 2)
+    const bytes = await readFile(archive)
+    const offset = bytes.indexOf(Buffer.from(marker))
+    assert.ok(offset > 0)
+    bytes[offset] ^= 1
+    await writeFile(archive, bytes)
+    assert.throws(() => checkPackage(directory), /Corrupt packaged file: out\/main\/app.js/)
+  }))
+
+test('actual ASAR integrity rejects a changed block digest even when the file digest and payload are intact', async () =>
+  fixture(async (root) => {
+    const { directory, archive } = await packagedFixture(root)
+    assert.equal(checkPackage(directory), 1)
+    const integrity = statFile(archive, 'out/main/app.js').integrity
+    const bytes = await readFile(archive)
+    const field = Buffer.from('"blocks":["' + integrity.blocks[0])
+    const start = bytes.indexOf(field)
+    assert.ok(start > 0)
+    const offset = start + Buffer.byteLength('"blocks":["')
+    bytes[offset] = bytes[offset] === 0x61 ? 0x62 : 0x61
+    await writeFile(archive, bytes)
+    assert.throws(() => checkPackage(directory), /Corrupt packaged block: out\/main\/app.js/)
   }))
