@@ -5,14 +5,15 @@
   line-height: 18px;
 }
 .editor {
+  --crop-size: 280px;
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: var(--crop-size) minmax(0, 1fr);
   gap: 24px;
 }
 .crop {
   position: relative;
-  width: 280px;
-  height: 280px;
+  width: var(--crop-size);
+  height: var(--crop-size);
   border-radius: 12px;
   overflow: hidden;
   background: var(--bg-inspector);
@@ -24,8 +25,8 @@
   cursor: grabbing;
 }
 .crop canvas {
-  width: 280px;
-  height: 280px;
+  width: 100%;
+  height: 100%;
   display: block;
 }
 .mask {
@@ -154,11 +155,23 @@
 }
 @media (max-width: 580px) {
   .editor {
-    grid-template-columns: 280px;
+    grid-template-columns: var(--crop-size);
     justify-content: center;
   }
   .previews {
     display: grid;
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-height: 599px) {
+  .editor {
+    --crop-size: 220px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .editor > div:first-child {
+    width: var(--crop-size);
+    justify-self: center;
   }
 }

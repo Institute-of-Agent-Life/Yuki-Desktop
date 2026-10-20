@@ -357,6 +357,14 @@ test('actual avatar crop, EXIF orientation, two-device CAS, reset and cold recov
         await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
         await choose(a, pa, inputs.small)
         await expect(editor(pa).locator('img').first()).toBeVisible()
+        await expect(editor(pa).getByRole('application')).toHaveCSS(
+          'width',
+          height < 600 ? '220px' : '280px',
+        )
+        await expect(editor(pa).getByRole('application').locator('canvas')).toHaveCSS(
+          'width',
+          height < 600 ? '220px' : '280px',
+        )
         await expect(editor(pa).getByRole('button', { name: '儲存', exact: true })).toBeInViewport({
           ratio: 1,
         })

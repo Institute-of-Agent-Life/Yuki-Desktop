@@ -373,11 +373,13 @@ export function AvatarEditor({
                 }
               }}
               onPointerMove={(event) => {
-                if (drag.current)
+                if (drag.current) {
+                  const ratio = 280 / event.currentTarget.getBoundingClientRect().width
                   move({
-                    x: drag.current.pan.x + event.clientX - drag.current.x,
-                    y: drag.current.pan.y + event.clientY - drag.current.y,
+                    x: drag.current.pan.x + (event.clientX - drag.current.x) * ratio,
+                    y: drag.current.pan.y + (event.clientY - drag.current.y) * ratio,
                   })
+                }
               }}
               onPointerUp={() => {
                 drag.current = undefined
@@ -389,7 +391,9 @@ export function AvatarEditor({
                 if (busy || unknown) return
                 if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
                   event.preventDefault()
-                  const delta = event.shiftKey ? 20 : 4
+                  const delta =
+                    ((event.shiftKey ? 20 : 4) * 280) /
+                    event.currentTarget.getBoundingClientRect().width
                   move({
                     x:
                       transform.pan.x +
