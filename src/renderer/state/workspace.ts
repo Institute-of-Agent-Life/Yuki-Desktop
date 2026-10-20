@@ -27,10 +27,12 @@ interface WorkspaceState {
   focusMode: boolean
   sidebarWidth: number
   inspectorWidth: number
+  inspectorWidthCustom: boolean
   target: NavigationTarget | null
   navigate(target: NavigationTarget): void
   setView(view: View): void
   toggle(key: 'inspector' | 'sidebar' | 'focusMode'): void
+  setWidth(key: 'sidebarWidth' | 'inspectorWidth', value: number | null): void
   patch(value: Partial<WorkspaceState>): void
 }
 const sessions = new Map<string, StoreApi<WorkspaceState>>()
@@ -42,11 +44,16 @@ export function workspaceFor(scope: string) {
   let store = sessions.get(scope)
   if (!store) {
     let widths = { sidebarWidth: 260, inspectorWidth: 380 }
+    let inspectorWidthCustom = false
     let inspectorTab: InspectorTab = 'work'
     try {
       const saved = JSON.parse(localStorage.getItem(`workspace-layout/${scope}`) ?? 'null')
-      if (saved && Number.isFinite(saved.sidebarWidth) && Number.isFinite(saved.inspectorWidth))
+      if (saved && Number.isFinite(saved.sidebarWidth) && Number.isFinite(saved.inspectorWidth)) {
         widths = { sidebarWidth: saved.sidebarWidth, inspectorWidth: saved.inspectorWidth }
+        // Legacy saved widths remain explicit choices, including 380.
+        inspectorWidthCustom =
+          typeof saved.inspectorWidthCustom === 'boolean' ? saved.inspectorWidthCustom : true
+      }
       if (saved && ['work', 'computer', 'files'].includes(saved.inspectorTab))
         inspectorTab = saved.inspectorTab
     } catch {
@@ -59,6 +66,7 @@ export function workspaceFor(scope: string) {
       sidebar: true,
       focusMode: false,
       ...widths,
+      inspectorWidthCustom,
       target: null,
       navigate: (target) =>
         requestNavigation(() =>
@@ -90,12 +98,18 @@ export function workspaceFor(scope: string) {
         else change()
       },
       patch: (value) => set(value),
+      setWidth: (key, value) =>
+        set(
+          key === 'inspectorWidth'
+            ? { inspectorWidth: value ?? 380, inspectorWidthCustom: value !== null }
+            : { sidebarWidth: value ?? 260 },
+        ),
     }))
-    store.subscribe(({ sidebarWidth, inspectorWidth, inspectorTab }) => {
+    store.subscribe(({ sidebarWidth, inspectorWidth, inspectorWidthCustom, inspectorTab }) => {
       try {
         localStorage.setItem(
           `workspace-layout/${scope}`,
-          JSON.stringify({ sidebarWidth, inspectorWidth, inspectorTab }),
+          JSON.stringify({ sidebarWidth, inspectorWidth, inspectorWidthCustom, inspectorTab }),
         )
       } catch {
         /* A storage failure does not discard the live workspace. */

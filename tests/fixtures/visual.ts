@@ -6,21 +6,67 @@ export const workspaceSizes = [
   [1100, 760],
   [960, 492],
 ] as const
+const viewports = new WeakMap<Page, { width: number; height: number; emulated: boolean }>()
 export async function contentSize(
   app: ElectronApplication,
   page: Page,
   width: number,
   height: number,
 ) {
-  await app.evaluate(
-    ({ BrowserWindow }, size) => {
+  const viewportMethod = await app.evaluate(
+    ({ BrowserWindow, screen }, size) => {
       const window = BrowserWindow.getAllWindows()[0]!
-      window.setMinimumSize(960, 492)
-      window.setContentSize(size.width, size.height)
+      window.webContents.disableDeviceEmulation()
+      const [minimumWidth, minimumHeight] = window.getMinimumSize()
+      const area = screen.getDisplayMatching(window.getBounds()).workArea
+      if (
+        size.width >= minimumWidth! &&
+        size.height >= minimumHeight! &&
+        size.width <= area.width &&
+        size.height <= area.height
+      ) {
+        window.setContentSize(size.width, size.height)
+        return 'native-window' as const
+      }
+      window.webContents.enableDeviceEmulation({
+        screenPosition: 'desktop',
+        screenSize: size,
+        viewPosition: { x: 0, y: 0 },
+        deviceScaleFactor: 0,
+        viewSize: size,
+        scale: 1,
+      })
+      return 'electron-device-emulation' as const
     },
     { width, height },
   )
   await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([width, height])
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
+  viewports.set(page, { width, height, emulated: viewportMethod === 'electron-device-emulation' })
+  return viewportMethod
+}
+
+/** CDP capture resets Electron's device emulation. Capture its surface directly instead. */
+export async function captureViewport(app: ElectronApplication, page: Page, path: string) {
+  const viewport = viewports.get(page)
+  if (!viewport?.emulated) return page.screenshot({ path, animations: 'disabled' })
+  const { width, height } = viewport
+  await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([width, height])
+  const data = await app.evaluate(
+    async ({ BrowserWindow }, size) => {
+      const window = BrowserWindow.getAllWindows()[0]!
+      const bounds = window.getContentBounds()
+      if (size.width > bounds.width || size.height > bounds.height)
+        throw Error('The emulated viewport must fit the native capture surface')
+      const image = await window.webContents.capturePage({ x: 0, y: 0, ...size })
+      return image.toPNG().toString('base64')
+    },
+    { width, height },
+  )
+  const buffer = Buffer.from(data, 'base64')
+  await writeFile(path, buffer)
+  await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([width, height])
+  return buffer
 }
 /** Captures the real app; theme changes go through its normal Settings controls. */
 export async function captureWorkspace(
@@ -56,16 +102,15 @@ export async function captureWorkspace(
     await expect(page.locator('html')).toHaveAttribute('data-opaque', String(theme === 'opaque'))
     await prepare()
     for (const [width, height] of workspaceSizes) {
-      await contentSize(app, page, width, height)
+      const viewportMethod = await contentSize(app, page, width, height)
       await options.verify?.()
       const dpr = await page.evaluate(() => devicePixelRatio)
       const path = test
         .info()
-        .outputPath(`${process.platform}-${dpr}x-${theme}-${scenario}-${width}x${height}.png`)
-      await page.screenshot({
-        path,
-        animations: 'disabled',
-      })
+        .outputPath(
+          `${process.platform}-${dpr}x-${theme}-${scenario}-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
+        )
+      await captureViewport(app, page, path)
       // CSS measurements are review evidence, not an automatic visual approval.
       const metrics = await page.evaluate(() => {
         const describe = (element: Element) => {
@@ -121,7 +166,7 @@ export async function captureWorkspace(
       })
       await writeFile(
         path.replace(/\.png$/, '.metrics.json'),
-        JSON.stringify(metrics, null, 2) + '\n',
+        JSON.stringify({ ...metrics, viewportMethod }, null, 2) + '\n',
       )
     }
     await options.cleanup?.()

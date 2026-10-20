@@ -125,15 +125,7 @@ function Gallery() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
   document.documentElement.dataset.theme = theme
   return (
-    <Workspace
-      name="角色"
-      status="元件驗證"
-      owner
-      platform="linux"
-      preferences={preferences}
-      savePreferences={(patch) => setPreferences((previous) => ({ ...previous, ...patch }))}
-      inspector={<p>檢視器內容</p>}
-    >
+    <Workspace name="角色" status="元件驗證" owner platform="linux" inspector={<p>檢視器內容</p>}>
       <Banner>離線狀態</Banner>
       <div style={{ padding: 24, maxWidth: 760, width: '100%', margin: '0 auto' }}>
         <Segmented

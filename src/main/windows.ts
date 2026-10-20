@@ -88,7 +88,8 @@ export function createWindow(store: LocalStore, pairing = false) {
   screen.on('display-added', fit)
   screen.on('display-removed', fit)
   win.on('moved', fit)
-  win.on('resized', fit)
+  win.on('resize', fit)
+  win.on('close', fit)
   win.once('closed', () => {
     modes.delete(win)
     screen.removeListener('display-metrics-changed', fit)

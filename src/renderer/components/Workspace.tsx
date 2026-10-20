@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import {
   BriefcaseBusiness,
   Folder,
@@ -14,11 +14,11 @@ import {
   X,
 } from 'lucide-react'
 import { columns } from '../../main/geometry'
-import { useWorkspace } from '../state/workspace'
+import { useSessionActive, useWorkspace } from '../state/workspace'
 import { IconButton, Segmented } from './Controls'
 import { UpdateReadyButton } from './Updates'
 import { PresenceCard } from './PresenceCard'
-import type { Preferences, View } from '../../shared/desktop'
+import type { View } from '../../shared/desktop'
 import styles from '../App.module.css'
 import { useCommands } from '../state/commands'
 import { requestNavigation } from '../state/navigation'
@@ -31,8 +31,6 @@ interface Props {
   presence?: 'running' | 'waiting' | 'done' | 'offline'
   owner: boolean
   platform: string
-  preferences: Preferences
-  savePreferences(patch: Partial<Preferences>): void
   children: ReactNode
   inspector?: ReactNode
   inspectorTitle?: string
@@ -51,7 +49,13 @@ const views = [
 
 export function Workspace(props: Props) {
   const state = useWorkspace()
+  const active = useSessionActive()
   const [width, setWidth] = useState(window.innerWidth)
+  const stopDrag = useRef<(() => void) | undefined>(undefined)
+  useLayoutEffect(
+    () => () => stopDrag.current?.(),
+    [active, width, state.sidebar, state.inspector, state.focusMode],
+  )
   const [overlaySidebar, setOverlaySidebar] = useState(false)
   const toggleSidebar = () => {
     if (state.focusMode)
@@ -102,35 +106,47 @@ export function Workspace(props: Props) {
   })
   const layout = columns(
     width,
-    props.preferences.sidebarWidth,
-    props.preferences.inspectorWidth,
+    state.sidebarWidth,
+    state.inspectorWidth,
     state.sidebar,
     state.inspector,
+    !state.inspectorWidthCustom,
   )
   const sidebar = layout.overlaySidebar ? overlaySidebar : state.sidebar
   const drag = (
     kind: 'sidebarWidth' | 'inspectorWidth',
     event: React.PointerEvent<HTMLButtonElement>,
   ) => {
-    event.currentTarget.setPointerCapture(event.pointerId)
+    stopDrag.current?.()
+    const target = event.currentTarget,
+      pointerId = event.pointerId
+    target.setPointerCapture(pointerId)
     const start = event.clientX
     const initial = kind === 'sidebarWidth' ? layout.sidebar : layout.inspector
     const move = (e: PointerEvent) => {
+      if (e.pointerId !== pointerId) return
       const value = initial + (e.clientX - start) * (kind === 'sidebarWidth' ? 1 : -1)
       const max =
         kind === 'sidebarWidth'
           ? Math.min(320, width - layout.inspector - 520)
           : Math.min(560, width - layout.sidebar - 520)
-      props.savePreferences({
-        [kind]: Math.max(kind === 'sidebarWidth' ? 220 : 320, Math.min(max, value)),
-      })
+      state.setWidth(kind, Math.max(kind === 'sidebarWidth' ? 220 : 320, Math.min(max, value)))
     }
     const finish = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', finish)
+      window.removeEventListener('blur', finish)
+      target.removeEventListener('lostpointercapture', finish)
+      if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId)
+      if (stopDrag.current === finish) stopDrag.current = undefined
     }
+    stopDrag.current = finish
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', finish, { once: true })
+    window.addEventListener('pointercancel', finish, { once: true })
+    window.addEventListener('blur', finish, { once: true })
+    target.addEventListener('lostpointercapture', finish, { once: true })
   }
   const divider = (kind: 'sidebarWidth' | 'inspectorWidth') => (
     <div
@@ -143,7 +159,7 @@ export function Workspace(props: Props) {
         aria-orientation="vertical"
         aria-valuenow={kind === 'sidebarWidth' ? layout.sidebar : layout.inspector}
         onPointerDown={(event) => drag(kind, event)}
-        onDoubleClick={() => props.savePreferences({ [kind]: kind === 'sidebarWidth' ? 260 : 380 })}
+        onDoubleClick={() => state.setWidth(kind, null)}
         onKeyDown={(event) => {
           if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return
           event.preventDefault()
@@ -154,10 +170,10 @@ export function Workspace(props: Props) {
               kind === 'sidebarWidth'
                 ? Math.min(320, width - layout.inspector - 520)
                 : Math.min(560, width - layout.sidebar - 520),
-              props.preferences[kind] + delta,
+              (kind === 'sidebarWidth' ? layout.sidebar : layout.inspector) + delta,
             ),
           )
-          props.savePreferences({ [kind]: next })
+          state.setWidth(kind, next)
         }}
       />
     </div>

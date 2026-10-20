@@ -22,6 +22,17 @@ describe('moving windows across actual available work areas', () => {
   })
 })
 describe('three column sizing', () => {
+  it('uses the large automatic inspector while preserving explicit widths across breakpoints', () => {
+    expect(columns(1920, 260, 380, true, true, true)).toMatchObject({
+      inspector: 440,
+      center: 1220,
+    })
+    expect(columns(1679, 260, 380, true, true, true).inspector).toBe(380)
+    expect(columns(1920, 260, 380).inspector).toBe(380)
+    expect(columns(1920, 260, 508).inspector).toBe(508)
+    expect(columns(1180, 320, 560).inspector).toBe(340)
+    expect(columns(1920, 320, 560).inspector).toBe(560)
+  })
   it('keeps the center readable for all drag combinations at the narrow breakpoint', () => {
     for (let sidebar = 220; sidebar <= 320; sidebar += 4) {
       for (let inspector = 320; inspector <= 560; inspector += 4) {

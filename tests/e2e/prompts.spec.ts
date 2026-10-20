@@ -1,3 +1,4 @@
+import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
 import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -250,9 +251,7 @@ test('real prompt editor keeps CAS baselines, compares conflicts, supports undo 
     await save(pa).click()
     await expect(editor(pa)).toHaveAttribute('aria-readonly', 'false')
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
-      await a.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0]!.setContentSize(1440, 900),
-      )
+      await contentSize(a, pa, 1440, 900)
       await expect.poll(() => pa.evaluate(() => [innerWidth, innerHeight])).toEqual([1440, 900])
       await pa.getByRole('button', { name: '設定', exact: true }).click()
       await pa.getByRole('tab', { name: '外觀', exact: true }).click()
@@ -272,14 +271,7 @@ test('real prompt editor keeps CAS baselines, compares conflicts, supports undo 
         [1100, 760],
         [960, 492],
       ] as const) {
-        await a.evaluate(
-          ({ BrowserWindow }, size) => {
-            const win = BrowserWindow.getAllWindows()[0]!
-            win.setMinimumSize(960, 492)
-            win.setContentSize(size.width, size.height)
-          },
-          { width, height },
-        )
+        const viewportMethod = await contentSize(a, pa, width, height)
         await expect
           .poll(() => pa.evaluate(() => [innerWidth, innerHeight]))
           .toEqual([width, height])
@@ -287,15 +279,18 @@ test('real prompt editor keeps CAS baselines, compares conflicts, supports undo 
         await expect(editor(pa)).toBeVisible()
         await expect(editor(pa)).toHaveCSS('font-size', '13px')
         await expect(editor(pa)).toHaveCSS('line-height', '22px')
-        await pa.screenshot({
-          path: test.info().outputPath(`darwin-2x-${mode}-prompts-${width}x${height}.png`),
-          animations: 'disabled',
-        })
+        await captureViewport(
+          a,
+          pa,
+          test
+            .info()
+            .outputPath(
+              `darwin-2x-${mode}-prompts-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
+            ),
+        )
       }
     }
-    await a.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0]!.setContentSize(1440, 900),
-    )
+    await contentSize(a, pa, 1440, 900)
     await expect.poll(() => pa.evaluate(() => [innerWidth, innerHeight])).toEqual([1440, 900])
     await edit(pa, '撤銷擁有者時仍保留的本機草稿\r\n{{YUKI_PERSONA_CORE}}')
     await fetch(`${rig.base}/__test/revoke-character-owner`, { method: 'POST' })
@@ -655,11 +650,7 @@ test('short prompt workspace keeps its explanation accessible and saves through 
       hint = page.getByRole('button', { name: '提示詞生效說明', exact: true })
     await expect(explanation).toBeVisible()
     await expect(hint).toBeHidden()
-    await app.evaluate(({ BrowserWindow }) => {
-      const window = BrowserWindow.getAllWindows()[0]!
-      window.setMinimumSize(960, 492)
-      window.setContentSize(960, 492)
-    })
+    await contentSize(app, page, 960, 492)
     await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([960, 492])
     await expect(explanation).toBeHidden()
     await expect(hint).toBeVisible()
@@ -718,11 +709,18 @@ test('short prompt workspace keeps its explanation accessible and saves through 
           ).length,
       )
       .toBe(1)
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.focus())
+    await expect
+      .poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isFocused()))
+      .toBe(true)
+    await page.mouse.move(0, 0)
     await hint.hover()
     await expect(page.getByRole('tooltip')).toBeVisible()
-    await page.screenshot({
-      path: test.info().outputPath('darwin-2x-light-state-short-960x492-prompt-info.png'),
-    })
+    await captureViewport(
+      app,
+      page,
+      test.info().outputPath('darwin-2x-light-state-short-960x492-prompt-info-emulated.png'),
+    )
     await page.mouse.move(0, 0)
     await expect(page.getByRole('tooltip')).toBeHidden()
     const other = await rig.launch('short-prompt-other-device')
@@ -746,18 +744,18 @@ test('short prompt workspace keeps its explanation accessible and saves through 
         ratio: 1,
       })
       await expect(save(page)).toBeInViewport({ ratio: 1 })
-      await page.screenshot({
-        path: test.info().outputPath('darwin-2x-light-state-short-960x492-prompt.png'),
-      })
+      await captureViewport(
+        app,
+        page,
+        test.info().outputPath('darwin-2x-light-state-short-960x492-prompt-emulated.png'),
+      )
       await page.getByRole('button', { name: '放棄我的修改', exact: true }).click()
       await expect(conflict).toBeHidden()
     } finally {
       other.process().kill('SIGKILL')
       await other.close().catch(() => {})
     }
-    await app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0]!.setContentSize(1100, 760),
-    )
+    await contentSize(app, page, 1100, 760)
     await expect(explanation).toBeVisible()
     await expect(hint).toBeHidden()
     success = true

@@ -1,3 +1,4 @@
+import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -263,9 +264,7 @@ test('device and one-time-code sheets keep actual controls reachable in four the
     await pairUI(page, rig.base, await rig.code(), '視覺驗證裝置')
     await security(page)
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
-      await app.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0]!.setContentSize(1440, 900),
-      )
+      await contentSize(app, page, 1440, 900)
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
       await page.getByRole('tab', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
       for (const [label, value] of [
@@ -282,29 +281,32 @@ test('device and one-time-code sheets keep actual controls reachable in four the
         [1100, 760],
         [960, 492],
       ] as const) {
-        await app.evaluate(
-          ({ BrowserWindow }, size) => {
-            const win = BrowserWindow.getAllWindows()[0]!
-            win.setMinimumSize(960, 492)
-            win.setContentSize(size.width, size.height)
-          },
-          { width, height },
-        )
+        const viewportMethod = await contentSize(app, page, width, height)
         await expect
           .poll(() => page.evaluate(() => [innerWidth, innerHeight]))
           .toEqual([width, height])
-        await page.screenshot({
-          path: test.info().outputPath(`darwin-2x-${mode}-devices-${width}x${height}.png`),
-          animations: 'disabled',
-        })
+        await captureViewport(
+          app,
+          page,
+          test
+            .info()
+            .outputPath(
+              `darwin-2x-${mode}-devices-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
+            ),
+        )
         await page.getByRole('button', { name: '產生綁定碼', exact: true }).click()
         const sheet = page.getByRole('dialog', { name: '連接另一台裝置', exact: true })
         await expect(sheet.getByRole('img', { name: '綁定連結 QR', exact: true })).toBeVisible()
         await expect(sheet.getByRole('button', { name: '完成', exact: true })).toBeVisible()
-        await page.screenshot({
-          path: test.info().outputPath(`darwin-2x-${mode}-pair-code-${width}x${height}.png`),
-          animations: 'disabled',
-        })
+        await captureViewport(
+          app,
+          page,
+          test
+            .info()
+            .outputPath(
+              `darwin-2x-${mode}-pair-code-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
+            ),
+        )
         await sheet.getByRole('button', { name: '完成', exact: true }).click()
         await expect(page.getByRole('dialog')).not.toBeVisible()
       }

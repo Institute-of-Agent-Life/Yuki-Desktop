@@ -1,3 +1,4 @@
+import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
@@ -319,9 +320,7 @@ test('actual avatar crop, EXIF orientation, two-device CAS, reset and cold recov
     expect(downsample.original).toEqual([8000, 6000])
     expect(Math.min(...downsample.working)).toBeLessThanOrEqual(4096)
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
-      await a.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0]!.setContentSize(1440, 900),
-      )
+      await contentSize(a, pa, 1440, 900)
       await expect.poll(() => pa.evaluate(() => [innerWidth, innerHeight])).toEqual([1440, 900])
       await pa.getByRole('button', { name: '設定', exact: true }).click()
       await pa.getByRole('tab', { name: '外觀', exact: true }).click()
@@ -342,31 +341,34 @@ test('actual avatar crop, EXIF orientation, two-device CAS, reset and cold recov
         [1100, 760],
         [960, 492],
       ] as const) {
-        await a.evaluate(
-          ({ BrowserWindow }, size) => {
-            const win = BrowserWindow.getAllWindows()[0]!
-            win.setMinimumSize(960, 492)
-            win.setContentSize(size.width, size.height)
-          },
-          { width, height },
-        )
+        const viewportMethod = await contentSize(a, pa, width, height)
         await expect
           .poll(() => pa.evaluate(() => [innerWidth, innerHeight]))
           .toEqual([width, height])
-        await pa.screenshot({
-          path: test.info().outputPath(`darwin-2x-${mode}-about-${width}x${height}.png`),
-          animations: 'disabled',
-        })
+        await captureViewport(
+          a,
+          pa,
+          test
+            .info()
+            .outputPath(
+              `darwin-2x-${mode}-about-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
+            ),
+        )
         await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
         await choose(a, pa, inputs.small)
         await expect(editor(pa).locator('img').first()).toBeVisible()
         await expect(editor(pa).getByRole('button', { name: '儲存', exact: true })).toBeInViewport({
           ratio: 1,
         })
-        await pa.screenshot({
-          path: test.info().outputPath(`darwin-2x-${mode}-avatar-${width}x${height}.png`),
-          animations: 'disabled',
-        })
+        await captureViewport(
+          a,
+          pa,
+          test
+            .info()
+            .outputPath(
+              `darwin-2x-${mode}-avatar-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
+            ),
+        )
         await editor(pa).getByRole('button', { name: '取消', exact: true }).click()
       }
     }

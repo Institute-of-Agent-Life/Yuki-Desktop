@@ -47,11 +47,13 @@ export function columns(
   inspector: number,
   sidebarOpen = true,
   inspectorOpen = true,
+  autoInspectorWidth = false,
 ) {
   const overlaySidebar = width < 1100
   const overlayInspector = width < 1180
   let s = sidebarOpen && !overlaySidebar ? Math.min(320, Math.max(220, sidebar)) : 0
-  let i = inspectorOpen && !overlayInspector ? Math.min(560, Math.max(320, inspector)) : 0
+  const preferredInspector = autoInspectorWidth ? (width >= 1680 ? 440 : 380) : inspector
+  let i = inspectorOpen && !overlayInspector ? Math.min(560, Math.max(320, preferredInspector)) : 0
   if (s && i && width - s - i < 520) {
     i = Math.max(320, width - s - 520)
     s = Math.min(s, width - i - 520)

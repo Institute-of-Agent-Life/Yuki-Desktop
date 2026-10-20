@@ -1,3 +1,4 @@
+import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -150,9 +151,7 @@ test('settings categories remain keyboard reachable in all four themes and small
     await pairUI(page, rig.base, await rig.code())
     await page.keyboard.press('ControlOrMeta+,')
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
-      await app.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0]!.setContentSize(1440, 900),
-      )
+      await contentSize(app, page, 1440, 900)
       await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([1440, 900])
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
       await page.getByRole('tab', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
@@ -169,26 +168,22 @@ test('settings categories remain keyboard reachable in all four themes and small
         [1100, 760],
         [960, 492],
       ] as const) {
-        await app.evaluate(
-          ({ BrowserWindow }, size) => {
-            const win = BrowserWindow.getAllWindows()[0]!
-            win.setMinimumSize(960, 492)
-            win.setContentSize(size.width, size.height)
-          },
-          { width, height },
-        )
+        const viewportMethod = await contentSize(app, page, width, height)
         await expect
           .poll(() => page.evaluate(() => [innerWidth, innerHeight]))
           .toEqual([width, height])
         for (const category of ['一般', '外觀', '通知', '進階']) {
           await page.getByRole('tab', { name: category, exact: true }).click()
           await expect(page.getByRole('heading', { name: category, exact: true })).toBeVisible()
-          await page.screenshot({
-            path: test
+          await captureViewport(
+            app,
+            page,
+            test
               .info()
-              .outputPath(`darwin-2x-${mode}-settings-${category}-${width}x${height}.png`),
-            animations: 'disabled',
-          })
+              .outputPath(
+                `darwin-2x-${mode}-settings-${category}-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
+              ),
+          )
         }
       }
     }

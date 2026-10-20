@@ -696,12 +696,6 @@ export function Conversation({
         owner={profileData?.viewer.is_owner ?? false}
         platform={platform}
         inspectorTitle={messageStage && view === 'chat' ? '原訊息' : undefined}
-        preferences={{
-          ...preferences,
-          sidebarWidth: workspace.sidebarWidth,
-          inspectorWidth: workspace.inspectorWidth,
-        }}
-        savePreferences={(patch) => workspace.patch(patch)}
         onSettings={onSettings}
         entries={
           <>

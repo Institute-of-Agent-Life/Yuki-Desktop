@@ -1,3 +1,4 @@
+import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import { pairUI, yukiFixture } from '../fixtures/backend'
@@ -221,9 +222,7 @@ test('palette geometry, keyboard focus and footer remain usable across themes, s
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(page.getByText('真實帳本回覆', { exact: true })).toBeVisible()
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
-      await app.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0]!.setContentSize(1440, 900),
-      )
+      await contentSize(app, page, 1440, 900)
       await page.keyboard.press('ControlOrMeta+,')
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
       await page.getByRole('tab', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
@@ -241,14 +240,7 @@ test('palette geometry, keyboard focus and footer remain usable across themes, s
         [1100, 760],
         [960, 492],
       ] as const) {
-        await app.evaluate(
-          ({ BrowserWindow }, size) => {
-            const win = BrowserWindow.getAllWindows()[0]!
-            win.setMinimumSize(960, 492)
-            win.setContentSize(size.width, size.height)
-          },
-          { width, height },
-        )
+        const viewportMethod = await contentSize(app, page, width, height)
         await expect
           .poll(() => page.evaluate(() => [innerWidth, innerHeight]))
           .toEqual([width, height])
@@ -261,13 +253,19 @@ test('palette geometry, keyboard focus and footer remain usable across themes, s
         ).toBeInViewport()
         await page.keyboard.press('ArrowDown')
         await expect(palette.input).toBeFocused()
-        await page.screenshot({
-          path: test.info().outputPath(`darwin-2x-${mode}-palette-${width}x${height}.png`),
-          animations: 'disabled',
-        })
+        await captureViewport(
+          app,
+          page,
+          test
+            .info()
+            .outputPath(
+              `darwin-2x-${mode}-palette-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
+            ),
+        )
         await page.keyboard.press('Escape')
       }
     }
+    await contentSize(app, page, 960, 640)
     await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0]!.webContents.setZoomFactor(1.5),
     )
