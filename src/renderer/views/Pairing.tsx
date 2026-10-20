@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react'
-import { Snowflake } from 'lucide-react'
+import { Clipboard, Snowflake } from 'lucide-react'
 import type { Connection, Me, Meta } from '../../shared/api'
 import { parsePairing } from '../../shared/pairing'
 import { Banner, Button, TextField } from '../components/Controls'
 import { PairingAvatar } from '../components/CharacterAvatar'
 import { ClientProblem, unwrap } from '../queries/client'
 import styles from '../App.module.css'
+
+const pairingSteps = [
+  ['welcome', '歡迎'],
+  ['server', '伺服器'],
+  ['code', '綁定碼'],
+  ['person', '認識你'],
+] as const
 
 export function Pairing({
   label,
@@ -189,7 +196,8 @@ export function Pairing({
                 onChange={(event) => setCodeInput(event.target.value)}
               />
               <Button
-                variant="plain"
+                variant="secondary"
+                large
                 type="button"
                 onClick={() =>
                   void window.yuki.client
@@ -199,6 +207,7 @@ export function Pairing({
                     .catch((error) => setError(error.message))
                 }
               >
+                <Clipboard size={14} aria-hidden="true" />
                 貼上
               </Button>
             </div>
@@ -246,6 +255,11 @@ export function Pairing({
             </Button>
           </>
         )}
+        <ol className={styles.pairingSteps} aria-label="配對進度">
+          {pairingSteps.map(([id, name]) => (
+            <li key={id} aria-label={name} aria-current={step === id ? 'step' : undefined} />
+          ))}
+        </ol>
       </div>
     </div>
   )
