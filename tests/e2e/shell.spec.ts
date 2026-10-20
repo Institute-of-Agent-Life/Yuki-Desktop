@@ -1,16 +1,12 @@
-import { _electron as electron, expect, test } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { launchShell } from '../fixtures/shell-app'
 
 test('native startup, actual button and keyboard paths, preferences survive restart', async () => {
   const data = await mkdtemp(join(tmpdir(), 'yuki-desktop-test-'))
-  const launch = () =>
-    electron.launch({
-      executablePath: process.env.YUKI_ELECTRON_EXECUTABLE,
-      args: process.env.YUKI_ELECTRON_EXECUTABLE ? [] : ['.'],
-      env: { ...process.env, YUKI_DESKTOP_DATA: data },
-    })
+  const launch = () => launchShell(data)
   let app = await launch()
   try {
     let page = await app.firstWindow()
