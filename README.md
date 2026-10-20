@@ -50,6 +50,8 @@ npm run test:e2e -- tests/e2e/backend.spec.ts
 
 `tests/e2e/real-computer-host.spec.ts` 使用 `YUKI_DESKTOP_REAL_BACKEND_URL` 指向操作者另行啟動的隔離測試 API，要求外部真 Manager 與角色桌面，測試不啟停 Manager。`YUKI_DESKTOP_EXECUTABLE` 指定打包程式；故障後可用 `YUKI_DESKTOP_REAL_PROFILE_ROOT` 指定該測試保留的臨時資料目錄，按原 Work ID 接續。測試在真瀏覽器確認完整輸入已到達後才交回，再核對原執行、預算、回執及實際發布的成果內容。
 
+`tests/e2e/real-computer-lifecycle.spec.ts` 另需 `YUKI_DESKTOP_REAL_MANAGER_RESTART=1`，以兩個實際桌面設定檔驗證純等待跨三個控制租約。測試在輸出目錄寫出各次重啟閘點，由操作者核對後只重啟隔離 Manager；以 Linux 核心的 Unix peer PID 確認真重啟，核對原容器、執行與等待持續，最後交回才接續原工作。測試本身不操作部署服務；已有 L1 等待時可沿保留的兩個設定檔接續，不能用已完成工作重新送出。
+
 對話可透過「附加檔案」或拖放加入附件；主程序先保存原件快照並核對上傳回執，附件可送出後才建立含附件的訊息。另一台裝置可從原事件預覽及存檔，內容會核對伺服器提供的 SHA-256。到期或原來源無法取得時會顯示原因。
 
 語音按一下開始錄製，再按一下或「結束錄音」完成；Esc 取消。語音使用 Opus／WebM，上傳到目前角色的伺服器。轉寫沿伺服器既有 ASR 設定，沒有轉寫時會如實顯示。
