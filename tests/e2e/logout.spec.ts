@@ -119,6 +119,8 @@ test('logout drains a real delayed read; kept original pending content survives 
     choice = page.getByRole('dialog', { name: '處理本機內容', exact: true })
     await expect(choice).toBeVisible()
     await page.keyboard.press('Escape')
+    await expect(choice).toBeHidden()
+    await expect(page.getByRole('button', { name: '繼續登出', exact: true })).toBeVisible()
     const earlyCode = await rig.code(),
       earlyLink = `yuki://pair?${new URLSearchParams({ server: proxy.base, code: earlyCode })}`
     await app.evaluate(
@@ -126,6 +128,7 @@ test('logout drains a real delayed read; kept original pending content survives 
       earlyLink,
     )
     await expect(page.getByLabel('伺服器位址')).toBeVisible()
+    await expect(page.getByLabel('伺服器位址')).toHaveValue(proxy.base)
     await page.getByRole('button', { name: '繼續', exact: true }).click()
     await page.getByRole('button', { name: '配對', exact: true }).click()
     await expect(
@@ -133,6 +136,9 @@ test('logout drains a real delayed read; kept original pending content survives 
     ).toBeVisible()
     await page.getByRole('button', { name: '處理登出中的本機資料', exact: true }).click()
     await expect(choice).toBeVisible()
+    await expect(choice.getByText('1 份草稿', { exact: true })).toBeVisible()
+    await expect(choice.getByText('1 項待確認請求', { exact: true })).toBeVisible()
+    await expect(choice.getByText('1 個待送附件', { exact: true })).toBeVisible()
     await choice.getByRole('button', { name: '保留並登出', exact: true }).click()
     await expect(page.getByLabel('伺服器位址')).toBeVisible()
     expect(await exists(originalFile)).toBe(true)

@@ -176,7 +176,7 @@ export function App({ boot }: { boot: BootInfo }) {
     }
   })
   const pairing = step === 'adding' || !connection || !!pairingTarget
-  const showingSettings = step === 'settings' || !!connection?.logout
+  const showingSettings = step === 'settings' || (step !== 'adding' && !!connection?.logout)
   return (
     <UpdateProvider>
       <UpdatePending />
