@@ -197,6 +197,14 @@
   overflow: auto;
   min-height: 0;
 }
+.dialogBody .banner {
+  height: auto;
+  min-height: 32px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
 .dialogFooter {
   display: flex;
   flex-shrink: 0;

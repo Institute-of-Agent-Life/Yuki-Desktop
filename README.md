@@ -52,6 +52,8 @@ Windows 對話相關驗證需 operator 啟動全新隔離的 Yuki 參考服務�
 
 `windows-executor-submissions.spec.ts` 會透過真系統預設瀏覽器開啟本機驗證頁，核對普通 Main 操作的 submitted 完成等級；再注入 journal 寫入失敗，於系統已接收動作後強制結束 App，驗證原 op 冷恢復為 unknown 且不再開啟。測試不修改預設瀏覽器設定。
 
+`windows-character-data.spec.ts` 使用全新角色資料服務，經真介面更正記憶、處理兩裝置衝突及忘記，並於回應遺失後強制結束原主程序，核對原請求 ID／雜湊的接續；同時驗證安排 revision、取消後的舊恢復請求、角色名稱衝突與擁有者撤銷。
+
 未提供服務或非 Windows 時明確跳過，不讀取部署設定。
 
 安裝包檢查也會驗證 ASAR 內每個封裝檔的 SHA-256 與 Electron 分塊摘要，避免只有目錄及壓縮檔校驗正確、內部程式已損毀的包進入待發行集合。

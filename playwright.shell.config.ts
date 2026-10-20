@@ -18,6 +18,7 @@ export default defineConfig({
     'windows-executor-enrollment.spec.ts',
     'windows-work.spec.ts',
     'windows-executor-submissions.spec.ts',
+    'windows-character-data.spec.ts',
   ],
   outputDir: process.env.YUKI_NATIVE_TEST_OUTPUT ?? join(tmpdir(), 'yuki-desktop-native-e2e'),
   workers: 1,

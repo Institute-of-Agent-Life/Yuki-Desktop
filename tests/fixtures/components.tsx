@@ -200,6 +200,10 @@ function Gallery() {
           }
         >
           <p>固定的標題與操作列，內容可獨立捲動。</p>
+          <Banner status="waiting">
+            {'這則記錄已更新，原本輸入的內容仍然保留，請重新讀取後再核對。'.repeat(4)}
+            {'original-request-'.repeat(12)}
+          </Banner>
           {Array.from({ length: 20 }, (_, index) => (
             <p key={index}>第 {index + 1} 行測試內容</p>
           ))}

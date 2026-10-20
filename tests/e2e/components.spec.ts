@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { expectContainedText } from '../fixtures/contained-text'
 
 test('component keyboard, focus restoration and small sheets use real interactions', async ({
   page,
@@ -45,4 +46,31 @@ test('actual column drags preserve center width at 1180', async ({ page }) => {
     animations: 'disabled',
     path: test.info().outputPath('columns-1180.png'),
   })
+})
+
+test('sheet status contains long text while the workspace banner stays 32px and actions remain reachable', async ({
+  page,
+}) => {
+  await page.goto('http://127.0.0.1:4178/components.html')
+  for (const [width, height] of [
+    [1100, 760],
+    [960, 492],
+  ] as const) {
+    await page.setViewportSize({ width, height })
+    for (const theme of ['淺色', '深色']) {
+      await page.getByRole('tab', { name: theme, exact: true }).click()
+      const workspaceStatus = page.getByRole('status').filter({ hasText: '離線狀態' })
+      expect((await workspaceStatus.boundingBox())!.height).toBe(32)
+      const open = page.getByRole('button', { name: '開啟對話框', exact: true })
+      await open.click()
+      const dialog = page.getByRole('dialog')
+      const status = dialog.getByRole('status')
+      await status.scrollIntoViewIfNeeded()
+      await expectContainedText(status)
+      await expect(dialog.getByRole('button', { name: '確認', exact: true })).toBeInViewport()
+      await page.keyboard.press('Escape')
+      await expect(dialog).not.toBeVisible()
+      await expect(open).toBeFocused()
+    }
+  }
 })

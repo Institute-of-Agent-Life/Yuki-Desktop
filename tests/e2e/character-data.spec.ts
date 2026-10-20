@@ -1,9 +1,12 @@
 import { expect, test } from '@playwright/test'
 import type { AutomationPage, Connection, MemoryPage } from '../../src/shared/api'
+import { expectContainedText } from '../fixtures/contained-text'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 
 test('real Electron edits original memory and arrangements, handles two-device conflicts and lost responses', async () => {
   test.setTimeout(150000)
+  const retainedDraft =
+    'A 保留的修正草稿\n' + '長內容也必須保留，衝突說明不能蓋住原本的輸入。'.repeat(6)
   const rig = await yukiFixture({ character: true })
   let a = await rig.launch('character-a')
   const b = await rig.launch('character-b')
@@ -48,13 +51,15 @@ test('real Electron edits original memory and arrangements, handles two-device c
       await page.getByRole('button', { name: '已核對的記錄 52', exact: false }).click()
       await page.getByRole('button', { name: '更正', exact: true }).click()
     }
-    await pa.getByRole('textbox', { name: '更正後的記憶' }).fill('A 保留的修正草稿')
+    await pa.getByRole('textbox', { name: '更正後的記憶' }).fill(retainedDraft)
     await pb.getByRole('textbox', { name: '更正後的記憶' }).fill('另一台已核對的修正')
     await pb.getByRole('button', { name: '送出更正' }).click()
     await expect(pb.getByRole('dialog')).not.toBeVisible()
     await pa.getByRole('button', { name: '送出更正' }).click()
     await expect(pa.getByRole('dialog')).toContainText('這則記憶已變更')
-    await expect(pa.getByRole('textbox', { name: '更正後的記憶' })).toHaveValue('A 保留的修正草稿')
+    await expectContainedText(pa.getByRole('dialog').getByRole('status'))
+    await pa.screenshot({ path: test.info().outputPath('memory-conflict-contained.png') })
+    await expect(pa.getByRole('textbox', { name: '更正後的記憶' })).toHaveValue(retainedDraft)
     await pa.getByRole('button', { name: '重新讀取記憶', exact: true }).click()
     await expect(pa.getByRole('button', { name: /^另一台已核對的修正/ })).toBeVisible()
     await pa.getByRole('button', { name: '更正', exact: true }).click()

@@ -16,6 +16,7 @@ export default defineConfig({
     'windows-executor-enrollment.spec.ts',
     'windows-work.spec.ts',
     'windows-executor-submissions.spec.ts',
+    'windows-character-data.spec.ts',
   ],
   outputDir: join(tmpdir(), 'yuki-desktop-e2e'),
   workers: 1,
