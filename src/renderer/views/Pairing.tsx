@@ -167,7 +167,13 @@ export function Pairing({
               >
                 {onCancel ? '取消' : '返回'}
               </Button>
-              <Button variant="primary" type="submit" loading={busy} disabled={!server.trim()}>
+              <Button
+                variant="primary"
+                large
+                type="submit"
+                loading={busy}
+                disabled={!server.trim()}
+              >
                 繼續
               </Button>
             </div>
@@ -230,6 +236,7 @@ export function Pairing({
               <Button
                 type="submit"
                 variant="primary"
+                large
                 loading={busy}
                 disabled={!parsed || !device.trim()}
               >
@@ -250,7 +257,7 @@ export function Pairing({
             {connection && !connection.persistentCredentials && (
               <Banner>尚未啟用系統金鑰圈，本次憑據只保留到 App 結束。</Banner>
             )}
-            <Button variant="primary" onClick={() => connection && onDone(connection)}>
+            <Button variant="primary" large onClick={() => connection && onDone(connection)}>
               進入
             </Button>
           </>

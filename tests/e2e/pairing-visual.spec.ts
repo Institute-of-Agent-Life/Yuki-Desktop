@@ -10,6 +10,10 @@ test('first-use artwork, pairing geometry and keyboard flow remain visible at na
   try {
     const page = await app.firstWindow()
     await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '開始', exact: true })).toHaveCSS(
+      'height',
+      '36px',
+    )
     const bounds = await (await app.browserWindow(page)).evaluate((window) => window.getBounds())
     expect([bounds.width, bounds.height]).toEqual([720, 560])
     await page.screenshot({ path: test.info().outputPath('native-onboarding-welcome-720x560.png') })
@@ -28,6 +32,10 @@ test('first-use artwork, pairing geometry and keyboard flow remain visible at na
       const server = page.getByLabel('伺服器位址', { exact: true })
       if (await server.isVisible()) {
         await server.fill(rig.base)
+        await expect(page.getByRole('button', { name: '繼續', exact: true })).toHaveCSS(
+          'height',
+          '36px',
+        )
         await page.getByRole('button', { name: '繼續', exact: true }).click()
       }
       await expect(page.getByLabel('綁定碼或完整回覆')).toBeVisible()
@@ -63,6 +71,7 @@ test('first-use artwork, pairing geometry and keyboard flow remain visible at na
         await page.keyboard.press('Tab')
         const pair = page.getByRole('button', { name: '配對', exact: true })
         await expect(pair).toBeFocused()
+        await expect(pair).toHaveCSS('height', '36px')
         await expect(pair).toBeInViewport({ ratio: 1 })
       },
     })
@@ -73,6 +82,10 @@ test('first-use artwork, pairing geometry and keyboard flow remain visible at na
     await expect(page.getByRole('button', { name: '進入', exact: true })).toBeVisible({
       timeout: 20000,
     })
+    await expect(page.getByRole('button', { name: '進入', exact: true })).toHaveCSS(
+      'height',
+      '36px',
+    )
     await expect(progress.locator('[aria-current="step"]')).toHaveAttribute('aria-label', '認識你')
     await page.getByRole('button', { name: '進入', exact: true }).press('Enter')
     await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })).toBeVisible()

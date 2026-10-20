@@ -124,7 +124,11 @@ export function createWindow(store: LocalStore, pairing = false) {
   win.webContents.on('will-navigate', (event, url) => {
     if (url !== win.webContents.getURL()) event.preventDefault()
   })
-  win.once('ready-to-show', () => win.show())
+  win.once('ready-to-show', () => {
+    // Windows resolves its frame and per-monitor DPI during creation.
+    if (process.platform === 'win32' && pairing) win.setBounds(geometry.bounds)
+    win.show()
+  })
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL)
     void win.loadURL(process.env.ELECTRON_RENDERER_URL)
   else void win.loadURL('app://desktop/index.html')

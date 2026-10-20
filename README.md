@@ -30,7 +30,7 @@ npm run check:package
 
 原生殼驗證可將 `YUKI_ELECTRON_EXECUTABLE` 設為打包後執行檔的絕對路徑，再執行 `npx playwright test --config playwright.shell.config.ts`，不需開發伺服器。測試使用獨立資料目錄並保留 sandbox；Windows 專項要求已登入的互動桌面，檢查視窗按鈕區域、Alt 選單與原生加密跨程序重開。這組檢查不涵蓋安裝、簽章或更新。
 
-Windows 原生對話驗證另需 operator 啟動全新隔離的 Yuki 參考服務（`tests.support.desktop_reference_server`，停用電腦夾具），並將其 loopback URL 設為 `YUKI_DESKTOP_NATIVE_BACKEND_URL`。使用同一原生測試設定執行 `windows-client.spec.ts`，實際配對、送出回應遺失、程序強制結束後沿原 DPAPI／outbox／草稿接回，並核對原事件引用刪除。未提供服務或非 Windows 時明確跳過，不讀取部署設定。
+Windows 原生對話驗證另需 operator 啟動全新隔離的 Yuki 參考服務（`tests.support.desktop_reference_server`，停用電腦夾具），並將其 loopback URL 設為 `YUKI_DESKTOP_NATIVE_BACKEND_URL`。同一原生測試設定中的 `windows-onboarding.spec.ts` 驗證 720×560 初始視窗目標（Windows 分數縮放保留原生 DIP 捨入量測）、主視覺、欄位與鍵盤配對；`windows-client.spec.ts` 驗證配對、送出回應遺失、程序強制結束後沿原 DPAPI／outbox／草稿接回，並核對原事件引用刪除。未提供服務或非 Windows 時明確跳過，不讀取部署設定。
 
 設定 →「一般」可選一般或測試版本並檢查更新。App 不會自行下載或在工作中途重新啟動；下載完成後可按工具列的「重新啟動以更新」。更新沿用離頁確認與電腦控制權的交回選擇，並等待已開始的本機操作收尾。安裝被拒絕時可繼續使用原連線與資料，再次檢查或前往官方下載頁。macOS、Windows 與 AppImage 使用更新安裝流程；deb／rpm 提供新版提示及手動下載。開發模式不檢查更新。
 
