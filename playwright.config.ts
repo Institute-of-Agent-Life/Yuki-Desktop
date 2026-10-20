@@ -15,6 +15,7 @@ export default defineConfig({
     'windows-executor-recovery.spec.ts',
     'windows-executor-enrollment.spec.ts',
     'windows-work.spec.ts',
+    'windows-executor-submissions.spec.ts',
   ],
   outputDir: join(tmpdir(), 'yuki-desktop-e2e'),
   workers: 1,

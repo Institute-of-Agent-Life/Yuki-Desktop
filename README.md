@@ -50,6 +50,8 @@ Windows 對話相關驗證需 operator 啟動全新隔離的 Yuki 參考服務�
 
 `windows-work.spec.ts` 使用全新隔離服務，驗證獨立的問題回答／補充草稿、主程序崩潰恢復、輸入已提交但回應遺失、App 關閉後原 Work 繼續完成，以及重開後從原 namespace 查回同一回執而不重送。
 
+`windows-executor-submissions.spec.ts` 會透過真系統預設瀏覽器開啟本機驗證頁，核對普通 Main 操作的 submitted 完成等級；再注入 journal 寫入失敗，於系統已接收動作後強制結束 App，驗證原 op 冷恢復為 unknown 且不再開啟。測試不修改預設瀏覽器設定。
+
 未提供服務或非 Windows 時明確跳過，不讀取部署設定。
 
 安裝包檢查也會驗證 ASAR 內每個封裝檔的 SHA-256 與 Electron 分塊摘要，避免只有目錄及壓縮檔校驗正確、內部程式已損毀的包進入待發行集合。
