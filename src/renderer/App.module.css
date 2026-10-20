@@ -203,6 +203,10 @@
 }
 .toolbarTitle {
   margin-right: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 600;
 }
 .macCollapsed .toolbar {
@@ -379,4 +383,8 @@
 }
 .presenceRow .presence {
   padding-right: 34px;
+}
+
+.toolbarMenu {
+  margin-left: auto;
 }

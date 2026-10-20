@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import type { Connection } from '../../shared/api'
 import { UpdatePanel } from '../components/Updates'
+import { ApplicationMenu } from '../components/ApplicationMenu'
 import { ServerSettings } from './ServerSettings'
 import { DeviceSecurity } from './DeviceSecurity'
 import { LocalConnection } from './LocalConnection'
@@ -132,6 +133,7 @@ export function Settings({
             返回
           </Button>
           <strong>設定</strong>
+          <ApplicationMenu platform={boot.platform} className={styles.menu} />
         </header>
       )}
       <div className={styles.layout}>

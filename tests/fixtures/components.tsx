@@ -16,6 +16,7 @@ import { Workspace } from '../../src/renderer/components/Workspace'
 import '../../src/renderer/tokens.css'
 
 window.yuki = {
+  applicationMenu: async () => ({ ok: true, value: false }),
   updates: {
     state: async () => ({ ok: false, code: 'unavailable' }),
     check: async () => ({ ok: false, code: 'unavailable' }),
@@ -126,7 +127,13 @@ function Gallery() {
   document.documentElement.dataset.theme = theme
   document.documentElement.dataset.platform = 'linux'
   return (
-    <Workspace name="角色" status="元件驗證" owner platform="linux" inspector={<p>檢視器內容</p>}>
+    <Workspace
+      name={new URLSearchParams(window.location.search).get('name') ?? '角色'}
+      status="元件驗證"
+      owner
+      platform="linux"
+      inspector={<p>檢視器內容</p>}
+    >
       <Banner>離線狀態</Banner>
       <div style={{ padding: 24, maxWidth: 760, width: '100%', margin: '0 auto' }}>
         <Segmented

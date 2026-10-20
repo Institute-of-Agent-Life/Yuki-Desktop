@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { BootInfo, Preferences } from '../shared/desktop'
 import { Banner } from './components/Controls'
 import styles from './App.module.css'
@@ -14,6 +14,7 @@ import { Settings } from './views/Settings'
 import { UpdatePending } from './components/Updates'
 import { UpdateProvider } from './state/updates'
 import { RoleSwitcher } from './components/RoleSwitcher'
+import { ApplicationMenu } from './components/ApplicationMenu'
 import { useQueryClient } from '@tanstack/react-query'
 
 export function App({ boot }: { boot: BootInfo }) {
@@ -133,7 +134,7 @@ export function App({ boot }: { boot: BootInfo }) {
   )
   const save = async (patch: Partial<Preferences>) =>
     setPreferences(await window.yuki.preferences(patch))
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement
     root.dataset.theme =
       preferences.theme === 'system' ? (appearance.dark ? 'dark' : 'light') : preferences.theme
@@ -322,6 +323,7 @@ export function App({ boot }: { boot: BootInfo }) {
               }}
             />
           ) : null}
+          {pairing && !showingSettings && <ApplicationMenu platform={boot.platform} overlay />}
         </main>
       </TimeZoneContext.Provider>
     </UpdateProvider>

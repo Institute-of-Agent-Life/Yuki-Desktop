@@ -87,6 +87,7 @@ export interface DesktopBridge {
     onChange(callback: (state: import('./updates').UpdateState) => void): () => void
   }
   boot(): Promise<BootInfo>
+  applicationMenu(position: { x: number; y: number }): Promise<import('./api').ApiReply<boolean>>
   preferences(patch: Partial<Preferences>): Promise<Preferences>
   loginItem(enabled?: boolean): Promise<import('./api').ApiReply<LoginItemState>>
   exportDiagnostics(): Promise<import('./api').ApiReply<boolean>>

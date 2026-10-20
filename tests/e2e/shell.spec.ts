@@ -17,8 +17,9 @@ test('native startup, actual button and keyboard paths, preferences survive rest
     timings.windowOpenedMs = performance.now() - started
     await page.waitForLoadState('domcontentloaded')
     timings.domReadyMs = performance.now() - started
-    const runtime = await app.evaluate(({ app, BrowserWindow }) => ({
+    const runtime = await app.evaluate(({ app, BrowserWindow, Menu }) => ({
       platform: process.platform,
+      menuLabels: Menu.getApplicationMenu()?.items.map((item) => item.label),
       arch: process.arch,
       packaged: app.isPackaged,
       electron: process.versions.electron,
@@ -38,6 +39,10 @@ test('native startup, actual button and keyboard paths, preferences survive rest
       JSON.stringify(runtime, null, 2) + '\n',
     )
 
+    if (runtime.platform === 'darwin') {
+      expect(runtime.menuLabels).toEqual(['Yuki', '檔案', '編輯', '顯示', '視窗', '說明'])
+      await expect(page.getByRole('button', { name: '更多命令', exact: true })).toHaveCount(0)
+    }
     await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible()
     timings.firstControlReadyMs = performance.now() - started
     await page.getByRole('button', { name: '開始', exact: true }).click()

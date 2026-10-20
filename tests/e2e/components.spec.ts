@@ -99,3 +99,48 @@ test('Linux native frame keeps a 52px app toolbar without reserving absent overl
     })
   }
 })
+
+test('Linux menu entry remains keyboard reachable and reports an unavailable native menu', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 960, height: 492 })
+  await page.goto('http://127.0.0.1:4178/components.html')
+  const menu = page.getByRole('button', { name: '更多命令', exact: true })
+  await expect(menu).toHaveCount(1)
+  await expect(menu).toBeInViewport({ ratio: 1 })
+  await menu.focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByRole('alert')).toHaveText('選單暫時無法開啟，請再試一次。')
+  await expect(menu).toHaveAttribute('aria-expanded', 'false')
+  await expect(menu).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('alert')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  // This browser fixture returns unavailable; native success is covered on Windows.
+})
+
+test('a long role name leaves the menu and toolbar actions reachable', async ({ page }) => {
+  const name = '長角色名稱'.repeat(16)
+  for (const width of [1440, 960]) {
+    await page.setViewportSize({ width, height: 492 })
+    await page.goto('http://127.0.0.1:4178/components.html?name=' + encodeURIComponent(name))
+    const toolbar = page.locator('[data-region="toolbar"]')
+    await expect(toolbar).toHaveCSS('height', '52px')
+    const title = toolbar.getByText(name, { exact: true })
+    await expect(title).toHaveCSS('text-overflow', 'ellipsis')
+    expect(await title.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true)
+    const more = toolbar.getByRole('button', { name: '更多命令', exact: true })
+    const inspector = toolbar.getByRole('button', { name: '檢視器', exact: true })
+    await expect(more).toBeInViewport({ ratio: 1 })
+    await expect(inspector).toBeInViewport({ ratio: 1 })
+    await inspector.click()
+    await expect(page.locator('[data-region="inspector"]')).toBeVisible()
+    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+    await more.click()
+    await expect(page.getByRole('alert')).toBeVisible()
+    await page.keyboard.press('Escape')
+  }
+})

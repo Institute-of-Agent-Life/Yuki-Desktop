@@ -22,6 +22,7 @@ import type { View } from '../../shared/desktop'
 import styles from '../App.module.css'
 import { useCommands } from '../state/commands'
 import { requestNavigation } from '../state/navigation'
+import { ApplicationMenu } from './ApplicationMenu'
 
 interface Props {
   name: string
@@ -364,6 +365,10 @@ export function Workspace(props: Props) {
             </>
           )}
           <UpdateReadyButton />
+          <ApplicationMenu
+            platform={props.platform}
+            className={props.toolbar ? styles.toolbarMenu : ''}
+          />
         </header>
         <div className={styles.content} data-region="content" tabIndex={-1}>
           {props.settings ?? props.children}

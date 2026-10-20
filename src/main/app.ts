@@ -461,6 +461,31 @@ else {
     )
     action('copy', (text: string) => clipboard.writeText(text))
     action('paste', () => clipboard.readText())
+    action('application-menu', (position: { x: number; y: number }) => {
+      const target = win,
+        menu = Menu.getApplicationMenu()
+      if (!target || target.isDestroyed() || !menu) return false
+      const bounds = target.getContentBounds(),
+        zoom = target.webContents.getZoomFactor()
+      if (
+        !position ||
+        !Number.isFinite(position.x) ||
+        !Number.isFinite(position.y) ||
+        position.x < 0 ||
+        position.y < 0 ||
+        position.x * zoom > bounds.width ||
+        position.y * zoom > bounds.height
+      )
+        throw new ApiError('validation_error')
+      return new Promise<boolean>((resolve) => {
+        menu.popup({
+          window: target,
+          x: Math.round(position.x * zoom),
+          y: Math.round(position.y * zoom),
+          callback: () => resolve(true),
+        })
+      })
+    })
     action('context-menu', (options: { text: string; link?: string; save?: boolean }) => {
       if (
         typeof options.text !== 'string' ||

@@ -133,6 +133,7 @@ const bridge: DesktopBridge = {
   leaveResponse: (request, allowed) => {
     void ipcRenderer.invoke('yuki:leave-response', request, allowed).catch(() => {})
   },
+  applicationMenu: (position) => ipcRenderer.invoke('yuki:application-menu', position),
   preferences: (patch) => ipcRenderer.invoke('yuki:preferences', patch),
   loginItem: (enabled) => ipcRenderer.invoke('yuki:login-item', enabled),
   exportDiagnostics: () => ipcRenderer.invoke('yuki:export-diagnostics'),
