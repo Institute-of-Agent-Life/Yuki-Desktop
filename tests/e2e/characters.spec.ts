@@ -86,7 +86,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
         ),
       )
       .toBe('#3a6bd6')
-    await page.keyboard.press('ControlOrMeta+Shift+]')
+    await page.keyboard.press('ControlOrMeta+Shift+BracketRight')
     await expect(page.getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })).toHaveValue(
       '只有 Mika 的草稿',
     )
@@ -96,11 +96,11 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await editor.click()
     await page.keyboard.press('ControlOrMeta+End')
     await page.keyboard.insertText('\n只屬於 Mika 的提示詞')
-    await page.keyboard.press('ControlOrMeta+Shift+[')
+    await page.keyboard.press('ControlOrMeta+Shift+BracketLeft')
     await expect(page.getByRole('dialog', { name: '要儲存變更嗎？' })).toBeVisible()
     await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click()
     await expect(editor).toContainText('只屬於 Mika 的提示詞')
-    await page.keyboard.press('ControlOrMeta+Shift+[')
+    await page.keyboard.press('ControlOrMeta+Shift+BracketLeft')
     await page.getByRole('dialog').getByRole('button', { name: '儲存', exact: true }).click()
     await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '關於 Yuki', exact: true }).click()
@@ -117,7 +117,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await page.getByRole('slider', { name: '頭像縮放', exact: true }).focus()
     await page.keyboard.press('ArrowRight')
     const zoom = await page.getByRole('slider', { name: '頭像縮放', exact: true }).inputValue()
-    await page.keyboard.press('ControlOrMeta+Shift+]')
+    await page.keyboard.press('ControlOrMeta+Shift+BracketRight')
     await expect(page.getByRole('dialog', { name: '更換 Yuki 的頭像' })).toHaveCount(0)
     await expect(editor).toBeVisible()
     await expect(editor).toContainText('只屬於 Mika 的提示詞')
@@ -128,7 +128,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await page.getByRole('button', { name: '編輯頭像', exact: true }).click()
     await expect(page.getByRole('dialog', { name: '更換 Mika 的頭像' })).toBeVisible()
     await expect(page.getByRole('button', { name: '選擇圖片…', exact: true })).toBeVisible()
-    await page.keyboard.press('ControlOrMeta+Shift+[')
+    await page.keyboard.press('ControlOrMeta+Shift+BracketLeft')
     await expect(page.getByRole('dialog', { name: '更換 Yuki 的頭像' })).toBeVisible()
     await expect(page.getByRole('button', { name: '選擇其他圖片…', exact: true })).toBeVisible()
     await expect(page.getByRole('slider', { name: '頭像縮放', exact: true })).toHaveValue(zoom)
@@ -222,7 +222,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
             path: test.info().outputPath(`S12-${mode}-${width}-${name}.png`),
           })
           await page.keyboard.press('Escape')
-          await page.keyboard.press('ControlOrMeta+Shift+]')
+          await page.keyboard.press('ControlOrMeta+Shift+BracketRight')
         }
       }
     }

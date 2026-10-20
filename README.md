@@ -54,6 +54,8 @@ Windows 對話相關驗證需 operator 啟動全新隔離的 Yuki 參考服務�
 
 `windows-character-data.spec.ts` 使用全新角色資料服務，經真介面更正記憶、處理兩裝置衝突及忘記，並於回應遺失後強制結束原主程序，核對原請求 ID／雜湊的接續；同時驗證安排 revision、取消後的舊恢復請求、角色名稱衝突與擁有者撤銷。
 
+`windows-roles.spec.ts` 另需 `YUKI_DESKTOP_NATIVE_SECOND_BACKEND_URL` 指向第二個獨立參考服務，兩邊均啟用角色、提示詞及執行器 fixture。它經原生選圖／資料夾視窗、真角色切換、快捷鍵、強制結束及重開，驗證原對話、草稿、頭像裁切狀態、欄寬與本機授權隔離。
+
 未提供服務或非 Windows 時明確跳過，不讀取部署設定。
 
 安裝包檢查也會驗證 ASAR 內每個封裝檔的 SHA-256 與 Electron 分塊摘要，避免只有目錄及壓縮檔校驗正確、內部程式已損毀的包進入待發行集合。
