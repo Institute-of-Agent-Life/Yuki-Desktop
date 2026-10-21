@@ -1,0 +1,207 @@
+import {
+  app,
+  Menu,
+  nativeImage,
+  Notification,
+  Tray,
+  type BrowserWindow,
+  type NativeImage,
+} from 'electron'
+import { join } from 'node:path'
+import type { Preferences, NavigationTarget } from '../shared/desktop'
+import type { ClientNotice } from './notifications'
+import type { Profile } from '../shared/api'
+
+export class NativeShell {
+  private tray: Tray | undefined
+  private fallbackIcon: NativeImage | undefined
+  private readonly notices = new Map<Notification, string>()
+  private selected: string | undefined
+  private readonly executorActivity = new Map<string, Map<string, string>>()
+  private readonly desired = new Map<string, { key: string; name: string }>()
+  private readonly decorations = new Map<
+    string,
+    { key: string; notification: NativeImage; tray: NativeImage }
+  >()
+  get selectedCharacter() {
+    return this.selected
+  }
+  set selectedCharacter(value: string | undefined) {
+    this.selected = value
+    this.updateDecoration()
+  }
+  characterName(id: string, name: string) {
+    this.desired.set(id, { key: this.desired.get(id)?.key ?? 'identity', name })
+    this.updateActivity()
+  }
+  prepareCharacter(id: string, profile: Profile) {
+    const key = `${profile.revision}/${profile.avatar_revision}/${profile.avatar?.sha256 ?? 'letter'}`
+    this.desired.set(id, { key, name: profile.display_name })
+    this.updateDecoration()
+    return key
+  }
+  hasDecoration(id: string, key: string) {
+    return this.decorations.get(id)?.key === key
+  }
+  decorate(id: string, key: string, bytes: Uint8Array) {
+    if (this.desired.get(id)?.key !== key) return
+    const notification = nativeImage
+      .createFromBuffer(Buffer.from(bytes))
+      .resize({ width: 128, height: 128, quality: 'best' })
+    if (notification.isEmpty()) return
+    const source = notification.resize({ width: 64, height: 64, quality: 'best' })
+    const tray =
+      this.platform === 'darwin'
+        ? source.resize({ width: 18, height: 18, quality: 'best' })
+        : source
+    if (this.platform === 'darwin')
+      tray.addRepresentation({
+        scaleFactor: 2,
+        buffer: source.resize({ width: 36, height: 36, quality: 'best' }).toPNG(),
+      })
+    this.decorations.set(id, { key, notification, tray })
+    this.updateDecoration()
+  }
+  private updateDecoration() {
+    if (!this.selected || !this.tray) return
+    const decoration = this.decorations.get(this.selected)
+    if (decoration || this.fallbackIcon) this.tray.setImage(decoration?.tray ?? this.fallbackIcon!)
+    this.updateActivity()
+  }
+  activity(characterId: string, opId: string, description: string, active: boolean) {
+    const operations = this.executorActivity.get(characterId) ?? new Map<string, string>()
+    if (active) operations.set(opId, description)
+    else operations.delete(opId)
+    if (operations.size) this.executorActivity.set(characterId, operations)
+    else this.executorActivity.delete(characterId)
+    this.updateActivity()
+    if (active) {
+      const name = this.desired.get(characterId)?.name ?? 'Yuki'
+      void this.submitNotification(characterId, name, `${name} 正在${description}`).catch(() => {})
+    }
+  }
+  private updateActivity() {
+    if (!this.tray) return
+    const activities = [...this.executorActivity].flatMap(([id, operations]) =>
+      [...operations.values()].map(
+        (description) => `${this.desired.get(id)?.name ?? 'Yuki'} 正在${description}`,
+      ),
+    )
+    this.tray.setToolTip(
+      activities.join('\n') || this.desired.get(this.selected ?? '')?.name || 'Yuki',
+    )
+    this.tray.setContextMenu(
+      Menu.buildFromTemplate([
+        ...activities.map((label) => ({ label, enabled: false })),
+        ...(activities.length ? [{ type: 'separator' as const }] : []),
+        ...[...this.desired].map(([characterId, { name }]) => ({
+          label: `開啟 ${name}`,
+          click: () => this.open({ characterId, view: 'chat' }),
+        })),
+        { label: '顯示視窗', click: this.reveal },
+        { type: 'separator' },
+        { label: '結束', click: () => app.quit() },
+      ]),
+    )
+  }
+  constructor(
+    readonly window: () => BrowserWindow | undefined,
+    readonly reveal: () => void,
+    readonly open: (target: NavigationTarget) => void,
+    readonly platform: NodeJS.Platform = process.platform,
+  ) {}
+  update(preferences: Preferences) {
+    if (preferences.keepInTray && !this.tray) {
+      const icon = nativeImage.createFromPath(
+        join(
+          app.getAppPath(),
+          'resources/icons',
+          this.platform === 'darwin' ? 'trayTemplate.png' : 'app/32x32.png',
+        ),
+      )
+      if (this.platform === 'darwin') icon.setTemplateImage(true)
+      this.fallbackIcon = icon
+      this.tray = new Tray(icon)
+      this.tray.setToolTip('Yuki')
+      this.updateActivity()
+      this.tray.on('click', this.reveal)
+      this.tray.on('double-click', this.reveal)
+      this.updateDecoration()
+    } else if (!preferences.keepInTray && this.tray) {
+      this.tray.destroy()
+      this.tray = undefined
+    }
+  }
+  show(notice: ClientNotice) {
+    if (!Notification.isSupported()) return
+    if (
+      notice.category !== 'help' &&
+      this.window()?.isFocused() &&
+      this.selectedCharacter === notice.target.characterId
+    )
+      return
+    const notification = new Notification({
+      title: notice.title,
+      body: notice.body,
+      icon:
+        this.decorations.get(notice.target.characterId)?.notification ??
+        join(app.getAppPath(), 'resources/icons/app/128x128.png'),
+    })
+    this.notices.set(notification, notice.target.characterId)
+    notification.once('click', () => {
+      this.reveal()
+      this.open(notice.target)
+    })
+    notification.once('close', () => this.notices.delete(notification))
+    notification.once('failed', () => this.notices.delete(notification))
+    notification.show()
+  }
+  async submitNotification(characterId: string, title: string, body: string): Promise<boolean> {
+    if (!Notification.isSupported()) return false
+    const name = this.desired.get(characterId)?.name ?? 'Yuki'
+    const notification = new Notification({
+      title: title === name ? name : `${name} · ${title}`,
+      body,
+      icon:
+        this.decorations.get(characterId)?.notification ??
+        join(app.getAppPath(), 'resources/icons/app/128x128.png'),
+    })
+    this.notices.set(notification, characterId)
+    notification.once('click', () => {
+      this.reveal()
+      this.open({ characterId, view: 'chat' })
+    })
+    notification.once('failed', () => this.notices.delete(notification))
+    notification.once('close', () => this.notices.delete(notification))
+    notification.show()
+    // Completion means the native API accepted submission. Focus mode and
+    // later delivery failures cannot prove that the person saw a notification.
+    return true
+  }
+
+  close() {
+    this.tray?.destroy()
+    this.tray = undefined
+    this.notices.forEach((_, notice) => notice.close())
+    this.notices.clear()
+    this.decorations.clear()
+    this.desired.clear()
+    this.executorActivity.clear()
+  }
+  forget(id: string) {
+    this.executorActivity.delete(id)
+    this.updateActivity()
+    for (const [notice, owner] of this.notices)
+      if (owner === id) {
+        notice.close()
+        this.notices.delete(notice)
+      }
+    this.decorations.delete(id)
+    this.desired.delete(id)
+    if (this.selected === id) {
+      this.selected = undefined
+      if (this.tray && this.fallbackIcon) this.tray.setImage(this.fallbackIcon)
+      this.tray?.setToolTip('Yuki')
+    }
+  }
+}

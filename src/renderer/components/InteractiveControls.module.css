@@ -1,0 +1,168 @@
+.segment {
+  position: relative;
+  display: inline-flex;
+  gap: 2px;
+  height: 30px;
+  padding: 2px;
+  border-radius: 15px;
+  background: var(--fill-code);
+  box-shadow: inset 0 0 0 var(--line) var(--separator);
+  flex-shrink: 0;
+  user-select: none;
+}
+.segment button {
+  position: relative;
+  z-index: 1;
+  border-radius: 13px;
+  min-width: 64px;
+  padding: 0 12px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  touch-action: none;
+}
+.segment button[aria-selected='true'],
+.segment button[aria-checked='true'] {
+  color: var(--text-primary);
+  background: none;
+}
+.segmentThumb {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  height: 26px;
+  border-radius: 13px;
+  pointer-events: none;
+  background: color-mix(
+    in srgb,
+    var(--seg-thumb) calc(100% - var(--glass-pressure, 0) * 60%),
+    transparent
+  );
+  box-shadow: 0 1px 3px #0002;
+  backdrop-filter: blur(1px) var(--refract,);
+}
+.toggle {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
+  padding: 0;
+  background: color-mix(
+    in srgb,
+    var(--accent) calc(var(--toggle-progress, 0) * 100%),
+    var(--toggle-off)
+  );
+  touch-action: none;
+  flex-shrink: 0;
+}
+.toggle:hover,
+.toggle:active {
+  background: color-mix(
+    in srgb,
+    var(--accent) calc(var(--toggle-progress, 0) * 100%),
+    var(--toggle-off)
+  );
+}
+.toggleThumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: rgb(255 255 255 / calc(1 - var(--glass-pressure, 0) * 0.5));
+  backdrop-filter: blur(1.5px) var(--refract,);
+  box-shadow: 0 1px 3px #0003;
+  pointer-events: none;
+}
+.slider {
+  position: relative;
+  height: 30px;
+  min-width: 60px;
+  flex: 1;
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+}
+.sliderTrack {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 13px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--track);
+  overflow: hidden;
+  pointer-events: none;
+}
+.sliderTrack > span {
+  display: block;
+  width: var(--value, 0%);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.sliderThumb {
+  position: absolute;
+  top: 6px;
+  left: 14px;
+  width: 28px;
+  height: 18px;
+  border-radius: 9px;
+  pointer-events: none;
+  background: rgb(255 255 255 / calc(1 - var(--glass-pressure, 0) * 0.74));
+  backdrop-filter: blur(1.5px) var(--refract,);
+  box-shadow:
+    0 1px 3px #0003,
+    0 3px 10px #0000000f;
+}
+.slider:hover .sliderThumb {
+  box-shadow:
+    0 1px 4px #0004,
+    0 3px 10px #00000014;
+}
+.slider:focus-visible {
+  outline: 0;
+}
+.slider:focus-visible .sliderThumb {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.slider[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: default;
+}
+.selection {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  background: var(--fill-selected);
+  border-radius: 8px;
+}
+:global([data-opaque='true']) :is(.segmentThumb, .sliderThumb, .toggleThumb) {
+  background: var(--seg-thumb);
+}
+:global([data-contrast='true']) .selection,
+:global([data-contrast='true']) .segmentThumb {
+  background: var(--accent);
+}
+:global([data-contrast='true']) .segment button[aria-selected='true'],
+:global([data-contrast='true']) .segment button[aria-checked='true'] {
+  color: var(--accent-on);
+}
+:global([data-contrast='true']) .sliderThumb {
+  background: white;
+  outline: 1.5px solid var(--text-primary);
+}
+:global([data-opaque='true']) :is(.sliderThumb, .toggleThumb) {
+  background: white;
+}
+
+:is(.sliderThumb, .toggleThumb, .segmentThumb)::after {
+  opacity: var(--glass-pressure, 0);
+}
+:global([data-theme='dark']) :is(.sliderThumb, .toggleThumb, .segmentThumb)::after {
+  opacity: calc(var(--glass-pressure, 0) * 0.5);
+}

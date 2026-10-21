@@ -3,6 +3,7 @@
 node_modules/
 dist/
 out/
+resources/icons/
 coverage/
 .env
 .env.*

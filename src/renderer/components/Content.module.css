@@ -1,0 +1,107 @@
+.work {
+  max-width: 560px;
+  border: var(--line) solid var(--separator);
+  border-radius: 14px;
+  background: var(--bg-raised);
+  padding: 12px 14px 10px;
+  margin: 8px 0;
+}
+.workTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.workTitle h3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workMeta {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 16px;
+  margin-top: 6px;
+}
+.workActions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+.question {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--accent-subtle);
+  line-height: 22px;
+}
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  font-size: 13px;
+}
+.step > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.step time {
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 16px;
+}
+.file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  width: 100%;
+  padding: 8px;
+  text-align: left;
+  border-radius: 10px;
+}
+.fileText {
+  min-width: 0;
+  flex: 1;
+}
+.fileName {
+  display: flex;
+  min-width: 0;
+  white-space: nowrap;
+}
+.fileStem {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fileExtension {
+  flex-shrink: 0;
+}
+.fileText small {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.fileIdentity,
+.fileDetail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.fileIdentity {
+  flex: 0 1 64px;
+}
+.fileDetail {
+  flex: 1;
+}
+.fileSize {
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}

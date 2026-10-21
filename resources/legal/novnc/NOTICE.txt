@@ -1,0 +1,9 @@
+Yuki Desktop includes noVNC 1.7.0.
+
+Upstream source: https://github.com/novnc/noVNC/tree/v1.7.0
+The original source is distributed in the pinned @novnc/novnc package.
+Yuki Desktop bundles its library through Vite without modifying that source.
+
+noVNC is primarily licensed under the Mozilla Public License 2.0.
+Copyright holders are listed in AUTHORS. Included upstream license texts cover
+the library and its separately licensed components.

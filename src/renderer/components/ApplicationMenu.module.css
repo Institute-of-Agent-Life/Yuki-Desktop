@@ -1,0 +1,32 @@
+.container {
+  display: flex;
+  position: relative;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+.overlay {
+  position: absolute;
+  top: 12px;
+  right: max(
+    20px,
+    calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 12px)
+  );
+  z-index: 3;
+}
+.overlay[data-platform='win32'] {
+  right: 150px;
+}
+.error {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  z-index: 6;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 32px));
+  padding: 8px 12px;
+  border: var(--line) solid var(--separator);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--status-failed);
+  box-shadow: var(--shadow-popover);
+}

@@ -1,0 +1,57 @@
+name: Desktop
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-15, platform: mac, arch: arm64 }
+          - { os: macos-15-intel, platform: mac, arch: x64 }
+          - { os: windows-2025, platform: win, arch: x64 }
+          - { os: ubuntu-24.04, platform: linux, arch: x64 }
+          - { os: ubuntu-24.04-arm, platform: linux, arch: arm64 }
+    runs-on: ${{ matrix.os }}
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm exec playwright install -- --with-deps chromium
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y rpm
+      - name: Configure Electron sandbox for Ubuntu CI
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          node -e 'require("electron")'
+          electron_path="$(node --print 'require("electron")')"
+          printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile yuki-desktop-ci "%s" flags=(unconfined) {\n  userns,\n}\n' "$electron_path" | sudo tee /etc/apparmor.d/yuki-desktop-ci
+          sudo apparmor_parser --replace /etc/apparmor.d/yuki-desktop-ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run check:contract
+      - run: npm test
+      - run: npm run test:release
+      - if: runner.os != 'Linux'
+        run: npm run test:e2e
+      - if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm run test:e2e
+      - run: npm run package -- --${{ matrix.platform }} --${{ matrix.arch }}
+      - run: npm run check:package
+      - run: node build-tools/prepare-upload.mjs dist/upload dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Yuki-unsigned-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/upload/*
+          if-no-files-found: error
