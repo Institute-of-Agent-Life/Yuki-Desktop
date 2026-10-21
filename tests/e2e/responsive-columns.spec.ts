@@ -70,17 +70,17 @@ test('real clamped columns move four visible pixels per key and stop an unfinish
     await drag(page, sidebar(page), 400)
     await expect(sidebar(page)).toHaveAttribute('aria-valuenow', '320')
     await contentSize(app, page, 1180, 800)
-    await expect(inspector(page)).toHaveAttribute('aria-valuenow', '340')
+    await expect(inspector(page)).toHaveAttribute('aria-valuenow', '334')
     await inspector(page).focus()
     await page.keyboard.press('ArrowRight')
-    await expect(inspector(page)).toHaveAttribute('aria-valuenow', '336')
+    await expect(inspector(page)).toHaveAttribute('aria-valuenow', '330')
     await expect
       .poll(async () => (await page.locator('[data-region="content"]').boundingBox())!.width)
       .toBe(524)
     await page.keyboard.press('ArrowLeft')
-    await expect(inspector(page)).toHaveAttribute('aria-valuenow', '340')
+    await expect(inspector(page)).toHaveAttribute('aria-valuenow', '334')
     await page.keyboard.press('ArrowLeft')
-    await expect(inspector(page)).toHaveAttribute('aria-valuenow', '340')
+    await expect(inspector(page)).toHaveAttribute('aria-valuenow', '334')
     await contentSize(app, page, 1440, 900)
     await sidebar(page).dblclick()
     await inspector(page).dblclick()
@@ -205,7 +205,7 @@ test('small emulated viewport survives capture and keeps actual settings control
     expect(
       await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getMinimumSize()),
     ).toEqual(minimum)
-    await page.getByRole('tab', { name: '深色', exact: true }).click()
+    await page.getByRole('radio', { name: '深色', exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeInViewport({

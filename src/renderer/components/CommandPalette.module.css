@@ -7,16 +7,17 @@
   max-height: calc(100dvh - 152px);
   padding: 0;
   border: 0;
-  border-radius: 14px;
-  background: var(--bg-elevated);
+  border-radius: 20px;
+  background: var(--mat-sheet);
   color: var(--text-primary);
   box-shadow: var(--shadow-sheet);
 }
 .palette::backdrop {
-  background: #0003;
+  background: var(--scrim);
+  backdrop-filter: blur(8px);
 }
 :global([data-theme='dark']) .palette::backdrop {
-  background: #0006;
+  background: var(--scrim);
 }
 .body {
   display: flex;
@@ -126,7 +127,24 @@
 }
 @media (max-height: 599px) {
   .palette {
-    top: 32px;
-    max-height: calc(100dvh - 64px);
+    top: 16px;
+    max-height: calc(100dvh - 32px);
+  }
+}
+
+:global([data-opaque='true']) .palette::backdrop {
+  backdrop-filter: none;
+}
+.palette[open] {
+  animation: palette-enter var(--motion-slow) var(--ease-pop);
+}
+@keyframes palette-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

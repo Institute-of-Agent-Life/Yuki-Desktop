@@ -88,7 +88,7 @@ test('actual settings paths retain native preferences, timezone, notifications a
     await page.keyboard.press('ArrowDown')
     await expect(page.getByRole('tab', { name: '外觀', exact: true })).toBeFocused()
     await page.getByLabel('時間顯示', { exact: true }).selectOption('system')
-    await page.getByRole('tab', { name: '深色', exact: true }).click()
+    await page.getByRole('radio', { name: '深色', exact: true }).click()
     await page.getByRole('switch', { name: '永遠不透明', exact: true }).click()
     await page.getByRole('switch', { name: '減少動態', exact: true }).click()
     await page.getByRole('tab', { name: '通知', exact: true }).click()
@@ -154,7 +154,9 @@ test('settings categories remain keyboard reachable in all four themes and small
       await contentSize(app, page, 1440, 900)
       await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([1440, 900])
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
-      await page.getByRole('tab', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
+      await page
+        .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
+        .click()
       for (const [label, value] of [
         ['永遠不透明', mode === 'opaque'],
         ['增加對比', mode === 'contrast'],
@@ -223,7 +225,16 @@ test('settings use the original role workspace, preserve its inspector and resto
       'page',
     )
     await expect(divider).toHaveAttribute('aria-valuenow', '264')
-    expect((await sidebar.boundingBox())!.width).toBe(264)
+    expect(
+      await sidebar.evaluate((node) => {
+        const style = getComputedStyle(node)
+        return (
+          node.getBoundingClientRect().width +
+          parseFloat(style.marginLeft) +
+          parseFloat(style.marginRight)
+        )
+      }),
+    ).toBe(264)
     expect(
       (await page.getByRole('tablist', { name: '設定分類', exact: true }).boundingBox())!.width,
     ).toBe(200)

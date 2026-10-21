@@ -28,7 +28,9 @@ npm run check:package
 
 Linux 跟隨目前的 Wayland／X11 桌面會話；需要 XWayland 時可傳入 `--ozone-platform=x11`。GNOME 自訂視窗按鈕配置由系統標題列呈現；overlay 無法建立時也會回退系統標題列，App 工具列維持 52px。
 
-macOS 側邊欄使用系統 vibrancy；Windows 11 22H2 以上使用 Mica，較早 Windows 與 Linux 使用實色背景。「永遠不透明」、系統降低透明度及高對比會立即改用實色，內容區保持不透明。
+視窗底與浮起的側邊欄使用系統材質，對話、工作、檔案與編輯區維持不透明。工具列群組與浮動輸入框使用背景折射玻璃；按鈕、分段控制、開關和縮放滑塊支援按壓回饋與可中斷的回彈。「減少動態」會即時取消形變，保留操作、焦點和數值更新。
+
+macOS 視窗底使用系統 vibrancy；Windows 11 22H2 以上使用 Mica，較早 Windows 與 Linux 使用實色背景。「永遠不透明」、系統降低透明度及高對比會立即改用實色，內容區保持不透明。
 
 macOS 使用全域應用程式選單；Windows／Linux 可從工具列「⋯」開啟原生選單，配對前與設定頁也能使用。按鈕支援 Enter、空白鍵與向下鍵；Ctrl／⌘+K 開啟指令面板。結束命令會沿目前的草稿與控制權確認流程處理。
 
@@ -155,3 +157,5 @@ npm run test:e2e -- tests/e2e/backend.spec.ts
 後端專案：[Yuki](https://github.com/YuanYeYouTao/Yuki)。
 
 授權：[AGPL-3.0-only](LICENSE)。
+
+`control-motion.spec.ts` 驗證實際拖曳、取消、鍵盤與背景像素折射；`frosted-workspace.spec.ts` 使用隔離真後端核對四種外觀、三個尺寸、原回執與草稿。兩者均不呼叫付費模型，截圖只作本地審閱。

@@ -1,3 +1,4 @@
+import { useTabMotion } from '../motion/tab'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { diffLines } from 'diff'
@@ -51,6 +52,7 @@ export function PromptEditor({
   const current = useRef(drafts)
   const versions = useRef({ system_prompt: 0, persona: 0 })
   const [key, setKey] = useState<PromptKey>('system_prompt')
+  const documentMotion = useTabMotion<HTMLDivElement>(key, ['system_prompt', 'persona'])
   const keyRef = useRef(key)
   keyRef.current = key
   const [documents, setDocuments] = useState<PromptDocuments>()
@@ -518,7 +520,7 @@ export function PromptEditor({
           </footer>
         </div>
       ) : (
-        <div className={styles.code}>
+        <div ref={documentMotion} className={styles.code} role="tabpanel" aria-label={`${key}.md`}>
           <PromptCode
             key={key}
             label={`${key}.md 內容`}

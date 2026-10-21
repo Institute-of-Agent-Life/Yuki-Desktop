@@ -98,7 +98,7 @@ export function Pairing({
     })
   return (
     <div className={styles.welcome}>
-      <div className={styles.welcomeInner}>
+      <div data-glass="card" className={styles.welcomeInner}>
         {meta && (
           <PairingAvatar
             server={server}

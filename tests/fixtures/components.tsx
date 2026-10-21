@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useGlass } from '../../src/renderer/materials/glass'
+import { useLayoutEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { defaultPreferences } from '../../src/shared/desktop'
 import {
@@ -6,6 +7,7 @@ import {
   Banner,
   Button,
   Segmented,
+  Slider,
   Sheet,
   StatusPill,
   TextField,
@@ -14,6 +16,7 @@ import {
 import { FileRow, StepRow, WorkCard } from '../../src/renderer/components/Content'
 import { Workspace } from '../../src/renderer/components/Workspace'
 import '../../src/renderer/tokens.css'
+import '../../src/renderer/materials/materials.css'
 
 window.yuki = {
   applicationMenu: async () => ({ ok: true, value: false }),
@@ -121,15 +124,28 @@ window.yuki = {
   onPairLink: () => () => {},
   onOpenTarget: () => () => {},
 }
+function LensPreview() {
+  const glass = useGlass<HTMLSpanElement>('toolbar'), [enabled, setEnabled] = useState(true)
+  useLayoutEffect(() => { glass.setStrength(enabled ? 1 : 0) }, [enabled])
+  return <div>
+    <button onClick={() => setEnabled((value) => !value)}>只切換像素折射</button>
+    <div data-testid="lens-sample" style={{ position: 'relative', width: 280, height: 72, background: 'repeating-conic-gradient(#121212 0% 25%, #fafafa 0% 50%) 0 0 / 16px 16px' }}>
+      <span ref={glass.ref} data-glass="toolbar" style={{ position: 'absolute', left: 24, top: 14, width: 232, height: 44, borderRadius: 17, background: 'rgb(255 255 255 / .2)', backdropFilter: 'var(--refract, none)', display: 'grid', placeItems: 'center', color: 'red', fontWeight: 600 }}>清晰文字</span>
+    </div>
+  </div>
+}
 function Gallery() {
   const [preferences, setPreferences] = useState(defaultPreferences)
   const [sheet, setSheet] = useState(false)
   const [stepLabel, setStepLabel] = useState('執行中')
+  const [zoom, setZoom] = useState(145)
+  const [changes, setChanges] = useState({ switch: 0, segment: 0, button: 0 })
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
   document.documentElement.dataset.theme = theme
   document.documentElement.dataset.platform = 'linux'
   return (
     <Workspace
+      floating={false}
       name={new URLSearchParams(window.location.search).get('name') ?? '角色'}
       status="元件驗證"
       owner
@@ -139,20 +155,21 @@ function Gallery() {
       <Banner>離線狀態</Banner>
       <div style={{ padding: 24, maxWidth: 760, width: '100%', margin: '0 auto' }}>
         <Segmented
+          kind="radio"
           label="預覽主題"
           value={theme}
           items={[
             { value: 'light', label: '淺色' },
             { value: 'dark', label: '深色' },
           ]}
-          onChange={setTheme}
+          onChange={(value) => { setTheme(value); setChanges((s) => ({ ...s, segment: s.segment + 1 })) }}
         />
         <h2 style={{ margin: '24px 0 16px' }}>共用元件</h2>
         <div style={{ display: 'flex', gap: 8 }}>
           <Button variant="primary" onClick={() => setSheet(true)}>
             開啟對話框
           </Button>
-          <Button>次要</Button>
+          <Button onClick={() => setChanges((s) => ({ ...s, button: s.button + 1 }))}>次要</Button>
           <Button variant="plain">文字</Button>
           <Button disabled>停用</Button>
           <Button loading>載入</Button>
@@ -164,9 +181,16 @@ function Gallery() {
           <Toggle
             label="測試切換"
             checked={preferences.opaque}
-            onChange={(opaque) => setPreferences((previous) => ({ ...previous, opaque }))}
+            onChange={(opaque) => { setPreferences((previous) => ({ ...previous, opaque })); setChanges((s) => ({ ...s, switch: s.switch + 1 })) }}
           />
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Slider label="測試縮放" value={zoom} onChange={setZoom} />
+          <output aria-label="縮放讀數">{Math.round(zoom)}%</output>
+        </div>
+        <LensPreview />
+        <output aria-label="互動次數">{JSON.stringify(changes)}</output>
+        <Button onClick={() => setTimeout(() => setZoom(125), 300)}>稍後同步外部值</Button>
         <TextField
           aria-label="元件文字輸入"
           placeholder="文字輸入"

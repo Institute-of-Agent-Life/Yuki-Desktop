@@ -1,3 +1,4 @@
+import { usePress } from '../motion/hooks'
 import { useSessionActive } from '../state/workspace'
 import {
   useEffect,
@@ -33,6 +34,7 @@ export function Button({
   large?: boolean
   loading?: boolean
 }) {
+  const press = usePress<HTMLButtonElement>()
   const [visible, setVisible] = useState(false)
   useEffect(() => {
     if (!loading) {
@@ -45,6 +47,8 @@ export function Button({
   return (
     <button
       {...props}
+      ref={press}
+      data-press="button"
       disabled={props.disabled || loading}
       aria-busy={loading}
       className={`${styles.button} ${styles[variant]} ${large ? styles.large : ''} ${className}`}
@@ -57,10 +61,20 @@ export function Button({
 export function IconButton({
   label,
   children,
+  className = '',
+  variant = 'plain',
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; variant?: 'plain' | 'send' }) {
+  const press = usePress<HTMLButtonElement>()
   return (
-    <button {...props} aria-label={label} title={label} className={styles.icon}>
+    <button
+      {...props}
+      ref={press}
+      data-press="icon"
+      aria-label={label}
+      title={label}
+      className={`${styles.icon} ${variant === 'send' ? styles.send : ''} ${className}`}
+    >
       {children}
     </button>
   )
@@ -127,72 +141,7 @@ export function Banner({ status = 'offline', children }: { status?: Status; chil
     </div>
   )
 }
-export function Toggle({
-  label,
-  checked,
-  onChange,
-  disabled = false,
-}: {
-  label: string
-  checked: boolean
-  onChange: (value: boolean) => void
-  disabled?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      className={styles.toggle}
-      onClick={() => onChange(!checked)}
-    />
-  )
-}
-export function Segmented<T extends string>({
-  label,
-  items,
-  value,
-  onChange,
-  disabled = false,
-}: {
-  label: string
-  items: readonly { value: T; label: string }[]
-  value: T
-  onChange: (value: T) => void
-  disabled?: boolean
-}) {
-  return (
-    <div className={styles.segment} role="tablist" aria-label={label}>
-      {items.map((item, index) => (
-        <button
-          key={item.value}
-          disabled={disabled}
-          type="button"
-          role="tab"
-          aria-selected={value === item.value}
-          tabIndex={value === item.value ? 0 : -1}
-          onKeyDown={(event) => {
-            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-            event.preventDefault()
-            const next =
-              items[(index + (event.key === 'ArrowRight' ? 1 : items.length - 1)) % items.length]!
-            onChange(next.value)
-            ;(
-              event.currentTarget.parentElement?.children[
-                (index + (event.key === 'ArrowRight' ? 1 : items.length - 1)) % items.length
-              ] as HTMLElement
-            )?.focus()
-          }}
-          onClick={() => onChange(item.value)}
-        >
-          {item.label}
-        </button>
-      ))}
-    </div>
-  )
-}
+export { Toggle, Segmented, Slider, SelectionPill } from './InteractiveControls'
 export function EmptyState({
   title,
   children,

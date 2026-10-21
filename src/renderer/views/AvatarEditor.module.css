@@ -14,7 +14,7 @@
   position: relative;
   width: var(--crop-size);
   height: var(--crop-size);
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
   background: var(--bg-inspector);
   cursor: grab;
@@ -34,8 +34,8 @@
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  box-shadow: 0 0 0 100px rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 0 100px rgba(0, 0, 0, 0.48);
+  border: 1.5px solid white;
 }
 .choose {
   height: 100%;
@@ -97,7 +97,7 @@
 }
 .dark {
   --accent-on: #0e1a33;
-  background: #1e1e20;
+  background: #1b1d22;
   color: #a1a1a6;
   --separator: rgba(255, 255, 255, 0.1);
 }

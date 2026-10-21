@@ -53,8 +53,8 @@ test('macOS native material keeps secondary sidebar text readable in actual wind
       ['dark', '深色'],
     ] as const) {
       await page
-        .getByRole('tablist', { name: '主題', exact: true })
-        .getByRole('tab', { name: label, exact: true })
+        .getByRole('radiogroup', { name: '主題', exact: true })
+        .getByRole('radio', { name: label, exact: true })
         .click()
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
       for (const mode of ['material', 'opaque', 'contrast'] as const) {
@@ -110,7 +110,7 @@ test('macOS native material keeps secondary sidebar text readable in actual wind
             return input.samples.map((sample) => {
               const index =
                 (Math.floor(sample.y * input.viewport.dpr) * size.width +
-                  Math.floor(6 * input.viewport.dpr)) *
+                  Math.floor(232 * input.viewport.dpr)) *
                 4
               const background = [pixels[index + 2]!, pixels[index + 1]!, pixels[index]!]
               const foreground = sample.color

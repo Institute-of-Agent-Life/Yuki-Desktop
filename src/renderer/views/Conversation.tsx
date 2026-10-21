@@ -1,3 +1,4 @@
+import { useFloatingInsets } from '../materials/floating'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
@@ -63,6 +64,7 @@ export function Conversation({
   settings?: React.ReactNode
   onSettingsBack?(): void
 }) {
+  const floatingRef = useFloatingInsets()
   const workspace = useWorkspace()
   const active = useSessionActive()
   const id = connection.characterId,
@@ -391,7 +393,11 @@ export function Conversation({
       )
       root.style.setProperty(
         '--accent-subtle',
-        `color-mix(in srgb, ${dark ? accent.dark : accent.light} 10%, transparent)`,
+        (dark ? accent.dark : accent.light).toLowerCase() === (dark ? '#7fa4ff' : '#3a6bd6')
+          ? dark
+            ? '#263252'
+            : '#e8eefc'
+          : `color-mix(in srgb, ${dark ? accent.dark : accent.light} 12%, var(--bg-content))`,
       )
     }
     update()
@@ -695,6 +701,7 @@ export function Conversation({
     <CharacterVisuals.Provider value={{ id, name, profile: profileData, presence }}>
       <Workspace
         scrolled={scrolled}
+        mainConversation={isMain}
         settings={settings}
         onView={settings ? onSettingsBack : undefined}
         toolbar={
@@ -734,7 +741,11 @@ export function Conversation({
                 <button
                   className={styles.entry}
                   key={item.conversation_id}
-                  aria-current={item.conversation_id === conversation ? 'page' : undefined}
+                  aria-current={
+                    !settings && view === 'chat' && item.conversation_id === conversation
+                      ? 'page'
+                      : undefined
+                  }
                   onClick={() => {
                     choose(item.conversation_id)
                     if (settings) onSettingsBack?.()
@@ -948,6 +959,7 @@ export function Conversation({
           </EmptyState>
         ) : (
           <div
+            ref={floatingRef}
             className={styles.chat}
             onDragOver={(event) => {
               if (isMain && event.dataTransfer.types.includes('Files')) {
@@ -968,43 +980,45 @@ export function Conversation({
             }}
           >
             {dragging && <div className={mediaStyles.drop}>放開以附加</div>}
-            {mediaError && <Banner status="failed">{mediaError}</Banner>}
-            {historyError && <Banner status="failed">{historyError}</Banner>}
-            {online !== 'online' && !updateRequired && (
-              <Banner>
-                {connectionProblem
-                  ? problemText(connectionProblem)
-                  : '正在連接伺服器。草稿保存在這台電腦。'}
-              </Banner>
-            )}
-            {(events.error || home.error || profile.error) && (
-              <Banner status="failed">
-                {(events.error ?? home.error ?? profile.error)?.message}
-                <Button variant="plain" onClick={refresh}>
-                  重新連線
-                </Button>
-                <Button variant="plain" onClick={onPairAgain}>
-                  重新配對
-                </Button>
-              </Banner>
-            )}
-            {search !== null && (
-              <div className={styles.search}>
-                <input
-                  autoFocus
-                  aria-label="搜尋已載入內容"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Escape') setSearch(null)
-                  }}
-                />
-                <Button variant="plain" onClick={() => setSearch(null)}>
-                  完成
-                </Button>
-                <small>只搜尋已載入的內容</small>
-              </div>
-            )}
+            <div className={styles.notices} data-floating-notices>
+              {mediaError && <Banner status="failed">{mediaError}</Banner>}
+              {historyError && <Banner status="failed">{historyError}</Banner>}
+              {online !== 'online' && !updateRequired && (
+                <Banner>
+                  {connectionProblem
+                    ? problemText(connectionProblem)
+                    : '正在連接伺服器。草稿保存在這台電腦。'}
+                </Banner>
+              )}
+              {(events.error || home.error || profile.error) && (
+                <Banner status="failed">
+                  {(events.error ?? home.error ?? profile.error)?.message}
+                  <Button variant="plain" onClick={refresh}>
+                    重新連線
+                  </Button>
+                  <Button variant="plain" onClick={onPairAgain}>
+                    重新配對
+                  </Button>
+                </Banner>
+              )}
+              {search !== null && (
+                <div className={styles.search}>
+                  <input
+                    autoFocus
+                    aria-label="搜尋已載入內容"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') setSearch(null)
+                    }}
+                  />
+                  <Button variant="plain" onClick={() => setSearch(null)}>
+                    完成
+                  </Button>
+                  <small>只搜尋已載入的內容</small>
+                </div>
+              )}
+            </div>
             <div
               className={styles.messages}
               role="log"
@@ -1187,7 +1201,7 @@ export function Conversation({
                 ))}
               </Composer>
             ) : (
-              <div className={styles.readonly}>
+              <div className={styles.readonly} data-floating-footer>
                 <p>
                   這是你在 {entry?.platform.toUpperCase()} 與 {name}{' '}
                   的對話。要在這裡繼續，請到桌面對話。

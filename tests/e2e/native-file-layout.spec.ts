@@ -101,7 +101,9 @@ test('native file library keeps real long names and distinct original artifacts 
       await contentSize(app, page, sizes[0]![0]!, sizes[0]![1]!)
       await page.keyboard.press('ControlOrMeta+,')
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
-      await page.getByRole('tab', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
+      await page
+        .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
+        .click()
       for (const [name, checked] of [
         ['永遠不透明', mode === 'opaque'],
         ['增加對比', mode === 'contrast'],
@@ -192,7 +194,7 @@ test('native file library keeps real long names and distinct original artifacts 
         expect(metrics.list.width).toBe(320)
         expect(metrics.previewHeader.height).toBe(44)
         expect(metrics.previewBackground).toBe(
-          mode === 'dark' ? 'rgb(28, 28, 30)' : 'rgb(245, 245, 247)',
+          mode === 'dark' ? 'rgb(22, 24, 28)' : 'rgb(241, 243, 247)',
         )
         expect(metrics.informationCard).not.toBeNull()
         await expect(stage.getByRole('button', { name: '存到…', exact: true })).toBeInViewport({

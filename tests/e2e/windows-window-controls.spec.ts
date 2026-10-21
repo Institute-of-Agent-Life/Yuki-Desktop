@@ -69,8 +69,8 @@ test('Windows native caption stays legible through Settings themes and actual ma
       ['dark', '深色'],
     ] as const) {
       await page
-        .getByRole('tablist', { name: '主題', exact: true })
-        .getByRole('tab', { name: label, exact: true })
+        .getByRole('radiogroup', { name: '主題', exact: true })
+        .getByRole('radio', { name: label, exact: true })
         .click()
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
       await expect

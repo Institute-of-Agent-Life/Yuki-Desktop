@@ -1,9 +1,10 @@
+import { capturePointer } from '../motion/hooks'
 import { useCallback, useContext, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ImagePlus, RotateCcw } from 'lucide-react'
 import type { AvatarCommandItem, AvatarInput, Profile } from '../../shared/api'
 import { formatBytes } from '../../shared/media'
-import { Avatar, Banner, Button, Sheet, Spinner } from '../components/Controls'
+import { Avatar, Banner, Button, Slider, Sheet, Spinner } from '../components/Controls'
 import { CharacterAvatar, CharacterVisuals, usePixelRatio } from '../components/CharacterAvatar'
 import { PresenceCard } from '../components/PresenceCard'
 import {
@@ -135,7 +136,11 @@ export function AvatarEditor({
   const [unknown, setUnknown] = useState<AvatarCommandItem>()
   const crop = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
-  const drag = useRef<{ x: number; y: number; pan: Pan } | undefined>(undefined)
+  const cancelDrag = useRef<(() => void) | undefined>(undefined)
+  useEffect(() => {
+    if (!open || busy || unknown) cancelDrag.current?.()
+    return () => cancelDrag.current?.()
+  }, [open, busy, unknown])
   const load = useCallback(async (input: Promise<AvatarInput | null>, current = false) => {
     const turn = ++generation.current
     setBusy(true)
@@ -366,26 +371,28 @@ export function AvatarEditor({
               aria-label="頭像裁切區，方向鍵移動，加減鍵縮放"
               aria-disabled={busy || !!unknown}
               onPointerDown={(event) => {
-                if (image && !busy && !unknown) {
-                  event.currentTarget.focus()
-                  event.currentTarget.setPointerCapture(event.pointerId)
-                  drag.current = { x: event.clientX, y: event.clientY, pan: transform.pan }
-                }
-              }}
-              onPointerMove={(event) => {
-                if (drag.current) {
-                  const ratio = 280 / event.currentTarget.getBoundingClientRect().width
-                  move({
-                    x: drag.current.pan.x + (event.clientX - drag.current.x) * ratio,
-                    y: drag.current.pan.y + (event.clientY - drag.current.y) * ratio,
-                  })
-                }
-              }}
-              onPointerUp={() => {
-                drag.current = undefined
-              }}
-              onLostPointerCapture={() => {
-                drag.current = undefined
+                if (!image || busy || unknown || event.button !== 0 || !event.isPrimary) return
+                cancelDrag.current?.()
+                event.preventDefault()
+                event.currentTarget.focus({
+                  preventScroll: true,
+                  focusVisible: false,
+                } as FocusOptions)
+                const start = { x: event.clientX, y: event.clientY, pan: transform.pan }
+                const ratio = 280 / event.currentTarget.getBoundingClientRect().width
+                cancelDrag.current = capturePointer(
+                  event.currentTarget,
+                  event.nativeEvent,
+                  (next) => {
+                    move({
+                      x: start.pan.x + (next.clientX - start.x) * ratio,
+                      y: start.pan.y + (next.clientY - start.y) * ratio,
+                    })
+                  },
+                  () => {
+                    cancelDrag.current = undefined
+                  },
+                )
               }}
               onKeyDown={(event) => {
                 if (busy || unknown) return
@@ -427,16 +434,15 @@ export function AvatarEditor({
               )}
             </div>
             <div className={styles.zoom}>
-              <input
-                type="range"
-                aria-label="頭像縮放"
-                min={1}
-                max={4}
-                step={0.01}
-                value={transform.zoom}
+              <Slider
+                label="頭像縮放"
+                value={transform.zoom * 100}
+                min={100}
+                max={400}
                 disabled={!image || busy || !!unknown}
-                onChange={(event) => zoom(Number(event.target.value))}
+                onChange={(value) => zoom(value / 100)}
               />
+              <output aria-live="off">{Math.round(transform.zoom * 100)}%</output>
               <Button
                 variant="plain"
                 disabled={!image || busy || !!unknown}

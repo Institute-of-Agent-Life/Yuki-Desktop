@@ -108,7 +108,7 @@ test('Windows application commands have a real native menu entry before pairing 
     await expect(more()).toHaveAttribute('aria-expanded', 'false')
     await geometry('standalone-settings')
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
-    await page.getByRole('tab', { name: '深色', exact: true }).click()
+    await page.getByRole('radio', { name: '深色', exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await page.getByRole('button', { name: '開始', exact: true }).click()

@@ -13,9 +13,10 @@ export function platformMaterial(
   return 'none'
 }
 
-export function windowAppearance(
-  preferences: Preferences,
-): Pick<BrowserWindowConstructorOptions, 'backgroundColor' | 'backgroundMaterial'> & {
+export function windowAppearance(preferences: Preferences): Pick<
+  BrowserWindowConstructorOptions,
+  'backgroundColor' | 'backgroundMaterial'
+> & {
   vibrancy?: 'sidebar'
 } {
   const platform = platformMaterial()
@@ -27,7 +28,7 @@ export function windowAppearance(
   const material = opaque ? 'none' : platform
   return {
     backgroundColor:
-      material === 'none' ? (nativeTheme.shouldUseDarkColors ? '#1C1C1E' : '#F5F5F7') : '#00000000',
+      material === 'none' ? (nativeTheme.shouldUseDarkColors ? '#101215' : '#E9EDF3') : '#00000000',
     ...(process.platform === 'darwin'
       ? { vibrancy: material === 'vibrancy' ? ('sidebar' as const) : undefined }
       : {}),

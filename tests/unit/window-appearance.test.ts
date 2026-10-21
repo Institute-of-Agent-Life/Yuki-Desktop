@@ -58,7 +58,7 @@ it.each([
   else system[setting] = true
   expect(windowAppearance(preferences)).toMatchObject({
     backgroundMaterial: 'none',
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#101215',
   })
 })
 
@@ -77,7 +77,7 @@ it('does not invoke a background material API on unsupported Windows versions', 
     } as unknown as BrowserWindow,
     defaultPreferences,
   )
-  expect(color).toBe('#F5F5F7')
+  expect(color).toBe('#E9EDF3')
   expect(material).not.toHaveBeenCalled()
 })
 
@@ -101,7 +101,7 @@ it('restores the final WebContents color after Electron resets it while disablin
   expect({ color, material }).toEqual({ color: '#00000000', material: 'mica' })
   system.prefersReducedTransparency = true
   applyWindowAppearance(window, defaultPreferences)
-  expect({ color, material }).toEqual({ color: '#1C1C1E', material: 'none' })
+  expect({ color, material }).toEqual({ color: '#101215', material: 'none' })
   system.prefersReducedTransparency = false
   applyWindowAppearance(window, defaultPreferences)
   expect({ color, material }).toEqual({ color: '#00000000', material: 'mica' })

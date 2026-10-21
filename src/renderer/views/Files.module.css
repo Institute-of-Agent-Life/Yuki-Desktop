@@ -36,7 +36,7 @@
   overflow: hidden;
   min-height: 0;
   min-width: 0;
-  background: var(--bg-window);
+  background: var(--bg-stage);
   display: flex;
   flex-direction: column;
 }

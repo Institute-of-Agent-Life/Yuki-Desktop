@@ -26,6 +26,16 @@ test('reads another actual personal ingress and quotes its exact original event 
       })
     await page.getByRole('button', { name: /^QQ ·/ }).click()
     await expect(page.getByText('QQ 原入口的真實帳本內容', { exact: true })).toBeVisible()
+    const navigation = page.getByRole('navigation', { name: '主要導覽' })
+    await expect(navigation.locator('[aria-current=page]')).toHaveCount(1)
+    await page.keyboard.press('ControlOrMeta+,')
+    await expect(navigation.locator('[aria-current=page]')).toHaveCount(1)
+    await expect(navigation.getByRole('button', { name: '設定', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    await page.getByRole('button', { name: '返回', exact: true }).click()
+    await expect(navigation.locator('[aria-current=page]')).toHaveCount(1)
     await expect(page.locator('textarea')).toHaveCount(0)
     await page.getByRole('button', { name: '在桌面對話中提到這段', exact: true }).click()
     const composer = page.getByRole('textbox', { name: '和 Yuki 說點什麼' })

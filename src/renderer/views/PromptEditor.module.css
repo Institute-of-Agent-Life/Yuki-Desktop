@@ -100,7 +100,7 @@
   line-height: 22px;
 }
 .code :global(.cm-gutters) {
-  background: var(--bg-content);
+  background: var(--bg-raised);
   color: var(--text-tertiary);
   border: 0;
 }

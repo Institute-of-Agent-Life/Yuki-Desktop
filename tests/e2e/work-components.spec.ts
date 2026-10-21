@@ -11,7 +11,7 @@ test('step rows retain a static running symbol, full accessible label and readab
   const region = page.getByRole('region', { name: '步驟狀態', exact: true })
   const row = region.getByText(label, { exact: true }).locator('..')
   for (const theme of ['淺色', '深色']) {
-    await page.getByRole('tab', { name: theme, exact: true }).click()
+    await page.getByRole('radio', { name: theme, exact: true }).click()
     for (const [width, height] of [
       [1100, 760],
       [960, 492],

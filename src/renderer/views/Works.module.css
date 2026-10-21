@@ -110,7 +110,7 @@
   min-height: 44px;
   padding: 8px 12px;
   border-radius: 10px;
-  background: var(--bg-window);
+  background: var(--bg-raised);
   text-align: left;
   font-size: 12px;
 }
@@ -188,10 +188,25 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.reply:not(.inlineReply) {
+  position: absolute;
+  z-index: 6;
+  bottom: 14px;
+  left: 20px;
+  right: 20px;
+  width: min(712px, calc(100% - 40px));
+  margin: 0 auto;
+}
+.reply:not(.inlineReply) > header {
+  background: var(--bg-raised);
+  border-radius: 12px;
+}
 .reply [data-region='composer'] {
+  position: relative;
+  bottom: auto;
   margin: 0;
   max-width: none;
-  width: auto;
+  width: 100%;
 }
 .command {
   padding: 12px;

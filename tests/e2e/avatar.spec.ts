@@ -73,7 +73,11 @@ test('actual avatar crop, EXIF orientation, two-device CAS, reset and cold recov
     await crop.focus()
     await pa.keyboard.press('+')
     await pa.keyboard.press('Shift+ArrowDown')
-    await expect(editor(pa).getByRole('slider', { name: '頭像縮放' })).toHaveValue('1.1')
+    const zoom = editor(pa).getByRole('slider', { name: '頭像縮放' })
+    await expect
+      .poll(async () => Number(await zoom.getAttribute('aria-valuenow')))
+      .toBeCloseTo(110, 8)
+    await expect(zoom).toHaveAttribute('aria-valuetext', '110%')
     const box = await crop.boundingBox()
     if (!box) throw Error('crop not visible')
     await pa.mouse.move(box.x + 140, box.y + 140)
@@ -98,7 +102,10 @@ test('actual avatar crop, EXIF orientation, two-device CAS, reset and cold recov
     expect(first.avatar).not.toBeNull()
     await editor(pb).getByRole('button', { name: '儲存', exact: true }).click()
     await expect(editor(pb)).toContainText('頭像剛被另一台裝置更新')
-    await expect(editor(pb).getByRole('slider', { name: '頭像縮放' })).toHaveValue('1')
+    await expect(editor(pb).getByRole('slider', { name: '頭像縮放' })).toHaveAttribute(
+      'aria-valuenow',
+      '100',
+    )
     await editor(pb).getByRole('button', { name: '用我的', exact: true }).click()
     await expect(editor(pb)).not.toBeVisible()
     await expect
@@ -324,7 +331,7 @@ test('actual avatar crop, EXIF orientation, two-device CAS, reset and cold recov
       await expect.poll(() => pa.evaluate(() => [innerWidth, innerHeight])).toEqual([1440, 900])
       await pa.getByRole('button', { name: '設定', exact: true }).click()
       await pa.getByRole('tab', { name: '外觀', exact: true }).click()
-      await pa.getByRole('tab', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
+      await pa.getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
       for (const [label, checked] of [
         ['永遠不透明', mode === 'opaque'],
         ['增加對比', mode === 'contrast'],

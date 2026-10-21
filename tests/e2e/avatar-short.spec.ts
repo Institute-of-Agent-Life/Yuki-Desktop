@@ -56,7 +56,7 @@ test('short avatar sheet preserves crop scale, real pointer and keyboard movemen
     const zoom = sheet.getByRole('slider', { name: '頭像縮放', exact: true })
     await zoom.focus()
     await zoom.press('End')
-    await expect(zoom).toHaveValue('4')
+    await expect(zoom).toHaveAttribute('aria-valuenow', '400')
     await crop.scrollIntoViewIfNeeded()
     const before = await colorBoundary(crop)
     const box = (await crop.boundingBox())!

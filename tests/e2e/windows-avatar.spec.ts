@@ -113,7 +113,10 @@ test('Windows native avatar selection preserves EXIF, crop, second-device conver
       .evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL())
     await crop.press('+')
     await crop.press('Shift+ArrowDown')
-    await expect(sheet.getByRole('slider', { name: '頭像縮放' })).toHaveValue('1.1')
+    await expect(sheet.getByRole('slider', { name: '頭像縮放' })).toHaveAttribute(
+      'aria-valuenow',
+      '110',
+    )
     const box = (await crop.boundingBox())!
     await pa.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
     await pa.mouse.down()

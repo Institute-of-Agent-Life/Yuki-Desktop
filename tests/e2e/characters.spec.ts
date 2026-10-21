@@ -116,7 +116,9 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await expect(page.getByRole('button', { name: '選擇其他圖片…', exact: true })).toBeVisible()
     await page.getByRole('slider', { name: '頭像縮放', exact: true }).focus()
     await page.keyboard.press('ArrowRight')
-    const zoom = await page.getByRole('slider', { name: '頭像縮放', exact: true }).inputValue()
+    const zoom = await page
+      .getByRole('slider', { name: '頭像縮放', exact: true })
+      .getAttribute('aria-valuenow')
     await page.keyboard.press('ControlOrMeta+Shift+BracketRight')
     await expect(page.getByRole('dialog', { name: '更換 Yuki 的頭像' })).toHaveCount(0)
     await expect(editor).toBeVisible()
@@ -131,7 +133,10 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await page.keyboard.press('ControlOrMeta+Shift+BracketLeft')
     await expect(page.getByRole('dialog', { name: '更換 Yuki 的頭像' })).toBeVisible()
     await expect(page.getByRole('button', { name: '選擇其他圖片…', exact: true })).toBeVisible()
-    await expect(page.getByRole('slider', { name: '頭像縮放', exact: true })).toHaveValue(zoom)
+    await expect(page.getByRole('slider', { name: '頭像縮放', exact: true })).toHaveAttribute(
+      'aria-valuenow',
+      zoom!,
+    )
     await page.keyboard.press('Escape')
     await expect(page.getByRole('button', { name: '編輯頭像', exact: true })).toBeFocused()
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
@@ -175,7 +180,9 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
       await page.keyboard.press('ControlOrMeta+,')
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
-      await page.getByRole('tab', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
+      await page
+        .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
+        .click()
       for (const [name, checked] of [
         ['永遠不透明', mode === 'opaque'],
         ['增加對比', mode === 'contrast'],
@@ -201,7 +208,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
             .toEqual([width, height])
           await expect(
             page.locator('[data-character-session]:not([hidden]) [data-region="sidebar"]'),
-          ).toHaveCSS('position', width < 1100 ? 'absolute' : 'static')
+          ).toHaveCSS('position', width < 1100 ? 'absolute' : 'relative')
           await expect(
             page.getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true }),
           ).toBeVisible()

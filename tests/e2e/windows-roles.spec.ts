@@ -388,7 +388,9 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
       await page.keyboard.press('ControlOrMeta+,')
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
-      await page.getByRole('tab', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
+      await page
+        .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
+        .click()
       for (const [name, checked] of [
         ['永遠不透明', mode === 'opaque'],
         ['增加對比', mode === 'contrast'],

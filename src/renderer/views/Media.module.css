@@ -3,7 +3,7 @@
   margin: 8px 0;
   max-width: 100%;
   border-radius: 10px;
-  background: var(--bg-window);
+  background: var(--bg-stage);
   color: var(--text-primary);
   text-align: left;
   overflow: hidden;

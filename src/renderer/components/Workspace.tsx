@@ -13,15 +13,16 @@ import {
   Snowflake,
   X,
 } from 'lucide-react'
-import { columns } from '../../main/geometry'
+import { columns, centerColumnMinimum } from '../../main/geometry'
 import { useSessionActive, useWorkspace } from '../state/workspace'
-import { IconButton, Segmented } from './Controls'
+import { IconButton, Segmented, SelectionPill } from './Controls'
 import { UpdateReadyButton } from './Updates'
 import { PresenceCard } from './PresenceCard'
 import type { View } from '../../shared/desktop'
 import styles from '../App.module.css'
 import { useCommands } from '../state/commands'
 import { requestNavigation } from '../state/navigation'
+import { useGlass } from '../materials/glass'
 import { ApplicationMenu } from './ApplicationMenu'
 
 interface Props {
@@ -40,6 +41,8 @@ interface Props {
   toolbar?: ReactNode
   toolbarTitle?: ReactNode
   scrolled?: boolean
+  floating?: boolean
+  mainConversation?: boolean
   settings?: ReactNode
   onView?(): void
 }
@@ -53,6 +56,7 @@ const views = [
 ] as const
 
 export function Workspace(props: Props) {
+  const glass = useGlass<HTMLDivElement>('toolbar')
   const state = useWorkspace()
   const active = useSessionActive()
   const focusMode = !props.settings && state.focusMode
@@ -144,8 +148,8 @@ export function Workspace(props: Props) {
       const value = initial + (e.clientX - start) * (kind === 'sidebarWidth' ? 1 : -1)
       const max =
         kind === 'sidebarWidth'
-          ? Math.min(320, width - layout.inspector - 520)
-          : Math.min(560, width - layout.sidebar - 520)
+          ? Math.min(320, width - layout.inspector - centerColumnMinimum)
+          : Math.min(560, width - layout.sidebar - centerColumnMinimum)
       state.setWidth(kind, Math.max(kind === 'sidebarWidth' ? 220 : 320, Math.min(max, value)))
     }
     const finish = () => {
@@ -184,8 +188,8 @@ export function Workspace(props: Props) {
             kind === 'sidebarWidth' ? 220 : 320,
             Math.min(
               kind === 'sidebarWidth'
-                ? Math.min(320, width - layout.inspector - 520)
-                : Math.min(560, width - layout.sidebar - 520),
+                ? Math.min(320, width - layout.inspector - centerColumnMinimum)
+                : Math.min(560, width - layout.sidebar - centerColumnMinimum),
               (kind === 'sidebarWidth' ? layout.sidebar : layout.inspector) + delta,
             ),
           )
@@ -213,7 +217,9 @@ export function Workspace(props: Props) {
           <button
             className={styles.nav}
             key={view}
-            aria-current={selectedView === view ? 'page' : undefined}
+            aria-current={
+              selectedView === view && props.mainConversation !== false ? 'page' : undefined
+            }
             onClick={() => selectView(view)}
           >
             <Icon size={16} strokeWidth={1.5} />
@@ -261,7 +267,7 @@ export function Workspace(props: Props) {
   return (
     <div
       ref={root}
-      className={`${styles.shell} ${props.platform === 'darwin' && (!layout.sidebar || focusMode) ? styles.macCollapsed : ''}`}
+      className={`${styles.shell} ${!layout.sidebar || focusMode ? styles.sidebarHidden : ''} ${props.platform === 'darwin' && (!layout.sidebar || focusMode) ? styles.macCollapsed : ''}`}
       style={{
         gridTemplateColumns: focusMode
           ? '400px 0 minmax(0,1fr)'
@@ -313,6 +319,7 @@ export function Workspace(props: Props) {
         <>
           <nav
             data-region="sidebar"
+            data-glass="sidebar"
             aria-label="主要導覽"
             className={`${styles.sidebar} ${layout.overlaySidebar ? styles.sidebarOverlay : ''}`}
             onClick={(event) => {
@@ -321,12 +328,16 @@ export function Workspace(props: Props) {
             }}
             style={{ gridColumn: 1, gridRow: 1, visibility: sidebar ? 'visible' : 'hidden' }}
           >
+            <SelectionPill selected={selectedView} selector="button[aria-current=page]" />
             {sidebarContent}
           </nav>
           {layout.sidebar > 0 && divider('sidebarWidth')}
         </>
       )}
-      <section className={styles.main} style={{ gridColumn: focusMode ? 1 : 3, gridRow: 1 }}>
+      <section
+        className={`${styles.main} ${(props.floating ?? (!props.settings && (state.view === 'chat' || focusMode))) ? styles.floating : ''}`}
+        style={{ gridColumn: focusMode ? 1 : 3, gridRow: 1 }}
+      >
         <header
           data-region="toolbar"
           className={`${styles.toolbar} ${props.toolbar ? styles.customToolbar : ''} ${props.scrolled && !showingSettings ? styles.toolbarScrolled : ''}`}
@@ -338,30 +349,35 @@ export function Workspace(props: Props) {
             <>
               {props.toolbarTitle ?? (
                 <span className={styles.toolbarTitle}>
-                  {state.view === 'chat' || focusMode
-                    ? props.name
-                    : views.find(([view]) => view === state.view)?.[1]}
+                  <strong>
+                    {state.view === 'chat' || focusMode
+                      ? props.name
+                      : views.find(([view]) => view === state.view)?.[1]}
+                  </strong>
+                  {(state.view === 'chat' || focusMode) && <small>{props.status}</small>}
                 </span>
               )}
-              <IconButton
-                label={focusMode ? '收合工作區' : '展開工作區'}
-                onClick={() => state.toggle('focusMode')}
-              >
-                {focusMode ? (
-                  <Minimize2 size={16} strokeWidth={1.5} />
-                ) : (
-                  <Maximize2 size={16} strokeWidth={1.5} />
-                )}
-              </IconButton>
-              <IconButton label="檢視器" onClick={toggleInspector}>
-                <PanelRight size={16} strokeWidth={1.5} />
-              </IconButton>
-              <IconButton
-                label="搜尋已載入內容"
-                onClick={() => window.dispatchEvent(new Event('yuki:search'))}
-              >
-                <Search size={16} strokeWidth={1.5} />
-              </IconButton>
+              <div ref={glass.ref} data-glass="toolbar" className={styles.toolbarGroup}>
+                <IconButton
+                  label={focusMode ? '收合工作區' : '展開工作區'}
+                  onClick={() => state.toggle('focusMode')}
+                >
+                  {focusMode ? (
+                    <Minimize2 size={16} strokeWidth={1.5} />
+                  ) : (
+                    <Maximize2 size={16} strokeWidth={1.5} />
+                  )}
+                </IconButton>
+                <IconButton label="檢視器" onClick={toggleInspector}>
+                  <PanelRight size={16} strokeWidth={1.5} />
+                </IconButton>
+                <IconButton
+                  label="搜尋已載入內容"
+                  onClick={() => window.dispatchEvent(new Event('yuki:search'))}
+                >
+                  <Search size={16} strokeWidth={1.5} />
+                </IconButton>
+              </div>
             </>
           )}
           <UpdateReadyButton />

@@ -16,7 +16,9 @@ async function snapshot(app: ElectronApplication, page: Page) {
       root: getComputedStyle(root).backgroundColor,
       body: getComputedStyle(document.body).backgroundColor,
       sidebar: getComputedStyle(sidebar).backgroundColor,
+      sidebarImage: getComputedStyle(sidebar).backgroundImage,
       content: getComputedStyle(content).backgroundColor,
+      ground: getComputedStyle(document.querySelector('main')!).backgroundColor,
       windowColor: getComputedStyle(root).getPropertyValue('--bg-window').trim(),
       sidebarColor: getComputedStyle(root).getPropertyValue('--bg-sidebar').trim(),
     }
@@ -27,7 +29,7 @@ async function snapshot(app: ElectronApplication, page: Page) {
       const window = BrowserWindow.getAllWindows()[0]!
       const [, height] = window.getContentSize()
       const pixel = await window.webContents.capturePage({
-        x: 6,
+        x: 2,
         y: height! - 80,
         width: 1,
         height: 1,
@@ -35,14 +37,21 @@ async function snapshot(app: ElectronApplication, page: Page) {
       return {
         background: window.getBackgroundColor(),
         bounds: window.getBounds(),
-        sidebarPixel: [...pixel.toBitmap({ scaleFactor: 1 }).subarray(0, 4)],
+        groundPixel: [...pixel.toBitmap({ scaleFactor: 1 }).subarray(0, 4)],
       }
     }),
   }
 }
 
 async function paintedSnapshot(app: ElectronApplication, page: Page, alpha: number) {
-  await expect.poll(async () => (await snapshot(app, page)).native.sidebarPixel[3]).toBe(alpha)
+  // A 5% panel shadow can add coverage over the exposed ground strip.
+  // Verify the exact ground color separately and bound the composited pixel by that shadow.
+  await expect
+    .poll(async () => {
+      const actual = (await snapshot(app, page)).native.groundPixel[3]!
+      return actual >= alpha && actual <= Math.ceil(alpha + (255 - alpha) * 0.05)
+    })
+    .toBe(true)
   return snapshot(app, page)
 }
 
@@ -104,47 +113,41 @@ test('native material remains exposed only beneath the sidebar and follows actua
       ['dark', '深色'],
     ] as const) {
       await page
-        .getByRole('tablist', { name: '主題', exact: true })
-        .getByRole('tab', { name: label, exact: true })
+        .getByRole('radiogroup', { name: '主題', exact: true })
+        .getByRole('radio', { name: label, exact: true })
         .click()
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
       const expectedAlpha =
-        material === 'vibrancy'
-          ? Math.round((theme === 'dark' ? 0.55 : 0.25) * 255)
-          : material === 'mica'
-            ? Math.round((theme === 'dark' ? 0.45 : 0.55) * 255)
-            : 255
+        material === 'none' ? 255 : Math.round((theme === 'dark' ? 0.88 : 0.84) * 255)
       const normal = await paintedSnapshot(app, page, expectedAlpha)
       stages.push({ stage: theme, ...normal })
       await save()
-      const opaqueBackground = theme === 'dark' ? '#1c1c1e' : '#f5f5f7'
-      const opaqueRoot = theme === 'dark' ? 'rgb(28, 28, 30)' : 'rgb(245, 245, 247)'
-      const opaqueSidebar = theme === 'dark' ? 'rgb(42, 42, 45)' : 'rgb(236, 236, 239)'
+      const opaqueBackground = theme === 'dark' ? '#101215' : '#e9edf3'
+      const opaqueRoot = theme === 'dark' ? 'rgb(16, 18, 21)' : 'rgb(233, 237, 243)'
+      const opaqueSidebar = theme === 'dark' ? 'rgb(32, 34, 39)' : 'rgb(230, 234, 240)'
       expect(normal.renderer.root).toBe(material === 'none' ? opaqueRoot : 'rgba(0, 0, 0, 0)')
       expect(normal.native.background.toLowerCase()).toBe(
         material === 'none' ? opaqueBackground : '#000000',
       )
       expect(normal.renderer.material).toBe(material)
-      expect(normal.native.sidebarPixel[3]).toBe(
-        material === 'vibrancy'
-          ? Math.round((theme === 'dark' ? 0.55 : 0.25) * 255)
-          : material === 'mica'
-            ? Math.round((theme === 'dark' ? 0.45 : 0.55) * 255)
-            : 255,
+      expect(normal.renderer.ground).toBe(
+        material === 'none'
+          ? opaqueRoot
+          : theme === 'dark'
+            ? 'rgba(14, 15, 19, 0.88)'
+            : 'rgba(229, 234, 242, 0.84)',
       )
-      expect(normal.renderer.sidebar).toBe(
-        material === 'vibrancy'
-          ? theme === 'dark'
-            ? 'rgba(28, 28, 30, 0.55)'
-            : 'rgba(255, 255, 255, 0.25)'
-          : material === 'mica'
-            ? theme === 'dark'
-              ? 'rgba(32, 32, 32, 0.45)'
-              : 'rgba(243, 243, 243, 0.55)'
-            : opaqueSidebar,
+      expect(normal.native.groundPixel[3]).toBeGreaterThanOrEqual(expectedAlpha)
+      expect(normal.native.groundPixel[3]).toBeLessThanOrEqual(
+        Math.ceil(expectedAlpha + (255 - expectedAlpha) * 0.05),
       )
+      if (material === 'none') expect(normal.renderer.sidebar).toBe(opaqueSidebar)
+      else {
+        expect(normal.renderer.sidebar).toBe('rgba(0, 0, 0, 0)')
+        expect(normal.renderer.sidebarImage).toContain('linear-gradient')
+      }
       expect(normal.renderer.content).toBe(
-        theme === 'dark' ? 'rgb(30, 30, 32)' : 'rgb(255, 255, 255)',
+        theme === 'dark' ? 'rgb(27, 29, 34)' : 'rgb(255, 255, 255)',
       )
       expect(normal.native.bounds).toEqual(initialBounds)
       await page.screenshot({ path: test.info().outputPath(`native-material-${theme}.png`) })
@@ -154,7 +157,7 @@ test('native material remains exposed only beneath the sidebar and follows actua
       stages.push({ stage: theme + '-opaque', ...opaque })
       await save()
       expect(opaque.renderer.root).toBe(opaqueRoot)
-      expect(opaque.native.sidebarPixel[3]).toBe(255)
+      expect(opaque.native.groundPixel[3]).toBe(255)
       expect(opaque.renderer.sidebar).toBe(opaqueSidebar)
       expect(opaque.native.background.toLowerCase()).toBe(opaqueBackground)
       expect(opaque.native.bounds).toEqual(initialBounds)
@@ -169,7 +172,7 @@ test('native material remains exposed only beneath the sidebar and follows actua
       stages.push({ stage: theme + '-contrast', ...contrast })
       await save()
       expect(contrast.renderer.sidebar).toBe(opaqueSidebar)
-      expect(contrast.native.sidebarPixel[3]).toBe(255)
+      expect(contrast.native.groundPixel[3]).toBe(255)
       expect(contrast.native.background.toLowerCase()).toBe(opaqueBackground)
       await page.getByRole('switch', { name: '增加對比', exact: true }).click()
       await expect(page.locator('html')).toHaveAttribute('data-material', material)
@@ -185,27 +188,20 @@ test('native material remains exposed only beneath the sidebar and follows actua
     await expect(page.getByRole('switch', { name: '永遠不透明', exact: true })).toBeChecked()
     const cold = await paintedSnapshot(app, page, 255)
     stages.push({ stage: 'cold-opaque', ...cold })
-    expect(cold.native.background.toLowerCase()).toBe('#1c1c1e')
-    expect(cold.renderer.sidebar).toBe('rgb(42, 42, 45)')
-    expect(cold.native.sidebarPixel[3]).toBe(255)
+    expect(cold.native.background.toLowerCase()).toBe('#101215')
+    expect(cold.renderer.sidebar).toBe('rgb(32, 34, 39)')
+    expect(cold.native.groundPixel[3]).toBe(255)
     await page.getByRole('switch', { name: '永遠不透明', exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('data-material', material)
-    const enabled = await paintedSnapshot(
-      app,
-      page,
-      material === 'vibrancy'
-        ? Math.round(0.55 * 255)
-        : material === 'mica'
-          ? Math.round(0.45 * 255)
-          : 255,
-    )
+    const enabledAlpha = material === 'none' ? 255 : Math.round(0.88 * 255)
+    const enabled = await paintedSnapshot(app, page, enabledAlpha)
     stages.push({ stage: 'cold-enable-material', ...enabled })
-    expect(enabled.native.sidebarPixel[3]).toBe(
-      material === 'vibrancy'
-        ? Math.round(0.55 * 255)
-        : material === 'mica'
-          ? Math.round(0.45 * 255)
-          : 255,
+    expect(enabled.renderer.ground).toBe(
+      material === 'none' ? 'rgb(16, 18, 21)' : 'rgba(14, 15, 19, 0.88)',
+    )
+    expect(enabled.native.groundPixel[3]).toBeGreaterThanOrEqual(enabledAlpha)
+    expect(enabled.native.groundPixel[3]).toBeLessThanOrEqual(
+      Math.ceil(enabledAlpha + (255 - enabledAlpha) * 0.05),
     )
     proof.complete = true
   } catch (error) {

@@ -22,7 +22,7 @@ test('component keyboard, focus restoration and small sheets use real interactio
   await page.keyboard.press('Escape')
   await expect(dialog).not.toBeVisible()
   await expect(open).toBeFocused()
-  await page.getByRole('tab', { name: '深色', exact: true }).click()
+  await page.getByRole('radio', { name: '深色', exact: true }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await page.screenshot({
     animations: 'disabled',
@@ -58,7 +58,7 @@ test('sheet status contains long text while the workspace banner stays 32px and 
   ] as const) {
     await page.setViewportSize({ width, height })
     for (const theme of ['淺色', '深色']) {
-      await page.getByRole('tab', { name: theme, exact: true }).click()
+      await page.getByRole('radio', { name: theme, exact: true }).click()
       const workspaceStatus = page.getByRole('status').filter({ hasText: '離線狀態' })
       expect((await workspaceStatus.boundingBox())!.height).toBe(32)
       const open = page.getByRole('button', { name: '開啟對話框', exact: true })

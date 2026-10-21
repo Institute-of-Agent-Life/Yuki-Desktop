@@ -255,7 +255,7 @@ test('real prompt editor keeps CAS baselines, compares conflicts, supports undo 
       await expect.poll(() => pa.evaluate(() => [innerWidth, innerHeight])).toEqual([1440, 900])
       await pa.getByRole('button', { name: '設定', exact: true }).click()
       await pa.getByRole('tab', { name: '外觀', exact: true }).click()
-      await pa.getByRole('tab', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
+      await pa.getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
       for (const [label, checked] of [
         ['永遠不透明', mode === 'opaque'],
         ['增加對比', mode === 'contrast'],
@@ -669,8 +669,30 @@ test('short prompt workspace keeps its explanation accessible and saves through 
       )
       await expect(save(page)).toBeInViewport({ ratio: 1 })
       await expect(hint).toBeInViewport({ ratio: 1 })
+      // This macOS fixture has no Linux WCO rectangle; Linux's native-frame fallback reserves no absent caption buttons.
       const action = (await save(page).boundingBox())!
-      expect(action.x + action.width).toBeLessThanOrEqual(platform === 'darwin' ? 960 : 810)
+      await test.info().attach('short-toolbar-' + platform, {
+        body: JSON.stringify(
+          await save(page).evaluate((node) => {
+            const header = node.closest('[data-region=toolbar]')!,
+              style = getComputedStyle(header)
+            return {
+              rootPlatform: document.documentElement.dataset.platform,
+              header: header.getBoundingClientRect().toJSON(),
+              padding: style.padding,
+              children: [...header.children].map((child) => ({
+                rect: child.getBoundingClientRect().toJSON(),
+                flex: getComputedStyle(child).flex,
+                text: child.textContent,
+              })),
+            }
+          }),
+          null,
+          2,
+        ),
+        contentType: 'application/json',
+      })
+      expect(action.x + action.width).toBeLessThanOrEqual(platform === 'win32' ? 810 : 960)
     }
     await page.evaluate((value) => {
       document.documentElement.dataset.platform = value
@@ -711,7 +733,9 @@ test('short prompt workspace keeps its explanation accessible and saves through 
       .toBe(1)
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.focus())
     await expect
-      .poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isFocused()))
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isFocused()),
+      )
       .toBe(true)
     await page.mouse.move(0, 0)
     await hint.hover()

@@ -6,6 +6,7 @@ export default defineConfig({
   testDir: './tests/e2e',
   testMatch: [
     'shell.spec.ts',
+    'frosted-workspace.spec.ts',
     'windows-shell.spec.ts',
     'windows-client.spec.ts',
     'windows-onboarding.spec.ts',

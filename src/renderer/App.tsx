@@ -24,6 +24,21 @@ export function App({ boot }: { boot: BootInfo }) {
   const [folderSettings, setFolderSettings] = useState(false)
   const [serverSettings, setServerSettings] = useState(false)
   const [preferences, setPreferences] = useState(boot.preferences)
+  const [cssAccessibility, setCssAccessibility] = useState(() => ({
+    opaque: matchMedia('(prefers-reduced-transparency: reduce)').matches,
+    contrast: matchMedia('(prefers-contrast: more)').matches,
+  }))
+  useEffect(() => {
+    const opaque = matchMedia('(prefers-reduced-transparency: reduce)'),
+      contrast = matchMedia('(prefers-contrast: more)')
+    const update = () => setCssAccessibility({ opaque: opaque.matches, contrast: contrast.matches })
+    opaque.addEventListener('change', update)
+    contrast.addEventListener('change', update)
+    return () => {
+      opaque.removeEventListener('change', update)
+      contrast.removeEventListener('change', update)
+    }
+  }, [])
   const [appearance, setAppearance] = useState(boot)
   const [connections, setConnections] = useState<Connection[]>([])
   const [connection, setConnection] = useState<Connection>()
@@ -138,9 +153,13 @@ export function App({ boot }: { boot: BootInfo }) {
     const root = document.documentElement
     root.dataset.theme =
       preferences.theme === 'system' ? (appearance.dark ? 'dark' : 'light') : preferences.theme
-    root.dataset.contrast = String(preferences.highContrast || appearance.highContrast)
+    root.dataset.contrast = String(
+      preferences.highContrast || appearance.highContrast || cssAccessibility.contrast,
+    )
     root.dataset.motion = preferences.reducedMotion ? 'reduced' : 'normal'
     const opaque =
+      cssAccessibility.opaque ||
+      cssAccessibility.contrast ||
       preferences.opaque ||
       preferences.highContrast ||
       appearance.reducedTransparency ||
@@ -148,7 +167,7 @@ export function App({ boot }: { boot: BootInfo }) {
     root.dataset.opaque = String(opaque)
     root.dataset.material = opaque ? 'none' : boot.nativeMaterial
     root.dataset.platform = boot.platform
-  }, [preferences, appearance, boot.platform, boot.nativeMaterial])
+  }, [preferences, appearance, cssAccessibility, boot.platform, boot.nativeMaterial])
   useEffect(
     () => window.yuki.onTheme((theme) => setAppearance((previous) => ({ ...previous, ...theme }))),
     [],

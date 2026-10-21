@@ -41,6 +41,9 @@ export function windowGeometry(
   }
 }
 
+// The inset paper reserves 6px beside a readable 520px content area.
+export const centerColumnMinimum = 526
+
 export function columns(
   width: number,
   sidebar: number,
@@ -54,9 +57,9 @@ export function columns(
   let s = sidebarOpen && !overlaySidebar ? Math.min(320, Math.max(220, sidebar)) : 0
   const preferredInspector = autoInspectorWidth ? (width >= 1680 ? 440 : 380) : inspector
   let i = inspectorOpen && !overlayInspector ? Math.min(560, Math.max(320, preferredInspector)) : 0
-  if (s && i && width - s - i < 520) {
-    i = Math.max(320, width - s - 520)
-    s = Math.min(s, width - i - 520)
+  if (s && i && width - s - i < centerColumnMinimum) {
+    i = Math.max(320, width - s - centerColumnMinimum)
+    s = Math.min(s, width - i - centerColumnMinimum)
   }
   return { sidebar: s, inspector: i, center: width - s - i, overlaySidebar, overlayInspector }
 }

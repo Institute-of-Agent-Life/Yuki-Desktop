@@ -80,7 +80,7 @@ export async function captureWorkspace(
     await contentSize(app, page, 1440, 900)
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
-    await page.getByRole('tab', { name: theme === 'dark' ? '深色' : '淺色', exact: true }).click()
+    await page.getByRole('radio', { name: theme === 'dark' ? '深色' : '淺色', exact: true }).click()
     for (const [label, checked] of [
       ['永遠不透明', theme === 'opaque'],
       ['增加對比', theme === 'contrast'],

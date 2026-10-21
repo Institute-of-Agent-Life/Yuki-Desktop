@@ -46,7 +46,7 @@ test('uses the real paste/copy, send-key and close/reopen UI paths with isolated
       path: test.info().outputPath('conversation-code.png'),
     })
     await page.keyboard.press('ControlOrMeta+,')
-    await page.getByRole('tab', { name: '⌘ / Ctrl Enter', exact: true }).click()
+    await page.getByRole('radio', { name: '⌘ / Ctrl Enter', exact: true }).click()
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await composer.fill('用選定的送出鍵送出')
     await composer.press('Enter')

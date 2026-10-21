@@ -1,8 +1,9 @@
 .work {
   max-width: 560px;
-  border: 1px solid var(--separator);
-  border-radius: 12px;
-  padding: 12px;
+  border: var(--line) solid var(--separator);
+  border-radius: 14px;
+  background: var(--bg-raised);
+  padding: 12px 14px 10px;
   margin: 8px 0;
 }
 .workTitle {
@@ -62,7 +63,7 @@
   width: 100%;
   padding: 8px;
   text-align: left;
-  border-radius: 6px;
+  border-radius: 10px;
 }
 .fileText {
   min-width: 0;

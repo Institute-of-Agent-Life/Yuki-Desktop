@@ -1,3 +1,6 @@
+import { useTabMotion } from '../motion/tab'
+import { useGlass } from '../materials/glass'
+import { usePress } from '../motion/hooks'
 import { useEffect, useState } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronRight, Pencil, RefreshCw } from 'lucide-react'
@@ -54,7 +57,15 @@ export function About({
 }) {
   const query = useQueryClient()
   const [tab, setTab] = useState<'me' | 'self' | 'arrangements' | 'capabilities'>('me')
+  const panelMotion = useTabMotion<HTMLDivElement>(tab, [
+    'me',
+    'self',
+    'arrangements',
+    'capabilities',
+  ])
+  const toastGlass = useGlass<HTMLDivElement>('toast')
   const [editing, setEditing] = useState(false)
+  const avatarPress = usePress<HTMLButtonElement>()
   const [avatarEditing, setAvatarEditing] = useState(false)
   const [avatarRestore, setAvatarRestore] = useState<AvatarCommandItem>()
   const [notice, setNotice] = useState('')
@@ -104,6 +115,8 @@ export function About({
             <CharacterAvatar size={200} />
             {profile.viewer.is_owner && (
               <button
+                ref={avatarPress}
+                data-press="icon"
                 className={styles.avatarEdit}
                 aria-label="編輯頭像"
                 onClick={() => {
@@ -172,7 +185,7 @@ export function About({
           done={() => setNotice('已更新頭像')}
         />
         {notice && (
-          <div className={styles.toast} role="status">
+          <div ref={toastGlass.ref} data-glass="toast" className={styles.toast} role="status">
             {notice}
           </div>
         )}
@@ -232,6 +245,7 @@ export function About({
             </div>
           ))}
         <div
+          ref={panelMotion}
           role="tabpanel"
           aria-label={
             tab === 'me'

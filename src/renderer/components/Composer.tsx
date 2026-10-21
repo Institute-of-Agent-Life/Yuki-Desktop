@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowUp, Mic, Plus } from 'lucide-react'
+import { useGlass } from '../materials/glass'
 import { IconButton } from './Controls'
 import styles from '../App.module.css'
 import { normalizeMessageText } from '../../shared/message'
@@ -27,6 +28,7 @@ export function Composer({
   blocked?: boolean
   children?: ReactNode
 }) {
+  const glass = useGlass<HTMLDivElement>('composer')
   const input = useRef<HTMLTextAreaElement>(null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
@@ -50,7 +52,7 @@ export function Composer({
     }
   }
   return (
-    <div className={styles.composer} data-region="composer">
+    <div ref={glass.ref} data-glass="composer" className={styles.composer} data-region="composer">
       {children}
       <textarea
         ref={input}
@@ -81,6 +83,7 @@ export function Composer({
         <small>{error || (commandEnter ? '⌘ / Ctrl ↩ 送出' : '↩ 送出 · ⇧↩ 換行')}</small>
         <IconButton
           label="送出"
+          variant="send"
           disabled={sending || blocked || (!normalizeMessageText(draft) && !hasContent)}
           onClick={() => void submit()}
         >

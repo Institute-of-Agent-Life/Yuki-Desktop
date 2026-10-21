@@ -12,7 +12,7 @@
   display: flex;
   align-items: center;
   gap: 28px;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 .portrait {
   position: relative;
@@ -52,19 +52,21 @@
 }
 .toast {
   position: fixed;
-  bottom: 24px;
+  bottom: 28px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--bg-elevated);
+  background: var(--mat-thick);
+  backdrop-filter: blur(28px) saturate(170%) var(--refract,);
   color: var(--text-primary);
+  min-height: 38px;
   padding: 10px 16px;
-  border-radius: 10px;
+  border-radius: 999px;
   box-shadow: var(--shadow-popover);
   z-index: 10;
   font-size: 13px;
 }
 .portrait > span {
-  border-radius: 24px;
+  border-radius: 28px;
 }
 .introduction {
   min-width: 0;
@@ -76,9 +78,9 @@
   gap: 8px;
 }
 .name h1 {
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 600;
-  line-height: 32px;
+  line-height: 34px;
   margin: 0;
   overflow-wrap: anywhere;
 }

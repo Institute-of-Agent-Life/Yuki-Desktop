@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { App } from './App'
 import './tokens.css'
+import './materials/materials.css'
 import { keyboardCommand } from '../shared/commands'
 
 const queryClient = new QueryClient({

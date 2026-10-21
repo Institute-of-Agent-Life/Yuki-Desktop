@@ -377,7 +377,9 @@ test('S10 and folder command use the real settings flow in four themes and small
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
       await contentSize(app, page, 1440, 900)
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
-      await page.getByRole('tab', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
+      await page
+        .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
+        .click()
       for (const [name, value] of [
         ['永遠不透明', mode === 'opaque'],
         ['增加對比', mode === 'contrast'],

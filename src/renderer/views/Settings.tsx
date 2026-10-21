@@ -1,3 +1,4 @@
+import { useTabMotion } from '../motion/tab'
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -17,7 +18,7 @@ import { ServerSettings } from './ServerSettings'
 import { DeviceSecurity } from './DeviceSecurity'
 import { LocalConnection } from './LocalConnection'
 import type { BootInfo, Preferences } from '../../shared/desktop'
-import { Banner, Button, Segmented, Spinner, Toggle } from '../components/Controls'
+import { Banner, Button, Segmented, Spinner, Toggle, SelectionPill } from '../components/Controls'
 import { unwrap } from '../queries/client'
 import styles from './Settings.module.css'
 
@@ -88,6 +89,10 @@ export function Settings({
     ),
     [error, setError] = useState(''),
     [notice, setNotice] = useState('')
+  const panelMotion = useTabMotion<HTMLDivElement>(
+    category,
+    categories.map((item) => item.id),
+  )
   const [busy, setBusy] = useState(false)
   const [folderPending, setFolderPending] = useState(folderRequest)
   const query = useQueryClient()
@@ -143,6 +148,7 @@ export function Settings({
           aria-label="設定分類"
           aria-orientation="vertical"
         >
+          <SelectionPill selected={category} selector="button[aria-selected=true]" />
           {categories.map((item, index) => (
             <button
               key={item.id}
@@ -167,7 +173,9 @@ export function Settings({
                       : (index + (event.key === 'ArrowDown' ? 1 : categories.length - 1)) %
                         categories.length
                 setCategory(categories[next]!.id)
-                ;(event.currentTarget.parentElement!.children[next] as HTMLElement).focus()
+                ;(
+                  event.currentTarget.parentElement!.querySelectorAll('button')[next] as HTMLElement
+                ).focus()
               }}
             >
               <item.icon size={16} strokeWidth={1.5} />
@@ -176,6 +184,7 @@ export function Settings({
           ))}
         </nav>
         <div
+          ref={panelMotion}
           id="settings-panel"
           role="tabpanel"
           aria-labelledby={`settings-${category}`}
@@ -233,6 +242,7 @@ export function Settings({
                 <Row title="送出訊息">
                   <Segmented
                     label="送出訊息"
+                    kind="radio"
                     value={preferences.sendKey}
                     items={[
                       { value: 'enter', label: 'Enter' },
@@ -248,6 +258,7 @@ export function Settings({
               <Row title="主題">
                 <Segmented
                   label="主題"
+                  kind="radio"
                   value={preferences.theme}
                   items={[
                     { value: 'system', label: '跟隨系統' },

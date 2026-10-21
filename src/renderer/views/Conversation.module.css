@@ -9,7 +9,9 @@
   overflow: auto;
   flex: 1;
   min-height: 0;
-  padding: 24px max(24px, calc((100% - 712px) / 2));
+  padding: calc(76px + var(--notice-h, 0px)) max(24px, calc((100% - 680px) / 2))
+    calc(var(--composer-h, 84px) + 40px);
+  scroll-padding-block: 76px calc(var(--composer-h, 84px) + 40px);
   overflow-anchor: none;
 }
 .message {
@@ -55,9 +57,9 @@
   width: fit-content;
   max-width: min(520px, 88%);
   background: var(--accent-subtle);
-  padding: 8px 12px;
-  border-radius: 14px;
-  margin-bottom: 24px;
+  padding: 8px 14px;
+  border-radius: 18px 18px 6px 18px;
+  margin-bottom: 16px;
   white-space: normal;
 }
 .ownMessage > p {
@@ -153,6 +155,7 @@
   text-decoration: underline;
 }
 .entry {
+  position: relative;
   text-align: left;
   width: 100%;
   padding: 8px;
@@ -161,8 +164,8 @@
   color: var(--text-secondary);
 }
 .entry[aria-current] {
-  background: var(--fill-selected);
-  color: var(--accent);
+  background: transparent;
+  color: var(--accent-strong);
 }
 .pending {
   display: flex;
@@ -182,7 +185,7 @@
 }
 .newMessages {
   position: absolute;
-  bottom: 164px;
+  bottom: calc(var(--composer-h, 84px) + 28px);
   right: 24px;
   padding: 6px 14px;
   background: var(--bg-content);
@@ -287,9 +290,9 @@
   outline-offset: 4px;
 }
 .conversationIntroduction h2 {
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 600;
-  line-height: 22px;
+  line-height: 20px;
   margin: 0;
 }
 .conversationIntroduction p {
@@ -319,4 +322,48 @@
 }
 .computerToolbar:has(> [data-computer-toolbar]) > .computerToolbarFallback {
   display: none;
+}
+
+.notices {
+  position: absolute;
+  top: 52px;
+  left: 0;
+  right: 0;
+  z-index: 4;
+}
+.readonly {
+  position: absolute;
+  z-index: 6;
+  bottom: 14px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: min(712px, calc(100% - 40px));
+  border-radius: 20px;
+  background: var(--mat-thick);
+  backdrop-filter: blur(28px) saturate(170%);
+  box-shadow: var(--shadow-glass);
+}
+.processing {
+  position: absolute;
+  bottom: calc(var(--composer-h, 84px) + 22px);
+  pointer-events: none;
+}
+@media (max-height: 599px) {
+  .conversationIntroduction {
+    flex-direction: row;
+    margin: 12px 0;
+  }
+  .conversationIntroduction > span {
+    width: 28px !important;
+    height: 28px !important;
+    outline: none;
+  }
+  .conversationIntroduction p {
+    display: none;
+  }
+}
+
+:global([data-contrast='true']) .entry[aria-current] {
+  color: var(--accent-on);
 }

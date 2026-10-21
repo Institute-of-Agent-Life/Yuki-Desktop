@@ -30,7 +30,7 @@ describe('three column sizing', () => {
     expect(columns(1679, 260, 380, true, true, true).inspector).toBe(380)
     expect(columns(1920, 260, 380).inspector).toBe(380)
     expect(columns(1920, 260, 508).inspector).toBe(508)
-    expect(columns(1180, 320, 560).inspector).toBe(340)
+    expect(columns(1180, 320, 560).inspector).toBe(334)
     expect(columns(1920, 320, 560).inspector).toBe(560)
   })
   it('keeps the center readable for all drag combinations at the narrow breakpoint', () => {

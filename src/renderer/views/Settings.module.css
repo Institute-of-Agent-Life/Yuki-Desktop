@@ -33,11 +33,13 @@
   min-height: 0;
 }
 .categories {
+  position: relative;
   padding: 8px 12px;
   border-right: var(--line) solid var(--separator);
   overflow: auto;
 }
 .categories button {
+  position: relative;
   width: 100%;
   display: flex;
   align-items: center;
@@ -46,7 +48,7 @@
   padding: 6px 8px;
   border: 0;
   background: none;
-  border-radius: 7px;
+  border-radius: 8px;
   text-align: left;
   color: var(--text-primary);
   cursor: pointer;
@@ -55,7 +57,7 @@
   background: var(--fill-hover);
 }
 .categories button[aria-selected='true'] {
-  background: var(--fill-selected);
+  background: transparent;
   color: var(--accent-strong);
   font-weight: 600;
 }
@@ -75,7 +77,7 @@
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 20px;
-  background: var(--bg-content);
+  background: var(--bg-raised);
 }
 .row {
   display: flex;
@@ -173,4 +175,8 @@
 
 .menu {
   margin-left: auto;
+}
+
+:global([data-contrast='true']) .categories button[aria-selected='true'] {
+  color: var(--accent-on);
 }

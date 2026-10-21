@@ -174,7 +174,7 @@ it('system transparency changes update an existing native window without reopeni
     expect(window.getBackgroundColor()).toBe('#00000000')
     Object.assign(nativeTheme, { prefersReducedTransparency: true })
     nativeTheme.emit('updated')
-    expect(window.getBackgroundColor()).toBe('#F5F5F7')
+    expect(window.getBackgroundColor()).toBe('#E9EDF3')
     Object.assign(nativeTheme, { prefersReducedTransparency: false })
     nativeTheme.emit('updated')
     expect(window.getBackgroundColor()).toBe('#00000000')

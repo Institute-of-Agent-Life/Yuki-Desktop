@@ -77,6 +77,7 @@ test('native conversation wheel scrolling applies toolbar material and preserves
     const log = page.getByRole('log', { name: '對話訊息', exact: true })
     const style = () =>
       toolbar.evaluate((element) => {
+        const edge = getComputedStyle(element, '::before')
         const style = getComputedStyle(element),
           rect = element.getBoundingClientRect()
         return {
@@ -85,14 +86,17 @@ test('native conversation wheel scrolling applies toolbar material and preserves
           shadow: style.boxShadow,
           height: rect.height,
           opaque: document.documentElement.dataset.opaque,
+          edgeFilter: edge.backdropFilter,
+          edgeOpacity: edge.opacity,
+          edgeShadow: edge.boxShadow,
         }
       })
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
       await page.keyboard.press('ControlOrMeta+,')
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
       await page
-        .getByRole('tablist', { name: '主題', exact: true })
-        .getByRole('tab', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
+        .getByRole('radiogroup', { name: '主題', exact: true })
+        .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
         .click()
       for (const [label, checked] of [
         ['永遠不透明', mode === 'opaque'],
@@ -121,21 +125,12 @@ test('native conversation wheel scrolling applies toolbar material and preserves
       const nativeOpaque =
         mode === 'opaque' || mode === 'contrast' || boot.reducedTransparency || boot.highContrast
       const opaque = nativeOpaque || media.reducedTransparency || media.highContrast
-      await expect
-        .poll(async () => (await style()).filter)
-        .toBe(opaque ? 'none' : 'blur(20px) saturate(1.8)')
-      expect((await style()).opaque).toBe(String(nativeOpaque))
+      await expect.poll(async () => (await style()).filter).toBe('none')
+      expect((await style()).opaque).toBe(String(opaque))
       expect((await style()).height).toBe(52)
-      expect((await style()).shadow).not.toBe('none')
-      expect((await style()).background).toBe(
-        opaque
-          ? mode === 'dark'
-            ? 'rgb(30, 30, 32)'
-            : 'rgb(255, 255, 255)'
-          : mode === 'dark'
-            ? 'color(srgb 0.117647 0.117647 0.12549 / 0.82)'
-            : 'color(srgb 1 1 1 / 0.82)',
-      )
+      await expect.poll(async () => (await style()).edgeOpacity).toBe('1')
+      expect((await style()).edgeFilter).toBe(opaque ? 'none' : 'blur(6px)')
+      if (opaque) expect((await style()).edgeShadow).not.toBe('none')
       await expect(original).toHaveAttribute('data-event-id', eventId!)
       await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
       expect(
@@ -178,7 +173,7 @@ test('native conversation wheel scrolling applies toolbar material and preserves
             actualOsSettingChanged: false,
           })
           await cdp.send('Emulation.setEmulatedMedia', { features: [] })
-          await expect.poll(async () => (await style()).filter).toBe('blur(20px) saturate(1.8)')
+          await expect.poll(async () => (await style()).edgeFilter).toBe('blur(6px)')
         }
       } finally {
         await cdp.send('Emulation.setEmulatedMedia', { features: [] })
