@@ -1,5 +1,5 @@
 import { Check, Circle, CircleHelp, File, X } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { DragEventHandler, ReactNode } from 'react'
 import { Button, StatusPill, type Status } from './Controls'
 import styles from './Content.module.css'
 
@@ -101,6 +101,7 @@ export function FileRow({
   detail,
   size,
   onOpen,
+  onDragStart,
   selected,
 }: {
   name: string
@@ -108,12 +109,15 @@ export function FileRow({
   detail: string
   size?: string
   onOpen: () => void
+  onDragStart?: DragEventHandler<HTMLButtonElement>
   selected?: boolean
 }) {
   return (
     <button
       className={styles.file}
       onClick={onOpen}
+      draggable={!!onDragStart}
+      onDragStart={onDragStart}
       title={name}
       aria-current={selected ? 'true' : undefined}
     >

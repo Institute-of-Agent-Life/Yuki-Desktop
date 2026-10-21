@@ -94,6 +94,7 @@ window.yuki = {
     saveArtifact: async () => ({ ok: false, code: 'fixture_only' }),
     revealArtifact: async () => ({ ok: false, code: 'fixture_only' }),
     openArtifact: async () => ({ ok: false, code: 'fixture_only' }),
+    dragArtifact: async () => ({ ok: false, code: 'fixture_only' }),
     outbox: async () => ({ ok: false, code: 'fixture_only' }),
     verify: async () => ({ ok: false, code: 'fixture_only' }),
     workCommand: async () => ({ ok: false, code: 'fixture_only' }),

@@ -1,6 +1,7 @@
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
-import { rm } from 'node:fs/promises'
+import { rm, stat } from 'node:fs/promises'
 import type {
   ApiRead,
   AttachmentSource,
@@ -802,15 +803,19 @@ export class Connections {
     return uploads
   }
   private contentCache(id: string) {
+    const root = join(this.root, 'connections', uuid(id), 'cache', uuid(this.connection(id).personId))
+    // Native Windows drop targets can truncate paths under the nested private cache.
     return new ContentCache(
-      join(this.root, 'connections', uuid(id), 'cache', uuid(this.connection(id).personId)),
+      root,
+      join(tmpdir(), 'yuki-originals-' + createHash('sha256').update(root).digest('hex')),
     )
   }
   async artifact(id: string, source: ArtifactSource) {
     const identity = artifactIdentity(source.artifactId)
     if (!/^[a-f0-9]{64}$/.test(source.version)) throw new ApiError('validation_error')
     await this.identify(id)
-    const cache = new ContentCache(join(this.contentCache(id).root, 'artifacts'))
+    const parent = this.contentCache(id)
+    const cache = new ContentCache(join(parent.root, 'artifacts'), join(parent.exportRoot, 'artifacts'))
     try {
       const content = await cache.download(
         this.client(id),
@@ -838,7 +843,15 @@ export class Connections {
   }
   async artifactContent(id: string, source: ArtifactSource) {
     const item = await this.artifact(id, source)
+    const path = this.savedArtifact(id, source)
+    const saved =
+      !!path &&
+      (await stat(path).then(
+        (info) => info.isFile(),
+        () => false,
+      ))
     return {
+      saved,
       bytes: /^(image\/|text\/|application\/(json|pdf)$)/.test(item.mime)
         ? await item.cache.bytes(item.path, item.sha256)
         : null,

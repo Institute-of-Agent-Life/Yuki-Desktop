@@ -197,6 +197,7 @@ export interface AttachmentSource {
   index: number
 }
 export interface CachedContent {
+  saved?: boolean
   bytes: Uint8Array | null
   sha256: string
   mime: string
@@ -335,6 +336,7 @@ export interface ConversationBridge {
   saveArtifact(characterId: string, source: ArtifactSource): Promise<ApiReply<boolean>>
   revealArtifact(characterId: string, source: ArtifactSource): Promise<ApiReply<void>>
   openArtifact(characterId: string, source: ArtifactSource): Promise<ApiReply<void>>
+  dragArtifact(characterId: string, source: ArtifactSource): Promise<ApiReply<void>>
   outbox(characterId: string): Promise<ApiReply<OutboxItem[]>>
   verify(characterId: string, requestId: string): Promise<ApiReply<OutboxItem>>
   workCommand(

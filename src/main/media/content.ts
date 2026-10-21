@@ -13,14 +13,20 @@ async function digest(path: string) {
   return hash.digest('hex')
 }
 export class ContentCache {
-  constructor(readonly root: string) {}
+  constructor(
+    readonly root: string,
+    readonly exportRoot = join(root, 'open'),
+  ) {}
   async clear() {
+    await rm(this.exportRoot, { recursive: true, force: true })
     await rm(this.root, { recursive: true, force: true })
   }
   async remove(sha256: string) {
     if (/^[a-f0-9]{64}$/.test(sha256)) {
       await rm(join(this.root, sha256 + '.blob'), { force: true })
-      await rm(join(this.root, 'open', sha256), { recursive: true, force: true })
+      await rm(join(this.exportRoot, sha256), { recursive: true, force: true })
+      if (this.exportRoot !== join(this.root, 'open'))
+        await rm(join(this.root, 'open', sha256), { recursive: true, force: true })
     }
   }
   async download(client: ApiClient, route: string, expectedVersion?: string) {

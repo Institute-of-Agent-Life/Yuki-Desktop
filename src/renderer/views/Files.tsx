@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { Download, FolderOpen, Copy, ArrowUpRight, X } from 'lucide-react'
 import type { DiffRow } from '../../shared/diff'
 import type { ArtifactPage, ArtifactSource, CachedContent, Home } from '../../shared/api'
@@ -28,6 +28,14 @@ function useContent(id: string, item?: ArtifactSource) {
     enabled: !!item,
     retry: false,
   })
+}
+async function saveArtifact(id: string, source: ArtifactSource, query: QueryClient) {
+  const saved = unwrap(await window.yuki.client.saveArtifact(id, source))
+  if (saved)
+    await query.invalidateQueries({
+      queryKey: [id, 'artifact-content', source.artifactId, source.version],
+    })
+  return saved
 }
 export function Files({
   id,
@@ -187,6 +195,10 @@ export function Files({
                 identity={item.artifact_id}
                 detail={`${date(item.created_at, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })} · ${label(item)}`}
                 size={item.size === null ? undefined : formatBytes(item.size)}
+                onDragStart={(event) => {
+                  event.preventDefault()
+                  void act(window.yuki.client.dragArtifact(id, source(item)).then(unwrap))
+                }}
                 onOpen={() => {
                   setSelected(source(item))
                   onSelect(source(item))
@@ -227,9 +239,7 @@ export function Files({
               <h2 title={data.filename} aria-label={data.filename}>
                 <FileName name={data.filename} compact={false} />
               </h2>
-              <Button
-                onClick={() => void act(window.yuki.client.saveArtifact(id, selected).then(unwrap))}
-              >
+              <Button onClick={() => void act(saveArtifact(id, selected, query))}>
                 <Download size={15} />
                 存到…
               </Button>
@@ -250,6 +260,8 @@ export function Files({
                 <div className={styles.actions}>
                   <Button
                     variant="plain"
+                    disabled={!data.saved}
+                    title={data.saved ? '在資料夾顯示' : '先將這個版本存到本機'}
                     onClick={() =>
                       void act(window.yuki.client.revealArtifact(id, selected).then(unwrap))
                     }
@@ -384,11 +396,7 @@ export function ArtifactInspector({
             {source.artifactId} · {shortVersion(source.version)}
           </code>
           <div className={styles.actions}>
-            <Button
-              onClick={() => void act(window.yuki.client.saveArtifact(id, source).then(unwrap))}
-            >
-              存到…
-            </Button>
+            <Button onClick={() => void act(saveArtifact(id, source, query))}>存到…</Button>
             <Button variant="plain" onClick={library}>
               在檔案與成果查看
             </Button>

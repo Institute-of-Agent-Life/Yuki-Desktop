@@ -86,6 +86,7 @@ const bridge: DesktopBridge = {
     saveArtifact: (id, source) => ipcRenderer.invoke('yuki:save-artifact', id, source),
     revealArtifact: (id, source) => ipcRenderer.invoke('yuki:reveal-artifact', id, source),
     openArtifact: (id, source) => ipcRenderer.invoke('yuki:open-artifact', id, source),
+    dragArtifact: (id, source) => ipcRenderer.invoke('yuki:drag-artifact', id, source),
     outbox: (id) => ipcRenderer.invoke('yuki:outbox', id),
     verify: (id, requestId) => ipcRenderer.invoke('yuki:verify', id, requestId),
     workCommand: (id, command, question) =>

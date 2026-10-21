@@ -758,14 +758,23 @@ else {
       }
       shell.showItemInFolder(path)
     })
-    clientAction('open-artifact', async (id: string, source: ArtifactSource) => {
+    const materializeArtifact = async (id: string, source: ArtifactSource) => {
       const content = await connections.artifact(id, source)
-      const directory = join(content.cache.root, 'open', content.sha256, randomUUID())
+      const directory = join(content.cache.exportRoot, content.sha256)
       await mkdir(directory, { recursive: true, mode: 0o700 })
       const path = join(directory, basename(content.filename))
       await content.cache.save(content.path, content.sha256, path)
-      const error = await shell.openPath(path)
+      return path
+    }
+    clientAction('open-artifact', async (id: string, source: ArtifactSource) => {
+      const error = await shell.openPath(await materializeArtifact(id, source))
       if (error) throw new ApiError('open_failed')
+    })
+    clientAction('drag-artifact', async (id: string, source: ArtifactSource) => {
+      const target = win!
+      const path = await materializeArtifact(id, source)
+      const icon = await app.getFileIcon(path, { size: 'normal' })
+      target.webContents.startDrag({ file: path, icon })
     })
     clientAction('save-content', async (id: string, source: AttachmentSource) => {
       const content = await connections.attachment(id, source)

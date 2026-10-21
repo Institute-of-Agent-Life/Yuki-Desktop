@@ -1,7 +1,7 @@
 import { afterEach, expect, it } from 'vitest'
 import { mkdtemp, writeFile, readFile, rm, readdir, mkdir, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { Outbox } from '../../src/main/outbox'
 import { Uploads } from '../../src/main/media/uploads'
@@ -103,6 +103,36 @@ it('requires the requested artifact version even when another valid hash is serv
   await cache.remove(sha256)
   await expect(stat(original.path)).rejects.toMatchObject({ code: 'ENOENT' })
   await expect(stat(privateOpen)).rejects.toMatchObject({ code: 'ENOENT' })
+  expect(await readFile(saved)).toEqual(bytes)
+})
+
+it('revokes external original exports and legacy previews while preserving other identities and saved copies', async () => {
+  const { root } = await setup(),
+    cache = new ContentCache(join(root, 'nested-cache'), join(root, 'native-exports')),
+    other = new ContentCache(join(root, 'other-cache'), join(root, 'other-exports')),
+    bytes = Buffer.from('original immutable artifact'),
+    sha256 = createHash('sha256').update(bytes).digest('hex')
+  const original = await cache.download(
+    api(async () => new Response(bytes, { headers: { 'X-Yuki-Sha256': sha256 } })),
+    'artifact',
+    sha256,
+  )
+  const exported = join(cache.exportRoot, sha256, 'same.md'),
+    legacy = join(cache.root, 'open', sha256, 'same.md'),
+    otherExport = join(other.exportRoot, sha256, 'same.md'),
+    saved = join(root, 'user-saved-original.md')
+  for (const path of [exported, legacy, otherExport]) {
+    await mkdir(dirname(path), { recursive: true })
+    await cache.save(original.path, sha256, path)
+  }
+  await cache.save(original.path, sha256, saved)
+  await cache.remove(sha256)
+  for (const path of [original.path, exported, legacy])
+    await expect(stat(path)).rejects.toMatchObject({ code: 'ENOENT' })
+  expect(await readFile(otherExport)).toEqual(bytes)
+  expect(await readFile(saved)).toEqual(bytes)
+  await other.clear()
+  await expect(stat(other.exportRoot)).rejects.toMatchObject({ code: 'ENOENT' })
   expect(await readFile(saved)).toEqual(bytes)
 })
 

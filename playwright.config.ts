@@ -25,6 +25,8 @@ export default defineConfig({
     'native-toolbar-scroll.spec.ts',
     'native-about-layout.spec.ts',
     'native-file-layout.spec.ts',
+    'native-artifact-actions.spec.ts',
+    'windows-artifact-actions.spec.ts',
     'windows-application-menu.spec.ts',
   ],
   outputDir: join(tmpdir(), 'yuki-desktop-e2e'),
