@@ -1,0 +1,66 @@
+.switcher {
+  position: absolute;
+  right: 8px;
+  top: 15px;
+  z-index: 3;
+  -webkit-app-region: no-drag;
+}
+.switcher > button {
+  width: 22px;
+  height: 22px;
+}
+.menu {
+  position: absolute;
+  top: 30px;
+  left: -202px;
+  width: 240px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--separator);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-popover);
+  max-height: min(400px, calc(100vh - 130px));
+  overflow: auto;
+}
+.role {
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  text-align: left;
+  min-width: 0;
+  cursor: pointer;
+}
+.role:hover,
+.role:focus-visible {
+  background: var(--fill-hover);
+}
+.role > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.role strong,
+.role small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.role strong {
+  font-weight: 500;
+  font-size: 13px;
+}
+.role small {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.role > svg {
+  flex-shrink: 0;
+  color: var(--accent-strong);
+}

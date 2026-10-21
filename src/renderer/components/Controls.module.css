@@ -1,0 +1,283 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background var(--motion-fast);
+}
+.primary {
+  background: var(--accent);
+  color: var(--accent-on);
+  font-weight: 600;
+  box-shadow:
+    inset 0 1px 0 #ffffff29,
+    0 1px 2px #14285a29;
+}
+.primary:hover {
+  background: color-mix(in srgb, var(--accent), white 10%);
+}
+.primary:active {
+  background: var(--accent-strong);
+}
+.secondary {
+  background: var(--fill-control);
+  box-shadow: inset 0 0 0 var(--line) var(--separator);
+}
+.plain {
+  color: var(--accent);
+  padding: 0 10px;
+}
+.destructive {
+  color: var(--status-failed);
+}
+.large {
+  height: 36px;
+  padding: 0 20px;
+  font-size: 14px;
+}
+.icon {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--text-secondary);
+}
+.field {
+  height: 28px;
+  width: 100%;
+  border: var(--line) solid var(--separator-strong);
+  border-radius: 8px;
+  padding: 0 8px;
+  background: var(--bg-elevated);
+}
+.field[aria-invalid='true'] {
+  border-color: var(--status-failed);
+}
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  border-radius: 50%;
+  background: var(--avatar-accent-light, var(--accent));
+  color: var(--accent-on);
+  font-weight: 600;
+  flex-shrink: 0;
+  border: 1px solid var(--separator);
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: avatar-enter 180ms ease;
+}
+.photo {
+  background: transparent;
+}
+.avatarLoading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg-content) 45%, transparent);
+}
+@keyframes avatar-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  border-radius: 10px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--status);
+  background: color-mix(in srgb, var(--status) 12%, transparent);
+}
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 50%;
+}
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 20px;
+  flex-shrink: 0;
+  color: var(--status);
+  background: color-mix(in srgb, var(--status) 12%, var(--bg-content));
+  font-size: 12px;
+}
+.dialog {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  border: 0;
+  border-radius: 22px;
+  padding: 0;
+  color: var(--text-primary);
+  background: var(--mat-sheet);
+  box-shadow: var(--shadow-sheet);
+}
+.dialog::backdrop {
+  background: var(--scrim);
+  backdrop-filter: blur(8px);
+}
+:global([data-theme='dark']) .dialog::backdrop {
+  background: var(--scrim);
+}
+.dialogInner {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 32px);
+}
+.dialogHeader {
+  padding: 24px 24px 12px;
+  flex-shrink: 0;
+}
+.dialogBody {
+  padding: 0 24px;
+  overflow: auto;
+  min-height: 0;
+}
+.dialogBody .banner {
+  height: auto;
+  min-height: 32px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+.dialogFooter {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 16px 24px;
+  background: var(--bg-elevated);
+  border-top: var(--line) solid var(--separator);
+}
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  color: var(--text-secondary);
+  padding: 40px 24px;
+  margin: auto;
+  max-width: 480px;
+}
+.empty h3 {
+  color: var(--text-primary);
+}
+.empty p {
+  font-size: 12px;
+  line-height: 18px;
+}
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+:global([data-theme='dark']) .avatar {
+  background: var(--avatar-accent-dark, var(--accent));
+}
+
+.send {
+  width: 30px;
+  height: 30px;
+  background: var(--accent);
+  color: var(--accent-on);
+}
+.send:hover {
+  background: var(--accent);
+  color: var(--accent-on);
+}
+.send:active {
+  background: var(--accent-strong);
+}
+:global([data-opaque='true']) .dialog::backdrop {
+  backdrop-filter: none;
+}
+.dialog[open] {
+  animation: sheet-enter var(--motion-slow) var(--ease-pop);
+}
+.dialog[open]::backdrop {
+  animation: scrim-enter 160ms var(--ease-standard);
+}
+@keyframes sheet-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes scrim-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.button[data-held='true'],
+.icon[data-held='true'] {
+  background: var(--press-background, var(--fill-pressed));
+}
+.primary,
+.send {
+  --press-background: var(--accent-strong);
+}
+
+:global([data-contrast='true']) .icon[aria-pressed='true'] {
+  color: var(--accent-on);
+  background: var(--accent);
+}
+
+.button:disabled,
+.icon:disabled {
+  box-shadow: none;
+}
+.button > .spinner {
+  position: absolute;
+  left: 4px;
+  width: 10px;
+  height: 10px;
+}

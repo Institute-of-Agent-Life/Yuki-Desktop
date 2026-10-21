@@ -1,0 +1,270 @@
+.about {
+  overflow-y: auto;
+  height: 100%;
+}
+.inner {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 32px 40px;
+  width: 100%;
+}
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  margin-bottom: 28px;
+}
+.portrait {
+  position: relative;
+  flex: 0 0 200px;
+}
+.avatarEdit {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--separator);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-popover);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.avatarEdit span {
+  pointer-events: none;
+  position: absolute;
+  right: 36px;
+  bottom: 0;
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  background: var(--bg-elevated);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.portrait:hover .avatarEdit span,
+.avatarEdit:focus-visible span {
+  opacity: 1;
+}
+.toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--mat-thick);
+  backdrop-filter: blur(28px) saturate(170%) var(--refract,);
+  color: var(--text-primary);
+  min-height: 38px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-popover);
+  z-index: 10;
+  font-size: 13px;
+}
+.portrait > span {
+  border-radius: 28px;
+}
+.introduction {
+  min-width: 0;
+  flex: 1;
+}
+.name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.name h1 {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 34px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.introduction p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 22px;
+  white-space: pre-wrap;
+}
+.panel {
+  margin-top: 12px;
+}
+.row {
+  padding: 12px 0;
+  border-bottom: var(--line) solid var(--separator);
+}
+.fact {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  padding: 0;
+  cursor: pointer;
+}
+.factContent {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 22px;
+}
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--text-tertiary);
+  padding-top: 4px;
+}
+.tag {
+  display: inline-flex;
+  background: var(--fill-code);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 14px;
+  padding: 1px 6px;
+}
+.evidence {
+  padding-top: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  display: grid;
+  gap: 10px;
+}
+.source {
+  background: var(--bg-inspector);
+  color: var(--accent);
+  border: 0;
+  border-left: 2px solid var(--separator);
+  padding: 8px 12px;
+  text-align: left;
+  border-radius: 4px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.editor {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  width: 100%;
+}
+.editor label {
+  display: grid;
+  gap: 6px;
+}
+.editor textarea {
+  resize: vertical;
+  min-height: 84px;
+  border-radius: 6px;
+  border: 1px solid var(--separator);
+  background: var(--bg-content);
+  padding: 8px;
+  color: var(--text-primary);
+  line-height: 22px;
+  font: inherit;
+}
+.colors {
+  display: flex;
+  gap: 20px;
+}
+.colors label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.colors input {
+  width: 36px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--separator);
+  border-radius: 4px;
+  background: transparent;
+}
+.original {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--bg-inspector);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.description {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.arrangement {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.arrangement h2,
+.row h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.arrangement p,
+.row p {
+  margin: 0 0 6px;
+  line-height: 1.6;
+}
+.arrangement small {
+  color: var(--text-secondary);
+}
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 600;
+  margin-top: 24px;
+}
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pending {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-inspector);
+  border-radius: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+@media (max-width: 1099px) {
+  .inner {
+    padding: 24px;
+  }
+  .hero {
+    gap: 20px;
+  }
+}
+@media (max-width: 640px) {
+  .hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+.heroActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

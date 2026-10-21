@@ -1,0 +1,220 @@
+.list {
+  overflow: auto;
+  min-height: 0;
+  padding: 24px;
+  flex: 1;
+}
+.list > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.list section {
+  margin-bottom: 24px;
+}
+.list h3,
+.detail h3 {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.list h4 {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  margin: 16px 8px 4px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 56px;
+  padding: 0 8px;
+  border-radius: 8px;
+  text-align: left;
+}
+.row:hover {
+  background: var(--fill-hover);
+}
+.row[aria-current] {
+  background: var(--fill-selected);
+}
+.state {
+  width: 92px;
+  flex-shrink: 0;
+}
+.goal {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.row small,
+.row time {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.row small {
+  flex-shrink: 0;
+  max-width: 144px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row time {
+  flex-shrink: 0;
+  white-space: nowrap;
+  line-height: 14px;
+}
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  overflow: auto;
+}
+.detail > h2 {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 22px;
+}
+.detail > span {
+  align-self: flex-start;
+}
+.detail section {
+  display: flex;
+  flex-direction: column;
+}
+.secondary {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--text-secondary);
+}
+.artifactList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.artifact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--bg-raised);
+  text-align: left;
+  font-size: 12px;
+}
+.artifact small {
+  display: block;
+  font: 11px/14px var(--font-mono);
+  color: var(--text-secondary);
+}
+.question {
+  background: var(--accent-subtle);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 22px;
+}
+.question p {
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+}
+.questionLabel {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.questionLabel > svg {
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.inlineReply {
+  min-width: 0;
+}
+.inputLabel {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.inputRow {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.inlineField {
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  max-height: 132px;
+  border: 1px solid var(--separator-strong);
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: var(--bg-elevated);
+  font: 13px/20px var(--font-ui);
+  color: var(--text-primary);
+  resize: none;
+}
+.retained .inlineField {
+  width: 100%;
+  min-height: 60px;
+}
+.reply {
+  min-width: 0;
+}
+.reply > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 8px 24px;
+}
+.reply > header > span {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reply:not(.inlineReply) {
+  position: absolute;
+  z-index: 6;
+  bottom: 14px;
+  left: 20px;
+  right: 20px;
+  width: min(712px, calc(100% - 40px));
+  margin: 0 auto;
+}
+.reply:not(.inlineReply) > header {
+  background: var(--bg-raised);
+  border-radius: 12px;
+}
+.reply [data-region='composer'] {
+  position: relative;
+  bottom: auto;
+  margin: 0;
+  max-width: none;
+  width: 100%;
+}
+.command {
+  padding: 12px;
+  border: 1px solid var(--separator);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.command p {
+  margin-top: 8px;
+  white-space: pre-wrap;
+}

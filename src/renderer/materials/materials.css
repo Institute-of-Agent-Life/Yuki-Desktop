@@ -1,0 +1,64 @@
+[data-glass]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 0.75px;
+  pointer-events: none;
+  background: linear-gradient(var(--stroke-hi), var(--stroke-lo));
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+[data-glass]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: var(--rim, none);
+  background-size: 100% 100%;
+  opacity: 0.8;
+}
+[data-theme='dark'] [data-glass]::after {
+  opacity: 0.5;
+}
+[data-opaque='true'] {
+  --mat-ground: var(--bg-window);
+  --mat-sidebar: var(--bg-sidebar);
+  --mat-chrome: var(--bg-elevated);
+  --mat-thick: var(--bg-elevated);
+  --mat-sheet: var(--bg-elevated);
+  --stroke-hi: transparent;
+  --stroke-lo: transparent;
+  --scrim: rgba(24, 30, 44, 0.3);
+}
+[data-opaque='true'][data-theme='dark'] {
+  --scrim: rgba(0, 0, 0, 0.5);
+}
+[data-opaque='true'] [data-glass] {
+  backdrop-filter: none !important;
+}
+[data-opaque='true'] [data-glass]::before,
+[data-opaque='true'] [data-glass]::after {
+  display: none;
+}
+[data-press]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--hp, 0);
+  mix-blend-mode: plus-lighter;
+  background: radial-gradient(circle at var(--hx, 50%) var(--hy, 50%), var(--hl), transparent 72%);
+}
+html[data-control-drag],
+html[data-control-drag] * {
+  user-select: none !important;
+}
+
+[data-refracting]::before {
+  display: none;
+}

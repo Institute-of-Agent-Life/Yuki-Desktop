@@ -1,0 +1,86 @@
+appId: life.yuki.desktop
+productName: Yuki
+artifactName: 'Yuki-${version}-${os}-${arch}.${ext}'
+directories:
+  output: dist
+  buildResources: resources
+asar: true
+# Fixed SQLite 13 ships Node-API 10 binaries; validate target prebuilts in beforePack.
+npmRebuild: false
+files:
+  - out/main/**
+  - out/preload/**
+  - out/renderer/**
+  - package.json
+  - LICENSE
+  - resources/icons/**/*.png
+  - resources/legal/novnc/*
+  - '!**/*.map'
+  - '!**/docs{,/**}'
+  - '!assets{,/**}'
+  - '!**/scripts{,/**}'
+  - '!**/third-party{,/**}'
+  - '!**/tests{,/**}'
+  - '!**/AGENTS.md'
+  - '!**/LOCAL-README.md'
+  - '!**/INTEGRATION.md'
+  - '!**/NOTICE.md'
+  - '!**/._*'
+  - '!**/*.log'
+protocols:
+  name: Yuki 配對連結
+  schemes: [yuki]
+publish:
+  provider: github
+  owner: Institute-of-Agent-Life
+  repo: Yuki-Desktop
+  releaseType: draft
+  tagNamePrefix: desktop-v
+mac:
+  icon: resources/icons/app/1024x1024.png
+  category: public.app-category.productivity
+  minimumSystemVersion: '13.0.0'
+  target: [dmg, zip]
+  hardenedRuntime: true
+  notarize: false
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: 錄下你明確開始的語音訊息，傳給所連接的 Yuki 角色。
+win:
+  icon: resources/icons/app/256x256.png
+  target: [nsis]
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+linux:
+  maintainer: Institute of Agent Life
+  executableName: yuki
+  syncDesktopName: true
+  icon: resources/icons/app
+  category: Utility
+  target: [AppImage, deb, rpm]
+  desktop:
+    entry:
+      MimeType: x-scheme-handler/yuki;
+appImage:
+  executableArgs: []
+deb:
+  appArmorProfile: resources/linux/apparmor-profile.tpl
+  depends:
+    [libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libsecret-1-0, fonts-noto-cjk]
+rpm:
+  fpm: [--rpm-rpmbuild-define, _rpmformat 4]
+  appArmorProfile: resources/linux/apparmor-profile.tpl
+  depends:
+    [
+      gtk3,
+      libnotify,
+      nss,
+      libXScrnSaver,
+      libXtst,
+      xdg-utils,
+      libsecret,
+      google-noto-sans-cjk-ttc-fonts,
+    ]

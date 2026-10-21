@@ -1,0 +1,508 @@
+.app {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  background: var(--bg-window);
+}
+.titlebar {
+  -webkit-app-region: drag;
+  height: 52px;
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  pointer-events: none;
+}
+.welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: auto;
+  height: 100%;
+  padding: 52px 24px 24px;
+}
+.welcomeInner {
+  margin: auto 0;
+  flex-shrink: 0;
+  width: min(640px, 100%);
+  padding: 32px;
+  border-radius: 28px;
+  background: var(--mat-thick);
+  box-shadow: var(--shadow-glass);
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 20px;
+  text-align: center;
+}
+.welcomeMark {
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+.welcomeInner p {
+  max-width: 480px;
+  color: var(--text-secondary);
+  line-height: 22px;
+  font-size: 14px;
+}
+.pairingSteps {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 0;
+  margin: 8px 0 0;
+  list-style: none;
+}
+.pairingSteps li {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--separator-strong);
+}
+.pairingSteps li[aria-current='step'] {
+  background: var(--accent);
+}
+.server {
+  width: min(480px, 100%);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.server input {
+  height: 36px;
+}
+.codeRow {
+  display: flex;
+  gap: 8px;
+}
+.codeInput {
+  font: 14px var(--font-mono);
+  flex: 1;
+  min-width: 0;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.shell {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+.sidebar {
+  position: relative;
+  margin: 6px;
+  border-radius: 14px;
+  background: var(--bg-sidebar);
+  box-shadow:
+    0 0 0 0.5px var(--edge),
+    0 8px 22px rgba(16, 24, 40, 0.05);
+  padding: 46px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  min-width: 0;
+  min-height: 0;
+}
+.presence {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  flex-shrink: 0;
+  width: 100%;
+  border-radius: 12px;
+  padding: 8px;
+  text-align: left;
+  margin-bottom: 6px;
+}
+.presence strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.presence small {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--text-secondary);
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.presenceText {
+  min-width: 0;
+}
+.group {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  padding: 4px 8px;
+  margin-top: 16px;
+}
+.nav {
+  position: relative;
+  flex-shrink: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border-radius: 8px;
+  width: 100%;
+  text-align: left;
+}
+.nav[aria-current='page'] {
+  color: var(--accent-strong);
+  background: transparent;
+}
+:global([data-contrast='true']) .nav[aria-current='page'] {
+  color: var(--accent-on);
+}
+.main {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  margin: 6px 6px 6px 0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--bg-content);
+  box-shadow: var(--shadow-panel);
+}
+:global([data-material='vibrancy']) .sidebar:not(.sidebarOverlay),
+:global([data-material='mica']) .sidebar:not(.sidebarOverlay) {
+  background: var(--mat-sidebar);
+}
+.sidebarHidden .main {
+  margin-left: 6px;
+}
+.floating .toolbar {
+  position: absolute;
+  inset: 0 0 auto;
+  background: transparent;
+}
+.floating .toolbar::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 -18px;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--motion-base) var(--ease-standard);
+  background: linear-gradient(
+    var(--bg-content),
+    color-mix(in srgb, var(--bg-content) 82%, transparent) 55%,
+    transparent
+  );
+  backdrop-filter: blur(6px);
+  mask-image: linear-gradient(#000 55%, transparent);
+}
+.floating .toolbarScrolled {
+  box-shadow: none;
+}
+.floating .toolbarScrolled::before {
+  opacity: 1;
+}
+:global([data-opaque='true']) .floating .toolbar::before {
+  backdrop-filter: none;
+  mask-image: none;
+  inset: 0;
+  background: var(--bg-content);
+  box-shadow: 0 var(--line) 0 var(--separator);
+}
+.toolbarGroup {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+  height: 34px;
+  padding: 3px;
+  border-radius: 17px;
+  background: var(--mat-chrome);
+  box-shadow: var(--shadow-glass);
+  backdrop-filter: blur(6px) saturate(180%) var(--refract,);
+  -webkit-app-region: no-drag;
+}
+.toolbar {
+  height: 52px;
+  padding: 0 10px 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  background: var(--bg-content);
+}
+.toolbarScrolled {
+  box-shadow: 0 var(--line) 0 var(--separator);
+}
+:global([data-opaque='true']) .toolbarScrolled {
+  background: var(--bg-content);
+  backdrop-filter: none;
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .toolbarScrolled {
+    background: var(--bg-content);
+    backdrop-filter: none;
+  }
+}
+.toolbarTitle {
+  margin-right: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 20px;
+}
+.macCollapsed .toolbar {
+  padding-left: 86px;
+}
+:global([data-platform='win32']) .toolbar {
+  padding-right: 150px;
+}
+:global([data-platform='linux']) .toolbar {
+  padding-right: max(
+    20px,
+    calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 12px)
+  );
+}
+.content {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.composer {
+  position: absolute;
+  z-index: 6;
+  bottom: 14px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: min(712px, calc(100% - 40px));
+  max-height: 200px;
+  overflow-y: auto;
+  border-radius: 20px;
+  box-shadow: var(--shadow-glass);
+  padding: 10px 10px 8px 16px;
+  background: var(--mat-thick);
+  backdrop-filter: blur(28px) saturate(170%) var(--refract,);
+}
+.composer:focus-within {
+  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 1px;
+}
+.composer textarea {
+  width: 100%;
+  resize: none;
+  display: block;
+  min-height: 22px;
+  max-height: 130px;
+  padding: 0 6px 0 0;
+  border: 0;
+  background: none;
+  font-size: 14px;
+  line-height: 22px;
+  outline: none;
+}
+.composerBottom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+  margin: 6px 0 0 -8px;
+}
+.composerBottom small {
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inspector {
+  position: relative;
+  margin: 6px 6px 6px 0;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow-panel);
+  background: var(--bg-inspector);
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.inspectorHeader {
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+}
+.inspectorHeader strong {
+  margin-right: auto;
+}
+.inspectorHeader > [role='tablist'] {
+  margin-right: auto;
+}
+.inspectorBody {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.divider {
+  position: relative;
+  width: 0;
+  z-index: 4;
+}
+.divider button {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  cursor: col-resize;
+  padding: 0;
+  border-radius: 0;
+}
+.divider button:hover {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.overlay {
+  position: absolute;
+  top: 52px;
+  bottom: 16px;
+  right: 16px;
+  width: min(380px, calc(100vw - 48px));
+  border-radius: 14px;
+  box-shadow: var(--shadow-sheet);
+  z-index: 5;
+}
+.sidebarOverlay {
+  position: absolute;
+  inset: 52px auto 16px 16px;
+  width: 260px;
+  border-radius: 16px;
+  padding-top: 12px;
+  box-shadow: var(--shadow-sheet);
+  z-index: 5;
+}
+.search {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 12px;
+}
+@media (max-height: 599px) {
+  .composer {
+    max-height: 96px;
+    padding: 6px 10px 8px 16px;
+  }
+  .composer textarea {
+    max-height: 44px;
+    min-height: 22px;
+  }
+  .welcomeInner {
+    gap: 12px;
+  }
+  .settings {
+    padding: 16px 24px;
+  }
+}
+@media (max-width: 959px) {
+  .composer {
+    width: calc(100% - 32px);
+  }
+}
+.presenceAvatar {
+  display: inline-flex;
+  position: relative;
+  flex: 0 0 36px;
+}
+.presenceDot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  height: 10px;
+  width: 10px;
+  border-radius: 50%;
+  outline: 2px solid var(--bg-sidebar);
+}
+.customToolbar {
+  height: auto;
+  min-height: 52px;
+}
+.roleSession {
+  display: contents;
+}
+.roleSession[hidden] {
+  display: none;
+}
+.presenceRow {
+  position: relative;
+}
+.presenceRow .presence {
+  padding-right: 34px;
+}
+
+.toolbarMenu {
+  margin-left: auto;
+}
+
+:global([data-material='vibrancy']) .app,
+:global([data-material='mica']) .app {
+  background: var(--mat-ground);
+}
+
+@media (min-height: 600px) and (max-height: 719px) {
+  .composer {
+    max-height: 140px;
+  }
+  .composer textarea {
+    max-height: 78px;
+  }
+}
+
+.toolbarTitle {
+  display: flex;
+  flex-direction: column;
+}
+.toolbarTitle strong,
+.toolbarTitle small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.toolbarTitle small {
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.app::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 95;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.45);
+}
+:global([data-theme='dark']) .app::after {
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+}
