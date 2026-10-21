@@ -365,13 +365,11 @@ test('actual RPM CPIO audits internal build-id links and rejects escaping, missi
       )
       return file
     }
-    assert.deepEqual(
-      await auditInstaller(await payload('internal', '../../../../opt/Yuki/yuki-bin')),
-      {
-        file: 'internal.rpm',
-        archives: 1,
-      },
-    )
+    const internal = await payload('internal', '../../../../opt/Yuki/yuki-bin')
+    assert.deepEqual(await auditInstaller(internal), {
+      file: 'internal.rpm',
+      archives: 1,
+    })
     for (const [label, destination, mode] of [
       ['escape', '../../../../../outside', 0o100755],
       ['absolute', '/opt/Yuki/yuki-bin', 0o100755],
@@ -394,7 +392,7 @@ test('actual ASAR integrity accepts empty and multi-block files then rejects an 
   fixture(async (root) => {
     const { directory, archive, marker } = await packagedFixture(root)
     assert.equal(checkPackage(directory), 1)
-    assert.equal(statFile(archive, 'out/main/app.js').integrity.blocks.length, 2)
+    assert.equal(statFile(archive, join('out', 'main', 'app.js')).integrity.blocks.length, 2)
     const bytes = await readFile(archive)
     const offset = bytes.indexOf(Buffer.from(marker))
     assert.ok(offset > 0)
@@ -407,7 +405,7 @@ test('actual ASAR integrity rejects a changed block digest even when the file di
   fixture(async (root) => {
     const { directory, archive } = await packagedFixture(root)
     assert.equal(checkPackage(directory), 1)
-    const integrity = statFile(archive, 'out/main/app.js').integrity
+    const integrity = statFile(archive, join('out', 'main', 'app.js')).integrity
     const bytes = await readFile(archive)
     const field = Buffer.from('"blocks":["' + integrity.blocks[0])
     const start = bytes.indexOf(field)

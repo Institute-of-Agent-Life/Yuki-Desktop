@@ -1,6 +1,6 @@
 import { extractFile, listPackage, statFile, uncache } from '@electron/asar'
 import { readdirSync, lstatSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join, resolve, normalize } from 'node:path'
 import { createHash } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 
@@ -17,7 +17,7 @@ export function checkPackage(root) {
   if (!archives.length) throw new Error('No packaged app.asar found')
   for (const archive of archives) {
     uncache(archive)
-    const entries = listPackage(archive)
+    const entries = listPackage(archive).map((entry) => entry.replaceAll('\\', '/'))
     for (const file of [
       'out/main/app.js',
       'out/preload/index.cjs',
@@ -36,7 +36,7 @@ export function checkPackage(root) {
     ]) {
       if (!entries.includes('/' + file)) throw new Error(`Missing product entry: ${file}`)
     }
-    const html = extractFile(archive, 'out/renderer/index.html').toString('utf8')
+    const html = extractFile(archive, normalize('out/renderer/index.html')).toString('utf8')
     const assets = [...html.matchAll(/(?:src|href)=["']\.?\/?(assets\/[^"']+)["']/g)].map(
       (match) => match[1],
     )
@@ -70,11 +70,11 @@ export function checkPackage(root) {
         throw new Error(`Unexpected package content: ${path}`)
       if (/^(docs|assets|scripts|third-party|tests)\//.test(path) || /(^|\/)\._/.test(path))
         throw new Error(`Local material in package: ${path}`)
-      const info = statFile(archive, path)
+      const info = statFile(archive, normalize(path))
       // Native unpacked prebuilts are selected in afterPack and checked for their target.
       // Packed JavaScript must match both the full-file and Electron block digests.
       if (!info.files && !info.link && !info.unpacked) {
-        const content = extractFile(archive, path)
+        const content = extractFile(archive, normalize(path))
         const integrity = info.integrity
         const digest = (bytes) => createHash('sha256').update(bytes).digest('hex')
         if (

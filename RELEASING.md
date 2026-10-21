@@ -28,7 +28,7 @@ Linux `.desktop` 的名稱與 Electron app_id 使用同一個 `yuki.desktop`。L
 
 ## 內容與完整性
 
-`check:package` 審查 ASAR 產品白名單。`prepare-upload` 另解開實際 zip、DMG、NSIS、deb、rpm 或 AppImage，檢查外層與解出的 ASAR，核對真正應用程式執行檔的 CPU 與發行檔名一致、Linux 保留已核准的 sandbox 啟動器，再核對 feed 中每個檔案的 SHA-512。它拒絕本地文件／原型路徑、未知待上傳檔案、跨版本／跨平台 feed、缺失檔案、衝突檔名與逃逸路徑。DMG 以唯讀方式掛載並卸載；Windows 使用 builder 固定版本的 7-Zip；包裝工具下載走既有 builder 工具鏈。
+`check:package` 審查 ASAR 產品白名單。`prepare-upload` 另解開實際 zip、DMG、NSIS、deb、rpm 或 AppImage，檢查外層與解出的 ASAR，核對真正應用程式執行檔的 CPU 與發行檔名一致、Linux 保留已核准的 sandbox 啟動器，再核對 feed 中每個檔案的 SHA-512。它拒絕本地文件／原型路徑、未知待上傳檔案、跨版本／跨平台 feed、缺失檔案、衝突檔名與逃逸路徑。DMG 以唯讀方式掛載並卸載；Windows 審查使用 lockfile 內 electron-winstaller 固定的完整 7-Zip 執行檔與 DLL（builder 的精簡 Windows 7za 缺少 NSIS／CPIO），按建置主機架構取用並只複製到本輪稽核的暫存目錄；其他平台使用 builder 固定工具。RPM build-id 連結逐項核對包內 regular file 目標，不在暫存目錄物化；越界、缺失或異常目標仍拒絕。包裝工具下載走既有 builder 工具鏈。
 
 只上傳新生成的 upload 目錄，不能直接上傳整個 dist、工作目錄、測試報告或暫存目錄。upload 只含安裝檔、對應 blockmap、feed 與 `SHA256SUMS`。產物審查 JSON 寫在旁邊的 `<upload目錄>.local-audit.json`，僅供本地核對，不可上傳或加入 CI artifacts。審查紀錄不等於簽章或原生安裝通過。
 

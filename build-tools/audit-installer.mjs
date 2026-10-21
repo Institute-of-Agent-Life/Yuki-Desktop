@@ -1,9 +1,19 @@
-import { mkdtemp, readdir, lstat, readlink, rm, mkdir, readFile, realpath } from 'node:fs/promises'
+import {
+  mkdtemp,
+  readdir,
+  lstat,
+  readlink,
+  rm,
+  mkdir,
+  readFile,
+  realpath,
+  copyFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve, relative, isAbsolute, basename, posix } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { pathToFileURL, URL } from 'node:url'
+import { pathToFileURL, fileURLToPath, URL } from 'node:url'
 import { getPath7za } from 'app-builder-lib/out/toolsets/7zip.js'
 import { checkPackage } from './check-package.mjs'
 import { inspectExecutable } from './native-prebuild.mjs'
@@ -55,8 +65,7 @@ async function inspectTree(root, path = root, target) {
     } else if (stat.isDirectory()) await inspectTree(root, full, target)
   }
 }
-async function extract7z(file, target) {
-  const tool = await getPath7za()
+async function extract7z(file, target, tool) {
   const { stdout } = await run(tool, ['l', '-slt', file], { maxBuffer: 16 * 1024 * 1024 })
   const records = stdout
     .split('----------')
@@ -90,7 +99,9 @@ async function extract7z(file, target) {
     ) {
       const link = entry['Symbolic Link'],
         destination = posix.normalize(posix.join(posix.dirname(path), link)),
-        source = records.find((item) => item.Path && posix.normalize(item.Path) === destination)
+        source = records.find(
+          (item) => item.Path && posix.normalize(item.Path.replaceAll('\\', '/')) === destination,
+        )
       if (
         posix.isAbsolute(link) ||
         link.includes('\\') ||
@@ -145,6 +156,20 @@ export async function auditInstaller(input) {
   let mounted = false,
     content = join(root, 'content')
   try {
+    let tool
+    if (process.platform === 'win32') {
+      // The builder's standalone Windows 7za omits NSIS and CPIO. Reuse the
+      // full tool pair already pinned by electron-winstaller in our lockfile.
+      const vendor = new URL('./vendor/', import.meta.resolve('electron-winstaller/package.json')),
+        tools = join(root, 'tools')
+      await mkdir(tools)
+      tool = join(tools, '7z.exe')
+      await copyFile(fileURLToPath(new URL(`7z-${process.arch}.exe`, vendor)), tool)
+      await copyFile(
+        fileURLToPath(new URL(`7z-${process.arch}.dll`, vendor)),
+        join(tools, '7z.dll'),
+      )
+    } else tool = await getPath7za()
     if (file.endsWith('.dmg')) {
       if (process.platform !== 'darwin') throw Error('DMG audit requires macOS hdiutil')
       await mkdir(content)
@@ -168,7 +193,7 @@ export async function auditInstaller(input) {
           throw Error(`Unexpected DMG root entry: ${entry}`)
       content = join(content, apps[0])
     } else if (/\.(zip|exe|deb|rpm)$/.test(file)) {
-      await extract7z(file, content)
+      await extract7z(file, content, tool)
       await inspectTree(content, content, target)
       if (file.endsWith('.zip')) {
         const roots = await readdir(content)
@@ -184,17 +209,18 @@ export async function auditInstaller(input) {
             : []
       for (const [i, payload] of payloads.entries()) {
         const layer = join(root, `payload-${i}`)
-        await extract7z(payload, layer)
+        await extract7z(payload, layer, tool)
         const nested = await findPayloads(layer, /^data\.tar$|\.cpio$/)
         if (nested.length)
-          for (const [j, path] of nested.entries()) await extract7z(path, join(layer, `layer-${j}`))
+          for (const [j, path] of nested.entries())
+            await extract7z(path, join(layer, `layer-${j}`), tool)
         await inspectTree(layer, layer, target)
         checkPackage(layer)
       }
       if (payloads.length) return { file: basename(file), payloads: payloads.length }
     } else if (file.endsWith('.AppImage')) {
       // The fixed builder tool detects SquashFS without executing the ELF runtime.
-      await extract7z(file, content)
+      await extract7z(file, content, tool)
     } else throw Error('Unsupported installer format')
     await inspectTree(content, content, target)
     const archives = checkPackage(content)
