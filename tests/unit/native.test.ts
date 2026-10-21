@@ -80,56 +80,60 @@ vi.mock('electron', async () => {
     Notification,
   }
 })
-it('keeps avatar notifications and tray selection isolated and ignores late obsolete images', () => {
-  os.trays.length = 0
-  os.notices.length = 0
-  const shell = new NativeShell(
-    () => undefined,
-    () => {},
-    () => {},
-  )
-  shell.update(defaultPreferences)
-  const avatar = (name: string): Profile => ({
-    id: name,
-    slug: name,
-    display_name: name,
-    bio: '',
-    revision: 1,
-    avatar_revision: 1,
-    avatar: null,
-    default_avatar: null,
-    accent: { light: '#123456', dark: '#abcdef' },
-    viewer: { is_owner: true },
-  })
-  const a = avatar('role-a'),
-    b = avatar('role-b')
-  const aKey = shell.prepareCharacter('role-a', a)
-  shell.decorate('role-a', aKey, new Uint8Array([11]))
-  shell.selectedCharacter = 'role-a'
-  const tray = os.trays[0] as FakeTray
-  expect(tray.icon).toMatchObject({ source: '0b' })
-  shell.selectedCharacter = 'role-b'
-  expect(tray.icon.path).toContain('trayTemplate.png')
-  const bKey = shell.prepareCharacter('role-b', b)
-  shell.decorate('role-b', bKey, new Uint8Array([12]))
-  expect(tray.icon).toMatchObject({ source: '0c' })
-  const newer = shell.prepareCharacter('role-a', { ...a, avatar_revision: 2 })
-  shell.decorate('role-a', newer, new Uint8Array([13]))
-  shell.decorate('role-a', aKey, new Uint8Array([11]))
-  shell.show({
-    category: 'completed',
-    title: 'A 的工作',
-    body: '已完成',
-    target: { characterId: 'role-a', view: 'works' },
-  })
-  expect((os.notices.at(-1) as FakeNotice).options).toMatchObject({
-    icon: { source: '0d', width: 128 },
-  })
-  expect(tray.icon).toMatchObject({ source: '0c' })
-  shell.selectedCharacter = 'role-a'
-  expect(tray.icon).toMatchObject({ source: '0d', width: 18 })
-  shell.close()
-})
+it.each(['darwin', 'win32', 'linux'] as const)(
+  'keeps avatar notifications and tray selection isolated on %s and ignores late obsolete images',
+  (platform) => {
+    os.trays.length = 0
+    os.notices.length = 0
+    const shell = new NativeShell(
+      () => undefined,
+      () => {},
+      () => {},
+      platform,
+    )
+    shell.update(defaultPreferences)
+    const avatar = (name: string): Profile => ({
+      id: name,
+      slug: name,
+      display_name: name,
+      bio: '',
+      revision: 1,
+      avatar_revision: 1,
+      avatar: null,
+      default_avatar: null,
+      accent: { light: '#123456', dark: '#abcdef' },
+      viewer: { is_owner: true },
+    })
+    const a = avatar('role-a'),
+      b = avatar('role-b')
+    const aKey = shell.prepareCharacter('role-a', a)
+    shell.decorate('role-a', aKey, new Uint8Array([11]))
+    shell.selectedCharacter = 'role-a'
+    const tray = os.trays[0] as FakeTray
+    expect(tray.icon).toMatchObject({ source: '0b' })
+    shell.selectedCharacter = 'role-b'
+    expect(tray.icon.path).toContain(platform === 'darwin' ? 'trayTemplate.png' : '32x32.png')
+    const bKey = shell.prepareCharacter('role-b', b)
+    shell.decorate('role-b', bKey, new Uint8Array([12]))
+    expect(tray.icon).toMatchObject({ source: '0c' })
+    const newer = shell.prepareCharacter('role-a', { ...a, avatar_revision: 2 })
+    shell.decorate('role-a', newer, new Uint8Array([13]))
+    shell.decorate('role-a', aKey, new Uint8Array([11]))
+    shell.show({
+      category: 'completed',
+      title: 'A 的工作',
+      body: '已完成',
+      target: { characterId: 'role-a', view: 'works' },
+    })
+    expect((os.notices.at(-1) as FakeNotice).options).toMatchObject({
+      icon: { source: '0d', width: 128 },
+    })
+    expect(tray.icon).toMatchObject({ source: '0c' })
+    shell.selectedCharacter = 'role-a'
+    expect(tray.icon).toMatchObject({ source: '0d', width: platform === 'darwin' ? 18 : 64 })
+    shell.close()
+  },
+)
 import { NativeShell } from '../../src/main/native'
 interface FakeTray extends EventEmitter {
   tooltip: string
