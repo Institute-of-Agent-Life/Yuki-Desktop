@@ -95,9 +95,13 @@ async function extract7z(file, target, tool) {
     if (
       /^Type = Cpio$/m.test(stdout.replaceAll('\r', '')) &&
       /^usr\/lib\/\.build-id\/[a-f0-9]{2}\/[a-f0-9]{38}$/.test(posix.normalize(path)) &&
-      entry['Symbolic Link']
+      (entry.Mode?.startsWith('l') || entry['Symbolic Link'])
     ) {
-      const link = entry['Symbolic Link'],
+      // Older Windows 7-Zip exposes the POSIX link mode but omits its target.
+      // Read only that entry to stdout; never extract an unchecked link.
+      const link =
+          entry['Symbolic Link'] ||
+          (await run(tool, ['x', '-so', file, entry.Path], { maxBuffer: 4096 })).stdout,
         destination = posix.normalize(posix.join(posix.dirname(path), link)),
         source = records.find(
           (item) => item.Path && posix.normalize(item.Path.replaceAll('\\', '/')) === destination,
