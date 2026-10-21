@@ -35,7 +35,18 @@ test('press feedback never delays the action and clears after rapid clicks, leav
   await page.keyboard.press('Space')
   await expect.poll(async () => (await counts(page)).button).toBe(4)
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.mouse.move(bounds.x + 12, bounds.y + 12)
+  await button.scrollIntoViewIfNeeded()
+  const reducedBounds = (await button.boundingBox())!,
+    point = {
+      x: reducedBounds.x + reducedBounds.width / 2,
+      y: reducedBounds.y + reducedBounds.height / 2,
+    }
+  const hit = await page.evaluate(
+    ({ x, y }) => document.elementFromPoint(x, y)?.closest('button')?.textContent,
+    point,
+  )
+  expect(hit, JSON.stringify({ original: bounds, current: reducedBounds, point })).toBe('次要')
+  await page.mouse.move(point.x, point.y)
   await page.mouse.down()
   await expect(button).toHaveCSS('transform', 'none')
   await page.mouse.up()
