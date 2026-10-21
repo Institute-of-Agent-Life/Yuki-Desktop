@@ -32,7 +32,8 @@
     "check:package": "node build-tools/check-package.mjs",
     "postinstall": "electron-builder install-app-deps",
     "check:contract": "node build-tools/check-contract.mjs",
-    "generate:contract": "openapi-typescript contracts/client-api.openapi.json -o src/shared/contract.gen.ts"
+    "generate:contract": "openapi-typescript contracts/client-api.openapi.json -o src/shared/contract.gen.ts",
+    "upgrade:soul": "node build-tools/run-soul-conversion.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "6.11.1",

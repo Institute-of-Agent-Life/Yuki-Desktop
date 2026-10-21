@@ -1,37 +1,23 @@
-import { useTabMotion } from '../motion/tab'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { diffLines } from 'diff'
 import { ArrowLeft, Info } from 'lucide-react'
-import type {
-  PromptCommand,
-  PromptCommandItem,
-  PromptDocuments,
-  PromptDraft,
-  PromptKey,
-} from '../../shared/api'
-import { Banner, Button, EmptyState, Segmented, Sheet } from '../components/Controls'
-import { PromptCode } from '../components/PromptCode'
+import type { SoulCommand, SoulCommandItem, SoulDocument, SoulDraft } from '../../shared/api'
+import { Banner, Button, EmptyState, Sheet } from '../components/Controls'
+import { SoulCode } from '../components/SoulCode'
 import { unwrap, ClientProblem, problemText } from '../queries/client'
 import { guardNavigation, requestNavigation, type NavigationAttempt } from '../state/navigation'
-import styles from './PromptEditor.module.css'
+import styles from './SoulEditor.module.css'
 import { useSessionActive } from '../state/workspace'
 import { useDisplayTime } from '../state/time'
 
-const keys: PromptKey[] = ['system_prompt', 'persona']
 const short = (revision: string) =>
   revision.replace(/^sha256:/, '').replace(/^(.{6}).*(.{4})$/, '$1…$2')
-const dirty = (draft: PromptDraft) => draft.draft !== draft.baseContent
-const conflict = (draft: PromptDraft) =>
-  dirty(draft) && draft.remote.revision !== draft.baseRevision
-const reason = (value: string | null) =>
-  value === 'prompt_documents_invalid'
-    ? '提示詞文件內容無法載入。請修正伺服器上的兩份文件後再試。'
-    : value === 'system_prompt_from_environment'
-      ? '目前的提示詞由 SYSTEM_PROMPT 環境變數提供。請先在伺服器執行 yuki setup prepare-prompts，改用可寫入的提示詞檔案後重新啟動。'
-      : '伺服器無法寫入提示詞檔案。請先執行 yuki setup prepare-prompts，確認 character 目錄可由 Yuki 寫入後重新啟動。'
+const dirty = (draft: SoulDraft) => draft.draft !== draft.baseContent
+const conflict = (draft: SoulDraft) => dirty(draft) && draft.remote.revision !== draft.baseRevision
+const reason = () => '請確認 SOUL.md 原件及其目錄的實際寫入權限。'
 
-export function PromptEditor({
+export function SoulEditor({
   id,
   back,
   toolbar,
@@ -48,45 +34,40 @@ export function PromptEditor({
   const active = useSessionActive()
   const hintId = useId()
   const [hintDismissed, setHintDismissed] = useState(false)
-  const [drafts, setDrafts] = useState<PromptDraft[]>([])
+  const [drafts, setDrafts] = useState<SoulDraft[]>([])
   const current = useRef(drafts)
-  const versions = useRef({ system_prompt: 0, persona: 0 })
-  const [key, setKey] = useState<PromptKey>('system_prompt')
-  const documentMotion = useTabMotion<HTMLDivElement>(key, ['system_prompt', 'persona'])
-  const keyRef = useRef(key)
-  keyRef.current = key
-  const [documents, setDocuments] = useState<PromptDocuments>()
-  const [commands, setCommands] = useState<PromptCommandItem[]>([])
+  const versions = useRef(0)
+  const [documents, setDocuments] = useState<SoulDocument>()
+  const [commands, setCommands] = useState<SoulCommandItem[]>([])
   const [error, setError] = useState('')
   const [denied, setDenied] = useState(false)
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
   const [restore, setRestore] = useState(false)
   const [comparing, setComparing] = useState(false)
-  const [overwrite, setOverwrite] = useState<PromptDraft>()
+  const [overwrite, setOverwrite] = useState<SoulDraft>()
   const [undoable, setUndoable] = useState(0)
   const [cursor, setCursor] = useState({ line: 1, column: 1 })
   const [notice, setNotice] = useState('')
   const [savedAt, setSavedAt] = useState<string>()
   const [savedRecent, setSavedRecent] = useState(false)
-  const [warning, setWarning] = useState(false)
   const [leaving, setLeaving] = useState<NavigationAttempt>()
   const leavingRef = useRef<NavigationAttempt>(undefined)
   const alive = useRef(true)
   const writes = useRef<Promise<void>>(Promise.resolve())
   const writeError = useRef(false)
   const loadSequence = useRef(0)
-  const change = useCallback((next: PromptDraft[]) => {
+  const change = useCallback((next: SoulDraft[]) => {
     current.current = next
     if (alive.current) setDrafts(next)
   }, [])
   const persist = useCallback(
-    (draft: PromptDraft) => {
-      versions.current[draft.key]++
-      change(current.current.map((item) => (item.key === draft.key ? draft : item)))
+    (draft: SoulDraft) => {
+      versions.current++
+      change([draft])
       writes.current = writes.current.then(async () => {
         try {
-          unwrap(await window.yuki.client.promptEdit(id, draft))
+          unwrap(await window.yuki.client.soulEdit(id, draft))
           writeError.current = false
         } catch (error) {
           writeError.current = true
@@ -101,23 +82,23 @@ export function PromptEditor({
   const load = useCallback(
     async (initial = false) => {
       const sequence = ++loadSequence.current
-      const captured = { ...versions.current }
+      const captured = versions.current
       try {
-        const response = unwrap(await window.yuki.client.promptDocuments(id))
+        const response = unwrap(await window.yuki.client.soulDocument(id))
         if (!alive.current || sequence !== loadSequence.current) return
         setDenied(false)
-        setDocuments(response.documents)
-        const next = response.drafts.map((incoming) => {
-          const local = current.current.find((item) => item.key === incoming.key)
+        setDocuments(response.document)
+        const next = (response.draft ? [response.draft] : []).map((incoming) => {
+          const local = current.current[0]
           // A response started before the first keystroke may update remote facts only.
-          return local && versions.current[incoming.key] !== captured[incoming.key]
+          return local && versions.current !== captured
             ? { ...local, remote: incoming.remote }
             : incoming
         })
         if (
           !initial &&
           next.some((item) => {
-            const previous = current.current.find((value) => value.key === item.key)
+            const previous = current.current[0]
             return previous && !dirty(previous) && previous.baseRevision !== item.baseRevision
           })
         )
@@ -136,9 +117,9 @@ export function PromptEditor({
           ].includes(error.code)
         )
           setDenied(true)
-        setError(error instanceof Error ? error.message : '無法讀取提示詞。')
+        setError(error instanceof Error ? error.message : '無法讀取 SOUL.md。')
       }
-      const items = await window.yuki.client.promptCommands(id)
+      const items = await window.yuki.client.soulCommands(id)
       if (alive.current && sequence === loadSequence.current && items.ok) setCommands(items.value)
     },
     [id, change],
@@ -147,19 +128,19 @@ export function PromptEditor({
     alive.current = true
     void (async () => {
       const [local, receipts] = await Promise.all([
-        window.yuki.client.promptDrafts(id),
-        window.yuki.client.promptCommands(id),
+        window.yuki.client.soulDraft(id),
+        window.yuki.client.soulCommands(id),
       ])
       if (!alive.current) return
       if (receipts.ok) setCommands(receipts.value)
       if (local.ok) {
-        setRestore(local.value.some(dirty))
-        change(local.value)
+        setRestore(!!local.value && dirty(local.value))
+        change(local.value ? [local.value] : [])
       }
       await load(true)
     })()
     const remove = window.yuki.client.onHint((character, kind) => {
-      if (character === id && ['character', 'sync', 'prompt-command'].includes(kind)) void load()
+      if (character === id && ['character', 'sync', 'soul-command'].includes(kind)) void load()
     })
     return () => {
       alive.current = false
@@ -190,16 +171,13 @@ export function PromptEditor({
               attempt.cancel()
               return true
             }
-            const draft =
-              current.current.find((item) => item.key === keyRef.current && dirty(item)) ??
-              current.current.find(dirty)
+            const draft = current.current.find(dirty)
             if (!draft || !dirty(draft)) return false
             if (leavingRef.current) {
               attempt.cancel()
               return true
             }
             leavingRef.current = attempt
-            setKey(draft.key)
             setLeaving(attempt)
             return true
           })
@@ -220,7 +198,6 @@ export function PromptEditor({
   const finishLeave = () => {
     const remaining = current.current.find(dirty)
     if (remaining) {
-      setKey(remaining.key)
       return
     }
     const attempt = leavingRef.current
@@ -228,25 +205,24 @@ export function PromptEditor({
     setLeaving(undefined)
     attempt?.proceed()
   }
-  const run = async (command: PromptCommand, requestId?: string) => {
+  const run = async (command: SoulCommand, requestId?: string) => {
     if (busyRef.current) return false
     busyRef.current = true
     loadSequence.current++
     setBusy(true)
     setError('')
-    setWarning(false)
     try {
       await writes.current
       if (writeError.current) return false
       const item = unwrap(
         await (requestId
-          ? window.yuki.client.verifyPromptCommand(id, requestId)
-          : window.yuki.client.promptCommand(id, command)),
+          ? window.yuki.client.verifySoulCommand(id, requestId)
+          : window.yuki.client.soulCommand(id, command)),
       )
       if (!alive.current) return false
-      const next = unwrap(await window.yuki.client.promptDrafts(id))
-      change(next)
-      setCommands(unwrap(await window.yuki.client.promptCommands(id)))
+      const next = unwrap(await window.yuki.client.soulDraft(id))
+      change(next ? [next] : [])
+      setCommands(unwrap(await window.yuki.client.soulCommands(id)))
       if (item.state !== 'result') {
         setError('儲存結果尚未確認。內容與原請求已保留在這台電腦；請查證原請求。')
         return false
@@ -258,14 +234,13 @@ export function PromptEditor({
             : item.problem === 'version_conflict'
               ? '儲存未完成：伺服器版本已改變，請先處理差異'
               : item.problem === 'precondition_failed'
-                ? reason(String(item.details?.reason ?? ''))
+                ? reason()
                 : problemText(item.problem),
         )
         await load()
         return false
       }
       setSavedAt(item.result?.applied_at)
-      setWarning(item.result?.warnings.includes('persona_placeholder_missing') ?? false)
       await load()
       return true
     } catch (error) {
@@ -276,16 +251,15 @@ export function PromptEditor({
       if (alive.current) setBusy(false)
     }
   }
-  const save = (draft = current.current.find((item) => item.key === keyRef.current)) => {
-    if (!draft || !draft.remote.writable || restore || denied) return Promise.resolve(false)
+  const save = (draft = current.current[0]) => {
+    if (!draft || restore || denied) return Promise.resolve(false)
     return run({
       kind: 'save',
-      key: draft.key,
       expectedRevision: draft.baseRevision,
       content: draft.draft,
     })
   }
-  const discard = async (draft: PromptDraft, undo = true) => {
+  const discard = async (draft: SoulDraft, undo = true) => {
     if (undo) setUndoable((value) => value + 1)
     await persist({
       ...draft,
@@ -296,18 +270,13 @@ export function PromptEditor({
     setError('')
     setComparing(false)
   }
-  const draft = drafts.find((item) => item.key === key)
+  const draft = drafts[0]
   const pending = commands.filter((item) => item.state !== 'result')
-  const readOnly =
-    busy ||
-    restore ||
-    denied ||
-    !draft?.remote.writable ||
-    pending.some((item) => item.command.kind === 'reload' || item.command.key === key)
+  const readOnly = busy || restore || denied
   const changed = !!draft && dirty(draft)
   const saveFromKeyboard = useRef<() => void>(() => {})
   saveFromKeyboard.current = () => {
-    const currentDraft = current.current.find((item) => item.key === keyRef.current)
+    const currentDraft = current.current[0]
     if (!readOnly && currentDraft && dirty(currentDraft)) void save(currentDraft)
   }
   useEffect(() => {
@@ -330,10 +299,9 @@ export function PromptEditor({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [active, platform])
   const conflicted = !!draft && conflict(draft)
-  const applied =
-    !!documents && documents.documents.some((item) => documents.active[item.key] !== item.revision)
+  const applied = !!documents && documents.active_revision !== documents.revision
   const returnToAbout = () => requestNavigation(back)
-  const effectExplanation = `儲存後，${name}下一次開始新的回覆或恢復工作時採用新版；正在進行的那一段用原本的內容做完。記憶與歷史不變。`
+  const effectExplanation = `SOUL 決定性格與表達，{{name}} 使用目前角色名稱。儲存後，${name}下一次開始新的回覆或恢復工作時採用新版；正在進行的那一段用原本的內容做完。記憶與歷史不變。`
   const cacheExplanation = !commands.some((item) => item.command.kind === 'save')
     ? '修改可能影響模型的前綴快取，實際情況以上游 Provider 回報的 usage 為準。'
     : ''
@@ -348,22 +316,7 @@ export function PromptEditor({
         <ArrowLeft size={14} />
         <span>關於 {name}</span>
       </Button>
-      <Segmented
-        label="提示詞文件"
-        value={key}
-        items={keys.map((value) => ({
-          value,
-          label: `${value}.md${drafts.some((item) => item.key === value && dirty(item)) ? ' ●' : ''}`,
-        }))}
-        onChange={(value) =>
-          requestNavigation(() => {
-            setKey(value)
-            setComparing(false)
-            setError('')
-            setCursor({ line: 1, column: 1 })
-          })
-        }
-      />
+      <strong>SOUL.md</strong>
       <span
         className={changed ? styles.unsaved : savedRecent ? styles.saved : styles.status}
         role="status"
@@ -378,7 +331,7 @@ export function PromptEditor({
         <Button
           variant="plain"
           className={styles.infoButton}
-          aria-label="提示詞生效說明"
+          aria-label="SOUL 生效說明"
           aria-describedby={hintId}
           onFocus={() => setHintDismissed(false)}
           onKeyDown={(event) => {
@@ -419,20 +372,22 @@ export function PromptEditor({
   if (denied) return <Banner status="failed">{error}</Banner>
   if (!draft)
     return (
-      <EmptyState title="提示詞" action={<Button onClick={() => void load(true)}>重新讀取</Button>}>
+      <EmptyState
+        title="SOUL.md"
+        action={<Button onClick={() => void load(true)}>重新讀取</Button>}
+      >
         {error || '正在讀取…'}
       </EmptyState>
     )
   return (
-    <section className={styles.editor} aria-label="提示詞編輯器">
+    <section className={styles.editor} aria-label="SOUL 編輯器">
       {toolbar ? createPortal(header, toolbar) : header}
       <div className={styles.explanation}>
         <p>{effectExplanation}</p>
         {cacheExplanation && <p>{cacheExplanation}</p>}
       </div>
       {error && <Banner status="failed">{error}</Banner>}
-      {!draft.remote.writable && <Banner>{reason(draft.remote.reason)}</Banner>}
-      {warning && <Banner>這份提示詞沒有 {'{{YUKI_PERSONA_CORE}}'}，人格核心不會被插入。</Banner>}
+      {!draft.remote.writable && <Banner>{reason()}</Banner>}
       {applied && (
         <Banner>
           檔案版本與目前生效版本不同。
@@ -520,15 +475,14 @@ export function PromptEditor({
           </footer>
         </div>
       ) : (
-        <div ref={documentMotion} className={styles.code} role="tabpanel" aria-label={`${key}.md`}>
-          <PromptCode
-            key={key}
-            label={`${key}.md 內容`}
+        <div className={styles.code} aria-label="SOUL.md">
+          <SoulCode
+            label="SOUL.md 內容"
             content={draft.draft}
             readOnly={readOnly}
             undoableChange={undoable}
             onChange={(content) => {
-              void persist({ ...current.current.find((item) => item.key === key)!, draft: content })
+              void persist({ ...current.current[0]!, draft: content })
             }}
             onSave={() => saveFromKeyboard.current()}
             onBack={returnToAbout}
@@ -637,7 +591,7 @@ export function PromptEditor({
           這台電腦保留了{' '}
           {drafts
             .filter(dirty)
-            .map((item) => `${item.key}.md`)
+            .map(() => `SOUL.md`)
             .join('、')}{' '}
           的修改。草稿仍以當時的版本為基線。
         </p>

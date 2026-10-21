@@ -1,5 +1,5 @@
 import type { EventsPage, Home, Profile } from '../shared/api'
-import type { components } from '../shared/contract.gen'
+import type { ProductModels as components } from '../shared/product-models'
 import type { NavigationTarget } from '../shared/desktop'
 import type { Connections } from './connections'
 import type { LocalStore } from './store'

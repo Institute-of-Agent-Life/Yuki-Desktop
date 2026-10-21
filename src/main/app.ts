@@ -41,8 +41,8 @@ import type {
   WorkDraftQuestion,
   ComputerCommand,
   Profile,
-  PromptCommand,
-  PromptEdit,
+  SoulCommand,
+  SoulEdit,
 } from '../shared/api'
 import { Connections } from './connections'
 import { ApiError } from './api/client'
@@ -553,15 +553,15 @@ else {
       return result
     })
     clientAction('read', (id: string, route: ApiRead) => connections.read(id, route))
-    clientAction('prompt-documents', (id: string) => connections.promptDocuments(id))
-    clientAction('prompt-edit', (id: string, edit: PromptEdit) => connections.promptEdit(id, edit))
-    clientAction('prompt-drafts', (id: string) => connections.prompts(id).drafts())
-    clientAction('prompt-command', (id: string, command: PromptCommand) =>
-      connections.promptCommand(id, command),
+    clientAction('soul-document', (id: string) => connections.soulDocument(id))
+    clientAction('soul-edit', (id: string, edit: SoulEdit) => connections.soulEdit(id, edit))
+    clientAction('soul-draft', (id: string) => connections.soul(id).draft())
+    clientAction('soul-command', (id: string, command: SoulCommand) =>
+      connections.soulCommand(id, command),
     )
-    clientAction('prompt-commands', (id: string) => connections.prompts(id).list())
-    clientAction('verify-prompt-command', (id: string, request: string) =>
-      connections.verifyPromptCommand(id, request),
+    clientAction('soul-commands', (id: string) => connections.soul(id).list())
+    clientAction('verify-soul-command', (id: string, request: string) =>
+      connections.verifySoulCommand(id, request),
     )
     clientAction(
       'letter-decoration',

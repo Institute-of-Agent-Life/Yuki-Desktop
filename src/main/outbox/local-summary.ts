@@ -15,24 +15,21 @@ export function localSummary(box: Outbox) {
     Number(box.draft().length > 0) +
     count('work_drafts', 'length(text)>0') +
     count('work_question_drafts', 'length(text)>0')
-  const promptSaves = exists('prompt_commands')
+  const soulSaves = exists('soul_commands')
     ? (
-        box.db.prepare("SELECT command FROM prompt_commands WHERE state!='result'").all() as {
+        box.db.prepare("SELECT command FROM soul_commands WHERE state!='result'").all() as {
           command: string
         }[]
-      ).map((row) => JSON.parse(row.command) as { kind: string; key?: string; content?: string })
+      ).map((row) => JSON.parse(row.command) as { kind: string; content?: string })
     : []
-  if (exists('prompt_drafts'))
-    for (const row of box.db.prepare('SELECT value FROM prompt_drafts').all() as {
+  if (exists('soul_draft'))
+    for (const row of box.db.prepare('SELECT value FROM soul_draft').all() as {
       value: string
     }[]) {
-      const value = JSON.parse(row.value) as { key: string; draft: string; baseContent: string }
+      const value = JSON.parse(row.value) as { draft: string; baseContent: string }
       if (
         value.draft !== value.baseContent &&
-        !promptSaves.some(
-          (command) =>
-            command.kind === 'save' && command.key === value.key && command.content === value.draft,
-        )
+        !soulSaves.some((command) => command.kind === 'save' && command.content === value.draft)
       )
         drafts++
     }
@@ -46,7 +43,7 @@ export function localSummary(box: Outbox) {
     'computer_commands',
     'character_commands',
     'avatar_commands',
-    'prompt_commands',
+    'soul_commands',
     'link_code_commands',
     'executor_commands',
   ].reduce((total, table) => total + count(table, "state NOT IN ('result','draft')"), 0)

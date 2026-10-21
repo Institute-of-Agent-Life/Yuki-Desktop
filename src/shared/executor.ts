@@ -1,4 +1,4 @@
-import type { components } from './contract.gen'
+import type { ProductModels as components } from './product-models'
 export type ExecutorConfig = components['schemas']['ExecutorConfig']
 export type ExecutorView = components['schemas']['ExecutorView']
 export type ExecutorOperation = components['schemas']['ExecutorOperation']

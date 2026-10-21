@@ -7,7 +7,17 @@ import { REQUIRED_API_REVISION } from '../../src/shared/api'
 const contract = JSON.parse(
   readFileSync(new URL('../../contracts/client-api.openapi.json', import.meta.url), 'utf8'),
 )
-const codes = contract.components.schemas.PublicProblemCode.enum as string[]
+const codes = [
+  'unauthenticated',
+  'owner_required',
+  'not_found',
+  'request_conflict',
+  'version_conflict',
+  'precondition_failed',
+  'validation_error',
+  'unavailable',
+  'unknown',
+]
 it('requires the API revision in the fixed backend contract', () => {
   expect(REQUIRED_API_REVISION).toBe(contract.info['x-yuki-api-revision'])
 })

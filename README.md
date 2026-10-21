@@ -4,7 +4,7 @@ Yuki 的跨平台桌面客戶端專案。
 
 使用 Electron、React 與 TypeScript 開發。桌面端透過版本化個人 API 連接獨立的 Yuki 後端，不包含另一套 Agent Runtime。
 
-需要提供 **Client API revision 5** 的 Yuki 後端，固定來源與內容雜湊見 [contracts/source.json](contracts/source.json)。相容後端目前在 [Yuki 的桌面 API 分支](https://github.com/YuanYeYouTao/Yuki/tree/codex/desktop-client-api-deployed)，尚未整合至其 4.0 main；僅更新桌面不會升級後端。首次使用時，在 QQ／Telegram 私聊角色傳送 `/ai link`，再於桌面輸入伺服器位址及綁定碼完成配對。
+需要提供 **Client API revision 6** 的 Yuki 後端，固定來源與內容雜湊見 [contracts/source.json](contracts/source.json)。本版合同來自 [Yuki 的 SOUL 與聊天檢索合流提交](https://github.com/YuanYeYouTao/Yuki/commit/d6ec87f65b1daa19a185f757f92007880ffa99a9)，僅更新桌面不會升級後端。首次使用時，在 QQ／Telegram 私聊角色傳送 `/ai link`，再於桌面輸入伺服器位址及綁定碼完成配對。桌面保留電腦、執行器等產品介面；目前合同未實作的能力依伺服器 `meta.capabilities` 顯示不可用，不能視為這些服務已上線。
 
 開發環境需 Node.js 22.12 以上，使用已提交的 npm lockfile：
 
@@ -50,7 +50,7 @@ Windows 對話相關驗證需 operator 啟動全新隔離的 Yuki 參考服務�
 
 `windows-media.spec.ts` 使用同一隔離服務，走真選檔與另存對話框，注入上傳回應遺失，移除自己建立的兩份輸入後，從第二裝置預覽並核對另存內容的 SHA-256、大小與到期收斂。測試保留設定檔與輸出供查核。
 
-`windows-prompts.spec.ts` 需啟用角色與提示詞夾具，驗證 Ctrl+S、復原／重做、離頁確認、App 主程序崩潰後的原草稿與憑據恢復；核對真後端檔案、active revision、另一裝置 SSE 與下一次測試 Provider 請求前綴。不呼叫付費模型。
+SOUL 測試使用本版後端的 `tests.support.soul_reference_server`，由明確指定的 checkout 與 Python 啟動隔離服務。`prompts.spec.ts` 經實際 Electron 驗證空 SOUL 儲存與強制結束主程序後的原草稿恢復；`windows-prompts.spec.ts` 檢查 Windows 鍵盤儲存。這些案例不呼叫付費模型，不代表其他平台的原生驗收。
 
 `windows-local-executor.spec.ts` 需啟用執行器夾具，從真 Windows 資料夾對話框授權自己建立的測試目錄，驗證讀寫、NTFS junction 越界拒絕、原成果內容與排他寫入、暫停及撤銷，並由真 Main 的普通聊天工具路徑寫入成果。實體路徑留在本機，測試不啟用角色電腦。
 
@@ -150,13 +150,29 @@ npm run test:e2e -- tests/e2e/backend.spec.ts
 
 角色擁有者可在「關於」選圖、拖入或貼上圖片，調整裁切後更換頭像；只有處理後的圖片會上傳。小圖會提示清晰度，仍可儲存。還原會採用該實例的預設頭像，沒有預設時使用字母頭像。送出的裁切與原請求保存在本機，回應遺失可在重啟後查證；版本衝突保留裁切，待你明確選擇。macOS 使用系統解碼支援 HEIC。
 
-擁有者也可編輯 `system_prompt.md` 與 `persona.md`，使用 ⌘／Ctrl S 儲存、⌘／Ctrl F 搜尋及復原／重做。本機草稿保留開始編輯時的版本；另一台裝置更新時可比較、合併或明確覆蓋。儲存採原請求查證與恢復，檔案已寫入但尚未生效時可明確重新載入。新版在下一次新的回覆或工作恢復時採用，正在進行的激活沿用原內容。較矮的視窗將生效說明收在工具列資訊按鈕，滑鼠停留或鍵盤聚焦即可閱讀。唯讀或環境變數來源會顯示部署調整說明。
+擁有者可編輯唯一的 `SOUL.md`，使用 ⌘／Ctrl S 儲存、⌘／Ctrl F 搜尋及復原／重做。SOUL 是使用者自訂的人格原文，可為空；精確的 `{{name}}` 使用目前角色名稱，不遞迴展開。本機草稿保留開始編輯時的版本；另一台裝置更新時可比較、手動合併或明確覆蓋。儲存採原 UUID、內容雜湊與回執查證，只有受控 SOUL 檔案寫入可沿原內容恢復；檔案已寫入但尚未生效時可明確重新載入。新版在下一次新的回覆或工作恢復時採用，正在進行的激活沿用原內容。名稱更正使用角色資料的 revision，不改歷史與原請求。
 
 任務書、調研、設計文件、互動原型與其預覽／檢查材料只在本地維護，不在此發布。安裝包以產品檔案白名單建置，並經封裝內容檢查。測試截圖與 trace 保留在本機暫存目錄。
 
 設定 →「伺服器與角色」→「加入另一個角色」可連接另一個獨立 Yuki 實例。兩個以上角色會在側邊欄顯示切換鈕，也可用 ⌘／Ctrl ⇧ [、] 切換。各角色保留自己的聊天草稿、已開啟工作區、編輯器及欄寬；查詢快取、憑據、原請求與本機授權依原身份分開。切換角色會停止原角色的錄音並把已錄內容留在原角色，不會把遠端電腦的控制權交給另一角色。提示詞有未儲存變更時，仍須先處理離頁確認。
 
 後端專案：[Yuki](https://github.com/YuanYeYouTao/Yuki)。
+
+## 從舊的雙提示詞升級
+
+先退出 App，完成後端的單一 SOUL 升級，再更新桌面。桌面執行時不讀取舊提示詞資料表，也不自動補發舊請求。
+
+需要保留尚未送出的舊草稿時，下載本版原始碼並執行 `npm ci`，對每個原角色／Person／Binding 的 outbox 執行一次明確轉換：
+
+```sh
+npm run upgrade:soul -- --database /absolute/path/to/original.sqlite3 --source persona
+```
+
+`--source` 選擇 `persona` 或 `system_prompt`，直接選用該份原始文字，不拼接兩份衝突內容；選擇 `none` 僅保存原件而不匯入草稿。資料庫位於 App 資料目錄的 `connections/<character>/outbox/<person>/<binding>.sqlite3`。轉換使用本版 Electron 的 SQLite 原生模組，不以系統 Node 直接載入。
+
+工具先在原資料庫旁寫出私有的 `.soul-upgrade.json` 原件，保留兩份草稿及舊 UUID、payload 與 hash，再移除舊資料表。選中的原始文字另存為 `.soul-draft.md`，請擁有者開啟新版 SOUL 編輯器，明確貼入並儲存。App 不讀取這兩份匯出原件，執行時沒有舊資料的轉換分支。舊 pending／unknown 可用原 UUID 經既有 `GET /client/v1/requests/{id}` 唯讀查證，不會轉換成新請求，也不阻止新的 SOUL 編輯。備份含私人人格原文，請勿提交或附於一般診斷。
+
+公開 OpenAPI 只描述已實作的服務；`product-models` 是尚未接入能力的客戶端視圖型別，沒有伺服器路由或舊 API 相容層。
 
 授權：[AGPL-3.0-only](LICENSE)。
 

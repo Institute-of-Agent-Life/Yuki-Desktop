@@ -75,7 +75,7 @@
   min-height: 120px;
   overflow: hidden;
 }
-.code :global(.prompt-code),
+.code :global(.soul-code),
 .code :global(.cm-editor) {
   height: 100%;
 }
@@ -109,7 +109,7 @@
   padding: 0 10px 0 0;
   font: 11px/22px var(--font-mono);
 }
-.code :global(.cm-persona-placeholder) {
+.code :global(.cm-soul-name) {
   background: var(--accent-subtle);
   border-radius: 3px;
 }
