@@ -4,11 +4,12 @@ import { Download, FolderOpen, Copy, ArrowUpRight, X } from 'lucide-react'
 import type { DiffRow } from '../../shared/diff'
 import type { ArtifactPage, ArtifactSource, CachedContent, Home } from '../../shared/api'
 import { Banner, Button, EmptyState, IconButton, Segmented } from '../components/Controls'
-import { FileRow } from '../components/Content'
+import { FileName, FileRow } from '../components/Content'
 import { unwrap } from '../queries/client'
 import { renderCode, useMarkdown } from '../text/markdown'
 import { useWorkspace } from '../state/workspace'
 import type { MessageReference } from '../../shared/message'
+import { formatBytes } from '../../shared/media'
 import styles from './Files.module.css'
 import chatStyles from './Conversation.module.css'
 import { useDisplayTime } from '../state/time'
@@ -184,8 +185,8 @@ export function Files({
                 selected={selected?.artifactId === item.artifact_id}
                 name={item.name}
                 identity={item.artifact_id}
-                detail={`${date(item.created_at)} · ${label(item)}`}
-                size={item.size === null ? undefined : `${(item.size / 1024).toFixed(1)} KB`}
+                detail={`${date(item.created_at, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })} · ${label(item)}`}
+                size={item.size === null ? undefined : formatBytes(item.size)}
                 onOpen={() => {
                   setSelected(source(item))
                   onSelect(source(item))
@@ -222,112 +223,120 @@ export function Files({
         {selected && content.isPending && <p role="status">正在讀取成果…</p>}
         {selected && data && (
           <>
-            <header className={styles.info}>
-              <h2>{data.filename}</h2>
-              <p>
-                <span>artifact ID</span> <code>{selected.artifactId}</code>
-              </p>
-              <p>
-                <span>內容版本</span>{' '}
-                <code title={selected.version}>{shortVersion(selected.version)}</code>
-              </p>
-              <p>
-                <span>發布路徑</span>{' '}
-                {item ? (item.published_path ?? '—（附件或無發布回執）') : '尚未讀取發布資訊'}
-              </p>
-              <div className={styles.actions}>
-                <Button
-                  onClick={() =>
-                    void act(window.yuki.client.saveArtifact(id, selected).then(unwrap))
-                  }
-                >
-                  <Download size={15} />
-                  存到…
-                </Button>
-                <Button
-                  variant="plain"
-                  onClick={() =>
-                    void act(window.yuki.client.revealArtifact(id, selected).then(unwrap))
-                  }
-                >
-                  <FolderOpen size={15} />
-                  在資料夾顯示
-                </Button>
-                <IconButton
-                  label="複製成果連結文字"
-                  onClick={() =>
-                    void act(
-                      window.yuki.client
-                        .copy(`artifact:${selected.artifactId}@${selected.version}`)
-                        .then(unwrap),
-                    )
-                  }
-                >
-                  <Copy size={15} />
-                </IconButton>
-              </div>
-              {!!item?.references.length && (
-                <details>
-                  <summary>傳送過的訊息</summary>
-                  {item.references.map((ref) => (
-                    <button
-                      key={`${ref.ref.event_id}/${ref.ref.part_index}`}
-                      className={styles.reference}
-                      onClick={() => openReference(ref)}
-                    >
-                      {date(ref.created_at)} · {label(ref)}
-                    </button>
-                  ))}
-                </details>
-              )}
-              {item?.published_path &&
-                items.some(
-                  (other) =>
-                    other.artifact_id !== item.artifact_id &&
-                    other.published_path === item.published_path,
-                ) && (
-                  <details>
-                    <summary>同一路徑的先後發布</summary>
-                    <p>不以檔名判斷。</p>
-                    {items
-                      .filter(
-                        (other) =>
-                          other.published_path === item.published_path &&
-                          other.artifact_id !== item.artifact_id,
+            <header className={styles.previewHeader}>
+              <h2 title={data.filename} aria-label={data.filename}>
+                <FileName name={data.filename} compact={false} />
+              </h2>
+              <Button
+                onClick={() => void act(window.yuki.client.saveArtifact(id, selected).then(unwrap))}
+              >
+                <Download size={15} />
+                存到…
+              </Button>
+            </header>
+            <div className={styles.stageBody}>
+              <section className={styles.info} aria-label="成果資訊">
+                <p>
+                  <span>artifact ID</span> <code>{selected.artifactId}</code>
+                </p>
+                <p>
+                  <span>內容版本</span>{' '}
+                  <code title={selected.version}>{shortVersion(selected.version)}</code>
+                </p>
+                <p>
+                  <span>發布路徑</span>{' '}
+                  {item ? (item.published_path ?? '—（附件或無發布回執）') : '尚未讀取發布資訊'}
+                </p>
+                <div className={styles.actions}>
+                  <Button
+                    variant="plain"
+                    onClick={() =>
+                      void act(window.yuki.client.revealArtifact(id, selected).then(unwrap))
+                    }
+                  >
+                    <FolderOpen size={15} />
+                    在資料夾顯示
+                  </Button>
+                  <IconButton
+                    label="複製成果連結文字"
+                    onClick={() =>
+                      void act(
+                        window.yuki.client
+                          .copy(`artifact:${selected.artifactId}@${selected.version}`)
+                          .then(unwrap),
                       )
-                      .map((other) => (
-                        <div className={styles.version} key={other.artifact_id}>
-                          <span>
-                            {date(other.created_at)} · {other.artifact_id} ·{' '}
-                            {shortVersion(other.version)}
-                          </span>
-                          <Button variant="plain" onClick={() => setComparison(source(other))}>
-                            比較此版本
-                          </Button>
-                        </div>
-                      ))}
+                    }
+                  >
+                    <Copy size={15} />
+                  </IconButton>
+                </div>
+                {!!item?.references.length && (
+                  <details>
+                    <summary>傳送過的訊息</summary>
+                    {item.references.map((ref) => (
+                      <button
+                        key={`${ref.ref.event_id}/${ref.ref.part_index}`}
+                        className={styles.reference}
+                        onClick={() => openReference(ref)}
+                      >
+                        {date(ref.created_at)} · {label(ref)}
+                      </button>
+                    ))}
                   </details>
                 )}
-            </header>
-            {comparison && (
-              <header className={styles.actions}>
-                <strong>並排比較原版本</strong>
-                <code>{comparison.artifactId}</code>
-                <IconButton label="結束比較" onClick={() => setComparison(undefined)}>
-                  <X size={15} />
-                </IconButton>
-              </header>
-            )}
-            {other.error && <Banner status="failed">{other.error.message}</Banner>}
-            {comparison && !other.error && other.data ? (
-              <ArtifactComparison left={data} right={other.data} />
-            ) : (
-              <Content
-                key={data.sha256}
-                content={data}
-                open={() => void act(window.yuki.client.openArtifact(id, selected).then(unwrap))}
-              />
-            )}
+                {item?.published_path &&
+                  items.some(
+                    (other) =>
+                      other.artifact_id !== item.artifact_id &&
+                      other.published_path === item.published_path,
+                  ) && (
+                    <details>
+                      <summary>同一路徑的先後發布</summary>
+                      <p>不以檔名判斷。</p>
+                      {items
+                        .filter(
+                          (other) =>
+                            other.published_path === item.published_path &&
+                            other.artifact_id !== item.artifact_id,
+                        )
+                        .map((other) => (
+                          <div className={styles.version} key={other.artifact_id}>
+                            <span>
+                              {date(other.created_at)} · {other.artifact_id} ·{' '}
+                              {shortVersion(other.version)}
+                            </span>
+                            <Button variant="plain" onClick={() => setComparison(source(other))}>
+                              比較此版本
+                            </Button>
+                          </div>
+                        ))}
+                    </details>
+                  )}
+              </section>
+              <div className={styles.preview}>
+                {comparison && (
+                  <header className={styles.actions}>
+                    <strong>並排比較原版本</strong>
+                    <code>{comparison.artifactId}</code>
+                    <IconButton label="結束比較" onClick={() => setComparison(undefined)}>
+                      <X size={15} />
+                    </IconButton>
+                  </header>
+                )}
+                {other.error && <Banner status="failed">{other.error.message}</Banner>}
+                {comparison && !other.error && other.data ? (
+                  <ArtifactComparison left={data} right={other.data} />
+                ) : (
+                  <Content
+                    key={data.sha256}
+                    content={data}
+                    open={() =>
+                      void act(window.yuki.client.openArtifact(id, selected).then(unwrap))
+                    }
+                  />
+                )}
+              </div>
+            </div>
           </>
         )}
       </section>
@@ -439,30 +448,32 @@ function Content({ content, open }: { content: CachedContent; open?: () => void 
     return (
       <>
         {problem && <Banner>{problem}</Banner>}
-        <Button
-          variant="plain"
-          onClick={() =>
-            void window.yuki.client
-              .copy(text)
-              .then(unwrap)
-              .catch((error) => setProblem(error.message))
-          }
-        >
-          複製全文
-        </Button>
-        {content.mime === 'text/markdown' && (
-          <Segmented
-            label="Markdown 顯示"
-            value={raw ? 'raw' : 'rendered'}
-            onChange={(value) => setRaw(value === 'raw')}
-            items={[
-              { value: 'rendered', label: '預覽' },
-              { value: 'raw', label: '原始碼' },
-            ]}
-          />
-        )}
+        <div className={styles.contentActions}>
+          <Button
+            variant="plain"
+            onClick={() =>
+              void window.yuki.client
+                .copy(text)
+                .then(unwrap)
+                .catch((error) => setProblem(error.message))
+            }
+          >
+            複製全文
+          </Button>
+          {content.mime === 'text/markdown' && (
+            <Segmented
+              label="Markdown 顯示"
+              value={raw ? 'raw' : 'rendered'}
+              onChange={(value) => setRaw(value === 'raw')}
+              items={[
+                { value: 'rendered', label: '預覽' },
+                { value: 'raw', label: '原始碼' },
+              ]}
+            />
+          )}
+        </div>
         <div
-          className={`${chatStyles.markdown} ${content.mime === 'text/markdown' && !raw ? '' : styles.lines}`}
+          className={`${chatStyles.markdown} ${content.mime === 'text/markdown' && !raw ? styles.document : styles.lines}`}
           onClick={(event) => {
             const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href]')
             if (link) {

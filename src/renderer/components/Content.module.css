@@ -59,14 +59,35 @@
   flex: 1;
 }
 .fileName {
-  display: block;
+  display: flex;
+  min-width: 0;
   white-space: nowrap;
 }
-.fileText small {
-  display: block;
+.fileStem {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.fileExtension {
+  flex-shrink: 0;
+}
+.fileText small {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   white-space: nowrap;
+}
+.fileIdentity,
+.fileDetail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.fileIdentity {
+  flex: 0 1 64px;
+}
+.fileDetail {
+  flex: 1;
 }
 .fileSize {
   font-size: 12px;

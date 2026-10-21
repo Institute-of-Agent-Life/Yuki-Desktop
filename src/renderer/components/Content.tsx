@@ -82,6 +82,19 @@ export function middleTruncate(name: string, units = 32) {
   }
   return `${prefix}…${suffix}`
 }
+export function FileName({ name, compact = true }: { name: string; compact?: boolean }) {
+  const shortened = compact ? middleTruncate(name) : name,
+    dot = shortened.lastIndexOf('.')
+  const stem = dot > 0 ? shortened.slice(0, dot) : shortened
+  const extension = dot > 0 ? shortened.slice(dot) : ''
+  return (
+    <span className={styles.fileName}>
+      <span className={styles.fileStem}>{stem}</span>
+      {extension && <span className={styles.fileExtension}>{extension}</span>}
+    </span>
+  )
+}
+
 export function FileRow({
   name,
   identity,
@@ -106,9 +119,11 @@ export function FileRow({
     >
       <File size={20} strokeWidth={1.5} />
       <span className={styles.fileText}>
-        <span className={styles.fileName}>{middleTruncate(name)}</span>
-        <small>
-          {identity} · {detail}
+        <FileName name={name} />
+        <small title={`${identity} · ${detail}`}>
+          <span className={styles.fileIdentity}>{identity}</span>
+          <span aria-hidden="true">·</span>
+          <span className={styles.fileDetail}>{detail}</span>
         </small>
       </span>
       {size && <span className={styles.fileSize}>{size}</span>}
