@@ -4,6 +4,8 @@ Yuki 的跨平台桌面客戶端專案。
 
 使用 Electron、React 與 TypeScript 開發。桌面端透過版本化個人 API 連接獨立的 Yuki 後端，不包含另一套 Agent Runtime。
 
+需要提供 **Client API revision 5** 的 Yuki 後端，固定來源與內容雜湊見 [contracts/source.json](contracts/source.json)。相容後端目前在 [Yuki 的桌面 API 分支](https://github.com/YuanYeYouTao/Yuki/tree/codex/desktop-client-api-deployed)，尚未整合至其 4.0 main；僅更新桌面不會升級後端。首次使用時，在 QQ／Telegram 私聊角色傳送 `/ai link`，再於桌面輸入伺服器位址及綁定碼完成配對。
+
 開發環境需 Node.js 22.12 以上，使用已提交的 npm lockfile：
 
 ```sh

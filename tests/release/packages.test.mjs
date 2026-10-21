@@ -66,6 +66,64 @@ async function seed(root, label, arch, version = '1.0.0-beta.1') {
   await writeFile(join(source, feedName), dump(info))
   return { source, name, info, feedName }
 }
+test('Windows Git checkout preserves the exact frozen contract and generated type bytes', async () =>
+  fixture(async (root) => {
+    const source = join(root, 'source'),
+      windows = join(root, 'windows'),
+      contract = await readFile('contracts/client-api.openapi.json'),
+      types = await readFile('src/shared/contract.gen.ts'),
+      manifest = JSON.parse(await readFile('contracts/source.json', 'utf8'))
+    await mkdir(source)
+    await run('git', ['init', '--quiet', '--initial-branch=contract-fixture', source])
+    await writeFile(join(source, '.gitattributes'), await readFile('.gitattributes'))
+    await writeFile(join(source, 'contract.json'), contract)
+    await writeFile(join(source, 'contract.gen.ts'), types)
+    await run(
+      'git',
+      [
+        '-c',
+        'core.autocrlf=false',
+        'add',
+        '--',
+        '.gitattributes',
+        'contract.json',
+        'contract.gen.ts',
+      ],
+      { cwd: source },
+    )
+    await run(
+      'git',
+      [
+        '-c',
+        'user.name=Contract fixture',
+        '-c',
+        'user.email=fixture@example.invalid',
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '--quiet',
+        '-m',
+        'test fixture',
+      ],
+      { cwd: source },
+    )
+    await run('git', [
+      '-c',
+      'core.autocrlf=true',
+      'clone',
+      '--quiet',
+      '--no-local',
+      source,
+      windows,
+    ])
+    assert.equal(
+      createHash('sha256')
+        .update(await readFile(join(windows, 'contract.json')))
+        .digest('hex'),
+      manifest.sha256,
+    )
+    assert.deepEqual(await readFile(join(windows, 'contract.gen.ts')), types)
+  }))
 test('fixed SQLite Node-API modules match all five shipped platform architectures and reject mismatches', async () => {
   for (const [platform, arch] of [
     ['darwin', 'arm64'],
