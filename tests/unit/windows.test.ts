@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, describe, vi } from 'vitest'
 import { screen, nativeTheme, type BrowserWindow } from 'electron'
 import { createWindow } from '../../src/main/windows'
 import type { LocalStore } from '../../src/main/store'
@@ -30,6 +30,12 @@ vi.mock('electron', async () => {
     }
     getBounds() {
       return { ...this.bounds }
+    }
+    getContentBounds() {
+      return { ...this.bounds, width: this.bounds.width - 16, height: this.bounds.height - 39 }
+    }
+    setContentSize(width: number, height: number) {
+      this.setBounds({ ...this.bounds, width: width + 16, height: height + 39 })
     }
     getMinimumSize() {
       return [...this.minimum]
@@ -94,6 +100,7 @@ beforeEach(() => {
 afterEach(() => {
   for (const window of os.windows.splice(0)) if (!window.isDestroyed()) window.destroy()
   vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 function localStore() {
   const values = new Map<string, unknown>()
@@ -105,48 +112,55 @@ function localStore() {
   } as unknown as LocalStore
   return { values, set, window: createWindow(store) }
 }
-it('accepts move-only events across displays without clamping intermediate drag positions', async () => {
-  const { window, values } = localStore()
-  window.setPosition(600, 40)
-  await vi.advanceTimersByTimeAsync(100)
-  expect(window.getBounds().x).toBe(600)
-  window.setPosition(900, 40)
-  await vi.advanceTimersByTimeAsync(100)
-  expect(window.getBounds().x).toBe(900)
-  os.work = { x: 1920, y: 0, width: 960, height: 492 }
-  window.setPosition(1920, 0)
-  await vi.advanceTimersByTimeAsync(150)
-  expect(window.getBounds()).toEqual(os.work)
-  expect(window.getMinimumSize()).toEqual([960, 492])
-  expect(values.get('window')).toEqual(os.work)
-  expect(vi.getTimerCount()).toBe(0)
-})
-it('handles screen removal immediately and cancels an older pending move', async () => {
-  const { window, values } = localStore()
-  window.setPosition(2200, 500)
-  os.work = { x: 0, y: 0, width: 911, height: 464 }
-  screen.emit('display-removed')
-  expect(window.getBounds()).toEqual(os.work)
-  expect(window.getMinimumSize()).toEqual([911, 464])
-  expect(values.get('window')).toEqual(os.work)
-  expect(vi.getTimerCount()).toBe(0)
-  await vi.advanceTimersByTimeAsync(1000)
-  expect(window.getBounds()).toEqual(os.work)
-})
-it('saves an unsettled position on close and removes pending work and display listeners on destruction', async () => {
-  const { window, values, set } = localStore()
-  window.setPosition(700, 40)
-  window.emit('close')
-  expect(values.get('window')).toEqual({ x: 480, y: 40, width: 1440, height: 900 })
-  window.setPosition(300, 50)
-  expect(vi.getTimerCount()).toBe(1)
-  window.destroy()
-  const writes = set.mock.calls.length
-  await vi.advanceTimersByTimeAsync(1000)
-  expect(set).toHaveBeenCalledTimes(writes)
-  expect(vi.getTimerCount()).toBe(0)
-  for (const kind of ['display-metrics-changed', 'display-added', 'display-removed'])
-    expect(screen.listenerCount(kind)).toBe(0)
+describe.each(['darwin', 'win32', 'linux'] as const)('window movement on %s', (platform) => {
+  beforeEach(() => {
+    const platformProcess = Object.create(process) as NodeJS.Process
+    Object.defineProperty(platformProcess, 'platform', { value: platform, configurable: true })
+    vi.stubGlobal('process', platformProcess)
+  })
+  it('accepts move-only events across displays without clamping intermediate drag positions', async () => {
+    const { window, values } = localStore()
+    window.setPosition(600, 40)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(window.getBounds().x).toBe(600)
+    window.setPosition(900, 40)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(window.getBounds().x).toBe(900)
+    os.work = { x: 1920, y: 0, width: 960, height: 492 }
+    window.setPosition(1920, 0)
+    await vi.advanceTimersByTimeAsync(150)
+    expect(window.getBounds()).toEqual(os.work)
+    expect(window.getMinimumSize()).toEqual([960, 492])
+    expect(values.get('window')).toEqual(os.work)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+  it('handles screen removal immediately and cancels an older pending move', async () => {
+    const { window, values } = localStore()
+    window.setPosition(2200, 500)
+    os.work = { x: 0, y: 0, width: 911, height: 464 }
+    screen.emit('display-removed')
+    expect(window.getBounds()).toEqual(os.work)
+    expect(window.getMinimumSize()).toEqual([911, 464])
+    expect(values.get('window')).toEqual(os.work)
+    expect(vi.getTimerCount()).toBe(0)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(window.getBounds()).toEqual(os.work)
+  })
+  it('saves an unsettled position on close and removes pending work and display listeners on destruction', async () => {
+    const { window, values, set } = localStore()
+    window.setPosition(700, 40)
+    window.emit('close')
+    expect(values.get('window')).toEqual({ x: 480, y: 40, width: 1440, height: 900 })
+    window.setPosition(300, 50)
+    expect(vi.getTimerCount()).toBe(1)
+    window.destroy()
+    const writes = set.mock.calls.length
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(set).toHaveBeenCalledTimes(writes)
+    expect(vi.getTimerCount()).toBe(0)
+    for (const kind of ['display-metrics-changed', 'display-added', 'display-removed'])
+      expect(screen.listenerCount(kind)).toBe(0)
+  })
 })
 
 it('closing a Windows window releases its native theme observers while the App remains alive', () => {
