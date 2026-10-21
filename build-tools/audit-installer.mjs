@@ -1,6 +1,6 @@
-import { mkdtemp, readdir, lstat, readlink, rm, mkdir, readFile } from 'node:fs/promises'
+import { mkdtemp, readdir, lstat, readlink, rm, mkdir, readFile, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve, relative, isAbsolute, basename } from 'node:path'
+import { join, resolve, relative, isAbsolute, basename, posix } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { pathToFileURL, URL } from 'node:url'
@@ -58,12 +58,24 @@ async function inspectTree(root, path = root, target) {
 async function extract7z(file, target) {
   const tool = await getPath7za()
   const { stdout } = await run(tool, ['l', '-slt', file], { maxBuffer: 16 * 1024 * 1024 })
-  for (const match of stdout
+  const records = stdout
     .split('----------')
     .slice(1)
     .join('----------')
-    .matchAll(/^Path = (.+)$/gm)) {
-    const path = match[1].replaceAll('\\', '/')
+    .trim()
+    .split(/\r?\n\r?\n/)
+    .map((record) =>
+      Object.fromEntries(
+        record.split(/\r?\n/).flatMap((line) => {
+          const match = /^([^=]+?) = (.*)$/.exec(line)
+          return match ? [[match[1], match[2]]] : []
+        }),
+      ),
+    )
+  const buildIds = []
+  for (const entry of records) {
+    if (!entry.Path) continue
+    const path = entry.Path.replaceAll('\\', '/')
     if (
       path.startsWith('/') ||
       /^[A-Za-z]:/.test(path) ||
@@ -71,9 +83,41 @@ async function extract7z(file, target) {
       forbidden.test(path)
     )
       throw Error(`Unsafe installer entry: ${path}`)
+    if (
+      /^Type = Cpio$/m.test(stdout.replaceAll('\r', '')) &&
+      /^usr\/lib\/\.build-id\/[a-f0-9]{2}\/[a-f0-9]{38}$/.test(posix.normalize(path)) &&
+      entry['Symbolic Link']
+    ) {
+      const link = entry['Symbolic Link'],
+        destination = posix.normalize(posix.join(posix.dirname(path), link)),
+        source = records.find((item) => item.Path && posix.normalize(item.Path) === destination)
+      if (
+        posix.isAbsolute(link) ||
+        link.includes('\\') ||
+        !/^opt\/Yuki\/[A-Za-z0-9_.-]+$/.test(destination) ||
+        !source?.Mode?.startsWith('-') ||
+        source['Symbolic Link']
+      )
+        throw Error(`Unsafe RPM build-id link: ${path}`)
+      buildIds.push({ path: entry.Path, destination })
+    }
   }
   await mkdir(target, { recursive: true })
-  await run(tool, ['x', '-y', `-o${target}`, file], { maxBuffer: 1024 * 1024 })
+  // RPM build-id links use parent segments that 7-Zip rejects even within the
+  // payload. Validate their metadata and extracted regular-file targets without
+  // materializing the links; all other entries retain 7-Zip's safe extraction.
+  await run(tool, ['x', '-y', `-o${target}`, ...buildIds.map(({ path }) => `-x!${path}`), file], {
+    maxBuffer: 1024 * 1024,
+  })
+  const canonicalRoot = await realpath(target)
+  for (const { destination } of buildIds) {
+    const full = join(target, destination)
+    if (
+      !(await lstat(full)).isFile() ||
+      (await realpath(full)) !== join(canonicalRoot, destination)
+    )
+      throw Error(`Unsafe RPM build-id target: ${destination}`)
+  }
 }
 async function findPayloads(root, pattern) {
   const result = []

@@ -324,6 +324,72 @@ async function packagedFixture(root) {
   return { directory, archive, marker }
 }
 
+// Build a real newc payload so the fixed 7-Zip parser and ASAR audit both run.
+function cpio(entries) {
+  const blocks = []
+  for (const [index, { path, body = Buffer.alloc(0), mode = 0o100644 }] of [
+    ...entries,
+    { path: 'TRAILER!!!', mode: 0 },
+  ].entries()) {
+    const name = Buffer.from(path + '\0'),
+      data = Buffer.from(body),
+      fields = [index + 1, mode, 0, 0, 1, 0, data.length, 0, 0, 0, 0, name.length, 0],
+      header = Buffer.from(
+        '070701' + fields.map((field) => field.toString(16).padStart(8, '0')).join(''),
+      )
+    blocks.push(
+      header,
+      name,
+      Buffer.alloc((4 - ((header.length + name.length) % 4)) % 4),
+      data,
+      Buffer.alloc((4 - (data.length % 4)) % 4),
+    )
+  }
+  return Buffer.concat(blocks)
+}
+
+test('actual RPM CPIO audits internal build-id links and rejects escaping, missing or symbolic targets', async () =>
+  fixture(async (root) => {
+    const { archive } = await packagedFixture(root),
+      product = await readFile(archive),
+      link = './usr/lib/.build-id/42/' + 'f'.repeat(38)
+    async function payload(label, destination, targetMode = 0o100755) {
+      const file = join(root, label + '.rpm')
+      await writeFile(
+        file,
+        cpio([
+          { path: './opt/Yuki/resources/app.asar', body: product },
+          { path: './opt/Yuki/yuki-bin', body: 'executable fixture', mode: targetMode },
+          { path: link, body: destination, mode: 0o120777 },
+        ]),
+      )
+      return file
+    }
+    assert.deepEqual(
+      await auditInstaller(await payload('internal', '../../../../opt/Yuki/yuki-bin')),
+      {
+        file: 'internal.rpm',
+        archives: 1,
+      },
+    )
+    for (const [label, destination, mode] of [
+      ['escape', '../../../../../outside', 0o100755],
+      ['absolute', '/opt/Yuki/yuki-bin', 0o100755],
+      ['missing', '../../../../opt/Yuki/missing', 0o100755],
+      ['symbolic', '../../../../opt/Yuki/yuki-bin', 0o120777],
+    ])
+      await assert.rejects(
+        auditInstaller(await payload(label, destination, mode)),
+        /Unsafe RPM build-id link/,
+      )
+    const privateFile = join(root, 'private-cpio.rpm')
+    await writeFile(
+      privateFile,
+      cpio([{ path: './docs/private-fixture.md', body: 'not real private material' }]),
+    )
+    await assert.rejects(auditInstaller(privateFile), /Unsafe installer entry/)
+  }))
+
 test('actual ASAR integrity accepts empty and multi-block files then rejects an altered payload with the original header', async () =>
   fixture(async (root) => {
     const { directory, archive, marker } = await packagedFixture(root)
