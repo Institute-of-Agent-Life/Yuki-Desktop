@@ -1,10 +1,12 @@
 .about {
-  max-width: 824px;
-  margin: 0 auto;
-  padding: 28px 32px 64px;
-  width: 100%;
   overflow-y: auto;
   height: 100%;
+}
+.inner {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 32px 40px;
+  width: 100%;
 }
 .hero {
   display: flex;
@@ -90,8 +92,8 @@
   margin-top: 12px;
 }
 .row {
-  padding: 16px 0;
-  border-bottom: 1px solid var(--separator);
+  padding: 12px 0;
+  border-bottom: var(--line) solid var(--separator);
 }
 .fact {
   display: block;
@@ -114,18 +116,19 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  padding-top: 5px;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--text-tertiary);
+  padding-top: 4px;
 }
 .tag {
   display: inline-flex;
-  background: var(--bg-inspector);
-  border: 1px solid var(--separator);
+  background: var(--fill-code);
   border-radius: 4px;
   color: var(--text-secondary);
-  font-size: 12px;
-  padding: 1px 5px;
+  font-size: 11px;
+  line-height: 14px;
+  padding: 1px 6px;
 }
 .evidence {
   padding-top: 12px;
@@ -245,7 +248,7 @@
   font-size: 13px;
 }
 @media (max-width: 1099px) {
-  .about {
+  .inner {
     padding: 24px;
   }
   .hero {

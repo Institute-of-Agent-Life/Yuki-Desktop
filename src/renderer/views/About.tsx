@@ -98,166 +98,168 @@ export function About({
   }
   return (
     <div className={styles.about}>
-      <header className={styles.hero}>
-        <div className={styles.portrait}>
-          <CharacterAvatar size={200} />
-          {profile.viewer.is_owner && (
-            <button
-              className={styles.avatarEdit}
-              aria-label="編輯頭像"
-              onClick={() => {
-                setAvatarRestore(undefined)
-                setAvatarEditing(true)
-              }}
-            >
-              <Pencil size={14} />
-              <span>更換頭像</span>
-            </button>
-          )}
-        </div>
-        <div className={styles.introduction}>
-          <div className={styles.name}>
-            <h1>{profile.display_name}</h1>
-            {profile.viewer.is_owner && !editing && (
-              <Button variant="plain" aria-label="編輯角色資料" onClick={() => setEditing(true)}>
+      <div className={styles.inner}>
+        <header className={styles.hero}>
+          <div className={styles.portrait}>
+            <CharacterAvatar size={200} />
+            {profile.viewer.is_owner && (
+              <button
+                className={styles.avatarEdit}
+                aria-label="編輯頭像"
+                onClick={() => {
+                  setAvatarRestore(undefined)
+                  setAvatarEditing(true)
+                }}
+              >
                 <Pencil size={14} />
-                編輯
-              </Button>
+                <span>更換頭像</span>
+              </button>
             )}
           </div>
-          {editing && profile.viewer.is_owner ? (
-            <ProfileEditor
-              key={profile.id}
-              profile={profile}
-              busy={busy}
-              save={run}
-              close={() => setEditing(false)}
-              refresh={refresh}
-            />
-          ) : (
-            <>
-              <p>{profile.bio}</p>
-              {profile.viewer.is_owner && (
-                <div className={styles.heroActions}>
-                  <Button
-                    onClick={() => {
-                      setAvatarRestore(undefined)
-                      setAvatarEditing(true)
-                    }}
-                  >
-                    更換頭像
-                  </Button>
-                  <Button onClick={editPrompts}>編輯提示詞</Button>
-                </div>
+          <div className={styles.introduction}>
+            <div className={styles.name}>
+              <h1>{profile.display_name}</h1>
+              {profile.viewer.is_owner && !editing && (
+                <Button variant="plain" aria-label="編輯角色資料" onClick={() => setEditing(true)}>
+                  <Pencil size={14} />
+                  編輯
+                </Button>
               )}
-            </>
+            </div>
+            {editing && profile.viewer.is_owner ? (
+              <ProfileEditor
+                key={profile.id}
+                profile={profile}
+                busy={busy}
+                save={run}
+                close={() => setEditing(false)}
+                refresh={refresh}
+              />
+            ) : (
+              <>
+                <p>{profile.bio}</p>
+                {profile.viewer.is_owner && (
+                  <div className={styles.heroActions}>
+                    <Button
+                      onClick={() => {
+                        setAvatarRestore(undefined)
+                        setAvatarEditing(true)
+                      }}
+                    >
+                      更換頭像
+                    </Button>
+                    <Button onClick={editPrompts}>編輯提示詞</Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </header>
+        <AvatarPending
+          id={id}
+          owner={profile.viewer.is_owner}
+          open={(item) => {
+            setAvatarRestore(item)
+            setAvatarEditing(true)
+          }}
+        />
+        <AvatarEditor
+          id={id}
+          profile={profile}
+          open={avatarEditing}
+          restore={avatarRestore}
+          close={() => setAvatarEditing(false)}
+          done={() => setNotice('已更新頭像')}
+        />
+        {notice && (
+          <div className={styles.toast} role="status">
+            {notice}
+          </div>
+        )}
+        <Segmented
+          label="角色資料"
+          value={tab}
+          onChange={setTab}
+          items={[
+            { value: 'me', label: '她記得的你' },
+            { value: 'self', label: '她自己' },
+            { value: 'arrangements', label: '安排' },
+            { value: 'capabilities', label: '能力' },
+          ]}
+        />
+        {error && <Banner status="failed">{error}</Banner>}
+        {commands.data
+          ?.filter(
+            (item) =>
+              item.state !== 'result' &&
+              ['profile', 'memory', 'automation'].includes(item.command.kind),
+          )
+          .map((item) => (
+            <div key={item.requestId} className={styles.pending} role="status">
+              <span>
+                {item.command.kind === 'memory'
+                  ? '記憶修正'
+                  : item.command.kind === 'automation'
+                    ? '安排變更'
+                    : '角色資料變更'}
+                ：結果尚未確認
+              </span>
+              <Button
+                loading={busy}
+                onClick={async () => {
+                  setBusy(true)
+                  try {
+                    const result = unwrap(
+                      await window.yuki.client.verifyCharacterCommand(id, item.requestId),
+                    )
+                    setError(
+                      result.problem
+                        ? problemText(result.problem)
+                        : result.state === 'result'
+                          ? ''
+                          : '原請求仍在處理中。',
+                    )
+                    await refresh()
+                  } catch (error) {
+                    setError(error instanceof Error ? error.message : '無法查證原請求。')
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+              >
+                查證原請求
+              </Button>
+            </div>
+          ))}
+        <div
+          role="tabpanel"
+          aria-label={
+            tab === 'me'
+              ? '她記得的你'
+              : tab === 'self'
+                ? '她自己'
+                : tab === 'arrangements'
+                  ? '安排'
+                  : '能力'
+          }
+          className={styles.panel}
+        >
+          {tab === 'me' || tab === 'self' ? (
+            <Memories
+              name={profile.display_name}
+              key={tab}
+              id={id}
+              about={tab}
+              run={run}
+              busy={busy}
+              jump={jump}
+            />
+          ) : tab === 'arrangements' ? (
+            <Arrangements id={id} owner={profile.viewer.is_owner} run={run} busy={busy} />
+          ) : (
+            <CapabilityList id={id} />
           )}
         </div>
-      </header>
-      <AvatarPending
-        id={id}
-        owner={profile.viewer.is_owner}
-        open={(item) => {
-          setAvatarRestore(item)
-          setAvatarEditing(true)
-        }}
-      />
-      <AvatarEditor
-        id={id}
-        profile={profile}
-        open={avatarEditing}
-        restore={avatarRestore}
-        close={() => setAvatarEditing(false)}
-        done={() => setNotice('已更新頭像')}
-      />
-      {notice && (
-        <div className={styles.toast} role="status">
-          {notice}
-        </div>
-      )}
-      <Segmented
-        label="角色資料"
-        value={tab}
-        onChange={setTab}
-        items={[
-          { value: 'me', label: '她記得的你' },
-          { value: 'self', label: '她自己' },
-          { value: 'arrangements', label: '安排' },
-          { value: 'capabilities', label: '能力' },
-        ]}
-      />
-      {error && <Banner status="failed">{error}</Banner>}
-      {commands.data
-        ?.filter(
-          (item) =>
-            item.state !== 'result' &&
-            ['profile', 'memory', 'automation'].includes(item.command.kind),
-        )
-        .map((item) => (
-          <div key={item.requestId} className={styles.pending} role="status">
-            <span>
-              {item.command.kind === 'memory'
-                ? '記憶修正'
-                : item.command.kind === 'automation'
-                  ? '安排變更'
-                  : '角色資料變更'}
-              ：結果尚未確認
-            </span>
-            <Button
-              loading={busy}
-              onClick={async () => {
-                setBusy(true)
-                try {
-                  const result = unwrap(
-                    await window.yuki.client.verifyCharacterCommand(id, item.requestId),
-                  )
-                  setError(
-                    result.problem
-                      ? problemText(result.problem)
-                      : result.state === 'result'
-                        ? ''
-                        : '原請求仍在處理中。',
-                  )
-                  await refresh()
-                } catch (error) {
-                  setError(error instanceof Error ? error.message : '無法查證原請求。')
-                } finally {
-                  setBusy(false)
-                }
-              }}
-            >
-              查證原請求
-            </Button>
-          </div>
-        ))}
-      <div
-        role="tabpanel"
-        aria-label={
-          tab === 'me'
-            ? '她記得的你'
-            : tab === 'self'
-              ? '她自己'
-              : tab === 'arrangements'
-                ? '安排'
-                : '能力'
-        }
-        className={styles.panel}
-      >
-        {tab === 'me' || tab === 'self' ? (
-          <Memories
-            name={profile.display_name}
-            key={tab}
-            id={id}
-            about={tab}
-            run={run}
-            busy={busy}
-            jump={jump}
-          />
-        ) : tab === 'arrangements' ? (
-          <Arrangements id={id} owner={profile.viewer.is_owner} run={run} busy={busy} />
-        ) : (
-          <CapabilityList id={id} />
-        )}
       </div>
     </div>
   )
