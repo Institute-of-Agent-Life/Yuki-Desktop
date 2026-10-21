@@ -27,6 +27,7 @@ export default defineConfig({
     'native-toolbar-scroll.spec.ts',
     'native-about-layout.spec.ts',
     'native-file-layout.spec.ts',
+    'native-work-layout.spec.ts',
     'native-artifact-actions.spec.ts',
     'windows-artifact-actions.spec.ts',
     'windows-application-menu.spec.ts',

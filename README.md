@@ -76,6 +76,8 @@ Windows 對話相關驗證需 operator 啟動全新隔離的 Yuki 參考服務�
 
 `native-artifact-actions.spec.ts` 以真後端和實際起拖手勢核對原檔內容、儲存後冷恢復、本機副本刪除及原事件撤銷；系統儲存、顯示及拖放邊界使用記錄器，不能當作 OS 驗收。`windows-artifact-actions.spec.ts` 另走真 Windows 儲存對話框、Explorer 原檔選取及跨程序 FileDrop；接收器與滑鼠路徑都核對本輪 PID、HWND 和工作階段，只接收並複製測試原檔，不操作其他視窗。
 
+`native-work-layout.spec.ts` 從真 Main 建立工作，經外觀設定、列表 Enter、檢視器 Space／Esc 核對來源、步驟與時間的版面和焦點恢復，再回答原問題並核對同一 Work、預算根及原請求結果。Mac／Windows 的原生視窗尺寸與矮工作區模擬分開記錄，Windows 只擷取本次 App 的視窗。`work-components.spec.ts` 另經實際文字輸入驗證超長步驟標籤、狀態圖示與時間，不代替真後端流程。
+
 Windows 專項在未提供測試服務或非 Windows 時明確跳過，不讀取部署設定。
 
 安裝包檢查也會驗證 ASAR 內每個封裝檔的 SHA-256 與 Electron 分塊摘要，避免只有目錄及壓縮檔校驗正確、內部程式已損毀的包進入待發行集合。

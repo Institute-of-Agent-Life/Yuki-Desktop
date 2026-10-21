@@ -139,8 +139,10 @@ export function WorkList({
         <span className={styles.state}>
           <StatusPill status={states[work.state][0]}>{states[work.state][1]}</StatusPill>
         </span>
-        <span className={styles.goal}>{work.goal}</span>
-        <small>{source(work)}</small>
+        <span className={styles.goal} title={work.goal}>
+          {work.goal}
+        </span>
+        <small title={source(work)}>{source(work)}</small>
         <time>{time(work.updated_at, zone)}</time>
       </button>
     ))

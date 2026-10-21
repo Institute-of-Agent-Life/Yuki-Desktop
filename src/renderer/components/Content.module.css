@@ -38,11 +38,21 @@
   align-items: center;
   gap: 8px;
   min-height: 32px;
+  font-size: 13px;
+}
+.step > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .step time {
   margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
   color: var(--text-secondary);
   font-size: 12px;
+  line-height: 16px;
 }
 .file {
   display: flex;

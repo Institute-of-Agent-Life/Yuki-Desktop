@@ -60,8 +60,24 @@ export function StepRow({ label, status, time }: { label: string; status: Status
     status === 'done' ? Check : status === 'failed' ? X : status === 'unknown' ? CircleHelp : Circle
   return (
     <div className={styles.step}>
-      <Icon size={14} strokeWidth={1.4} color={`var(--status-${status})`} />
-      <span>{label}</span>
+      <Icon
+        size={14}
+        strokeWidth={1.4}
+        color={`var(--status-${status})`}
+        fill={status === 'running' ? `var(--status-${status})` : 'none'}
+        role="img"
+        aria-label={
+          {
+            running: '執行中',
+            waiting: '等待中',
+            done: '已完成',
+            failed: '失敗',
+            unknown: '結果未確認',
+            offline: '離線',
+          }[status]
+        }
+      />
+      <span title={label}>{label}</span>
       {time && <time>{time}</time>}
     </div>
   )

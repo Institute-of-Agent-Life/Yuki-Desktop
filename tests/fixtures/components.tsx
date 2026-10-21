@@ -124,6 +124,7 @@ window.yuki = {
 function Gallery() {
   const [preferences, setPreferences] = useState(defaultPreferences)
   const [sheet, setSheet] = useState(false)
+  const [stepLabel, setStepLabel] = useState('執行中')
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
   document.documentElement.dataset.theme = theme
   document.documentElement.dataset.platform = 'linux'
@@ -166,7 +167,12 @@ function Gallery() {
             onChange={(opaque) => setPreferences((previous) => ({ ...previous, opaque }))}
           />
         </div>
-        <TextField aria-label="元件文字輸入" placeholder="文字輸入" />
+        <TextField
+          aria-label="元件文字輸入"
+          placeholder="文字輸入"
+          value={stepLabel}
+          onChange={(event) => setStepLabel(event.target.value)}
+        />
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
           {(['running', 'waiting', 'done', 'failed', 'unknown', 'offline'] as const).map(
             (status) => (
@@ -185,9 +191,11 @@ function Gallery() {
           onReply={() => setSheet(true)}
           onCancel={() => setSheet(true)}
         />
-        <StepRow label="執行中" status="running" time="14:00" />
-        <StepRow label="已完成" status="done" />
-        <StepRow label="結果未確認" status="unknown" />
+        <section aria-label="步驟狀態">
+          <StepRow label={stepLabel} status="running" time="14:00" />
+          <StepRow label="已完成" status="done" />
+          <StepRow label="結果未確認" status="unknown" />
+        </section>
         <FileRow
           name="很長的繁體中文檔案名稱與原始交付版本_測試.pdf"
           identity="artifact-id"

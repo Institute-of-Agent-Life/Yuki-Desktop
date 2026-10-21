@@ -61,10 +61,16 @@
   color: var(--text-secondary);
 }
 .row small {
+  flex-shrink: 0;
   max-width: 144px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.row time {
+  flex-shrink: 0;
+  white-space: nowrap;
+  line-height: 14px;
 }
 .detail {
   display: flex;
@@ -87,7 +93,7 @@
 }
 .secondary {
   font-size: 11px;
-  line-height: 16px;
+  line-height: 14px;
   color: var(--text-secondary);
 }
 .artifactList {
@@ -196,12 +202,4 @@
 .command p {
   margin-top: 8px;
   white-space: pre-wrap;
-}
-@media (max-width: 1100px) {
-  .row small {
-    display: none;
-  }
-  .row time {
-    max-width: 96px;
-  }
 }
