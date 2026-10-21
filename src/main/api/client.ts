@@ -64,7 +64,7 @@ export class ApiClient {
       throw new ApiError('transport_unknown')
     }
     if (!response.ok) {
-      let code = 'unknown'
+      let code: string | undefined
       let reason: string | undefined
       let details: ApiError['details']
       try {
@@ -78,7 +78,9 @@ export class ApiClient {
       } catch {
         /* The HTTP result contains no usable receipt. */
       }
-      throw new ApiError(code, reason, details)
+      if (path === 'meta' && response.status === 404 && code === undefined)
+        throw new ApiError('client_api_unavailable')
+      throw new ApiError(code ?? 'unknown', reason, details)
     }
     return response
   }

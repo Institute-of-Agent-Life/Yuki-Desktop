@@ -45,3 +45,40 @@ it.each([
     expect(new ClientProblem('media_unavailable', reason).message).toBe(message)
   },
 )
+
+it.each([
+  Response.json({ detail: 'Not Found' }, { status: 404 }),
+  new Response('<h1>Not Found</h1>', { status: 404 }),
+])('identifies a missing public metadata endpoint before pairing', async (response) => {
+  const client = new ApiClient(
+    'http://localhost',
+    undefined,
+    undefined,
+    undefined,
+    async () => response,
+  )
+  await expect(client.get('meta')).rejects.toMatchObject({ code: 'client_api_unavailable' })
+  expect(problemText('client_api_unavailable')).toBe(
+    '此位址未提供桌面連線介面，請確認位址或更新 Yuki。',
+  )
+})
+it.each([
+  ['home', Response.json({ detail: 'Not Found' }, { status: 404 }), 'unknown'],
+  ['meta', Response.json({ problem: { code: 'not_found' } }, { status: 404 }), 'not_found'],
+  ['meta', Response.json({ problem: { code: 'unknown' } }, { status: 404 }), 'unknown'],
+  [
+    'meta',
+    Response.json({ problem: { code: 'unauthenticated' } }, { status: 401 }),
+    'unauthenticated',
+  ],
+  ['meta', Response.json({ detail: 'Internal error' }, { status: 500 }), 'unknown'],
+] as const)('preserves non-metadata-missing failures for %s', async (path, response, code) => {
+  const client = new ApiClient(
+    'http://localhost',
+    undefined,
+    undefined,
+    undefined,
+    async () => response,
+  )
+  await expect(client.get(path)).rejects.toMatchObject({ code })
+})

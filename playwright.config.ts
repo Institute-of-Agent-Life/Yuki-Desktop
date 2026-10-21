@@ -26,6 +26,7 @@ export default defineConfig({
     'native-about-layout.spec.ts',
     'native-file-layout.spec.ts',
     'native-work-layout.spec.ts',
+    'native-pairing-availability.spec.ts',
     'native-artifact-actions.spec.ts',
     'windows-artifact-actions.spec.ts',
     'windows-application-menu.spec.ts',

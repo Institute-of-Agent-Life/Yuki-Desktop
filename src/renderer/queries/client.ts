@@ -39,6 +39,7 @@ const messages: Record<string, string> = {
   image_dimensions: '圖片尺寸不符，請重新裁切為 1024 × 1024 像素。',
   invalid_server: '請輸入完整的 http 或 https 伺服器位址。',
   invalid_response: '伺服器回應不完整，請確認這是 Yuki 伺服器。',
+  client_api_unavailable: '此位址未提供桌面連線介面，請確認位址或更新 Yuki。',
   transport_unknown: '無法連到伺服器，已保留本機內容。',
   unauthenticated: '裝置憑據已失效，請重新配對。',
   credentials_unavailable: '系統金鑰圈目前無法讀取，請解鎖後重試。',
