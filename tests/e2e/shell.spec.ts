@@ -17,21 +17,30 @@ test('native startup, actual button and keyboard paths, preferences survive rest
     timings.windowOpenedMs = performance.now() - started
     await page.waitForLoadState('domcontentloaded')
     timings.domReadyMs = performance.now() - started
-    const runtime = await app.evaluate(({ app, BrowserWindow, Menu }) => ({
-      platform: process.platform,
-      menuLabels: Menu.getApplicationMenu()?.items.map((item) => item.label),
-      arch: process.arch,
-      packaged: app.isPackaged,
-      electron: process.versions.electron,
-      translated: app.runningUnderARM64Translation,
-      sandboxed: app
-        .getAppMetrics()
-        .find(
-          (entry) => entry.pid === BrowserWindow.getAllWindows()[0]!.webContents.getOSProcessId(),
-        )?.sandboxed,
-      noSandbox: app.commandLine.hasSwitch('no-sandbox'),
-    }))
-    expect(runtime).toMatchObject({ sandboxed: true, noSandbox: false })
+    const runtime = await app.evaluate(({ app, BrowserWindow, Menu }) => {
+      const window = BrowserWindow.getAllWindows()[0]!,
+        rendererPid = window.webContents.getOSProcessId()
+      return {
+        platform: process.platform,
+        menuLabels: Menu.getApplicationMenu()?.items.map((item) => item.label),
+        arch: process.arch,
+        packaged: app.isPackaged,
+        electron: process.versions.electron,
+        translated: app.runningUnderARM64Translation,
+        sandboxed: app.getAppMetrics().find((entry) => entry.pid === rendererPid)?.sandboxed,
+        linuxSeccomp:
+          process.platform === 'linux'
+            ? process
+                .getBuiltinModule('node:fs')
+                .readFileSync(`/proc/${rendererPid}/status`, 'utf8')
+                .match(/^Seccomp:\s+(\d+)$/m)?.[1]
+            : undefined,
+        noSandbox: app.commandLine.hasSwitch('no-sandbox'),
+      }
+    })
+    expect(runtime.noSandbox).toBe(false)
+    if (runtime.platform === 'linux') expect(runtime.linuxSeccomp).toBe('2')
+    else expect(runtime.sandboxed).toBe(true)
     if (process.env.YUKI_NATIVE_EXPECT_ARCH)
       expect(runtime.arch).toBe(process.env.YUKI_NATIVE_EXPECT_ARCH)
     if (process.env.YUKI_NATIVE_EXPECT_TRANSLATION === '1') expect(runtime.translated).toBe(true)
