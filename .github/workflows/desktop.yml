@@ -30,6 +30,13 @@ jobs:
       - run: npm exec playwright install -- --with-deps chromium
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y rpm
+      - name: Configure Electron sandbox for Ubuntu CI
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          electron_path="$(realpath node_modules/electron/dist/electron)"
+          printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile yuki-desktop-ci "%s" flags=(unconfined) {\n  userns,\n}\n' "$electron_path" | sudo tee /etc/apparmor.d/yuki-desktop-ci
+          sudo apparmor_parser --replace /etc/apparmor.d/yuki-desktop-ci
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run check:contract

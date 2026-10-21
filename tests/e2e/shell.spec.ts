@@ -31,6 +31,7 @@ test('native startup, actual button and keyboard paths, preferences survive rest
         )?.sandboxed,
       noSandbox: app.commandLine.hasSwitch('no-sandbox'),
     }))
+    expect(runtime).toMatchObject({ sandboxed: true, noSandbox: false })
     if (process.env.YUKI_NATIVE_EXPECT_ARCH)
       expect(runtime.arch).toBe(process.env.YUKI_NATIVE_EXPECT_ARCH)
     if (process.env.YUKI_NATIVE_EXPECT_TRANSLATION === '1') expect(runtime.translated).toBe(true)
