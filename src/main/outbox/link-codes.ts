@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { LinkCodeReply, LinkCodeRequest, OriginalRequest } from '../../shared/api'
-import type { components } from '../../shared/contract.gen'
+import type { ProductModels as components } from '../../shared/product-models'
 import { ApiClient, ApiError } from '../api/client'
 import type { Outbox } from './index'
 import { payloadHash } from './fingerprint'

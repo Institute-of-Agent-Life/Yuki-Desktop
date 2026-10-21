@@ -51,10 +51,10 @@ const markdownStyle = HighlightStyle.define([
   { tag: tags.processingInstruction, color: 'var(--text-tertiary)' },
 ])
 const matcher = new MatchDecorator({
-  regexp: /\{\{YUKI_PERSONA_CORE\}\}/g,
+  regexp: /\{\{name\}\}/g,
   decoration: Decoration.mark({
-    class: 'cm-persona-placeholder',
-    attributes: { title: '插入人格核心（persona.md）' },
+    class: 'cm-soul-name',
+    attributes: { title: '目前角色名稱' },
   }),
 })
 const placeholders = ViewPlugin.fromClass(
@@ -70,7 +70,7 @@ const placeholders = ViewPlugin.fromClass(
   { decorations: (instance) => instance.decorations },
 )
 
-export function PromptCode(props: {
+export function SoulCode(props: {
   content: string
   label: string
   readOnly: boolean
@@ -202,5 +202,5 @@ export function PromptCode(props: {
     if (command === 'find' && view.current) openSearchPanel(view.current)
     if (command === 'back') latest.current.onBack()
   })
-  return <div ref={root} className="prompt-code" />
+  return <div ref={root} className="soul-code" />
 }

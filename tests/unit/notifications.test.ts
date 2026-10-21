@@ -13,7 +13,7 @@ import type {
   Profile,
   PublicEvent,
 } from '../../src/shared/api'
-import type { components } from '../../src/shared/contract.gen'
+import type { ProductModels as components } from '../../src/shared/product-models'
 import { validateFixture } from '../fixtures/schema'
 
 const id = '00000000-0000-4000-8000-000000000001',

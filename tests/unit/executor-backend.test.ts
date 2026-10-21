@@ -19,7 +19,7 @@ import { ExecutorJournal } from '../../src/main/executor/journal'
 import { ExecutorRunner } from '../../src/main/executor/runner'
 import type { ExecutorConfig } from '../../src/shared/executor'
 import type { Me, Meta } from '../../src/shared/api'
-import type { components } from '../../src/shared/contract.gen'
+import type { ProductModels as components } from '../../src/shared/product-models'
 type PairResult = components['schemas']['PairResult']
 
 const backend = process.env.YUKI_BACKEND_TEST_ROOT,

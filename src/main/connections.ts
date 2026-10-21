@@ -16,9 +16,9 @@ import type {
   WorkCommand,
   WorkDraftQuestion,
   Profile,
-  PromptCommand,
-  PromptDocuments,
-  PromptEdit,
+  SoulCommand,
+  SoulDocument,
+  SoulEdit,
   LogoutSummary,
 } from '../shared/api'
 import { REQUIRED_API_REVISION } from '../shared/api'
@@ -31,7 +31,7 @@ import { WorkCommands } from './outbox/work-commands'
 import { ComputerCommands } from './outbox/computer-commands'
 import { CharacterCommands } from './outbox/character-commands'
 import { AvatarCommands } from './outbox/avatar-commands'
-import { Prompts } from './outbox/prompts'
+import { Soul } from './outbox/soul'
 import { LinkCodes } from './outbox/link-codes'
 import { localSummary } from './outbox/local-summary'
 import { ComputerTickets } from './computer-tickets'
@@ -89,7 +89,7 @@ export class Connections {
   private readonly streams = new Map<string, AbortController>()
   private readonly retries = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly checking = new Map<string, Promise<OutboxItem>>()
-  private readonly identified = new Map<string, Promise<void>>()
+  private readonly identified = new Map<string, Promise<Meta>>()
   private readonly states = new Map<string, unknown>()
   private readonly uploadStores = new Map<Outbox, Uploads>()
   private readonly commandStores = new Map<Outbox, WorkCommands>()
@@ -97,9 +97,9 @@ export class Connections {
   private readonly characterStores = new Map<Outbox, CharacterCommands>()
   private readonly avatarStores = new Map<Outbox, AvatarCommands>()
   private readonly avatarReads = new Map<string, Promise<Uint8Array>>()
-  private readonly promptStores = new Map<Outbox, Prompts>()
+  private readonly soulStores = new Map<Outbox, Soul>()
   private readonly linkCodeStores = new Map<Outbox, LinkCodes>()
-  private readonly promptReads = new Set<Promise<unknown>>()
+  private readonly soulReads = new Set<Promise<unknown>>()
   readonly computerTickets = new ComputerTickets()
   private closed = false
   private readonly frozen = new Set<string>()
@@ -165,7 +165,7 @@ export class Connections {
       this.characterStores.get(box)?.settle(),
       this.computerStores.get(box)?.settled(),
       this.avatarStores.get(box)?.settle(),
-      this.promptStores.get(box)?.settled(),
+      this.soulStores.get(box)?.settled(),
       this.linkCodeStores.get(box)?.settled(),
       this.executorStores.get(box)?.commands.settled(),
       this.executorStores.get(box)?.setup.settled(),
@@ -287,7 +287,7 @@ export class Connections {
       this.computerStores.delete(box)
       this.characterStores.delete(box)
       this.avatarStores.delete(box)
-      this.promptStores.delete(box)
+      this.soulStores.delete(box)
       this.linkCodeStores.delete(box)
     }
     if (choice === 'delete') {
@@ -303,7 +303,8 @@ export class Connections {
         { recursive: true, force: true },
       )
       await this.contentCache(id).clear()
-      for (const suffix of ['', '-wal', '-shm']) await rm(file + suffix, { force: true })
+      for (const suffix of ['', '-wal', '-shm', '.soul-upgrade.json', '.soul-draft.md'])
+        await rm(file + suffix, { force: true })
     }
     this.credentials.remove(`device/${id}/${connection.personId}`)
     this.activities.delete(id)
@@ -447,14 +448,14 @@ export class Connections {
     }
     return commands
   }
-  prompts(id: string) {
+  soul(id: string) {
     const box = this.box(id)
-    let prompts = this.promptStores.get(box)
-    if (!prompts) {
-      prompts = new Prompts(box)
-      this.promptStores.set(box, prompts)
+    let soul = this.soulStores.get(box)
+    if (!soul) {
+      soul = new Soul(box)
+      this.soulStores.set(box, soul)
     }
-    return prompts
+    return soul
   }
   private executors(id: string) {
     const box = this.box(id)
@@ -506,7 +507,7 @@ export class Connections {
     return this.executors(id).commands.list()
   }
   async enableExecutor(id: string, label: string) {
-    await this.identify(id)
+    await this.requireFeature(id, 'executors')
     await this.credentials.preparePersistence()
     const context = this.executors(id)
     await context.setup.enable(this.client(id), label, process.platform)
@@ -590,34 +591,34 @@ export class Connections {
     if (context.installation.current())
       await context.runtime.start(this.connection(id).baseUrl, this.version)
   }
-  promptDocuments(id: string) {
+  soulDocument(id: string) {
     if (this.closed) return Promise.reject(new ApiError('unavailable'))
-    const work = this.fetchPromptDocuments(id).finally(() => this.promptReads.delete(work))
-    this.promptReads.add(work)
+    const work = this.fetchSoulDocument(id).finally(() => this.soulReads.delete(work))
+    this.soulReads.add(work)
     return work
   }
-  private async fetchPromptDocuments(id: string) {
-    const prompts = this.prompts(id),
-      version = prompts.captureRead()
+  private async fetchSoulDocument(id: string) {
+    const soul = this.soul(id),
+      version = soul.captureRead()
     await this.identify(id)
-    const documents = await this.client(id).get<PromptDocuments>('character/prompts')
-    return { documents, drafts: prompts.observe(documents, version) }
+    const documents = await this.client(id).get<SoulDocument>('character/soul')
+    return { document: documents, draft: soul.observe(documents, version) }
   }
-  promptEdit(id: string, edit: PromptEdit) {
-    return this.prompts(id).edit(edit)
+  soulEdit(id: string, edit: SoulEdit) {
+    return this.soul(id).edit(edit)
   }
-  async promptCommand(id: string, command: PromptCommand) {
+  async soulCommand(id: string, command: SoulCommand) {
     await this.identify(id)
-    const prompts = this.prompts(id),
-      item = prompts.prepare(command)
-    const result = await prompts.run(this.client(id), item.requestId)
-    this.emit(id, 'prompt-command', {})
+    const soul = this.soul(id),
+      item = soul.prepare(command)
+    const result = await soul.run(this.client(id), item.requestId)
+    this.emit(id, 'soul-command', {})
     return result
   }
-  async verifyPromptCommand(id: string, requestId: string) {
+  async verifySoulCommand(id: string, requestId: string) {
     await this.identify(id)
-    const result = await this.prompts(id).run(this.client(id), uuid(requestId))
-    this.emit(id, 'prompt-command', {})
+    const result = await this.soul(id).run(this.client(id), uuid(requestId))
+    this.emit(id, 'soul-command', {})
     return result
   }
   async avatarCommand(id: string, expectedRevision: number, bytes?: Uint8Array) {
@@ -728,7 +729,7 @@ export class Connections {
     return result
   }
   async computerCommand(id: string, command: ComputerCommand) {
-    await this.identify(id)
+    await this.requireFeature(id, 'computer')
     const client = this.client(id)
     await this.box(id).verifyOwner(client)
     const commands = this.computerCommands(id)
@@ -744,12 +745,12 @@ export class Connections {
     return result
   }
   async computerTicket(id: string) {
-    await this.identify(id)
+    await this.requireFeature(id, 'computer')
     await this.box(id).verifyOwner(this.client(id))
     return this.computerTickets.issue(this.client(id))
   }
   async computerFile(id: string, path: string) {
-    await this.identify(id)
+    await this.requireFeature(id, 'computer')
     await this.box(id).verifyOwner(this.client(id))
     const cache = new ContentCache(join(this.contentCache(id).root, 'computer'))
     const item = await cache.download(
@@ -803,7 +804,13 @@ export class Connections {
     return uploads
   }
   private contentCache(id: string) {
-    const root = join(this.root, 'connections', uuid(id), 'cache', uuid(this.connection(id).personId))
+    const root = join(
+      this.root,
+      'connections',
+      uuid(id),
+      'cache',
+      uuid(this.connection(id).personId),
+    )
     // Native Windows drop targets can truncate paths under the nested private cache.
     return new ContentCache(
       root,
@@ -815,7 +822,10 @@ export class Connections {
     if (!/^[a-f0-9]{64}$/.test(source.version)) throw new ApiError('validation_error')
     await this.identify(id)
     const parent = this.contentCache(id)
-    const cache = new ContentCache(join(parent.root, 'artifacts'), join(parent.exportRoot, 'artifacts'))
+    const cache = new ContentCache(
+      join(parent.root, 'artifacts'),
+      join(parent.exportRoot, 'artifacts'),
+    )
     try {
       const content = await cache.download(
         this.client(id),
@@ -959,12 +969,13 @@ export class Connections {
       !meta?.character ||
       typeof meta.character.display_name !== 'string' ||
       !Number.isInteger(meta.api_revision) ||
-      typeof meta.min_client?.desktop !== 'string'
+      (meta.min_client?.desktop !== null && typeof meta.min_client?.desktop !== 'string')
     )
       throw new ApiError('invalid_response')
     uuid(meta.character.id)
     if (meta.api_revision < REQUIRED_API_REVISION) throw new ApiError('server_upgrade_required')
-    const compatible = meetsMinimum(this.version, meta.min_client.desktop)
+    const compatible =
+      meta.min_client.desktop === null || meetsMinimum(this.version, meta.min_client.desktop)
     if (compatible === null) throw new ApiError('invalid_response')
     if (!compatible) throw new ApiError('client_upgrade_required')
     return meta
@@ -985,6 +996,7 @@ export class Connections {
           if (meta.character.id !== id) throw new ApiError('different_character')
           this.rememberName(id, meta.character.display_name)
           this.onIdentity?.(id, meta.character.display_name)
+          return meta
         })
         .catch((error) => {
           this.identified.delete(id)
@@ -993,6 +1005,10 @@ export class Connections {
       this.identified.set(id, pending)
     }
     return pending
+  }
+  private async requireFeature(id: string, feature: string) {
+    const meta = await this.identify(id)
+    if (!meta.capabilities.includes(feature)) throw new ApiError('feature_unavailable')
   }
   async pair(server: string, code: string, label: string) {
     const epochs = new Map(this.epochs),
@@ -1070,6 +1086,24 @@ export class Connections {
     return connection
   }
   async read<T>(id: string, route: ApiRead, offlineCache = true): Promise<T> {
+    const feature = (
+      {
+        'character-status': 'character_status',
+        computer: 'computer',
+        'computer-files': 'computer',
+        executors: 'executors',
+        'executor-operations': 'executors',
+        memory: 'memory',
+        'memory-fact': 'memory',
+        automations: 'automations',
+        capabilities: 'capabilities',
+        'proactive-route': 'proactive_route',
+        works: 'work_catalog',
+        steps: 'work_steps',
+        artifacts: 'artifact_catalog',
+      } as Partial<Record<ApiRead['kind'], string>>
+    )[route.kind]
+    if (feature) await this.requireFeature(id, feature)
     if (route.kind === 'executors' || route.kind === 'executor-operations') offlineCache = false
     let path: string
     if (
@@ -1294,10 +1328,10 @@ export class Connections {
               .list()
               .filter((item) => item.state !== 'result'))
               void this.verifyLinkCode(id, item.requestId).catch(() => {})
-            for (const item of this.prompts(id)
+            for (const item of this.soul(id)
               .list()
               .filter((item) => item.state !== 'result'))
-              void this.verifyPromptCommand(id, item.requestId).catch(() => {})
+              void this.verifySoulCommand(id, item.requestId).catch(() => {})
             for (const item of this.avatarCommands(id)
               .list()
               .filter((item) => item.state !== 'result'))
@@ -1383,14 +1417,14 @@ export class Connections {
       ...this.logouts.values(),
       ...[...this.finishes.values()].map((value) => value.work),
       ...this.avatarReads.values(),
-      ...this.promptReads,
+      ...this.soulReads,
       ...this.checking.values(),
       ...[...this.uploadStores.values()].map((uploads) => uploads.settled()),
       ...[...this.commandStores.values()].map((commands) => commands.settle()),
       ...[...this.computerStores.values()].map((commands) => commands.settled()),
       ...[...this.characterStores.values()].map((commands) => commands.settle()),
       ...[...this.avatarStores.values()].map((commands) => commands.settle()),
-      ...[...this.promptStores.values()].map((prompts) => prompts.settled()),
+      ...[...this.soulStores.values()].map((soul) => soul.settled()),
       ...[...this.linkCodeStores.values()].map((codes) => codes.settled()),
       ...[...this.executorStores.values()].map((context) => context.commands.settled()),
       ...[...this.executorStores.values()].map((context) => context.setup.settled()),

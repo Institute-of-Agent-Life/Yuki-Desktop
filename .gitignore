@@ -13,6 +13,8 @@ coverage/
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm
+*.soul-upgrade.json
+*.soul-draft.md
 
 # Local planning and prototype materials: do not publish.
 /docs/

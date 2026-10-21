@@ -1,11 +1,12 @@
-import type { components } from './contract.gen'
+import type { components as ServerComponents } from './contract.gen'
+import type { ProductModels as components } from './product-models'
 import type { NavigationTarget } from './desktop'
 import type { ExecutorAction, ExecutorCommandItem, LocalExecutorState } from './executor'
 import type { MessageReference } from './message'
 
-export const REQUIRED_API_REVISION = 5
+export const REQUIRED_API_REVISION = 6
 
-export type Meta = components['schemas']['Meta']
+export type Meta = ServerComponents['schemas']['Meta']
 export type Me = components['schemas']['Me']
 export type ProactiveRoute = components['schemas']['ProactiveRoute']
 export interface LinkCodeRequest {
@@ -20,30 +21,26 @@ export interface LinkCodeReply {
   code: string | null
 }
 export type Home = components['schemas']['Home']
-export type Profile = components['schemas']['CharacterProfile']
+export type Profile = ServerComponents['schemas']['CharacterProfile']
 export type CharacterStatus = components['schemas']['CharacterStatus']
-export type PromptDocument = components['schemas']['PromptDocument']
-export type PromptDocuments = components['schemas']['PromptDocuments']
-export type PromptKey = PromptDocument['key']
-export interface PromptEdit {
-  key: PromptKey
+export type SoulDocument = ServerComponents['schemas']['SoulDocument']
+export interface SoulEdit {
   baseRevision: string
   baseContent: string
   draft: string
 }
-export interface PromptDraft extends PromptEdit {
-  remote: PromptDocument
+export interface SoulDraft extends SoulEdit {
+  remote: SoulDocument
 }
-export type PromptCommand =
-  { kind: 'save'; key: PromptKey; expectedRevision: string; content: string } | { kind: 'reload' }
-export interface PromptCommandItem {
+export type SoulCommand =
+  { kind: 'save'; expectedRevision: string; content: string } | { kind: 'reload' }
+export interface SoulCommandItem {
   requestId: string
-  command: PromptCommand
+  command: SoulCommand
   payloadHash: string
   state: 'submitted' | 'result'
   problem: string | null
-  result:
-    components['schemas']['PromptSaveResult'] | components['schemas']['PromptReloadResult'] | null
+  result: ServerComponents['schemas']['SoulResult'] | null
   details: Record<string, components['schemas']['JsonValue']> | null
 }
 export interface AvatarInput {
@@ -268,14 +265,14 @@ export interface ConversationBridge {
   verifyLinkCode(characterId: string, requestId: string): Promise<ApiReply<LinkCodeReply>>
   serverInfo(characterId: string): Promise<ApiReply<Meta>>
   changeAddress(characterId: string, server: string): Promise<ApiReply<Connection>>
-  promptDocuments(
+  soulDocument(
     characterId: string,
-  ): Promise<ApiReply<{ documents: PromptDocuments; drafts: PromptDraft[] }>>
-  promptEdit(characterId: string, edit: PromptEdit): Promise<ApiReply<PromptDraft>>
-  promptDrafts(characterId: string): Promise<ApiReply<PromptDraft[]>>
-  promptCommand(characterId: string, command: PromptCommand): Promise<ApiReply<PromptCommandItem>>
-  promptCommands(characterId: string): Promise<ApiReply<PromptCommandItem[]>>
-  verifyPromptCommand(characterId: string, requestId: string): Promise<ApiReply<PromptCommandItem>>
+  ): Promise<ApiReply<{ document: SoulDocument; draft: SoulDraft | null }>>
+  soulEdit(characterId: string, edit: SoulEdit): Promise<ApiReply<SoulDraft>>
+  soulDraft(characterId: string): Promise<ApiReply<SoulDraft | null>>
+  soulCommand(characterId: string, command: SoulCommand): Promise<ApiReply<SoulCommandItem>>
+  soulCommands(characterId: string): Promise<ApiReply<SoulCommandItem[]>>
+  verifySoulCommand(characterId: string, requestId: string): Promise<ApiReply<SoulCommandItem>>
   letterDecoration(
     characterId: string,
     revision: number,

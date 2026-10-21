@@ -15,12 +15,12 @@ import type {
   CharacterStatus,
 } from '../../shared/api'
 import type { Preferences } from '../../shared/desktop'
-import type { components } from '../../shared/contract.gen'
+import type { ProductModels as components } from '../../shared/product-models'
 import { Composer } from '../components/Composer'
 import { Banner, Button, EmptyState, IconButton } from '../components/Controls'
 import { CharacterAvatar, CharacterVisuals } from '../components/CharacterAvatar'
 import { characterPresence } from '../../shared/presence'
-import { PromptEditor } from './PromptEditor'
+import { SoulEditor } from './SoulEditor'
 import { useDisplayTime } from '../state/time'
 import { ArrowLeft, Copy, Reply } from 'lucide-react'
 import { Workspace } from '../components/Workspace'
@@ -73,11 +73,11 @@ export function Conversation({
   const { dayKey, dayLabel } = useDisplayTime()
   const target = useWorkspace((state) => state.target)
   const focusMode = useWorkspace((state) => state.focusMode)
-  const [promptEditing, setPromptEditing] = useState(false)
-  const [promptToolbar, setPromptToolbar] = useState<HTMLDivElement | null>(null)
+  const [soulEditing, setSoulEditing] = useState(false)
+  const [soulToolbar, setSoulToolbar] = useState<HTMLDivElement | null>(null)
   const [computerToolbar, setComputerToolbar] = useState<HTMLDivElement | null>(null)
   useEffect(() => {
-    if (settings || view !== 'about' || focusMode) setPromptEditing(false)
+    if (settings || view !== 'about' || focusMode) setSoulEditing(false)
   }, [view, focusMode, settings])
   const { artifact, preview, selectedWork, messageStage } = workspace
   const conversation = workspace.conversationId ?? connection.conversationId
@@ -347,7 +347,7 @@ export function Conversation({
         .querySelector<HTMLTextAreaElement>(`[data-character-session="${id}"] textarea`)
         ?.focus()
     if (command === 'search') setPalette(true)
-    if (command === 'find' && !promptEditing) {
+    if (command === 'find' && !soulEditing) {
       if (view === 'chat') setSearch('')
       else setPalette(true)
     }
@@ -713,8 +713,8 @@ export function Conversation({
               </Button>
               <strong>設定</strong>
             </>
-          ) : promptEditing && view === 'about' && !focusMode ? (
-            <div className={styles.promptToolbar} ref={setPromptToolbar} />
+          ) : soulEditing && view === 'about' && !focusMode ? (
+            <div className={styles.soulToolbar} ref={setSoulToolbar} />
           ) : undefined
         }
         toolbarTitle={
@@ -928,14 +928,14 @@ export function Conversation({
           accessLost ? (
             <Banner status="failed">{problemText(connectionProblem)}</Banner>
           ) : profileData ? (
-            promptEditing && profileData.viewer.is_owner ? (
-              <PromptEditor
+            soulEditing && profileData.viewer.is_owner ? (
+              <SoulEditor
                 key={id}
                 id={id}
                 name={name}
                 platform={platform}
-                back={() => setPromptEditing(false)}
-                toolbar={promptToolbar}
+                back={() => setSoulEditing(false)}
+                toolbar={soulToolbar}
               />
             ) : (
               <About
@@ -943,7 +943,7 @@ export function Conversation({
                 id={id}
                 profile={profileData}
                 jump={jumpTo}
-                editPrompts={() => setPromptEditing(true)}
+                editSoul={() => setSoulEditing(true)}
               />
             )
           ) : (

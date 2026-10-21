@@ -110,9 +110,8 @@ export class CharacterCommands {
     if (command.kind === 'profile') {
       if (
         !Number.isSafeInteger(command.expectedRevision) ||
-        command.expectedRevision < 0 ||
+        command.expectedRevision < 1 ||
         typeof command.displayName !== 'string' ||
-        !command.displayName.trim() ||
         typeof command.bio !== 'string' ||
         !/^#[0-9a-f]{6}$/i.test(command.accent?.light) ||
         !/^#[0-9a-f]{6}$/i.test(command.accent?.dark)

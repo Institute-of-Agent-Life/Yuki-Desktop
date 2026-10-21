@@ -8,7 +8,7 @@ import type {
   Work,
   WorkPage,
 } from '../../shared/api'
-import type { components } from '../../shared/contract.gen'
+import type { ProductModels as components } from '../../shared/product-models'
 import { parseMessage } from '../../shared/message'
 import { hidesPrivateData } from '../queries/client'
 

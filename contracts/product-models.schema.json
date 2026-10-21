@@ -1,0 +1,3202 @@
+{
+  "$comment": "Client view-model fixtures, not a backend API or supported route declaration.",
+  "components": {
+    "schemas": {
+      "Accent": {
+        "properties": {
+          "dark": {
+            "pattern": "^#[0-9A-Fa-f]{6}$",
+            "title": "Dark",
+            "type": "string"
+          },
+          "light": {
+            "pattern": "^#[0-9A-Fa-f]{6}$",
+            "title": "Light",
+            "type": "string"
+          }
+        },
+        "required": ["light", "dark"],
+        "title": "Accent",
+        "type": "object"
+      },
+      "Activity": {
+        "properties": {
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "evidence": {
+            "enum": ["executing", "insufficient"],
+            "title": "Evidence",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/ActivitySource"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "step_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Kind"
+          }
+        },
+        "required": ["conversation_id", "evidence", "sources", "step_kind", "revision"],
+        "title": "Activity",
+        "type": "object"
+      },
+      "ActivitySource": {
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "origin": {
+            "title": "Origin",
+            "type": "string"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "string"
+          }
+        },
+        "required": ["origin", "started_at", "kind"],
+        "title": "ActivitySource",
+        "type": "object"
+      },
+      "ArtifactItem": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "media_type": {
+            "title": "Media Type",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "published_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Path"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/ArtifactReference"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "work_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Id"
+          }
+        },
+        "required": [
+          "ref",
+          "artifact_id",
+          "version",
+          "name",
+          "size",
+          "media_type",
+          "conversation_id",
+          "work_id",
+          "published_path",
+          "created_at"
+        ],
+        "title": "ArtifactItem",
+        "type": "object"
+      },
+      "ArtifactPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": ["items", "next_cursor"],
+        "title": "ArtifactPage",
+        "type": "object"
+      },
+      "ArtifactReference": {
+        "properties": {
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "part_index": {
+            "title": "Part Index",
+            "type": "integer"
+          }
+        },
+        "required": ["event_id", "part_index"],
+        "title": "ArtifactReference",
+        "type": "object"
+      },
+      "Attachment": {
+        "additionalProperties": true,
+        "properties": {
+          "artifact_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Id"
+          },
+          "attachment_index": {
+            "title": "Attachment Index",
+            "type": "integer"
+          },
+          "availability": {
+            "enum": ["available", "expired", "not_readable"],
+            "title": "Availability",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "media_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Id"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": ["kind", "attachment_index", "availability", "expires_at"],
+        "title": "Attachment",
+        "type": "object"
+      },
+      "AutomationPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AutomationView"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": ["items"],
+        "title": "AutomationPage",
+        "type": "object"
+      },
+      "AutomationView": {
+        "properties": {
+          "automation_id": {
+            "title": "Automation Id",
+            "type": "integer"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "next_run_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Run At"
+          },
+          "replay": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replay"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          },
+          "schedule_text": {
+            "title": "Schedule Text",
+            "type": "string"
+          },
+          "state": {
+            "enum": ["active", "paused", "completed", "cancelled", "failed", "blocked"],
+            "title": "State",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "automation_id",
+          "title",
+          "schedule_text",
+          "next_run_at",
+          "state",
+          "revision",
+          "conversation_id"
+        ],
+        "title": "AutomationView",
+        "type": "object"
+      },
+      "Avatar": {
+        "properties": {
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "sizes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Sizes",
+            "type": "object"
+          }
+        },
+        "required": ["sha256", "sizes"],
+        "title": "Avatar",
+        "type": "object"
+      },
+      "Binding": {
+        "properties": {
+          "binding_id": {
+            "title": "Binding Id",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "source_person_id": {
+            "title": "Source Person Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": ["binding_id", "platform", "display_name", "status", "source_person_id"],
+        "title": "Binding",
+        "type": "object"
+      },
+      "CharacterCapabilities": {
+        "properties": {
+          "environment": {
+            "$ref": "#/components/schemas/EnvironmentCapabilities"
+          },
+          "plugins": {
+            "items": {
+              "$ref": "#/components/schemas/PluginCapability"
+            },
+            "title": "Plugins",
+            "type": "array"
+          }
+        },
+        "required": ["plugins", "environment"],
+        "title": "CharacterCapabilities",
+        "type": "object"
+      },
+      "CharacterEnvironment": {
+        "properties": {
+          "control": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control"
+          },
+          "display": {
+            "enum": ["running", "stopped", "starting", "unavailable"],
+            "title": "Display",
+            "type": "string"
+          },
+          "generation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation"
+          },
+          "help_requested": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Help Requested"
+          },
+          "state": {
+            "enum": ["running", "stopped", "unavailable"],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": ["state", "display", "generation", "control", "help_requested"],
+        "title": "CharacterEnvironment",
+        "type": "object"
+      },
+      "CharacterMine": {
+        "properties": {
+          "live_conversations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Live Conversations",
+            "type": "array"
+          },
+          "works": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Works",
+            "type": "object"
+          }
+        },
+        "required": ["live_conversations", "works"],
+        "title": "CharacterMine",
+        "type": "object"
+      },
+      "CharacterProfile": {
+        "properties": {
+          "accent": {
+            "$ref": "#/components/schemas/Accent"
+          },
+          "avatar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CurrentAvatar"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "avatar_revision": {
+            "title": "Avatar Revision",
+            "type": "integer"
+          },
+          "bio": {
+            "title": "Bio",
+            "type": "string"
+          },
+          "default_avatar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Avatar"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "replay": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replay"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "viewer": {
+            "$ref": "#/components/schemas/Viewer"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "display_name",
+          "bio",
+          "accent",
+          "revision",
+          "avatar_revision",
+          "avatar",
+          "default_avatar",
+          "viewer"
+        ],
+        "title": "CharacterProfile",
+        "type": "object"
+      },
+      "CharacterStatus": {
+        "properties": {
+          "environment": {
+            "$ref": "#/components/schemas/CharacterEnvironment"
+          },
+          "mine": {
+            "$ref": "#/components/schemas/CharacterMine"
+          },
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": ["observed_at", "environment", "mine", "revision"],
+        "title": "CharacterStatus",
+        "type": "object"
+      },
+      "ChildWork": {
+        "properties": {
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "work_id": {
+            "title": "Work Id",
+            "type": "string"
+          }
+        },
+        "required": ["work_id", "goal", "state", "revision"],
+        "title": "ChildWork",
+        "type": "object"
+      },
+      "ComputerControlView": {
+        "properties": {
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "device_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Label"
+          },
+          "device_online": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Online"
+          },
+          "holder": {
+            "enum": ["none", "agent", "human"],
+            "title": "Holder",
+            "type": "string"
+          },
+          "lease_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lease Id"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "work_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Id"
+          }
+        },
+        "required": ["holder"],
+        "title": "ComputerControlView",
+        "type": "object"
+      },
+      "ComputerFile": {
+        "properties": {
+          "kind": {
+            "enum": ["directory", "file", "link"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "mtime": {
+            "title": "Mtime",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": ["name", "kind", "size", "mtime"],
+        "title": "ComputerFile",
+        "type": "object"
+      },
+      "ComputerFiles": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ComputerFile"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": ["path", "items", "next_cursor"],
+        "title": "ComputerFiles",
+        "type": "object"
+      },
+      "ComputerHelp": {
+        "properties": {
+          "kind": {
+            "enum": ["help", "wait_control"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "since": {
+            "title": "Since",
+            "type": "string"
+          },
+          "wait_id": {
+            "title": "Wait Id",
+            "type": "string"
+          },
+          "work_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Id"
+          }
+        },
+        "required": ["wait_id", "kind", "work_id", "note", "since"],
+        "title": "ComputerHelp",
+        "type": "object"
+      },
+      "ComputerResources": {
+        "properties": {
+          "cpus": {
+            "title": "Cpus",
+            "type": "number"
+          },
+          "memory_mib": {
+            "title": "Memory Mib",
+            "type": "integer"
+          }
+        },
+        "required": ["memory_mib", "cpus"],
+        "title": "ComputerResources",
+        "type": "object"
+      },
+      "ComputerResult": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By"
+          },
+          "control": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComputerControlView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "display": {
+            "anyOf": [
+              {
+                "enum": ["running", "stopped", "starting", "unavailable"],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "replay": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replay"
+          }
+        },
+        "title": "ComputerResult",
+        "type": "object"
+      },
+      "ComputerTab": {
+        "properties": {
+          "ownership": {
+            "enum": ["work", "unknown"],
+            "title": "Ownership",
+            "type": "string"
+          },
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url_host": {
+            "title": "Url Host",
+            "type": "string"
+          },
+          "work_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Id"
+          },
+          "work_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work State"
+          }
+        },
+        "required": ["target_id", "title", "url_host", "work_id", "work_state", "ownership"],
+        "title": "ComputerTab",
+        "type": "object"
+      },
+      "ComputerView": {
+        "properties": {
+          "control": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComputerControlView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "display": {
+            "enum": ["running", "stopped", "starting", "unavailable"],
+            "title": "Display",
+            "type": "string"
+          },
+          "environment": {
+            "enum": ["running", "stopped", "unavailable"],
+            "title": "Environment",
+            "type": "string"
+          },
+          "help_requests": {
+            "items": {
+              "$ref": "#/components/schemas/ComputerHelp"
+            },
+            "title": "Help Requests",
+            "type": "array"
+          },
+          "resources": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComputerResources"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "tabs": {
+            "items": {
+              "$ref": "#/components/schemas/ComputerTab"
+            },
+            "title": "Tabs",
+            "type": "array"
+          },
+          "tabs_available": {
+            "title": "Tabs Available",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "environment",
+          "display",
+          "control",
+          "help_requests",
+          "tabs",
+          "tabs_available",
+          "resources",
+          "revision"
+        ],
+        "title": "ComputerView",
+        "type": "object"
+      },
+      "ConversationCondition": {
+        "properties": {
+          "kind": {
+            "const": "conversation",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": ["kind"],
+        "title": "ConversationCondition",
+        "type": "object"
+      },
+      "CurrentAvatar": {
+        "properties": {
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "sizes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Sizes",
+            "type": "object"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": ["sha256", "sizes", "revision", "updated_at"],
+        "title": "CurrentAvatar",
+        "type": "object"
+      },
+      "Device": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          }
+        },
+        "required": ["device_id", "label", "created_at", "revoked_at"],
+        "title": "Device",
+        "type": "object"
+      },
+      "DisplayTicket": {
+        "properties": {
+          "expires_at": {
+            "title": "Expires At",
+            "type": "string"
+          },
+          "ticket": {
+            "title": "Ticket",
+            "type": "string"
+          },
+          "ws_path": {
+            "title": "Ws Path",
+            "type": "string"
+          }
+        },
+        "required": ["ticket", "expires_at", "ws_path"],
+        "title": "DisplayTicket",
+        "type": "object"
+      },
+      "Entry": {
+        "properties": {
+          "binding_id": {
+            "title": "Binding Id",
+            "type": "string"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "generation": {
+            "title": "Generation",
+            "type": "integer"
+          },
+          "latest_event_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Event Id"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "binding_id",
+          "platform",
+          "display_name",
+          "status",
+          "generation",
+          "latest_event_id",
+          "revision"
+        ],
+        "title": "Entry",
+        "type": "object"
+      },
+      "Envelope_CharacterProfile_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CharacterProfile"
+          }
+        },
+        "required": ["data"],
+        "title": "Envelope[CharacterProfile]",
+        "type": "object"
+      },
+      "Envelope_EventsPage_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EventsPage"
+          }
+        },
+        "required": ["data"],
+        "title": "Envelope[EventsPage]",
+        "type": "object"
+      },
+      "Envelope_Home_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Home"
+          }
+        },
+        "required": ["data"],
+        "title": "Envelope[Home]",
+        "type": "object"
+      },
+      "Envelope_Me_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Me"
+          }
+        },
+        "required": ["data"],
+        "title": "Envelope[Me]",
+        "type": "object"
+      },
+      "Envelope_MessageResult_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MessageResult"
+          }
+        },
+        "required": ["data"],
+        "title": "Envelope[MessageResult]",
+        "type": "object"
+      },
+      "Envelope_Meta_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": ["data"],
+        "title": "Envelope[Meta]",
+        "type": "object"
+      },
+      "Envelope_OriginalRequest_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OriginalRequest"
+          }
+        },
+        "required": ["data"],
+        "title": "Envelope[OriginalRequest]",
+        "type": "object"
+      },
+      "Envelope_PairResult_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PairResult"
+          }
+        },
+        "required": ["data"],
+        "title": "Envelope[PairResult]",
+        "type": "object"
+      },
+      "Envelope_UploadResult_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UploadResult"
+          }
+        },
+        "required": ["data"],
+        "title": "Envelope[UploadResult]",
+        "type": "object"
+      },
+      "Envelope_WorkCancelResult_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WorkCancelResult"
+          }
+        },
+        "required": ["data"],
+        "title": "Envelope[WorkCancelResult]",
+        "type": "object"
+      },
+      "Envelope_WorkView_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WorkView"
+          }
+        },
+        "required": ["data"],
+        "title": "Envelope[WorkView]",
+        "type": "object"
+      },
+      "EnvironmentCapabilities": {
+        "properties": {
+          "desktop": {
+            "title": "Desktop",
+            "type": "boolean"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/EnvironmentTool"
+            },
+            "title": "Tools",
+            "type": "array"
+          }
+        },
+        "required": ["tools", "desktop"],
+        "title": "EnvironmentCapabilities",
+        "type": "object"
+      },
+      "EnvironmentTool": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": ["name", "version"],
+        "title": "EnvironmentTool",
+        "type": "object"
+      },
+      "EventsPage": {
+        "properties": {
+          "generation": {
+            "title": "Generation",
+            "type": "integer"
+          },
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicEvent"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "latest_event_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Event Id"
+          },
+          "next_after": {
+            "title": "Next After",
+            "type": "integer"
+          },
+          "next_before": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "has_more",
+          "next_after",
+          "next_before",
+          "latest_event_id",
+          "generation",
+          "revision"
+        ],
+        "title": "EventsPage",
+        "type": "object"
+      },
+      "ExecutorConfig": {
+        "properties": {
+          "executor_id": {
+            "title": "Executor Id",
+            "type": "string"
+          },
+          "grants": {
+            "items": {
+              "$ref": "#/components/schemas/Grant"
+            },
+            "title": "Grants",
+            "type": "array"
+          },
+          "grants_digest": {
+            "title": "Grants Digest",
+            "type": "string"
+          },
+          "paused": {
+            "title": "Paused",
+            "type": "boolean"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": ["executor_id", "paused", "revision", "grants_digest", "grants"],
+        "title": "ExecutorConfig",
+        "type": "object"
+      },
+      "ExecutorCreated": {
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "executor_id": {
+            "title": "Executor Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "replay": {
+            "title": "Replay",
+            "type": "boolean"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          }
+        },
+        "required": ["executor_id", "label", "platform", "created_at", "replay"],
+        "title": "ExecutorCreated",
+        "type": "object"
+      },
+      "ExecutorOperation": {
+        "properties": {
+          "acknowledged_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged At"
+          },
+          "capability": {
+            "title": "Capability",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "dispatched_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dispatched At"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "enum": ["confirmed", "submitted"],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "observation": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observation"
+          },
+          "op_id": {
+            "title": "Op Id",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "title": "Params",
+            "type": "object"
+          },
+          "result": {
+            "additionalProperties": true,
+            "title": "Result",
+            "type": "object"
+          },
+          "settled_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settled At"
+          },
+          "state": {
+            "enum": [
+              "registered",
+              "dispatched",
+              "acknowledged",
+              "awaiting_user",
+              "succeeded",
+              "failed",
+              "unknown"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "op_id",
+          "capability",
+          "params",
+          "state",
+          "level",
+          "result",
+          "observation",
+          "created_at",
+          "dispatched_at",
+          "acknowledged_at",
+          "settled_at"
+        ],
+        "title": "ExecutorOperation",
+        "type": "object"
+      },
+      "ExecutorSyncItem": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": ["id", "revision"],
+        "title": "ExecutorSyncItem",
+        "type": "object"
+      },
+      "ExecutorView": {
+        "properties": {
+          "claimed": {
+            "title": "Claimed",
+            "type": "boolean"
+          },
+          "executor_id": {
+            "title": "Executor Id",
+            "type": "string"
+          },
+          "grants": {
+            "items": {
+              "$ref": "#/components/schemas/Grant"
+            },
+            "title": "Grants",
+            "type": "array"
+          },
+          "grants_digest": {
+            "title": "Grants Digest",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "online": {
+            "title": "Online",
+            "type": "boolean"
+          },
+          "paused": {
+            "title": "Paused",
+            "type": "boolean"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "executor_id",
+          "paused",
+          "revision",
+          "grants_digest",
+          "grants",
+          "label",
+          "platform",
+          "online",
+          "last_seen_at",
+          "claimed"
+        ],
+        "title": "ExecutorView",
+        "type": "object"
+      },
+      "Grant": {
+        "additionalProperties": false,
+        "properties": {
+          "capability": {
+            "minLength": 1,
+            "title": "Capability",
+            "type": "string"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Scope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["capability"],
+        "title": "Grant",
+        "type": "object"
+      },
+      "Home": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/Entry"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "main": {
+            "$ref": "#/components/schemas/Entry"
+          },
+          "snapshot_at": {
+            "title": "Snapshot At",
+            "type": "string"
+          },
+          "works": {
+            "items": {
+              "$ref": "#/components/schemas/WorkView"
+            },
+            "title": "Works",
+            "type": "array"
+          }
+        },
+        "required": ["main", "entries", "works", "snapshot_at"],
+        "title": "Home",
+        "type": "object"
+      },
+      "JsonValue": {},
+      "LinkCode": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "code_id": {
+            "title": "Code Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "title": "Expires At",
+            "type": "string"
+          },
+          "replay": {
+            "title": "Replay",
+            "type": "boolean"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          }
+        },
+        "required": ["code_id", "expires_at", "code", "replay"],
+        "title": "LinkCode",
+        "type": "object"
+      },
+      "Me": {
+        "properties": {
+          "binding_id": {
+            "title": "Binding Id",
+            "type": "string"
+          },
+          "bindings": {
+            "items": {
+              "$ref": "#/components/schemas/Binding"
+            },
+            "title": "Bindings",
+            "type": "array"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/Device"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "person_id": {
+            "title": "Person Id",
+            "type": "string"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "presence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presence Id"
+          },
+          "request_conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Conversation Id"
+          },
+          "request_person_id": {
+            "title": "Request Person Id",
+            "type": "string"
+          },
+          "request_scope": {
+            "title": "Request Scope",
+            "type": "string"
+          },
+          "source_person_id": {
+            "title": "Source Person Id",
+            "type": "string"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          }
+        },
+        "required": [
+          "person_id",
+          "source_person_id",
+          "request_person_id",
+          "request_conversation_id",
+          "request_scope",
+          "platform",
+          "presence_id",
+          "thread_id",
+          "binding_id",
+          "display_name",
+          "conversation_id",
+          "bindings",
+          "devices"
+        ],
+        "title": "Me",
+        "type": "object"
+      },
+      "MemoryDetail": {
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryEvidenceView"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "evidence_count": {
+            "title": "Evidence Count",
+            "type": "integer"
+          },
+          "fact_id": {
+            "title": "Fact Id",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["fact", "preference", "episode"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fact_id",
+          "kind",
+          "key",
+          "text",
+          "confidence",
+          "revision",
+          "updated_at",
+          "evidence_count",
+          "evidence"
+        ],
+        "title": "MemoryDetail",
+        "type": "object"
+      },
+      "MemoryEvidenceView": {
+        "properties": {
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "excerpt": {
+            "title": "Excerpt",
+            "type": "string"
+          }
+        },
+        "required": ["event_id", "conversation_id", "excerpt"],
+        "title": "MemoryEvidenceView",
+        "type": "object"
+      },
+      "MemoryFactView": {
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "evidence_count": {
+            "title": "Evidence Count",
+            "type": "integer"
+          },
+          "fact_id": {
+            "title": "Fact Id",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["fact", "preference", "episode"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fact_id",
+          "kind",
+          "key",
+          "text",
+          "confidence",
+          "revision",
+          "updated_at",
+          "evidence_count"
+        ],
+        "title": "MemoryFactView",
+        "type": "object"
+      },
+      "MemoryPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryFactView"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": ["items", "next_cursor"],
+        "title": "MemoryPage",
+        "type": "object"
+      },
+      "MessageBody": {
+        "additionalProperties": false,
+        "properties": {
+          "attachments": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": ["request_id", "text"],
+        "title": "MessageBody",
+        "type": "object"
+      },
+      "MessageResult": {
+        "properties": {
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "replay": {
+            "title": "Replay",
+            "type": "boolean"
+          }
+        },
+        "required": ["event_id", "conversation_id", "replay"],
+        "title": "MessageResult",
+        "type": "object"
+      },
+      "Meta": {
+        "properties": {
+          "api_revision": {
+            "title": "Api Revision",
+            "type": "integer"
+          },
+          "character": {
+            "$ref": "#/components/schemas/PublicCharacter"
+          },
+          "min_client": {
+            "$ref": "#/components/schemas/MinimumClient"
+          },
+          "server_version": {
+            "title": "Server Version",
+            "type": "string"
+          }
+        },
+        "required": ["api_revision", "server_version", "character", "min_client"],
+        "title": "Meta",
+        "type": "object"
+      },
+      "MinimumClient": {
+        "properties": {
+          "android": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Android"
+          },
+          "desktop": {
+            "title": "Desktop",
+            "type": "string"
+          }
+        },
+        "required": ["desktop", "android"],
+        "title": "MinimumClient",
+        "type": "object"
+      },
+      "OperationPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExecutorOperation"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": ["items", "next_cursor"],
+        "title": "OperationPage",
+        "type": "object"
+      },
+      "OriginalRequest": {
+        "properties": {
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "found": {
+            "title": "Found",
+            "type": "boolean"
+          },
+          "operation_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Kind"
+          },
+          "payload_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload Hash"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "problem_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem Code"
+          },
+          "result": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "result_event_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Event Ids"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "turn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TurnResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RequestWork"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["found"],
+        "title": "OriginalRequest",
+        "type": "object"
+      },
+      "OwnedRunCondition": {
+        "properties": {
+          "kind": {
+            "const": "owned_run",
+            "title": "Kind",
+            "type": "string"
+          },
+          "run_kind": {
+            "enum": ["terminal", "acp", "help_request", "wait_control", "other"],
+            "title": "Run Kind",
+            "type": "string"
+          }
+        },
+        "required": ["kind", "run_kind"],
+        "title": "OwnedRunCondition",
+        "type": "object"
+      },
+      "PairResult": {
+        "properties": {
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": ["device_id", "token"],
+        "title": "PairResult",
+        "type": "object"
+      },
+      "PluginCapability": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": ["id", "name", "description"],
+        "title": "PluginCapability",
+        "type": "object"
+      },
+      "PluginEventCondition": {
+        "properties": {
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "kind": {
+            "const": "plugin_event",
+            "title": "Kind",
+            "type": "string"
+          },
+          "plugin_id": {
+            "title": "Plugin Id",
+            "type": "string"
+          }
+        },
+        "required": ["kind", "plugin_id", "event_type"],
+        "title": "PluginEventCondition",
+        "type": "object"
+      },
+      "ProactiveRoute": {
+        "properties": {
+          "binding_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Binding Id"
+          },
+          "paused": {
+            "title": "Paused",
+            "type": "boolean"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
+          "replay": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replay"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": ["binding_id", "platform", "paused", "revision"],
+        "title": "ProactiveRoute",
+        "type": "object"
+      },
+      "PublicCharacter": {
+        "properties": {
+          "accent": {
+            "$ref": "#/components/schemas/Accent"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": ["id", "display_name", "accent", "avatar_url"],
+        "title": "PublicCharacter",
+        "type": "object"
+      },
+      "PublicEvent": {
+        "additionalProperties": true,
+        "properties": {
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/Attachment"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "author_kind": {
+            "title": "Author Kind",
+            "type": "string"
+          },
+          "binding_id": {
+            "title": "Binding Id",
+            "type": "string"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "display_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Text"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "origin": {
+            "title": "Origin",
+            "type": "string"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Transcript"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Work Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "event_id",
+          "conversation_id",
+          "binding_id",
+          "platform",
+          "direction",
+          "author_kind",
+          "text",
+          "origin",
+          "created_at",
+          "attachments"
+        ],
+        "title": "PublicEvent",
+        "type": "object"
+      },
+      "PublicStep": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/StepArtifact"
+            },
+            "title": "Artifacts",
+            "type": "array"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "record": {
+            "enum": ["prepared", "accepted", "failed", "unknown"],
+            "title": "Record",
+            "type": "string"
+          },
+          "status": {
+            "enum": ["recorded", "running", "succeeded", "failed", "unknown"],
+            "title": "Status",
+            "type": "string"
+          },
+          "step_id": {
+            "title": "Step Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step_id",
+          "category",
+          "label",
+          "record",
+          "status",
+          "created_at",
+          "updated_at",
+          "artifacts"
+        ],
+        "title": "PublicStep",
+        "type": "object"
+      },
+      "RequestWork": {
+        "additionalProperties": true,
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "work_id": {
+            "title": "Work Id",
+            "type": "string"
+          }
+        },
+        "required": ["work_id", "state", "revision", "reason", "active"],
+        "title": "RequestWork",
+        "type": "object"
+      },
+      "Scope": {
+        "additionalProperties": false,
+        "properties": {
+          "alias": {
+            "minLength": 1,
+            "title": "Alias",
+            "type": "string"
+          },
+          "digest": {
+            "pattern": "^(sha256:)?[0-9a-f]{64}$",
+            "title": "Digest",
+            "type": "string"
+          }
+        },
+        "required": ["alias", "digest"],
+        "title": "Scope",
+        "type": "object"
+      },
+      "StepArtifact": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": ["artifact_id", "version"],
+        "title": "StepArtifact",
+        "type": "object"
+      },
+      "SyncHint": {
+        "properties": {
+          "activity": {
+            "items": {
+              "$ref": "#/components/schemas/Activity"
+            },
+            "title": "Activity",
+            "type": "array"
+          },
+          "character_revision": {
+            "title": "Character Revision",
+            "type": "integer"
+          },
+          "computer_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Computer Revision"
+          },
+          "conversations": {
+            "items": {
+              "$ref": "#/components/schemas/Entry"
+            },
+            "title": "Conversations",
+            "type": "array"
+          },
+          "executors": {
+            "items": {
+              "$ref": "#/components/schemas/ExecutorSyncItem"
+            },
+            "title": "Executors",
+            "type": "array"
+          },
+          "works": {
+            "items": {
+              "$ref": "#/components/schemas/WorkHint"
+            },
+            "title": "Works",
+            "type": "array"
+          }
+        },
+        "required": ["conversations", "works", "activity", "character_revision"],
+        "title": "SyncHint",
+        "type": "object"
+      },
+      "TimeDueCondition": {
+        "properties": {
+          "due_at": {
+            "title": "Due At",
+            "type": "string"
+          },
+          "kind": {
+            "const": "time_due",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": ["kind", "due_at"],
+        "title": "TimeDueCondition",
+        "type": "object"
+      },
+      "Transcript": {
+        "properties": {
+          "state": {
+            "enum": ["available", "none"],
+            "title": "State",
+            "type": "string"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "required": ["state"],
+        "title": "Transcript",
+        "type": "object"
+      },
+      "TurnResult": {
+        "properties": {
+          "outcome": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": ["state"],
+        "title": "TurnResult",
+        "type": "object"
+      },
+      "UploadResult": {
+        "properties": {
+          "expires_at": {
+            "title": "Expires At",
+            "type": "number"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "media_id": {
+            "title": "Media Id",
+            "type": "string"
+          },
+          "replay": {
+            "title": "Replay",
+            "type": "boolean"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": ["media_id", "sha256", "size", "filename", "kind", "expires_at", "replay"],
+        "title": "UploadResult",
+        "type": "object"
+      },
+      "Viewer": {
+        "properties": {
+          "is_owner": {
+            "title": "Is Owner",
+            "type": "boolean"
+          }
+        },
+        "required": ["is_owner"],
+        "title": "Viewer",
+        "type": "object"
+      },
+      "WorkBudget": {
+        "properties": {
+          "model_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Limit"
+          },
+          "models": {
+            "title": "Models",
+            "type": "integer"
+          },
+          "root_id": {
+            "title": "Root Id",
+            "type": "string"
+          },
+          "tool_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Limit"
+          },
+          "tools": {
+            "title": "Tools",
+            "type": "integer"
+          }
+        },
+        "required": ["root_id", "models", "model_limit", "tools", "tool_limit"],
+        "title": "WorkBudget",
+        "type": "object"
+      },
+      "WorkCancelResult": {
+        "properties": {
+          "replay": {
+            "title": "Replay",
+            "type": "boolean"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "work_id": {
+            "title": "Work Id",
+            "type": "string"
+          }
+        },
+        "required": ["work_id", "state", "revision", "replay"],
+        "title": "WorkCancelResult",
+        "type": "object"
+      },
+      "WorkHint": {
+        "properties": {
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "steps_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Steps Token"
+          },
+          "work_id": {
+            "title": "Work Id",
+            "type": "string"
+          }
+        },
+        "required": ["work_id", "revision"],
+        "title": "WorkHint",
+        "type": "object"
+      },
+      "WorkPage": {
+        "properties": {
+          "next_before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before"
+          },
+          "works": {
+            "items": {
+              "$ref": "#/components/schemas/WorkView"
+            },
+            "title": "Works",
+            "type": "array"
+          }
+        },
+        "required": ["works", "next_before"],
+        "title": "WorkPage",
+        "type": "object"
+      },
+      "WorkResult": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              "type": "object"
+            },
+            "title": "Artifacts",
+            "type": "array"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": ["event_id", "conversation_id", "text", "artifacts"],
+        "title": "WorkResult",
+        "type": "object"
+      },
+      "WorkSource": {
+        "properties": {
+          "binding_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Binding Id"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
+          "space_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Space Id"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "kind",
+          "binding_id",
+          "platform",
+          "display_name",
+          "space_id"
+        ],
+        "title": "WorkSource",
+        "type": "object"
+      },
+      "WorkSteps": {
+        "properties": {
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/ChildWork"
+            },
+            "title": "Children",
+            "type": "array"
+          },
+          "next_after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next After"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/PublicStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "steps_token": {
+            "title": "Steps Token",
+            "type": "string"
+          },
+          "wait": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkWait"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_revision": {
+            "title": "Work Revision",
+            "type": "integer"
+          }
+        },
+        "required": ["steps", "next_after", "children", "wait", "steps_token", "work_revision"],
+        "title": "WorkSteps",
+        "type": "object"
+      },
+      "WorkView": {
+        "additionalProperties": true,
+        "properties": {
+          "budget": {
+            "$ref": "#/components/schemas/WorkBudget"
+          },
+          "child_count": {
+            "title": "Child Count",
+            "type": "integer"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "generation": {
+            "title": "Generation",
+            "type": "integer"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "help_requested": {
+            "default": false,
+            "title": "Help Requested",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "result_delivery": {
+            "$ref": "#/components/schemas/WorkSource"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/WorkResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/WorkSource"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "waiting_external",
+              "waiting_user",
+              "suspended",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "step_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Count"
+          },
+          "steps_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps Token"
+          },
+          "trigger_event_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Event Id"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "number"
+          },
+          "wait": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkWait"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "waiting_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiting Kind"
+          },
+          "waiting_question": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_id": {
+            "title": "Work Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "work_id",
+          "conversation_id",
+          "generation",
+          "state",
+          "revision",
+          "goal",
+          "source",
+          "result_delivery",
+          "waiting_kind",
+          "waiting_question",
+          "child_count",
+          "budget",
+          "results",
+          "updated_at"
+        ],
+        "title": "WorkView",
+        "type": "object"
+      },
+      "WorkWait": {
+        "properties": {
+          "conditions": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "conversation": "#/components/schemas/ConversationCondition",
+                  "owned_run": "#/components/schemas/OwnedRunCondition",
+                  "plugin_event": "#/components/schemas/PluginEventCondition",
+                  "time_due": "#/components/schemas/TimeDueCondition"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/TimeDueCondition"
+                },
+                {
+                  "$ref": "#/components/schemas/ConversationCondition"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginEventCondition"
+                },
+                {
+                  "$ref": "#/components/schemas/OwnedRunCondition"
+                }
+              ]
+            },
+            "title": "Conditions",
+            "type": "array"
+          },
+          "deadline_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline At"
+          },
+          "mode": {
+            "enum": ["any", "all"],
+            "title": "Mode",
+            "type": "string"
+          },
+          "since": {
+            "title": "Since",
+            "type": "string"
+          }
+        },
+        "required": ["mode", "since", "deadline_at", "conditions"],
+        "title": "WorkWait",
+        "type": "object"
+      }
+    }
+  }
+}

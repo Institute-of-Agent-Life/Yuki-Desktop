@@ -20,7 +20,8 @@ const original: Connection = {
 }
 const merged = '00000000-0000-4000-8000-000000000005'
 const meta: Meta = {
-  api_revision: 5,
+  api_revision: 6,
+  capabilities: ['character', 'soul'],
   server_version: 'test',
   character: {
     id: original.characterId,
@@ -75,6 +76,24 @@ function data(schema: string, value: unknown) {
   validateFixture(schema, { data: value })
   return Response.json({ data: value })
 }
+it('reports unavailable product capabilities without calling missing routes, while me remains usable', async () => {
+  const connections = setup(),
+    calls: string[] = []
+  connections.credentials.set(`device/${original.characterId}/${original.personId}`, 'fixture-only')
+  vi.stubGlobal('fetch', async (input: string) => {
+    calls.push(input)
+    if (input.endsWith('/meta'))
+      return data('Envelope_Meta_', { ...meta, min_client: { desktop: null, android: null } })
+    if (input.endsWith('/me')) return data('Envelope_Me_', me)
+    throw Error('Unexpected missing product service call')
+  })
+  await expect(connections.read(original.characterId, { kind: 'computer' })).rejects.toHaveProperty(
+    'code',
+    'feature_unavailable',
+  )
+  expect(await connections.read(original.characterId, { kind: 'me' })).toEqual(me)
+  expect(calls.some((path) => path.endsWith('/computer'))).toBe(false)
+})
 it('keeps verified avatar bytes offline, rejects a damaged cache and clears it after known revocation', async () => {
   const connections = setup()
   connections.credentials.set(`device/${original.characterId}/${original.personId}`, 'fixture-only')

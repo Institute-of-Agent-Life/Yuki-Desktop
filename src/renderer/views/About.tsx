@@ -48,12 +48,12 @@ export function About({
   id,
   profile,
   jump,
-  editPrompts,
+  editSoul,
 }: {
   id: string
   profile: Profile
   jump: (source: MessageReference) => Promise<boolean>
-  editPrompts(): void
+  editSoul(): void
 }) {
   const query = useQueryClient()
   const [tab, setTab] = useState<'me' | 'self' | 'arrangements' | 'capabilities'>('me')
@@ -161,7 +161,7 @@ export function About({
                     >
                       更換頭像
                     </Button>
-                    <Button onClick={editPrompts}>編輯提示詞</Button>
+                    <Button onClick={editSoul}>編輯提示詞</Button>
                   </div>
                 )}
               </>
@@ -324,12 +324,7 @@ function ProfileEditor({
     >
       <label>
         名稱
-        <TextField
-          autoFocus
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          required
-        />
+        <TextField autoFocus value={name} onChange={(event) => setName(event.target.value)} />
       </label>
       <label>
         簡介

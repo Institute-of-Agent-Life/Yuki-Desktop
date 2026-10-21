@@ -4,7 +4,7 @@ export class ApiError extends Error {
     readonly reason?: string,
     readonly details?: Record<
       string,
-      import('../../shared/contract.gen').components['schemas']['JsonValue']
+      import('../../shared/product-models').ProductModels['schemas']['JsonValue']
     >,
   ) {
     super(code)

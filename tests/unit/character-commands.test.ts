@@ -61,6 +61,18 @@ const api = (fetcher: typeof fetch) =>
   new ApiClient('http://localhost/role', 'test-only', owner.bindingId, '1.0.0-beta.1', fetcher)
 const data = (value: unknown) => Response.json({ data: value })
 
+it('keeps character names exactly as supplied by the public contract', () => {
+  const { commands } = setup()
+  const item = commands.prepare({
+    kind: 'profile',
+    expectedRevision: 1,
+    displayName: '',
+    bio: '',
+    accent: { light: '#123456', dark: '#abcdef' },
+  })
+  expect(item.command).toMatchObject({ displayName: '' })
+})
+
 it('cold recovery queries the original receipt after a committed correction loses its response', async () => {
   const { path, box, commands } = setup()
   const item = commands.prepare(correction)

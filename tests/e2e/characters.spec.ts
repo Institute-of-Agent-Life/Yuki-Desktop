@@ -92,7 +92,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     )
     await page.getByRole('button', { name: '關於 Mika', exact: true }).click()
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
-    const editor = page.getByRole('textbox', { name: 'system_prompt.md 內容', exact: true })
+    const editor = page.getByRole('textbox', { name: 'SOUL.md 內容', exact: true })
     await editor.click()
     await page.keyboard.press('ControlOrMeta+End')
     await page.keyboard.insertText('\n只屬於 Mika 的提示詞')
