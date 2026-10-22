@@ -51,6 +51,8 @@ import { ClientNotifications } from './notifications'
 import { heldComputers } from './computer-exit'
 import { LoginItem } from './login-item'
 import { diagnostics } from './diagnostics'
+import { AgentConnector } from './agent-connector'
+import type { ConnectorPairing, ConnectorServiceAction } from '../shared/connector'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -352,6 +354,10 @@ else {
       })
     }
     action('update-state', () => updates.state())
+    const connector = new AgentConnector()
+    action('connector-state', () => connector.state())
+    action('connector-pair', (input: ConnectorPairing) => connector.pair(input))
+    action('connector-service', (command: ConnectorServiceAction) => connector.service(command))
     action('update-check', () => updates.check())
     action('update-download', () => updates.download())
     action('update-cancel', () => updates.cancel())

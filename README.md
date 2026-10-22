@@ -4,6 +4,8 @@ Yuki 的跨平台桌面客戶端專案。
 
 使用 Electron、React 與 TypeScript 開發。桌面端透過版本化個人 API 連接獨立的 Yuki 後端，不包含另一套 Agent Runtime。
 
+設定中的「編程 Agent」管理獨立的 `yuki-agent-connector` 使用者服務。先安裝後端發行附帶的連接器 wheel，確保 Desktop 能找到同名 CLI，再以明確簽發、用途為 `connector` 的電腦授權碼配對。此入口可查看配對、原生 Agent profile 與系統服務狀態，並明確安裝、啟動、停止或移除同一服務；原生安裝與 profile 透過 `yuki-agent-connector instance add` 設定。它不使用舊本機執行器，不依賴角色 Conversation，也不另建 Agent runtime。配對碼由標準輸入傳給 CLI，裝置 token 只由連接器保存；關閉 Desktop 不停止服務或原生 Agent。桌面本身不安裝 Codex／Claude、不改原生登入設定。這部分使用新增的 `/agents/v1` 連接器介面，不代表 Client API revision 6 已有遠端 Agent 能力。
+
 需要提供 **Client API revision 6** 的 Yuki 後端，固定來源與內容雜湊見 [contracts/source.json](contracts/source.json)。本版合同來自 [Yuki 的 SOUL 與聊天檢索合流提交](https://github.com/YuanYeYouTao/Yuki/commit/06b9378f07a565b67122eebd79e080e0ecf4835e)，僅更新桌面不會升級後端。首次使用時，在 QQ／Telegram 私聊角色傳送 `/ai link`，再於桌面輸入伺服器位址及綁定碼完成配對。桌面保留電腦、執行器等產品介面；目前合同未實作的能力依伺服器 `meta.capabilities` 顯示不可用，不能視為這些服務已上線。
 
 開發環境需 Node.js 22.12 以上，使用已提交的 npm lockfile：

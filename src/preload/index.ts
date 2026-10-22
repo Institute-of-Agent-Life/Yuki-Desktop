@@ -2,6 +2,11 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { BootInfo, Command, DesktopBridge } from '../shared/desktop'
 
 const bridge: DesktopBridge = {
+  connector: {
+    state: () => ipcRenderer.invoke('yuki:connector-state'),
+    pair: (input) => ipcRenderer.invoke('yuki:connector-pair', input),
+    service: (action) => ipcRenderer.invoke('yuki:connector-service', action),
+  },
   client: {
     executorState: (id) => ipcRenderer.invoke('yuki:executor-state', id),
     clearUnavailableExecutor: (id) => ipcRenderer.invoke('yuki:executor-clear-unavailable', id),

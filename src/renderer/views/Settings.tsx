@@ -10,6 +10,7 @@ import {
   Server,
   ShieldCheck,
   Laptop,
+  Terminal,
 } from 'lucide-react'
 import type { Connection } from '../../shared/api'
 import { UpdatePanel } from '../components/Updates'
@@ -17,6 +18,7 @@ import { ApplicationMenu } from '../components/ApplicationMenu'
 import { ServerSettings } from './ServerSettings'
 import { DeviceSecurity } from './DeviceSecurity'
 import { LocalConnection } from './LocalConnection'
+import { AgentConnector } from './AgentConnector'
 import type { BootInfo, Preferences } from '../../shared/desktop'
 import { Banner, Button, Segmented, Spinner, Toggle, SelectionPill } from '../components/Controls'
 import { unwrap } from '../queries/client'
@@ -27,6 +29,7 @@ const categories = [
   { id: 'look', label: '外觀', icon: Palette },
   { id: 'notify', label: '通知', icon: Bell },
   { id: 'local', label: '本機連接', icon: Laptop },
+  { id: 'agents', label: '編程 Agent', icon: Terminal },
   { id: 'security', label: '裝置與安全', icon: ShieldCheck },
   { id: 'server', label: '伺服器與角色', icon: Server },
   { id: 'advanced', label: '進階', icon: Wrench },
@@ -332,6 +335,8 @@ export function Settings({
             ) : (
               <p className={styles.notice}>配對角色後可設定本機連接。</p>
             )
+          ) : category === 'agents' ? (
+            <AgentConnector server={connection?.baseUrl} deviceLabel={boot.deviceLabel} />
           ) : category === 'security' ? (
             connection ? (
               <DeviceSecurity

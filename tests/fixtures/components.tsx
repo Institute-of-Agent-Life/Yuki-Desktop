@@ -1,6 +1,9 @@
 import { useGlass } from '../../src/renderer/materials/glass'
 import { useLayoutEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { AgentConnector } from '../../src/renderer/views/AgentConnector'
+import type { ConnectorState } from '../../src/shared/connector'
 import { defaultPreferences } from '../../src/shared/desktop'
 import {
   Avatar,
@@ -18,7 +21,35 @@ import { Workspace } from '../../src/renderer/components/Workspace'
 import '../../src/renderer/tokens.css'
 import '../../src/renderer/materials/materials.css'
 
+const connectorMode = new URLSearchParams(location.search).get('connector')
+let connectorState: ConnectorState = connectorMode
+  ? { available: true, paired: false, instances: [], service: { installed: false, running: false } }
+  : { available: false }
+
 window.yuki = {
+  connector: {
+    state: async () => ({ ok: true, value: connectorState }),
+    pair: async () => {
+      connectorState = {
+        available: true,
+        paired: true,
+        deviceId: 'paired-computer',
+        instances: [],
+        service: { installed: false, running: false },
+      }
+      return { ok: true, value: connectorState }
+    },
+    service: async (action) => {
+      connectorState = {
+        available: true,
+        paired: true,
+        deviceId: 'paired-computer',
+        instances: [],
+        service: { installed: action !== 'uninstall', running: action === 'start' },
+      }
+      return { ok: true, value: connectorState }
+    },
+  },
   applicationMenu: async () => ({ ok: true, value: false }),
   updates: {
     state: async () => ({ ok: false, code: 'unavailable' }),
@@ -125,14 +156,46 @@ window.yuki = {
   onOpenTarget: () => () => {},
 }
 function LensPreview() {
-  const glass = useGlass<HTMLSpanElement>('toolbar'), [enabled, setEnabled] = useState(true)
-  useLayoutEffect(() => { glass.setStrength(enabled ? 1 : 0) }, [enabled])
-  return <div>
-    <button onClick={() => setEnabled((value) => !value)}>只切換像素折射</button>
-    <div data-testid="lens-sample" style={{ position: 'relative', width: 280, height: 72, background: 'repeating-conic-gradient(#121212 0% 25%, #fafafa 0% 50%) 0 0 / 16px 16px' }}>
-      <span ref={glass.ref} data-glass="toolbar" style={{ position: 'absolute', left: 24, top: 14, width: 232, height: 44, borderRadius: 17, background: 'rgb(255 255 255 / .2)', backdropFilter: 'var(--refract, none)', display: 'grid', placeItems: 'center', color: 'red', fontWeight: 600 }}>清晰文字</span>
+  const glass = useGlass<HTMLSpanElement>('toolbar'),
+    [enabled, setEnabled] = useState(true)
+  useLayoutEffect(() => {
+    glass.setStrength(enabled ? 1 : 0)
+  }, [enabled])
+  return (
+    <div>
+      <button onClick={() => setEnabled((value) => !value)}>只切換像素折射</button>
+      <div
+        data-testid="lens-sample"
+        style={{
+          position: 'relative',
+          width: 280,
+          height: 72,
+          background: 'repeating-conic-gradient(#121212 0% 25%, #fafafa 0% 50%) 0 0 / 16px 16px',
+        }}
+      >
+        <span
+          ref={glass.ref}
+          data-glass="toolbar"
+          style={{
+            position: 'absolute',
+            left: 24,
+            top: 14,
+            width: 232,
+            height: 44,
+            borderRadius: 17,
+            background: 'rgb(255 255 255 / .2)',
+            backdropFilter: 'var(--refract, none)',
+            display: 'grid',
+            placeItems: 'center',
+            color: 'red',
+            fontWeight: 600,
+          }}
+        >
+          清晰文字
+        </span>
+      </div>
     </div>
-  </div>
+  )
 }
 function Gallery() {
   const [preferences, setPreferences] = useState(defaultPreferences)
@@ -162,7 +225,10 @@ function Gallery() {
             { value: 'light', label: '淺色' },
             { value: 'dark', label: '深色' },
           ]}
-          onChange={(value) => { setTheme(value); setChanges((s) => ({ ...s, segment: s.segment + 1 })) }}
+          onChange={(value) => {
+            setTheme(value)
+            setChanges((s) => ({ ...s, segment: s.segment + 1 }))
+          }}
         />
         <h2 style={{ margin: '24px 0 16px' }}>共用元件</h2>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -181,7 +247,10 @@ function Gallery() {
           <Toggle
             label="測試切換"
             checked={preferences.opaque}
-            onChange={(opaque) => { setPreferences((previous) => ({ ...previous, opaque })); setChanges((s) => ({ ...s, switch: s.switch + 1 })) }}
+            onChange={(opaque) => {
+              setPreferences((previous) => ({ ...previous, opaque }))
+              setChanges((s) => ({ ...s, switch: s.switch + 1 }))
+            }}
           />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -253,4 +322,14 @@ function Gallery() {
     </Workspace>
   )
 }
-createRoot(document.getElementById('root')!).render(<Gallery />)
+createRoot(document.getElementById('root')!).render(
+  connectorMode ? (
+    <QueryClientProvider client={new QueryClient()}>
+      <main style={{ maxWidth: 680, padding: 32 }}>
+        <AgentConnector server="https://yuki.example" deviceLabel="My computer" />
+      </main>
+    </QueryClientProvider>
+  ) : (
+    <Gallery />
+  ),
+)
