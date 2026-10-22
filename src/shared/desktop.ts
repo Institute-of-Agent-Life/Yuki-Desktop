@@ -77,6 +77,7 @@ export interface BootInfo {
 }
 
 export interface DesktopBridge {
+  connector: import('./connector').ConnectorBridge
   client: ConversationBridge
   updates: {
     state(): Promise<import('./api').ApiReply<import('./updates').UpdateState>>
