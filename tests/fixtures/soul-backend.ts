@@ -33,7 +33,7 @@ export async function soulBackend() {
     {
       cwd: backend,
       env: { ...process.env, PYTHONPATH: [join(backend!, 'src'), backend!].join(delimiter) },
-      stdio: ['ignore', log, log],
+      stdio: ['ignore', 'ignore', log],
     },
   )
   let state:

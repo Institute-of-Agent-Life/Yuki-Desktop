@@ -71,7 +71,7 @@ export async function yukiFixture(options: { managedUpdates?: boolean } = {}) {
             ...process.env,
             PYTHONPATH: [join(backend!, 'src'), backend!].join(delimiter),
           },
-          stdio: ['ignore', log, log],
+          stdio: ['ignore', 'ignore', log],
         },
       ),
     base = `http://127.0.0.1:${port}/role/yuki`
