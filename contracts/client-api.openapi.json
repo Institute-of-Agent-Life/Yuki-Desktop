@@ -1000,6 +1000,17 @@
             "title": "Platform",
             "type": "string"
           },
+          "sender_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sender Display Name"
+          },
           "text": {
             "title": "Text",
             "type": "string"

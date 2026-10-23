@@ -16,7 +16,7 @@ import type {
 import type { Preferences } from '../../shared/desktop'
 import type { SyncHint } from '../../shared/sync'
 import { Composer } from '../components/Composer'
-import { Banner, Button, EmptyState, IconButton } from '../components/Controls'
+import { Avatar, Banner, Button, EmptyState, IconButton } from '../components/Controls'
 import { CharacterAvatar, CharacterVisuals } from '../components/CharacterAvatar'
 import { characterPresence } from '../../shared/presence'
 import { SoulEditor } from './SoulEditor'
@@ -678,6 +678,7 @@ export function Conversation({
               render={(event) => (
                 <Message
                   characterId={id}
+                  viewerPersonId={connection.personId}
                   event={event}
                   name={name}
                   selected={false}
@@ -886,10 +887,15 @@ export function Conversation({
                     consecutive={
                       index > 0 &&
                       event.direction === visible[index - 1]!.direction &&
+                      event.author_kind === visible[index - 1]!.author_kind &&
+                      (event.author_kind === 'yuki' ||
+                        (event.author_person_id !== null &&
+                          event.author_person_id === visible[index - 1]!.author_person_id)) &&
                       dayKey(event.created_at) === dayKey(visible[index - 1]!.created_at)
                     }
                     onJump={(reference) => void jumpTo(reference)}
                     characterId={id}
+                    viewerPersonId={connection.personId}
                     receipt={(outbox.data ?? []).find((item) => item.eventId === event.event_id)}
                     verify={async (requestId) => {
                       unwrap(await window.yuki.client.verify(id, requestId))
@@ -1134,8 +1140,9 @@ function Pending({ item, verify }: { item: OutboxItem; verify(): Promise<void> }
   )
 }
 
-function Message({
+export function Message({
   characterId,
+  viewerPersonId,
   receipt,
   verify,
   event,
@@ -1149,6 +1156,7 @@ function Message({
   consecutive,
 }: {
   characterId: string
+  viewerPersonId: string
   receipt?: OutboxItem
   verify(requestId: string): Promise<void>
   event: PublicEvent
@@ -1161,7 +1169,9 @@ function Message({
   onJump(reference: MessageReference): void
   consecutive: boolean
 }) {
-  const own = event.direction === 'inbound'
+  const own = event.direction === 'inbound' && event.author_person_id === viewerPersonId
+  const yuki = event.author_kind === 'yuki'
+  const author = own ? '你' : yuki ? name : (event.sender_display_name ?? '參與者')
   const { timeLabel } = useDisplayTime()
   const html = useMarkdown(parseMessage(event.text).text)
   const [error, setError] = useState('')
@@ -1171,7 +1181,7 @@ function Message({
     <article
       data-event-id={event.event_id}
       tabIndex={0}
-      aria-label={`${own ? '你' : name}的訊息`}
+      aria-label={`${author}的訊息`}
       className={`${styles.message} ${own ? styles.ownMessage : ''} ${selected ? styles.selected : ''} ${consecutive ? styles.consecutive : ''}`}
       onClick={onSelect}
       onContextMenu={(click) => {
@@ -1188,10 +1198,16 @@ function Message({
       }}
     >
       {!own &&
-        (!consecutive ? <CharacterAvatar size={28} /> : <span className={styles.avatarSpace} />)}
+        (consecutive ? (
+          <span className={styles.avatarSpace} />
+        ) : yuki ? (
+          <CharacterAvatar size={28} />
+        ) : (
+          <Avatar name={author} size={28} />
+        ))}
       <div className={styles.messageBody}>
         <header>
-          <strong>{own ? '你' : name}</strong>
+          <strong>{author}</strong>
           <time dateTime={event.created_at}>{timeLabel(event.created_at)}</time>
         </header>
         <References characterId={characterId} text={event.text} onJump={onJump} />

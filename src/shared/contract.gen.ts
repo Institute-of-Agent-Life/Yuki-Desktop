@@ -811,6 +811,8 @@ export interface components {
             origin: string;
             /** Platform */
             platform: string;
+            /** Sender Display Name */
+            sender_display_name?: string | null;
             /** Text */
             text: string;
         } & {
