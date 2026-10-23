@@ -62,12 +62,11 @@ it.skipIf(process.platform !== 'win32')(
     )
     const alias = stdout.trim()
     if (alias === profile) context.skip('The test volume does not provide 8.3 aliases.')
-    await writeFile(join(profile, 'Local State'), '{}')
-    const ready = windowsEncryptionKeyPersisted(alias)
     await writeFile(
       join(profile, 'Local State.tmp'),
       JSON.stringify({ os_crypt: { encrypted_key: 'fixture-encrypted-key' } }),
     )
+    const ready = windowsEncryptionKeyPersisted(alias)
     await rename(join(profile, 'Local State.tmp'), join(profile, 'Local State'))
     await ready
   },
