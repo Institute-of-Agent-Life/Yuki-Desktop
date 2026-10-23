@@ -7,6 +7,7 @@ import { delimiter, join } from 'node:path'
 import { isolatedDesktop } from './isolated-desktop'
 import { createServer } from 'node:net'
 import type { Connection, EventsPage } from '../../src/shared/api'
+import { parsePairing } from '../../src/shared/pairing'
 
 export async function currentConnection(page: Page): Promise<Connection> {
   return page.evaluate(async () => {
@@ -30,7 +31,7 @@ export async function currentEvents(page: Page): Promise<EventsPage> {
   })
 }
 
-export async function yukiFixture() {
+export async function yukiFixture(options: { managedUpdates?: boolean } = {}) {
   const backend = process.env.YUKI_BACKEND_TEST_ROOT,
     python = process.env.YUKI_BACKEND_TEST_PYTHON
   if (process.env.CI && (!backend || !python))
@@ -95,7 +96,7 @@ export async function yukiFixture() {
     closeSync(log)
     throw new Error(`Backend startup failed; local evidence: ${root}`, { cause: error })
   }
-  const desktop = await isolatedDesktop(root)
+  const desktop = await isolatedDesktop(root, options)
   return {
     root,
     base,
@@ -104,6 +105,8 @@ export async function yukiFixture() {
       JSON.parse(await readFile(join(root, 'ready.json'), 'utf8')) as {
         owner_pairing_code: string
         nonowner_pairing_code: string
+        owner_person_id: string
+        nonowner_person_id: string
         artifact_id: string
         artifact_version: string
         artifact_event_id: number
@@ -126,11 +129,11 @@ export async function yukiFixture() {
       await ready()
     },
     async close(success: boolean) {
-      await fetch(`${base}/__test/shutdown`, { method: 'POST' })
-      await new Promise<void>((resolve) => {
-        if (server.exitCode !== null || server.signalCode !== null) resolve()
-        else server.once('exit', () => resolve())
-      })
+      if (server.exitCode === null && server.signalCode === null) {
+        const stopped = new Promise<void>((resolve) => server.once('exit', () => resolve()))
+        await fetch(`${base}/__test/shutdown`, { method: 'POST' })
+        await stopped
+      }
       closeSync(log)
       if (success) await rm(root, { recursive: true, force: true })
       else console.error(`Backend evidence retained at ${root}`)
@@ -163,8 +166,11 @@ export async function pairUI(
   })
   try {
     if (await start.isVisible()) await start.click()
+    const parsed = parsePairing(code)
     await input.fill(
-      `yuki://pair?server=${encodeURIComponent(base)}&code=${encodeURIComponent(code)}`,
+      parsed?.server
+        ? code
+        : `yuki://pair?server=${encodeURIComponent(base)}&code=${encodeURIComponent(parsed?.code ?? code)}`,
     )
     await page.getByRole('button', { name: '繼續', exact: true }).click()
     if (label) await page.getByLabel('這台裝置的名稱').fill(label)

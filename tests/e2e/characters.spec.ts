@@ -27,6 +27,10 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
     let page = await app.firstWindow()
     page.on('pageerror', (error) => errors.push(error.message))
     await pairUI(page, first.base, await first.code())
+    await page.keyboard.press('ControlOrMeta+,')
+    await page.getByRole('tab', { name: '外觀', exact: true }).click()
+    await page.getByRole('radio', { name: '淺色', exact: true }).click()
+    await page.getByRole('button', { name: '返回', exact: true }).click()
     await expect(page.getByRole('button', { name: '切換角色', exact: true })).toHaveCount(0)
     await page
       .getByRole('textbox', { name: '和 初始角色 說點什麼', exact: true })
@@ -42,8 +46,13 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
       .click()
     await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
     await add(page)
-    await page.getByRole('button', { name: '取消', exact: true }).click()
-    await page.getByRole('button', { name: '加入另一個角色', exact: true }).click()
+    await expect(page.getByText(`伺服器：${first.base}`, { exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '確認並連接', exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: '返回', exact: true }).click()
+    await expect(
+      page.getByRole('textbox', { name: '和 初始角色 說點什麼', exact: true }),
+    ).toHaveValue('只有第一角色的草稿')
+    await add(page)
     await pairUI(page, second.base, await second.code())
     await expect(
       page.getByRole('textbox', { name: '和 初始角色 說點什麼', exact: true }),

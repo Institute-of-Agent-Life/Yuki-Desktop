@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 
 test('paginates real history without moving the visible message and jumps to the exact older reference', async () => {
@@ -16,18 +17,11 @@ test('paginates real history without moving the visible message and jumps to the
       .getByRole('article')
       .filter({ has: page.getByText('原始歷史錨點', { exact: true }) })
     await original.getByRole('button', { name: '引用回覆' }).click()
-    // Populate history through the product's normal API/outbox, never by setting UI state.
-    await page.evaluate(async () => {
-      const connections = await window.yuki.client.connections()
-      if (!connections.ok || !connections.value[0]) throw new Error('Missing paired connection')
-      for (let index = 0; index < 61; index++) {
-        const result = await window.yuki.client.send(
-          connections.value[0].characterId,
-          `歷史測試 ${String(index).padStart(2, '0')}\n${'真實帳本的一段較長文字。'.repeat(4)}`,
-        )
-        if (!result.ok) throw new Error(result.code)
-      }
-    })
+    // Seed actual canonical App events; pagination does not require running Main 61 times.
+    const response = await fetch(`${rig.base}/__test/history?count=61`, { method: 'POST' })
+    expect(response.status).toBe(200)
+    const history = (await response.json()) as { conversation_id: string; event_ids: number[] }
+    expect(new Set(history.event_ids).size).toBe(61)
     await composer.fill('引用很早以前的原事件')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(page.getByText('引用很早以前的原事件', { exact: true })).toBeVisible()
@@ -37,13 +31,26 @@ test('paginates real history without moving the visible message and jumps to the
     const log = page.getByRole('log', { name: '對話訊息' })
     await expect(page.getByText('引用很早以前的原事件', { exact: true })).toBeVisible()
     await expect(page.getByText('原始歷史錨點', { exact: true })).toHaveCount(0)
-    await log.getByRole('button').filter({ hasText: '引用：原始歷史錨點' }).click()
-    await expect(page.getByText('原始歷史錨點', { exact: true })).toBeVisible()
-    await expect(original).toHaveClass(/selected/)
-    await page.getByRole('button', { name: '回到最新訊息', exact: true }).click()
-    await expect(page.getByText('引用很早以前的原事件', { exact: true })).toBeInViewport({
-      ratio: 1,
-    })
+    await page.screenshot({ path: test.info().outputPath('conversation-history-latest.png') })
+    await writeFile(
+      test.info().outputPath('conversation-history-layout.json'),
+      JSON.stringify(
+        await log.locator('article[data-event-id]').evaluateAll((items) =>
+          items.map((item, index) => {
+            const rect = item.getBoundingClientRect()
+            return {
+              eventId: item.getAttribute('data-event-id'),
+              top: rect.top,
+              bottom: rect.bottom,
+              height: rect.height,
+              gap: index ? rect.top - items[index - 1]!.getBoundingClientRect().bottom : null,
+            }
+          }),
+        ),
+        null,
+        2,
+      ),
+    )
     // Each real wheel reaches the top of the current page. Wait for its prepend
     // before the next wheel, so coalesced input cannot skip the pagination check.
     await log.hover()
@@ -56,10 +63,23 @@ test('paginates real history without moving the visible message and jumps to the
       await expect(log.locator(`article[data-event-id="${before}"]`)).toBeInViewport()
     }
     await expect(page.getByText('原始歷史錨點', { exact: true })).toHaveCount(1)
+    // Clear the paginated renderer page so the reference must resolve its original event again.
+    await page.reload()
+    await expect(page.getByText('引用很早以前的原事件', { exact: true })).toBeVisible()
+    await expect(page.getByText('原始歷史錨點', { exact: true })).toHaveCount(0)
+    await log.getByRole('button').filter({ hasText: '引用：原始歷史錨點' }).click()
+    await expect(page.getByText('原始歷史錨點', { exact: true })).toBeVisible()
+    await expect(original).toHaveClass(/selected/)
+    await page.getByRole('button', { name: '回到最新訊息', exact: true }).click()
+    await expect(page.getByText('引用很早以前的原事件', { exact: true })).toBeInViewport({
+      ratio: 1,
+    })
     await expect(page.getByRole('button', { name: '↓ 新訊息', exact: true })).toHaveCount(0)
     // A read-only sync does not pretend that another message arrived.
     await page.evaluate(() => window.yuki.client.reconnect())
-    await expect(page.getByText('已連線', { exact: true })).toBeVisible()
+    await expect(
+      page.locator('[data-region="toolbar"]').getByText('已連線', { exact: true }),
+    ).toBeVisible()
     await expect(page.getByRole('button', { name: '↓ 新訊息', exact: true })).toHaveCount(0)
     await page.screenshot({
       animations: 'disabled',

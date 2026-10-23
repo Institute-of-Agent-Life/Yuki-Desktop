@@ -170,7 +170,7 @@ test('palette geometry, keyboard focus and footer remain usable across themes, s
           .toEqual([width, height])
         const palette = await open(page)
         await expect(palette.dialog).toHaveCSS('width', '640px')
-        await expect(palette.dialog).toHaveCSS('top', height < 600 ? '32px' : '120px')
+        await expect(palette.dialog).toHaveCSS('top', height < 600 ? '16px' : '120px')
         await expect(palette.input).toHaveCSS('height', '44px')
         await expect(
           palette.dialog.getByText('只搜尋這台電腦已載入的內容', { exact: true }),
@@ -189,12 +189,19 @@ test('palette geometry, keyboard focus and footer remain usable across themes, s
         await page.keyboard.press('Escape')
       }
     }
-    await contentSize(app, page, 960, 640)
-    await app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0]!.webContents.setZoomFactor(1.5),
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0]!
+      window.webContents.disableDeviceEmulation()
+      window.setContentSize(960, 640)
+      window.webContents.setZoomFactor(1.5)
+    })
+    await page.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
     )
     const palette = await open(page)
-    await expect(palette.dialog).toHaveCSS('width', '576px')
+    // The native viewport can round at fractional DPI; zoom must keep the whole palette usable.
+    await expect(palette.dialog).toBeInViewport({ ratio: 1 })
+    await expect(palette.input).toBeFocused()
     await expect(
       palette.dialog.getByText('只搜尋這台電腦已載入的內容', { exact: true }),
     ).toBeInViewport()

@@ -103,7 +103,9 @@ test('another real device updates the name and SOUL, preserves conflicts and rev
     await expect(page.getByText('另一台裝置儲存了新版本。你的草稿基於較早的版本。')).toBeVisible()
     await expect(editor).toContainText('local private draft')
     await page.getByRole('button', { name: '儲存', exact: false }).click()
-    await expect(page.getByText('儲存未完成：伺服器版本已改變，請先處理差異')).toBeVisible()
+    await expect(
+      page.getByText('儲存未完成：伺服器版本已改變，請先處理差異').filter({ visible: true }),
+    ).toBeVisible()
     expect(await readFile(join(rig.root, 'character/SOUL.md'), 'utf8')).toBe(
       'remote private original',
     )

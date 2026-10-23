@@ -60,6 +60,9 @@ test('two equally named real roles send to their own original Main and recover s
     await app.close()
     app = await first.launch('role-message-routing')
     page = await app.firstWindow()
+    await expect(page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })).toBeVisible({
+      timeout: 15000,
+    })
     await expect(
       page.getByText('第一個角色的原始訊息', { exact: true }).filter({ visible: true }),
     ).toBeVisible()

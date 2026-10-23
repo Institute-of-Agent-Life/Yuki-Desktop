@@ -146,8 +146,8 @@ export function ConnectorTasks({
     <>
       <h3>原生任務</h3>
       <p className={styles.notice}>
-        要求仍由這位 Yuki 的 Main / Work
-        處理。原生任務、持續觀察、停止觀察與取消是不同操作；原始狀態可能仍待確認。
+        在選定的專案或會話交代任務、查看進度並回覆問題。停止觀察會保留原任務；取消會向原生 Agent
+        請求中止本次執行，已啟動的獨立背景程式可能繼續運行。結果以原生回執為準。
       </p>
       {error && <Banner status="failed">{error}</Banner>}
       {message && (

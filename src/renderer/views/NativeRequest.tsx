@@ -25,7 +25,10 @@ export function NativeRequest({
   const questions = Array.isArray(request.questions) ? request.questions.map(record) : []
   const rawOptions = Array.isArray(payload.options) ? payload.options : []
   const options = rawOptions.map(record)
-  const decisions = Array.isArray(request.availableDecisions) ? request.availableDecisions : []
+  const decisions =
+    !rawOptions.length && Array.isArray(request.availableDecisions)
+      ? request.availableDecisions
+      : []
   const permission = event.permission_id
   const respond = (extra: Partial<ConnectorTarget>) =>
     onRespond({ permission_id: permission, ...extra })

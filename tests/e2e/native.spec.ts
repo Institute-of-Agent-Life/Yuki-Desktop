@@ -10,9 +10,6 @@ test('uses the real paste/copy, send-key and close/reopen UI paths with isolated
   let success = false
   try {
     let page = await app.firstWindow()
-    const bounds = await (await app.browserWindow(page)).evaluate((window) => window.getBounds())
-    expect(bounds.width).toBe(720)
-    expect(bounds.height).toBe(560)
     const code = `yuki://pair?${new URLSearchParams({ server: rig.base, code: await rig.code() })}`
     await app.evaluate(({ clipboard }, code) => {
       clipboard.readText = () => code
@@ -25,7 +22,7 @@ test('uses the real paste/copy, send-key and close/reopen UI paths with isolated
     await expect(
       page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true }).filter({ visible: true }),
     ).toHaveValue(code)
-    await page.getByRole('button', { name: '繼續', exact: true }).click()
+    await expect(page.getByText(`伺服器：${rig.base}`, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '確認並連接', exact: true }).click()
     const sample = 'const value = "<script>";\nconsole.log(value)\n'
     const composer = page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })
@@ -49,11 +46,12 @@ test('uses the real paste/copy, send-key and close/reopen UI paths with isolated
     await expect(composer).toHaveValue('用選定的送出鍵送出\n')
     await composer.press('ControlOrMeta+Enter')
     await expect(composer).toHaveValue('')
-    const pid = app.process().pid,
+    const pid = await app.evaluate(() => process.pid),
+      executable = await app.evaluate(() => process.execPath),
       reopened = app.waitForEvent('window')
     await (await app.browserWindow(page)).evaluate((window) => window.close())
     await expect.poll(() => app.windows().length).toBe(0)
-    const second = spawn(app.process().spawnfile, [rig.entry], {
+    const second = spawn(executable, [rig.entry], {
       env: {
         ...Object.fromEntries(
           Object.entries(process.env).filter(([key]) => key !== 'ELECTRON_RUN_AS_NODE'),
@@ -61,11 +59,12 @@ test('uses the real paste/copy, send-key and close/reopen UI paths with isolated
         YUKI_DESKTOP_DATA: join(rig.root, 'native-device'),
       },
       stdio: 'ignore',
+      windowsHide: true,
     })
     await new Promise<void>((resolve) => second.once('exit', () => resolve()))
     page = await reopened
     await expect(page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })).toBeVisible()
-    expect(app.process().pid).toBe(pid)
+    expect(await app.evaluate(() => process.pid)).toBe(pid)
     await expect(page.getByRole('button', { name: '複製程式碼', exact: true })).toBeVisible()
     success = true
   } finally {

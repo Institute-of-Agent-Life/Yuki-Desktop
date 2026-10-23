@@ -52,6 +52,8 @@ export function Pairing({
   const [updateNeeded, setUpdateNeeded] = useState(false),
     [pendingLogout, setPendingLogout] = useState<string>()
   const current = useRef<object | undefined>(undefined)
+  const form = useRef({ input, server, active })
+  form.current = { input, server, active }
   useEffect(() => {
     if (!active) {
       current.current = undefined
@@ -101,7 +103,7 @@ export function Pairing({
     }
     void run(async (owner) => {
       const meta = unwrap(await window.yuki.client.meta(base))
-      if (current.current !== owner) return
+      if (current.current !== owner || !form.current.active) return
       setServer(base)
       setConfirmed({ server: base, meta })
       setStep('confirm')
@@ -137,9 +139,16 @@ export function Pairing({
     owner: object,
   ) => {
     const value = unwrap(await operation)
-    setInput('')
+    const activate = current.current === owner && form.current.active
+    if (form.current.input === input && form.current.server === server) {
+      leave()
+      setInput('')
+      setStep('connect')
+      setServer(initialServer)
+      setManual(!!initialServer)
+    }
     setPending((items) => items.filter((item) => item.deviceId !== value.deviceId))
-    onDone(value, current.current === owner)
+    onDone(value, activate)
   }
   const pair = () => {
     if (!confirmed || !parsed) return

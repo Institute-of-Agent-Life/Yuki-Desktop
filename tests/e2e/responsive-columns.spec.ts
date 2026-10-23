@@ -208,7 +208,7 @@ test('small emulated viewport survives capture and keeps actual settings control
     await page.getByRole('radio', { name: '深色', exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
     await page.getByRole('button', { name: '返回', exact: true }).click()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeInViewport({
+    await expect(page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })).toBeInViewport({
       ratio: 1,
     })
     await contentSize(app, page, 1100, 760)

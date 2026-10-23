@@ -121,12 +121,12 @@ test('logout drains a real delayed read; kept original pending content survives 
     await expect(
       page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true }).filter({ visible: true }),
     ).toBeVisible()
-    await page.getByRole('button', { name: '繼續', exact: true }).click()
+    await expect(page.getByText(`伺服器：${proxy.base}`, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '確認並連接', exact: true }).click()
     await expect(
-      page.getByRole('button', { name: '處理登出中的本機資料', exact: true }),
+      page.getByRole('button', { name: '處理原連線的登出資料', exact: true }),
     ).toBeVisible()
-    await page.getByRole('button', { name: '處理登出中的本機資料', exact: true }).click()
+    await page.getByRole('button', { name: '處理原連線的登出資料', exact: true }).click()
     await expect(choice).toBeVisible()
     await expect(choice.getByText('1 份草稿', { exact: true })).toBeVisible()
     await expect(choice.getByText('1 項待確認請求', { exact: true })).toBeVisible()

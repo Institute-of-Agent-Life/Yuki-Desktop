@@ -52,23 +52,6 @@
   line-height: 22px;
   font-size: 14px;
 }
-.pairingSteps {
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  padding: 0;
-  margin: 8px 0 0;
-  list-style: none;
-}
-.pairingSteps li {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--separator-strong);
-}
-.pairingSteps li[aria-current='step'] {
-  background: var(--accent);
-}
 .server {
   width: min(480px, 100%);
   text-align: left;

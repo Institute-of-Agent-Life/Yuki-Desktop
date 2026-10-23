@@ -13,6 +13,7 @@ export async function forwardProxy(target: string, prefix: string) {
     holdResponseSuffixes: new Set<string>(),
     rejectPostSuffixes: new Set<string>(),
     loseNextSuffix: '',
+    loseNextReadSuffix: '',
     minDesktop: null as string | null,
   }
   const lostStatuses: number[] = []
@@ -50,11 +51,17 @@ export async function forwardProxy(target: string, prefix: string) {
         }
       })
     }
-    const loseResponse =
+    const loseRead =
+      !!faults.loseNextReadSuffix &&
+      parsed.pathname.endsWith(faults.loseNextReadSuffix) &&
+      req.method === 'GET'
+    const loseWrite =
       !!faults.loseNextSuffix &&
       parsed.pathname.endsWith(faults.loseNextSuffix) &&
       req.method !== 'GET'
-    if (loseResponse) {
+    const loseResponse = loseRead || loseWrite
+    if (loseRead) faults.loseNextReadSuffix = ''
+    if (loseWrite) {
       faults.loseNextSuffix = ''
       faults.holdReceipts = true
     }

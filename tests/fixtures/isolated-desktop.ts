@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 /** Real source app, isolated profile and OS-boundary adapters; no backend responses are mocked. */
-export async function isolatedDesktop(root: string) {
+export async function isolatedDesktop(root: string, options: { managedUpdates?: boolean } = {}) {
   const appRoot = resolve('.'),
     entry = join(root, 'desktop-entry.cjs')
   await writeFile(
@@ -16,6 +16,13 @@ const fs = require('node:fs'), path = require('node:path');
 const root = ${JSON.stringify(appRoot)};
 app.getAppPath = () => root;
 app.getVersion = () => JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+${
+  options.managedUpdates
+    ? `// Update UI lifecycle simulation; no packaged installer or signing claim.
+Object.defineProperty(app, 'isPackaged', { get: () => true });
+if (process.platform === 'linux') process.env.APPIMAGE = path.join(process.env.YUKI_DESKTOP_DATA, 'test-only.AppImage');`
+    : ''
+}
 app.setAsDefaultProtocolClient = () => false;
 let copied = '';
 clipboard.writeText = value => { copied = value };

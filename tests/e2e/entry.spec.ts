@@ -61,7 +61,7 @@ test('reads another actual personal ingress and quotes its exact original event 
       method: 'DELETE',
     })
     await page.getByRole('button').filter({ hasText: '引用：QQ 原入口的真實帳本內容' }).click()
-    await expect(page.getByText('引用的訊息無法讀取', { exact: true })).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: /^引用的訊息無法讀取$/ })).toBeVisible()
     success = true
   } finally {
     await app.close()

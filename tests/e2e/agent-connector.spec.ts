@@ -44,140 +44,147 @@ test('failed authorization keeps input and supports keyboard retry without claim
   await expect(page.getByRole('button', { name: '啟動連接器' })).toHaveCount(0)
 })
 
-test('task controls preserve server session, operation and permission IDs and show pending receipts', async ({
-  page,
-}) => {
-  await page.goto('http://127.0.0.1:4178/components.html?connector=unpaired')
-  await page.evaluate(() => {
-    window.yuki.connector.state = async () => ({
-      ok: true,
-      value: {
-        available: true,
-        paired: true,
-        deviceId: 'device-original',
-        instances: [{ id: 'local-original', driver: 'codex', label: 'Codex', cwd: 'C:/project' }],
-        service: { installed: true, running: true },
-        admission: {
-          matched: true,
-          connected: true,
-          instances: [
-            { id: 'server-instance', localId: 'local-original', driver: 'codex', label: 'Codex' },
+for (const normalizedOptions of [false, true])
+  test(`task controls preserve original IDs with ${normalizedOptions ? 'normalized options and raw decisions' : 'raw native decisions'}`, async ({
+    page,
+  }) => {
+    await page.goto('http://127.0.0.1:4178/components.html?connector=unpaired')
+    await page.evaluate((normalizedOptions) => {
+      window.yuki.connector.state = async () => ({
+        ok: true,
+        value: {
+          available: true,
+          paired: true,
+          deviceId: 'device-original',
+          instances: [{ id: 'local-original', driver: 'codex', label: 'Codex', cwd: 'C:/project' }],
+          service: { installed: true, running: true },
+          admission: {
+            matched: true,
+            connected: true,
+            instances: [
+              { id: 'server-instance', localId: 'local-original', driver: 'codex', label: 'Codex' },
+            ],
+          },
+        },
+      })
+      window.yuki.connector.sessions = async () => ({
+        ok: true,
+        value: { sessions: [{ id: 'server-session', label: 'Original session' }] },
+      })
+      window.yuki.connector.operations = async () => ({
+        ok: true,
+        value: {
+          operations: [
+            {
+              id: 'original-operation',
+              instance_id: 'server-instance',
+              session_id: 'server-session',
+              execution_id: 'server-execution',
+              status: 'unknown',
+              work_id: 'original-work',
+            },
           ],
         },
-      },
-    })
-    window.yuki.connector.sessions = async () => ({
-      ok: true,
-      value: { sessions: [{ id: 'server-session', label: 'Original session' }] },
-    })
-    window.yuki.connector.operations = async () => ({
-      ok: true,
-      value: {
-        operations: [
-          {
-            id: 'original-operation',
-            instance_id: 'server-instance',
-            session_id: 'server-session',
-            execution_id: 'server-execution',
-            status: 'unknown',
-            work_id: 'original-work',
-          },
-        ],
-      },
-    })
-    window.yuki.connector.operation = async () => ({
-      ok: true,
-      value: {
-        id: 'original-operation',
-        instance_id: 'server-instance',
-        session_id: 'server-session',
-        execution_id: 'server-execution',
-        status: 'unknown',
-        pending: true,
-        uncertain: true,
-        events: [
-          {
-            cursor: 39,
-            kind: 'progress',
-            payload: {
-              item: {
-                type: 'commandExecution',
-                command: 'npm test',
-                status: 'completed',
-                exitCode: 0,
-              },
-            },
-          },
-          {
-            cursor: 40,
-            kind: 'progress',
-            payload: {
-              item: {
-                type: 'fileChange',
-                status: 'completed',
-                changes: [{ path: 'src/example.ts' }],
-              },
-            },
-          },
-          {
-            cursor: 41,
-            kind: 'progress',
-            payload: {
-              native: { plan: [{ step: 'Verify original change', status: 'completed' }] },
-            },
-          },
-          {
-            cursor: 42,
-            permission_id: 'server-permission',
-            kind: 'permission',
-            payload: {
-              native_request: {
-                availableDecisions: ['accept', 'decline'],
-                id: 'native-private-id',
-              },
-            },
-          },
-        ],
-      },
-    })
-    window.yuki.connector.submit = async (_character, input) => {
-      document.body.dataset.lastTarget = JSON.stringify(input.agentTarget)
-      return {
+      })
+      window.yuki.connector.operation = async () => ({
         ok: true,
-        value: { requestId: 'original-request', state: 'accepted', eventId: 7, problem: null },
+        value: {
+          id: 'original-operation',
+          instance_id: 'server-instance',
+          session_id: 'server-session',
+          execution_id: 'server-execution',
+          status: 'unknown',
+          pending: true,
+          uncertain: true,
+          events: [
+            {
+              cursor: 39,
+              kind: 'progress',
+              payload: {
+                item: {
+                  type: 'commandExecution',
+                  command: 'npm test',
+                  status: 'completed',
+                  exitCode: 0,
+                },
+              },
+            },
+            {
+              cursor: 40,
+              kind: 'progress',
+              payload: {
+                item: {
+                  type: 'fileChange',
+                  status: 'completed',
+                  changes: [{ path: 'src/example.ts' }],
+                },
+              },
+            },
+            {
+              cursor: 41,
+              kind: 'progress',
+              payload: {
+                native: { plan: [{ step: 'Verify original change', status: 'completed' }] },
+              },
+            },
+            {
+              cursor: 42,
+              permission_id: 'server-permission',
+              kind: 'permission',
+              payload: {
+                ...(normalizedOptions ? { options: ['accept', 'decline'] } : {}),
+                native_request: {
+                  availableDecisions: ['accept', 'decline'],
+                  id: 'native-private-id',
+                },
+              },
+            },
+          ],
+        },
+      })
+      window.yuki.connector.submit = async (_character, input) => {
+        document.body.dataset.lastTarget = JSON.stringify(input.agentTarget)
+        return {
+          ok: true,
+          value: { requestId: 'original-request', state: 'accepted', eventId: 7, problem: null },
+        }
       }
-    }
+    }, normalizedOptions)
+    await page.getByRole('button', { name: '重新讀取狀態' }).click()
+    await page.getByLabel('任務 Agent').selectOption('server-instance')
+    await page.getByRole('button', { name: '讀取原生會話' }).click()
+    await page.getByLabel('原生會話').selectOption('server-session')
+    await page.getByLabel('原生任務要求').fill('Continue original task')
+    await page.getByRole('button', { name: '交給 Yuki 執行', exact: true }).click()
+    await expect(page.getByText(/要求已交給 Yuki/)).toBeVisible()
+    expect(await page.locator('body').getAttribute('data-last-target')).toContain('server-session')
+    await page.getByRole('button', { name: '查看原回執' }).click()
+    await expect(page.getByText(/結果尚未確認/)).toBeVisible()
+    await expect(page.getByText('npm test', { exact: true })).toBeVisible()
+    await expect(page.getByText('src/example.ts', { exact: true })).toBeVisible()
+    await expect(
+      page.getByText('Verify original change · completed', { exact: true }),
+    ).toBeVisible()
+    await expect(page.getByRole('button', { name: 'decline', exact: true })).toHaveCount(1)
+    await expect(page.getByRole('button', { name: 'accept', exact: true })).toHaveCount(1)
+    await page.getByRole('button', { name: 'decline', exact: true }).click()
+    const target = JSON.parse((await page.locator('body').getAttribute('data-last-target'))!)
+    expect(target).toMatchObject({
+      device_id: 'device-original',
+      instance_id: 'server-instance',
+      session_id: 'server-session',
+      execution_id: 'server-execution',
+      operation_id: 'original-operation',
+      permission_id: 'server-permission',
+      ...(normalizedOptions ? { option_id: 'decline' } : { response: { decision: 'decline' } }),
+    })
+    if (normalizedOptions) expect(target.response).toBeUndefined()
+    expect(JSON.stringify(target)).not.toContain('native-private-id')
+    await page.getByRole('button', { name: '停止觀察', exact: true }).click()
+    expect(JSON.parse((await page.locator('body').getAttribute('data-last-target'))!).intent).toBe(
+      'detach',
+    )
   })
-  await page.getByRole('button', { name: '重新讀取狀態' }).click()
-  await page.getByLabel('任務 Agent').selectOption('server-instance')
-  await page.getByRole('button', { name: '讀取原生會話' }).click()
-  await page.getByLabel('原生會話').selectOption('server-session')
-  await page.getByLabel('原生任務要求').fill('Continue original task')
-  await page.getByRole('button', { name: '交給 Yuki 執行', exact: true }).click()
-  await expect(page.getByText(/要求已交給 Yuki/)).toBeVisible()
-  expect(await page.locator('body').getAttribute('data-last-target')).toContain('server-session')
-  await page.getByRole('button', { name: '查看原回執' }).click()
-  await expect(page.getByText(/結果尚未確認/)).toBeVisible()
-  await expect(page.getByText('npm test', { exact: true })).toBeVisible()
-  await expect(page.getByText('src/example.ts', { exact: true })).toBeVisible()
-  await expect(page.getByText('Verify original change · completed', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'decline', exact: true }).click()
-  const target = JSON.parse((await page.locator('body').getAttribute('data-last-target'))!)
-  expect(target).toMatchObject({
-    device_id: 'device-original',
-    instance_id: 'server-instance',
-    session_id: 'server-session',
-    execution_id: 'server-execution',
-    operation_id: 'original-operation',
-    permission_id: 'server-permission',
-    response: { decision: 'decline' },
-  })
-  expect(JSON.stringify(target)).not.toContain('native-private-id')
-  await page.getByRole('button', { name: '停止觀察', exact: true }).click()
-  expect(JSON.parse((await page.locator('body').getAttribute('data-last-target'))!).intent).toBe(
-    'detach',
-  )
-})
 
 for (const pendingState of ['draft', 'submitted'] as const)
   test(`native task ${pendingState} keeps original request for verification`, async ({ page }) => {

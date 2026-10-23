@@ -26,11 +26,12 @@ export function App({ boot }: { boot: BootInfo }) {
     boot.pairLink ? 'adding' : 'welcome',
   )
   const settingsReturn = useRef<typeof step>('welcome')
+  const [serverSettings, setServerSettings] = useState(false)
   const openSettings = () => {
+    setServerSettings(false)
     settingsReturn.current = step
     setStep('settings')
   }
-  const [serverSettings, setServerSettings] = useState(false)
   const [preferences, setPreferences] = useState(boot.preferences)
   const [cssAccessibility, setCssAccessibility] = useState(() => ({
     opaque: matchMedia('(prefers-reduced-transparency: reduce)').matches,
@@ -191,7 +192,6 @@ export function App({ boot }: { boot: BootInfo }) {
   useCommands((command) => {
     if (command === 'settings')
       requestNavigation(() => {
-        setServerSettings(false)
         openSettings()
       })
     if (command === 'back' && step === 'settings') setStep(settingsReturn.current)
@@ -304,7 +304,6 @@ export function App({ boot }: { boot: BootInfo }) {
                       }
                       onSettings={() =>
                         requestNavigation(() => {
-                          setServerSettings(false)
                           openSettings()
                         })
                       }

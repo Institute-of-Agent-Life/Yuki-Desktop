@@ -3,6 +3,7 @@ import type { AppUpdater, UpdateCheckResult } from 'electron-updater'
 import type { CancellationToken } from 'builder-util-runtime'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
+import { contentSize } from '../fixtures/visual'
 
 interface FixtureState {
   checks: number
@@ -139,32 +140,30 @@ async function download(page: Page) {
   await page.getByRole('tab', { name: '一般', exact: true }).click()
   await page.getByRole('button', { name: '檢查更新', exact: true }).click()
   await page.getByRole('button', { name: '下載更新', exact: true }).click()
-  await expect(page.getByRole('button', { name: '重新啟動以更新', exact: true })).toBeVisible()
+  await expect(
+    page
+      .getByRole('region', { name: '設定', exact: true })
+      .getByRole('button', { name: '重新啟動以更新', exact: true }),
+  ).toBeVisible()
 }
 
-test('actual update buttons recover a rejected install and retain the original draft on restart', async () => {
-  test.skip(
-    !process.env.YUKI_DESKTOP_EXECUTABLE,
-    'Requires a packaged executable; development mode never updates.',
-  )
+test('update UI with simulated packaged mode recovers a rejected installer and retains the original draft on restart', async () => {
   test.setTimeout(120000)
-  const rig = await yukiFixture()
+  const rig = await yukiFixture({ managedUpdates: true })
   let app = await rig.launch('update-boundary'),
     success = false
   try {
     let page = await app.firstWindow()
-    test.skip(
-      (await updateState(page)).mode !== 'managed',
-      'deb/rpm are feed-only; no automatic installation.',
-    )
+    expect((await updateState(page)).mode).toBe('managed')
     await mockInstaller(app)
     await pairUI(page, rig.base, await rig.code())
-    await page
-      .getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
-      .fill('更新前要保留的草稿')
+    await page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ }).fill('更新前要保留的草稿')
     await page.keyboard.press('ControlOrMeta+,')
     await download(page)
-    await page.getByRole('button', { name: '重新啟動以更新', exact: true }).click()
+    await page
+      .getByRole('region', { name: '設定', exact: true })
+      .getByRole('button', { name: '重新啟動以更新', exact: true })
+      .click()
     await expect.poll(async () => (await snapshot(app)).installs).toBe(1)
     await expect.poll(async () => (await updateState(page)).phase).toBe('error')
     await app.evaluate(() => {
@@ -174,14 +173,17 @@ test('actual update buttons recover a rejected install and retain the original d
     await page.keyboard.press('ControlOrMeta+,')
     await download(page)
     const stopped = app.waitForEvent('close')
-    await page.getByRole('button', { name: '重新啟動以更新', exact: true }).click()
+    await page
+      .getByRole('region', { name: '設定', exact: true })
+      .getByRole('button', { name: '重新啟動以更新', exact: true })
+      .click()
     await stopped.catch(async (error) => {
       console.log('Update exit evidence:', await snapshot(app))
       throw error
     })
     app = await rig.launch('update-boundary')
     page = await app.firstWindow()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })).toHaveValue(
+    await expect(page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })).toHaveValue(
       '更新前要保留的草稿',
     )
     success = true
@@ -198,6 +200,7 @@ test('actual update buttons recover a rejected install and retain the original d
 })
 
 test('minimum client rejection precedes credentials and opens App updates for new and returning connections', async () => {
+  test.setTimeout(120000)
   const rig = await yukiFixture()
   const proxy = await forwardProxy(rig.base, '/update-minimum')
   let app = await rig.launch('minimum-client'),
@@ -205,7 +208,8 @@ test('minimum client rejection precedes credentials and opens App updates for ne
   try {
     let page = await app.firstWindow()
     proxy.faults.minDesktop = '999.0.0'
-    await page.getByRole('button', { name: '開始', exact: true }).click()
+    await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
+    await page.getByRole('button', { name: '手動輸入伺服器位址', exact: true }).click()
     await page.getByLabel('伺服器位址', { exact: true }).fill(proxy.base)
     await page.getByRole('button', { name: '繼續', exact: true }).click()
     await expect(
@@ -222,9 +226,7 @@ test('minimum client rejection precedes credentials and opens App updates for ne
     app = await rig.launch('minimum-returning')
     page = await app.firstWindow()
     await pairUI(page, proxy.base, await rig.code())
-    await page
-      .getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
-      .fill('最低版本檢查仍保留原草稿')
+    await page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ }).fill('最低版本檢查仍保留原草稿')
     await app.close()
     proxy.calls.length = 0
     proxy.faults.minDesktop = '999.0.0'
@@ -242,7 +244,7 @@ test('minimum client rejection precedes credentials and opens App updates for ne
     await app.close()
     app = await rig.launch('minimum-returning')
     page = await app.firstWindow()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })).toHaveValue(
+    await expect(page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })).toHaveValue(
       '最低版本檢查仍保留原草稿',
     )
     success = true
@@ -254,20 +256,19 @@ test('minimum client rejection precedes credentials and opens App updates for ne
   }
 })
 
-test('update controls cancel an active download, reject corrupt content, retain channel choice and show S16 across supported layouts', async () => {
-  test.skip(!process.env.YUKI_DESKTOP_EXECUTABLE, 'Requires a packaged executable.')
+test('update UI with simulated packaged mode cancels a download, rejects corrupt content, and retains channel choice across layouts', async () => {
   test.setTimeout(120000)
-  const rig = await yukiFixture()
+  const rig = await yukiFixture({ managedUpdates: true })
   let app = await rig.launch('update-controls'),
     success = false
   try {
     let page = await app.firstWindow()
-    test.skip((await updateState(page)).mode !== 'managed', 'Managed update UI only.')
+    expect((await updateState(page)).mode).toBe('managed')
     await mockInstaller(app)
     await pairUI(page, rig.base, await rig.code())
     expect((await snapshot(app)).checks).toBe(0)
     await page.keyboard.press('ControlOrMeta+,')
-    await page.getByRole('tab', { name: '測試版本', exact: true }).click()
+    await page.getByRole('radio', { name: '測試版本', exact: true }).click()
     await expect.poll(async () => (await updateState(page)).channel).toBe('beta')
     await configure(app, { holdDownload: true })
     await page.getByRole('button', { name: '檢查更新', exact: true }).click()
@@ -312,24 +313,22 @@ test('update controls cancel an active download, reject corrupt content, retain 
         [1280, 800],
         [960, 640],
       ] as const) {
-        await app.evaluate(
-          ({ BrowserWindow }, size) =>
-            BrowserWindow.getAllWindows()[0]!.setContentSize(size.width, size.height),
-          { width, height },
-        )
-        await expect
-          .poll(() => page.evaluate(() => [window.innerWidth, window.innerHeight]))
-          .toEqual([width, height])
-        const ready = page.getByRole('button', { name: '重新啟動以更新', exact: true })
+        await contentSize(app, page, width, height)
+        const ready = page
+          .getByRole('region', { name: '設定', exact: true })
+          .getByRole('button', { name: '重新啟動以更新', exact: true })
         await expect(async () => {
           await ready.scrollIntoViewIfNeeded()
           await expect(ready).toBeInViewport()
         }).toPass()
         await page.screenshot({ path: test.info().outputPath(`S16-settings-${mode}-${width}.png`) })
         await page.getByRole('button', { name: '返回', exact: true }).click()
-        await ready.focus()
-        await expect(ready).toBeFocused()
-        await expect(ready).toBeInViewport()
+        const toolbarReady = page
+          .locator('[data-region="toolbar"]')
+          .getByRole('button', { name: '重新啟動以更新', exact: true })
+        await toolbarReady.focus()
+        await expect(toolbarReady).toBeFocused()
+        await expect(toolbarReady).toBeInViewport()
         await page.screenshot({ path: test.info().outputPath(`S16-toolbar-${mode}-${width}.png`) })
         await page.keyboard.press('ControlOrMeta+,')
       }
@@ -338,10 +337,10 @@ test('update controls cancel an active download, reject corrupt content, retain 
     await app.close()
     app = await rig.launch('update-controls')
     page = await app.firstWindow()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+,')
-    await expect(page.getByRole('tab', { name: '測試版本', exact: true })).toHaveAttribute(
-      'aria-selected',
+    await expect(page.getByRole('radio', { name: '測試版本', exact: true })).toHaveAttribute(
+      'aria-checked',
       'true',
     )
     expect((await updateState(page)).phase).toBe('idle')

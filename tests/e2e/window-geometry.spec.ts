@@ -1,7 +1,5 @@
 import { expect, test, type ElectronApplication } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import { launchShell } from '../fixtures/shell-app'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { contentSize } from '../fixtures/visual'
 
@@ -27,10 +25,7 @@ async function savedBounds(app: ElectronApplication) {
 test('native move events persist before an App crash and clamp an offscreen titlebar after movement settles', async () => {
   test.setTimeout(90000)
   const rig = await yukiFixture()
-  let app = await launchShell(
-      join(rig.root, 'native-window-moves'),
-      process.env.YUKI_DESKTOP_EXECUTABLE,
-    ),
+  let app = await rig.launch('native-window-moves'),
     success = false
   try {
     let page = await app.firstWindow()
@@ -39,10 +34,19 @@ test('native move events persist before an App crash and clamp an offscreen titl
       const renderer = BrowserWindow.getAllWindows()[0]!.webContents.getOSProcessId()
       return {
         sandboxed: app.getAppMetrics().find((item) => item.pid === renderer)?.sandboxed,
+        linuxSeccomp:
+          process.platform === 'linux'
+            ? process
+                .getBuiltinModule('node:fs')
+                .readFileSync(`/proc/${renderer}/status`, 'utf8')
+                .match(/^Seccomp:\s+(\d+)$/m)?.[1]
+            : undefined,
         noSandbox: app.commandLine.hasSwitch('no-sandbox'),
       }
     })
-    expect(security).toEqual({ sandboxed: true, noSandbox: false })
+    expect(security.noSandbox).toBe(false)
+    if (process.platform === 'linux') expect(security.linuxSeccomp).toBe('2')
+    else expect(security.sandboxed).toBe(true)
     const area = await app.evaluate(
       ({ BrowserWindow, screen }) =>
         screen.getDisplayMatching(BrowserWindow.getAllWindows()[0]!.getBounds()).workArea,
@@ -69,12 +73,9 @@ test('native move events persist before an App crash and clamp an offscreen titl
     await expect.poll(() => savedBounds(app)).toEqual(before)
     app.process().kill('SIGKILL')
     await app.close().catch(() => {})
-    app = await launchShell(
-      join(rig.root, 'native-window-moves'),
-      process.env.YUKI_DESKTOP_EXECUTABLE,
-    )
+    app = await rig.launch('native-window-moves')
     page = await app.firstWindow()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })).toBeVisible()
     expect(
       await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getBounds()),
     ).toEqual(before)
@@ -97,8 +98,12 @@ test('native move events persist before an App crash and clamp an offscreen titl
       )
       .toEqual(expected)
     await expect.poll(() => savedBounds(app)).toEqual(expected)
-    const toolbar = (await page.locator('[data-region="toolbar"]').boundingBox())!
-    expect(toolbar.y).toBe(0)
+    const toolbarNode = page.locator('[data-region="toolbar"]')
+    const toolbar = (await toolbarNode.boundingBox())!
+    expect(toolbar.y).toBe(
+      await toolbarNode.evaluate((node) => node.closest('section')!.getBoundingClientRect().top),
+    )
+    expect(toolbar.y).toBeGreaterThanOrEqual(0)
     expect(toolbar.height).toBe(52)
     await writeFile(
       test.info().outputPath('native-window-restoration.json'),

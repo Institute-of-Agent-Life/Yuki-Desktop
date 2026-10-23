@@ -4,15 +4,18 @@
 
 ## 本地產物
 
-使用 Node.js 22.12+、`npm ci` 與已提交的 lockfile。`npm ci` 已安裝 Electron；不需另外下載名為 install-electron 的 npm 套件。
+使用 Node.js 22.12+、uv、`npm ci` 與已提交的 lockfile。`npm ci` 已安裝 Electron；不需另外下載名為 install-electron 的 npm 套件。先檢出 `contracts/source.json` 指定的後端提交，準備本建置主機架構的 Connector 與同一提交的本地 Bot 資源：
 
 ```sh
+node build-tools/prepare-connector.mjs --backend /absolute/path/to/pinned-Yuki
+node build-tools/prepare-local-bot.mjs --source /absolute/path/to/pinned-Yuki
 npm run lint
 npm run typecheck
 npm run check:contract
 npm test
 npm run test:release
-npm run package -- --mac --arm64 --x64
+npm run package -- --mac --arm64
+# Intel Mac 原生環境：npm run package -- --mac --x64
 # Windows x64 原生環境：npm run package -- --win --x64
 # Linux 各自原生環境：npm run package -- --linux --x64
 #                    npm run package -- --linux --arm64
@@ -20,7 +23,7 @@ npm run check:package
 node build-tools/prepare-upload.mjs dist/upload dist
 ```
 
-macOS 產生兩架構各自的 DMG、zip；Windows 為每使用者 NSIS x64；Linux 各架構產生 AppImage、deb、rpm。固定 SQLite 13 使用 Node-API 10 預建模組，打包不重編譯 V8 ABI；beforePack 會核對已安裝版本與目標 Mach-O／PE／ELF 架構及 Node-API 匯出，缺失或不符即失敗。實際 SQLite 執行由 shipped Electron 的單元測試驗證。Linux 打包主機需 rpm 工具；設定明確產生 RPM 4 格式，避免建置主機升級 rpm 後改變套件相容性與解包稽核能力。AppImage 內容審查用固定 builder 的 7-Zip 直接解出 SquashFS，不執行 ELF 或安裝系統套件。Ubuntu 與 Fedora 的實際安裝、Wayland／X11、portal、libsecret、AppIndicator 與縮放仍須原生驗收。
+macOS 在兩種原生架構主機上分別產生 DMG、zip；不要用一份本機 Connector 目錄同時打兩種架構。Windows 為每使用者 NSIS x64；Linux 各架構產生 AppImage、deb、rpm。固定 SQLite 13 使用 Node-API 10 預建模組，打包不重編譯 V8 ABI；beforePack 會核對已安裝版本與目標 Mach-O／PE／ELF 架構及 Node-API 匯出，缺失或不符即失敗。實際 SQLite 執行由 shipped Electron 的單元測試驗證。Linux 打包主機需 rpm 工具；設定明確產生 RPM 4 格式，避免建置主機升級 rpm 後改變套件相容性與解包稽核能力。AppImage 內容審查用固定 builder 的 7-Zip 直接解出 SquashFS，不執行 ELF 或安裝系統套件。Ubuntu 與 Fedora 的實際安裝、Wayland／X11、portal、libsecret、AppIndicator 與縮放仍須原生驗收。
 
 `build-tools/builder-config.mjs` 由版本決定 feed：正式版為 `latest*.yml`，`-beta.N` 為 `beta*.yml`。不要省略這個設定直接呼叫 builder，GitHub provider 不會自行推導 beta feed。檔名使用 `Yuki-<version>-<mac|win|linux>-<架構>.<ext>`；架構沿 builder 的格式慣例：mac／win 為 x64／arm64，Linux x64 的 AppImage／rpm 為 x86_64、deb 為 amd64，Linux arm64 的 rpm 為 aarch64、其他為 arm64。GitHub tag 為 `desktop-v<version>`。App 的 provider 支援此標籤前綴，beta 通道也能採用較新的正式版；兩個通道均禁止降版。
 
@@ -50,7 +53,8 @@ node build-tools/prepare-upload.mjs --merge --complete dist/release-upload /path
 
 ```sh
 npm run build
-npx electron-builder --config electron-builder.release-mac.yml --config.directories.output=dist/release-mac --mac --arm64 --x64 --publish never
+npx electron-builder --config electron-builder.release-mac.yml --config.directories.output=dist/release-mac --mac --arm64 --publish never
+# Intel Mac 使用其本機準備的 Connector，改為 --mac --x64。
 node build-tools/finalize-mac.mjs dist/release-mac APPROVED_NOTARY_PROFILE
 node build-tools/prepare-upload.mjs dist/upload-signed-mac dist/release-mac
 ```

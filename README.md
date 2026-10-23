@@ -57,6 +57,8 @@ npm run check:package
 
 真实后端联调使用显式设置的 `YUKI_BACKEND_TEST_ROOT` 和 `YUKI_BACKEND_TEST_PYTHON`。测试装配当前后端的真实数据库、身份、HTTP、SSE 和回执，仅替换付费模型调用；CI 缺少该环境会失败。本地未设置时，这组用例会标为跳过。
 
+桌面联调使用临时用户目录，并隔离系统协议注册、剪贴板和外部打开操作。更新 UI 回归另模拟打包状态及更新 SDK 的下载、安装结果，验证取消、错误、退出与草稿恢复；这不等于真实安装、签名或自动升级验收。
+
 本地部署回归通过 `YUKI_TEST_DOCKER=1 npm test -- tests/unit/local-bot.test.ts` 启用，会创建独立的临时 Compose 项目。CI 有单独必跑任务，实际构建镜像、初始化、启动并配对。它不连接生产 Bot。
 
 `npm run package -- --win --x64`、`--mac --arm64` 等命令生成本平台安装包。跨平台产物由对应系统的 CI runner 构建。打包前必须准备对应平台的 Connector 及本地部署资源；检查不会把缺失资源当成可发布产品。

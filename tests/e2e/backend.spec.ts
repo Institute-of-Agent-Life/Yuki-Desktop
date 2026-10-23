@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
 
 test('current backend accepts pairing and messages, then cold-recovers the original lost receipt without another POST', async () => {
@@ -11,6 +11,9 @@ test('current backend accepts pairing and messages, then cold-recovers the origi
   try {
     let page = await app.firstWindow()
     await pairUI(page, proxy.base, await rig.code(), 'Isolated original device', 15000)
+    const paired = await currentConnection(page)
+    expect(paired.persistentCredentials).toBe(true)
+    expect(paired.deviceId).toBeTruthy()
     let composer = page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })
     await composer.fill('original current-contract message')
     await page.getByRole('button', { name: '送出', exact: true }).click()
@@ -50,14 +53,8 @@ test('current backend accepts pairing and messages, then cold-recovers the origi
     app = await rig.launch('original-device')
     page = await app.firstWindow()
     composer = page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })
-    const reconnect = page
-      .getByLabel('配對連結、綁定碼或完整回覆', { exact: true })
-      .filter({ visible: true })
-    await expect(
-      composer.or(reconnect).or(page.getByRole('button', { name: '連接已有 Yuki', exact: true })),
-    ).toBeVisible()
-    if (!(await composer.isVisible()))
-      await pairUI(page, proxy.base, await rig.code(), undefined, 15000)
+    await expect(composer).toBeVisible({ timeout: 15000 })
+    expect(await currentConnection(page)).toEqual(paired)
     await expect(composer).toHaveValue('draft surviving cold recovery')
     await expect
       .poll(() =>
@@ -81,6 +78,9 @@ test('current backend accepts pairing and messages, then cold-recovers the origi
           call.path.endsWith('/messages') &&
           call.requestId === original.requestId,
       ),
+    ).toHaveLength(1)
+    expect(
+      proxy.calls.filter((call) => call.method === 'POST' && call.path.endsWith('/pair')),
     ).toHaveLength(1)
     success = true
   } finally {
