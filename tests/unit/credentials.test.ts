@@ -1,5 +1,8 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
+import { realpathSync } from 'node:fs'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 vi.mock('electron', () => ({ safeStorage: {} }))
@@ -43,3 +46,29 @@ it('accepts an already persisted key and reports invalid state instead of claimi
   await writeFile(join(root, 'Local State'), 'invalid JSON')
   await expect(windowsEncryptionKeyPersisted(root)).rejects.toBeInstanceOf(SyntaxError)
 })
+it.skipIf(process.platform !== 'win32')(
+  'observes the actual key through a Windows 8.3 profile alias',
+  async (context) => {
+    const profile = realpathSync.native(await directory())
+    const { stdout } = await promisify(execFile)(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        '(New-Object -ComObject Scripting.FileSystemObject).GetFolder($env:YUKI_WATCH_PROFILE).ShortPath',
+      ],
+      { env: { ...process.env, YUKI_WATCH_PROFILE: profile } },
+    )
+    const alias = stdout.trim()
+    if (alias === profile) context.skip('The test volume does not provide 8.3 aliases.')
+    await writeFile(join(profile, 'Local State'), '{}')
+    const ready = windowsEncryptionKeyPersisted(alias)
+    await writeFile(
+      join(profile, 'Local State.tmp'),
+      JSON.stringify({ os_crypt: { encrypted_key: 'fixture-encrypted-key' } }),
+    )
+    await rename(join(profile, 'Local State.tmp'), join(profile, 'Local State'))
+    await ready
+  },
+)
