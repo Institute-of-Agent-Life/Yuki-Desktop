@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { spawn } from 'node:child_process'
-import { mkdtemp, realpath, rm, readFile } from 'node:fs/promises'
+import { copyFile, mkdtemp, realpath, rm, readFile } from 'node:fs/promises'
 import { openSync, closeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
@@ -94,6 +94,7 @@ export async function yukiFixture(options: { managedUpdates?: boolean } = {}) {
   } catch (error) {
     server.kill('SIGTERM')
     closeSync(log)
+    await copyFile(join(root, 'server.log'), test.info().outputPath('backend-server.log'))
     throw new Error(`Backend startup failed; local evidence: ${root}`, { cause: error })
   }
   const desktop = await isolatedDesktop(root, options)
@@ -136,7 +137,10 @@ export async function yukiFixture(options: { managedUpdates?: boolean } = {}) {
       }
       closeSync(log)
       if (success) await rm(root, { recursive: true, force: true })
-      else console.error(`Backend evidence retained at ${root}`)
+      else {
+        await copyFile(join(root, 'server.log'), test.info().outputPath('backend-server.log'))
+        console.error(`Backend evidence retained at ${root}`)
+      }
     },
   }
 }

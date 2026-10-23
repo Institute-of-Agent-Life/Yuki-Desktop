@@ -607,6 +607,14 @@ export function Conversation({
     },
     { id: 'command/settings', title: '開啟設定', run: () => paletteNavigate(onSettings) },
   ]
+  const upgradeNotice = updateRequired && (
+    <Banner status="failed">
+      {problemText('client_upgrade_required')}
+      <Button variant="plain" onClick={onSettings}>
+        查看 App 更新
+      </Button>
+    </Banner>
+  )
   return (
     <CharacterVisuals.Provider value={{ id, name, profile: profileData, presence }}>
       <Workspace
@@ -744,14 +752,7 @@ export function Conversation({
           )
         }
       >
-        {updateRequired && (
-          <Banner status="failed">
-            {problemText('client_upgrade_required')}
-            <Button variant="plain" onClick={() => onSettings()}>
-              查看 App 更新
-            </Button>
-          </Banner>
-        )}
+        {view !== 'chat' && !focusMode && upgradeNotice}
         {mediaError && view !== 'chat' && <Banner status="failed">{mediaError}</Banner>}
         {view === 'works' && !focusMode ? (
           accessLost ? (
@@ -802,6 +803,7 @@ export function Conversation({
           >
             {dragging && <div className={mediaStyles.drop}>放開以附加</div>}
             <div className={styles.notices} data-floating-notices>
+              {upgradeNotice}
               {mediaError && <Banner status="failed">{mediaError}</Banner>}
               {historyError && <Banner status="failed">{historyError}</Banner>}
               {online !== 'online' && !updateRequired && (

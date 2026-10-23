@@ -5,7 +5,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { isolatedDesktop } from '../fixtures/isolated-desktop'
-import { captureViewport, contentSize, workspaceSizes } from '../fixtures/visual'
+import {
+  captureViewport,
+  contentSize,
+  systemAccessibility,
+  workspaceSizes,
+} from '../fixtures/visual'
 
 test('frosted workspace keeps opaque paper, floating controls, real receipts and drafts across appearances and sizes', async () => {
   test.setTimeout(180000)
@@ -87,6 +92,10 @@ test('frosted workspace keeps opaque paper, floating controls, real receipts and
         await expect(toggle).toHaveAttribute('aria-checked', String(checked))
       }
       await page.getByRole('button', { name: '返回', exact: true }).click()
+      const system = await systemAccessibility(page)
+      const expectedOpaque =
+        mode === 'opaque' || mode === 'contrast' || Object.values(system).some(Boolean)
+      await expect(page.locator('html')).toHaveAttribute('data-opaque', String(expectedOpaque))
       for (const [width, height] of sizes) {
         const method = await contentSize(app, page, width!, height!)
         await expect(input).toHaveValue(draft)
@@ -128,13 +137,14 @@ test('frosted workspace keeps opaque paper, floating controls, real receipts and
         expect(geometry.capsuleHeight).toBe(34)
         expect(geometry.logPadding).toBeGreaterThanOrEqual(geometry.footerHeight + 26)
         expect(geometry.htmlWidth).toBe(geometry.viewport)
-        if (geometry.opaque === 'true') expect(geometry.filter).toBe('none')
+        expect(geometry.opaque).toBe(String(expectedOpaque))
+        if (expectedOpaque) expect(geometry.filter).toBe('none')
         else {
           expect(geometry.filter).toContain('blur(28px)')
           expect(geometry.refract).toContain('url(')
         }
         await expect(original).toHaveAttribute('data-event-id', event!)
-        stages.push({ mode, width, height, method, geometry })
+        stages.push({ mode, width, height, method, system, expectedOpaque, geometry })
         await captureViewport(
           app,
           page,

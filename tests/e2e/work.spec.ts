@@ -1,3 +1,4 @@
+import { navigate } from '../fixtures/navigation'
 import { expect, test } from '@playwright/test'
 import { currentConnection, currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
@@ -28,7 +29,7 @@ test('real Work input and cancellation retain original identities and recover th
     const original = await read()
     expect(original.state).toBe('waiting_user')
     expect(original.waiting_question?.event_id).toEqual(expect.any(Number))
-    await page.getByRole('button', { name: '工作', exact: true }).click()
+    await navigate(page, '工作')
     await page.getByRole('button').filter({ hasText: 'Desktop reference work' }).click()
     const detail = page.getByRole('complementary', { name: '檢視器', exact: true })
     await expect(
@@ -88,8 +89,8 @@ test('real Work input and cancellation retain original identities and recover th
       await window.yuki.client.reconnect()
       await window.yuki.client.read(id, { kind: 'home' })
     }, connection.characterId)
-    await page.getByRole('button', { name: '對話', exact: true }).click()
-    await page.getByRole('button', { name: '工作', exact: true }).click()
+    await navigate(page, '對話')
+    await navigate(page, '工作')
     await page
       .getByRole('button')
       .filter({ hasText: /等你回覆.*Desktop reference work/ })

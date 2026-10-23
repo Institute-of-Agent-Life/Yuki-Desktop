@@ -9,6 +9,12 @@ test('first use offers three choices and the real pairing confirmation remains r
   let success = false
   try {
     const page = await app.firstWindow()
+    await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible()),
+      )
+      .toBe(true)
     await contentSize(app, page, 960, 720)
     for (const name of ['連接已有 Yuki', '在本機部署 Yuki', '先逛逛，稍後設定']) {
       await expect(page.getByRole('button', { name, exact: true })).toBeInViewport({ ratio: 1 })

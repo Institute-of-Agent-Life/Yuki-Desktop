@@ -1,3 +1,4 @@
+import { navigate } from '../fixtures/navigation'
 import { expect, test } from '@playwright/test'
 import { currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
 
@@ -24,16 +25,15 @@ test('reads another actual personal ingress and quotes its exact original event 
         ok: true,
         value: { entries: [{ conversation_id: original.conversation_id, platform: 'qq' }] },
       })
-    await page.getByRole('button', { name: /^QQ ·/ }).click()
+    await navigate(page, /^QQ ·/)
     await expect(page.getByText('QQ 原入口的真實帳本內容', { exact: true })).toBeVisible()
-    const navigation = page.getByRole('navigation', { name: '主要導覽' })
+    const navigation = page.getByRole('navigation', { name: '主要導覽', includeHidden: true })
     await expect(navigation.locator('[aria-current=page]')).toHaveCount(1)
     await page.keyboard.press('ControlOrMeta+,')
     await expect(navigation.locator('[aria-current=page]')).toHaveCount(1)
-    await expect(navigation.getByRole('button', { name: '設定', exact: true })).toHaveAttribute(
-      'aria-current',
-      'page',
-    )
+    await expect(
+      navigation.getByRole('button', { name: '設定', exact: true, includeHidden: true }),
+    ).toHaveAttribute('aria-current', 'page')
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await expect(navigation.locator('[aria-current=page]')).toHaveCount(1)
     await expect(page.locator('textarea')).toHaveCount(0)

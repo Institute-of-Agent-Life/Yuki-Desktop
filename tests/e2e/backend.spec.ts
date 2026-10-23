@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
+import type { EventsPage } from '../../src/shared/api'
 
 test('current backend accepts pairing and messages, then cold-recovers the original lost receipt without another POST', async () => {
   test.setTimeout(120000)
@@ -17,9 +18,55 @@ test('current backend accepts pairing and messages, then cold-recovers the origi
     let composer = page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })
     await composer.fill('original current-contract message')
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(
-      page.locator('article').getByText('original current-contract message', { exact: true }),
-    ).toBeVisible()
+    try {
+      await expect(
+        page.locator('article').getByText('original current-contract message', { exact: true }),
+      ).toBeVisible()
+    } catch (error) {
+      const evidence = await page.evaluate(async (original) => {
+        const connections = await window.yuki.client.connections()
+        const outbox = await window.yuki.client.outbox(original.characterId)
+        const events = await window.yuki.client.read<EventsPage>(original.characterId, {
+          kind: 'events',
+          conversationId: original.conversationId,
+        })
+        return {
+          connections: connections.ok
+            ? connections.value.map((item) => ({
+                characterId: item.characterId,
+                personId: item.personId,
+                deviceId: item.deviceId,
+                bindingId: item.bindingId,
+                conversationId: item.conversationId,
+                persistentCredentials: item.persistentCredentials,
+                needsPairing: item.needsPairing,
+              }))
+            : { code: connections.code },
+          outbox: outbox.ok
+            ? outbox.value.map((item) => ({
+                requestId: item.requestId,
+                payloadHash: item.payloadHash,
+                state: item.state,
+                eventId: item.eventId,
+                matchesOriginalText: item.body.text === 'original current-contract message',
+              }))
+            : { code: outbox.code },
+          events: events.ok
+            ? events.value.items.map((item) => ({
+                eventId: item.event_id,
+                conversationId: item.conversation_id,
+                direction: item.direction,
+                matchesOriginalText: item.text === 'original current-contract message',
+              }))
+            : { code: events.code },
+        }
+      }, paired)
+      await test.info().attach('first-message-state.json', {
+        body: JSON.stringify(evidence, null, 2),
+        contentType: 'application/json',
+      })
+      throw error
+    }
     await expect(page.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible({
       timeout: 20000,
     })

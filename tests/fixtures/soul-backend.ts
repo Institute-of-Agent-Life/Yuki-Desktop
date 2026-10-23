@@ -1,6 +1,6 @@
 import { expect, test, type ElectronApplication } from '@playwright/test'
 import { spawn } from 'node:child_process'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { copyFile, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { closeSync, openSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
@@ -55,6 +55,7 @@ export async function soulBackend() {
   } catch (error) {
     server.kill('SIGTERM')
     closeSync(log)
+    await copyFile(join(root, 'server.log'), test.info().outputPath('backend-server.log'))
     throw new Error(`SOUL backend failed; evidence: ${root}`, { cause: error })
   }
   const desktop = await isolatedDesktop(root)
@@ -76,7 +77,10 @@ export async function soulBackend() {
       })
       closeSync(log)
       if (success) await rm(root, { recursive: true, force: true })
-      else console.error(`SOUL evidence retained: ${root}`)
+      else {
+        await copyFile(join(root, 'server.log'), test.info().outputPath('backend-server.log'))
+        console.error(`SOUL evidence retained: ${root}`)
+      }
     },
   }
 }

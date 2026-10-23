@@ -4,7 +4,9 @@ import { forwardProxy } from '../fixtures/forward-proxy'
 async function settings(page: Page) {
   await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
-  await expect(page.getByText('已連線', { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('region', { name: '設定', exact: true }).getByText('已連線', { exact: true }),
+  ).toBeVisible()
 }
 async function connection(page: Page) {
   return page.evaluate(async () => {

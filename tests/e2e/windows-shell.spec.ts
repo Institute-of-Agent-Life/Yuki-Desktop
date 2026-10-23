@@ -15,7 +15,7 @@ test('Windows packaged window keeps Alt hidden and native encryption survives re
   let app = await launchShell(data)
   try {
     let page = await app.firstWindow()
-    await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
     const facts = await app.evaluate(({ app, BrowserWindow, screen, safeStorage }) => {
       const win = BrowserWindow.getAllWindows()[0]
       if (!win) throw new Error('Native window is missing')
@@ -91,7 +91,7 @@ test('Windows packaged window keeps Alt hidden and native encryption survives re
     await app.close()
     app = await launchShell(data)
     page = await app.firstWindow()
-    await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
     const restored = await app.evaluate(
       ({ safeStorage }, value) => safeStorage.decryptString(Buffer.from(value, 'base64')),
       (await readFile(cipherPath)).toString('base64'),

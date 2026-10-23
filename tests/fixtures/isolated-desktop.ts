@@ -12,6 +12,9 @@ export async function isolatedDesktop(root: string, options: { managedUpdates?: 
     `
 const electron = require('electron');
 const {app, clipboard, shell} = electron;
+// Playwright forces weak/mock stores; exercise the platform's real credential backend.
+app.commandLine.removeSwitch('password-store');
+app.commandLine.removeSwitch('use-mock-keychain');
 const fs = require('node:fs'), path = require('node:path');
 const root = ${JSON.stringify(appRoot)};
 app.getAppPath = () => root;

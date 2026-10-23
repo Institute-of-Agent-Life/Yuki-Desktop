@@ -56,52 +56,51 @@ export function createWindow(store: LocalStore, pairing = false) {
   }
   nativeTheme.on('updated', updateAppearance)
   const applyBounds = (bounds: Rect) => {
-    if (process.platform !== 'win32') {
-      win.setBounds(bounds)
-      return
-    }
-    // At fractional DPI, reapplying outer bounds can grow an overlay window.
-    // Move first, then size its client area using the measured frame difference.
     const current = win.getBounds()
-    if (current.x !== bounds.x || current.y !== bounds.y) win.setPosition(bounds.x, bounds.y)
-    const outer = win.getBounds()
-    if (outer.width !== bounds.width || outer.height !== bounds.height) {
-      const content = win.getContentBounds()
-      win.setContentSize(
-        bounds.width - outer.width + content.width,
-        bounds.height - outer.height + content.height,
-      )
-    }
+    if (
+      Object.keys(current).some((key) => current[key as keyof Rect] !== bounds[key as keyof Rect])
+    )
+      win.setBounds(bounds)
   }
   let adjusting = false
+  let displayId = screen.getDisplayMatching(win.getBounds()).id
   let moveTimer: ReturnType<typeof setTimeout> | undefined
   const cancelMove = () => {
     clearTimeout(moveTimer)
     moveTimer = undefined
+  }
+  const save = () => {
+    cancelMove()
+    if (
+      !win.isDestroyed() &&
+      !pairing &&
+      !win.isMaximized() &&
+      !win.isMinimized() &&
+      !win.isFullScreen()
+    )
+      store.set('window', win.getBounds())
   }
   const fit = () => {
     cancelMove()
     if (win.isDestroyed() || win.isMinimized() || win.isFullScreen() || adjusting) return
     adjusting = true
     const old = win.getBounds()
-    const next = windowGeometry(
-      screen.getDisplayMatching(old).workArea,
-      old,
-      pairing ? 'pairing' : 'workspace',
-    )
+    const display = screen.getDisplayMatching(old)
+    displayId = display.id
+    const next = windowGeometry(display.workArea, old, pairing ? 'pairing' : 'workspace')
     win.setMinimumSize(next.minimum.width, next.minimum.height)
-    if (Object.keys(old).some((key) => old[key as keyof Rect] !== next.bounds[key as keyof Rect]))
-      applyBounds(next.bounds)
-    if (!pairing && !win.isMaximized()) store.set('window', win.getBounds())
+    applyBounds(next.bounds)
     adjusting = false
+    save()
   }
   modes.set(win, (nextPairing) => {
     if (pairing === nextPairing) return
     pairing = nextPairing
     adjusting = true
-    const area = screen.getDisplayMatching(win.getBounds()).workArea
+    const display = screen.getDisplayMatching(win.getBounds())
+    displayId = display.id
     const next = windowGeometry(
-      area,
+      display.workArea,
       pairing ? undefined : store.get<Rect>('window'),
       pairing ? 'pairing' : 'workspace',
     )
@@ -112,16 +111,20 @@ export function createWindow(store: LocalStore, pairing = false) {
   screen.on('display-metrics-changed', fit)
   screen.on('display-added', fit)
   screen.on('display-removed', fit)
-  // `moved` is unavailable on Linux. Wait for movement to settle before
-  // clamping so intermediate positions can cross into another display.
-  win.on('move', () => {
+  // Preserve native movement on the same display. Reapplying its reported bounds
+  // after every move can enlarge Windows overlay windows at fractional DPI.
+  const moved = () => {
     if (adjusting || win.isDestroyed()) return
     cancelMove()
-    moveTimer = setTimeout(fit, 150)
+    moveTimer = setTimeout(() => {
+      if (screen.getDisplayMatching(win.getBounds()).id !== displayId) fit()
+      else save()
+    }, 150)
     moveTimer.unref()
-  })
-  win.on('resize', fit)
-  win.on('close', fit)
+  }
+  win.on('move', moved)
+  win.on('resize', moved)
+  win.on('close', save)
   win.once('closed', () => {
     nativeTheme.removeListener('updated', updateAppearance)
     cancelMove()
@@ -143,8 +146,20 @@ export function createWindow(store: LocalStore, pairing = false) {
     if (url !== win.webContents.getURL()) event.preventDefault()
   })
   win.once('ready-to-show', () => {
-    // Windows resolves its frame and per-monitor DPI during creation.
-    if (process.platform === 'win32') applyBounds(geometry.bounds)
+    // Windows resolves its overlay frame during native creation. Calibrate this
+    // first client size once; never feed later movement back through size setters.
+    if (process.platform === 'win32') {
+      const outer = win.getBounds()
+      if (outer.width !== geometry.bounds.width || outer.height !== geometry.bounds.height) {
+        const content = win.getContentBounds()
+        adjusting = true
+        win.setContentSize(
+          geometry.bounds.width - outer.width + content.width,
+          geometry.bounds.height - outer.height + content.height,
+        )
+        adjusting = false
+      }
+    }
     win.show()
   })
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL)

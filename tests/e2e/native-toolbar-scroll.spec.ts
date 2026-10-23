@@ -4,7 +4,8 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { launchShell } from '../fixtures/shell-app'
-import { pairUI } from '../fixtures/backend'
+import { currentConnection, pairUI } from '../fixtures/backend'
+import type { EventsPage, OriginalRequest } from '../../src/shared/api'
 
 test('native conversation wheel scrolling applies toolbar material and preserves opaque accessibility modes', async () => {
   const base = process.env.YUKI_DESKTOP_NATIVE_BACKEND_URL?.replace(/\/+$/, '')
@@ -32,6 +33,7 @@ test('native conversation wheel scrolling applies toolbar material and preserves
       '捲動工具列驗證',
       20000,
     )
+    const connection = await currentConnection(page)
     const native = await app.evaluate(({ app, BrowserWindow, screen }) => {
       const win = BrowserWindow.getAllWindows()[0]!
       return {
@@ -64,7 +66,9 @@ test('native conversation wheel scrolling applies toolbar material and preserves
         (_, i) => `${i + 1}. 原對話中的長段文字，用於捲動與工具列檢查。`,
       ).join('\n')
     ).slice(0, 5000)
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill(text)
+    await page
+      .getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true })
+      .fill(text)
     await page.getByRole('button', { name: '送出', exact: true }).click()
     const original = page
       .getByRole('article', { name: '你的訊息', exact: true })
@@ -132,7 +136,9 @@ test('native conversation wheel scrolling applies toolbar material and preserves
       expect((await style()).edgeFilter).toBe(opaque ? 'none' : 'blur(6px)')
       if (opaque) expect((await style()).edgeShadow).not.toBe('none')
       await expect(original).toHaveAttribute('data-event-id', eventId!)
-      await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
+      await expect(
+        page.getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true }),
+      ).toBeVisible()
       expect(
         await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getBounds()),
       ).toEqual(native.bounds)
@@ -186,12 +192,11 @@ test('native conversation wheel scrolling applies toolbar material and preserves
       .getByRole('article')
       .filter({ hasText: '消息过长，请控制在 4000 个字符以内。' })
       .count()
-    const replies = log.getByText('真實帳本回覆', { exact: true })
-    const beforeReply = await replies.count()
     const recoveryMarker = randomUUID()
+    const recoveryText = recoveryMarker + ' 確認原對話仍可接續。'
     await page
-      .getByRole('textbox', { name: '和 Yuki 說點什麼' })
-      .fill(recoveryMarker + ' 確認原對話仍可接續。')
+      .getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true })
+      .fill(recoveryText)
     await page.getByRole('button', { name: '送出', exact: true }).click()
     const recovery = log
       .getByRole('article', { name: '你的訊息', exact: true })
@@ -199,11 +204,51 @@ test('native conversation wheel scrolling applies toolbar material and preserves
     await expect(recovery).toHaveCount(1)
     const recoveryEventId = await recovery.getAttribute('data-event-id')
     expect(Number(recoveryEventId)).toBeGreaterThan(Number(eventId))
-    await expect(replies).toHaveCount(beforeReply + 1, { timeout: 20000 })
+    const receipt = () =>
+      page.evaluate(
+        async ({ characterId, text }) => {
+          const outbox = await window.yuki.client.outbox(characterId)
+          if (!outbox.ok) throw Error(outbox.code)
+          const original = outbox.value.find((item) => item.body.text === text)
+          if (!original) throw Error('Original recovery request is missing')
+          const result = await window.yuki.client.read<OriginalRequest>(characterId, {
+            kind: 'request',
+            requestId: original.requestId,
+          })
+          if (!result.ok) throw Error(result.code)
+          return result.value
+        },
+        { characterId: connection.characterId, text: recoveryText },
+      )
+    await expect
+      .poll(async () => (await receipt()).result_event_ids?.length ?? 0, {
+        timeout: 20000,
+      })
+      .toBeGreaterThan(0)
+    const completed = await receipt()
+    expect(completed.event_id).toBe(Number(recoveryEventId))
+    expect(completed.conversation_id).toBe(connection.conversationId)
+    for (const eventId of completed.result_event_ids!) {
+      const event = await page.evaluate(
+        async ({ characterId, conversationId, eventId }) => {
+          const result = await window.yuki.client.read<EventsPage>(characterId, {
+            kind: 'events',
+            conversationId,
+            after: eventId - 1,
+            limit: 1,
+          })
+          if (!result.ok) throw Error(result.code)
+          return result.value.items[0]!
+        },
+        { characterId: connection.characterId, conversationId: connection.conversationId, eventId },
+      )
+      expect(event.id).toBe(eventId)
+      expect(event.direction).toBe('outbound')
+      await expect(log.locator(`article[data-event-id="${eventId}"]`)).toContainText(event.text)
+    }
     proof.shortMainRecovery = {
       recoveryEventId,
-      repliesBefore: beforeReply,
-      repliesAfter: await replies.count(),
+      resultEventIds: completed.result_event_ids,
     }
     proof.complete = true
   } catch (error) {

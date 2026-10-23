@@ -1,6 +1,7 @@
+import { navigate, sidebar } from '../fixtures/navigation'
 import { expect, test, type Page } from '@playwright/test'
 import { join } from 'node:path'
-import { contentSize } from '../fixtures/visual'
+import { captureViewport, contentSize } from '../fixtures/visual'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 
 async function add(page: Page) {
@@ -12,7 +13,7 @@ async function add(page: Page) {
   ).toBeVisible()
 }
 async function switchRole(page: Page, name: string) {
-  await page.getByRole('button', { name: '切換角色', exact: true }).click()
+  await (await sidebar(page)).getByRole('button', { name: '切換角色', exact: true }).click()
   await page.getByRole('menuitemradio', { name: new RegExp(name) }).click()
 }
 
@@ -27,6 +28,7 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
     let page = await app.firstWindow()
     page.on('pageerror', (error) => errors.push(error.message))
     await pairUI(page, first.base, await first.code())
+    await contentSize(app, page, 1440, 900)
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
     await page.getByRole('radio', { name: '淺色', exact: true }).click()
@@ -65,14 +67,14 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
         .getByRole('tab', { name: '工作', exact: true }),
     ).toHaveAttribute('aria-selected', 'true')
     await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
-    await page.getByRole('button', { name: '關於 初始角色', exact: true }).click()
+    await navigate(page, '關於 初始角色')
     await page.getByRole('button', { name: '編輯角色資料', exact: true }).click()
     await page.getByLabel('名稱', { exact: true }).fill('Mika')
     await page.getByLabel('淺色外觀', { exact: true }).fill('#b0466b')
     await page.getByLabel('深色外觀', { exact: true }).fill('#e5a2bc')
     await page.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(page.getByRole('button', { name: '關於 Mika', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '對話', exact: true }).click()
+    await navigate(page, '對話')
     await page
       .getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })
       .fill('只有 Mika 的草稿')
@@ -102,7 +104,7 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
     await expect(page.getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })).toHaveValue(
       '只有 Mika 的草稿',
     )
-    await page.getByRole('button', { name: '關於 Mika', exact: true }).click()
+    await navigate(page, '關於 Mika')
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     const editor = page.getByRole('textbox', { name: 'SOUL.md 內容', exact: true })
     await editor.click()
@@ -117,11 +119,11 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
     await expect(
       page.getByRole('textbox', { name: '和 初始角色 說點什麼', exact: true }),
     ).toBeVisible()
-    await page.getByRole('button', { name: '關於 初始角色', exact: true }).click()
+    await navigate(page, '關於 初始角色')
     await expect(page.getByRole('button', { name: '編輯頭像', exact: true })).toHaveCount(0)
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     await expect(editor).not.toContainText('只屬於 Mika 的提示詞')
-    await page.getByRole('button', { name: '對話', exact: true }).click()
+    await navigate(page, '對話')
     await switchRole(page, 'Mika')
     await page.keyboard.press('ControlOrMeta+1')
     await expect(page.getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })).toHaveValue(
@@ -140,6 +142,7 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
     await expect(page.getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })).toHaveValue(
       '只有 Mika 的草稿',
     )
+    await contentSize(app, page, 1440, 900)
     await switchRole(page, '初始角色')
     await expect(
       page.getByRole('textbox', { name: '和 初始角色 說點什麼', exact: true }),
@@ -176,13 +179,11 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
         [960, 640],
       ] as const) {
         await contentSize(app, page, width, height)
+        const actualWidth = await page.evaluate(() => innerWidth)
         for (const name of ['初始角色', 'Mika']) {
-          await expect
-            .poll(() => page.evaluate(() => [window.innerWidth, window.innerHeight]))
-            .toEqual([width, height])
           await expect(
             page.locator('[data-character-session]:not([hidden]) [data-region="sidebar"]'),
-          ).toHaveCSS('position', width < 1100 ? 'absolute' : 'relative')
+          ).toHaveCSS('position', actualWidth < 1100 ? 'absolute' : 'relative')
           await expect(
             page.getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true }),
           ).toBeVisible()
@@ -199,9 +200,11 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
             'background-color',
             mode === 'dark' ? 'rgb(229, 162, 188)' : 'rgb(176, 70, 107)',
           )
-          await page.screenshot({
-            path: test.info().outputPath(`S12-${mode}-${width}-${name}.png`),
-          })
+          await captureViewport(
+            app,
+            page,
+            test.info().outputPath(`S12-${mode}-${width}-${name}.png`),
+          )
           await page.keyboard.press('Escape')
           await page.keyboard.press('ControlOrMeta+Shift+BracketRight')
         }

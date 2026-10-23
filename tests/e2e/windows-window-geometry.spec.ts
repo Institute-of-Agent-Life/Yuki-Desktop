@@ -3,7 +3,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { pairUI } from '../fixtures/backend'
+import { currentConnection, pairUI } from '../fixtures/backend'
 import { launchShell } from '../fixtures/shell-app'
 import { contentSize } from '../fixtures/visual'
 
@@ -100,7 +100,7 @@ test('Windows native workspace restores persisted frame and content bounds acros
     )
   try {
     page = await app.firstWindow()
-    await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
     const pairing = await nativeWindow(app, page)
     stages.push({ stage: 'fresh-pairing', ...pairing })
     await save()
@@ -108,7 +108,9 @@ test('Windows native workspace restores persisted frame and content bounds acros
     expect(response.ok).toBe(true)
     const { code } = (await response.json()) as { code: string }
     await pairUI(page, base!, code, 'Windows 視窗恢復', 20000)
-    const composer = () => page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+    const connection = await currentConnection(page)
+    const composer = () =>
+      page.getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true })
     await expect(composer()).toBeVisible()
     expect(await contentSize(app, page, 1100, 760)).toBe('native-window')
     await app.evaluate(({ BrowserWindow, screen }) => {

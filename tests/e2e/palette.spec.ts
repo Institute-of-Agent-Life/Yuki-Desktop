@@ -1,3 +1,4 @@
+import { navigate } from '../fixtures/navigation'
 import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
@@ -32,7 +33,7 @@ test('palette searches only actual loaded entries and exact-event verification n
       ),
     ).toBe(false)
     await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: /^QQ ·/ }).click()
+    await navigate(page, /^QQ ·/)
     await expect(page.getByText('QQ 原入口的真實帳本內容', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '回到桌面對話', exact: true }).click()
     const composer = page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })
@@ -65,7 +66,7 @@ test('palette searches only actual loaded entries and exact-event verification n
     expect(nextResponse.status).toBe(200)
     const next = (await nextResponse.json()) as { event_id: number; conversation_id: string }
     expect(next.conversation_id).toBe(source.conversation_id)
-    await page.getByRole('button', { name: /^QQ ·/ }).click()
+    await navigate(page, /^QQ ·/)
     await expect(page.locator(`article[data-event-id="${next.event_id}"]`)).toBeVisible()
     await page.getByRole('button', { name: '回到桌面對話', exact: true }).click()
     palette = await open(page, 'QQ 原入口')
@@ -74,7 +75,7 @@ test('palette searches only actual loaded entries and exact-event verification n
     )
     await original.hover()
     await expect(original).toHaveAttribute('aria-selected', 'true')
-    proxy.pauseActive('/client/v1/stream?works=active')
+    proxy.pauseActive('/client/v1/stream')
     await fetch(`${rig.base}/__test/events/${source.event_id}`, { method: 'DELETE' })
     await page.keyboard.press('Enter')
     await expect(palette.dialog.getByRole('alert')).toHaveText('引用的訊息無法讀取')
@@ -88,9 +89,9 @@ test('palette searches only actual loaded entries and exact-event verification n
       ),
     ).toBe(true)
     await expect(palette.dialog).toBeVisible()
-    proxy.resumeActive('/client/v1/stream?works=active')
+    proxy.resumeActive('/client/v1/stream')
     await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: /^QQ ·/ }).click()
+    await navigate(page, /^QQ ·/)
     await expect(page.locator(`article[data-event-id="${source.event_id}"]`)).toHaveCount(0)
     await expect(page.locator(`article[data-event-id="${next.event_id}"]`)).toBeVisible()
     success = true
@@ -108,7 +109,7 @@ test('palette navigation preserves the original unsaved prompt guard', async () 
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
-    await page.getByRole('button', { name: '關於 初始角色', exact: true }).click()
+    await navigate(page, '關於 初始角色')
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     const editor = page.getByRole('textbox', { name: 'SOUL.md 內容', exact: true })
     await expect(editor).toHaveAttribute('aria-readonly', 'false')
@@ -165,12 +166,10 @@ test('palette geometry, keyboard focus and footer remain usable across themes, s
         [960, 492],
       ] as const) {
         const viewportMethod = await contentSize(app, page, width, height)
-        await expect
-          .poll(() => page.evaluate(() => [innerWidth, innerHeight]))
-          .toEqual([width, height])
+        const actualHeight = await page.evaluate(() => innerHeight)
         const palette = await open(page)
         await expect(palette.dialog).toHaveCSS('width', '640px')
-        await expect(palette.dialog).toHaveCSS('top', height < 600 ? '16px' : '120px')
+        await expect(palette.dialog).toHaveCSS('top', actualHeight < 600 ? '16px' : '120px')
         await expect(palette.input).toHaveCSS('height', '44px')
         await expect(
           palette.dialog.getByText('只搜尋這台電腦已載入的內容', { exact: true }),

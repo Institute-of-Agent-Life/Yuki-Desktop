@@ -1,3 +1,4 @@
+import { navigate } from '../fixtures/navigation'
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
@@ -11,10 +12,7 @@ async function open(page: Page, id?: string) {
     await expect(
       page.locator(`[data-character-session="${id}"] [data-region="toolbar"]`),
     ).toBeVisible()
-  await page
-    .getByRole('navigation', { name: '主要導覽' })
-    .getByRole('button', { name: '工作', exact: true })
-    .click()
+  await navigate(page, '工作')
   await page.getByRole('button').filter({ hasText: 'Desktop reference work' }).click()
 }
 async function create(page: Page, base: string) {

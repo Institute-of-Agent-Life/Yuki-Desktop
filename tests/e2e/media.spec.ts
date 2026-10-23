@@ -25,7 +25,6 @@ test('current uploads recover the original lost response and another device save
     await page.getByRole('button', { name: '附加檔案', exact: true }).click()
     await expect.poll(() => proxy.lostStatuses).toEqual([200])
     proxy.faults.holdReceipts = false
-    await page.getByRole('button', { name: '查證並重試', exact: true }).click()
     await expect(page.getByLabel('待送出附件')).toContainText('可送出')
     await page
       .getByRole('textbox', { name: /^和 .+ 說點什麼$/ })
