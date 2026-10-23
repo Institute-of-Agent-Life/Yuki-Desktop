@@ -89,7 +89,9 @@ test('another real device updates the name and SOUL, preserves conflicts and rev
     })
     expect(renamed.status).toBe(200)
     await expect(
-      page.getByRole('button', { name: '關於 Renamed', exact: true, includeHidden: true }),
+      page
+        .getByRole('navigation', { name: '主要導覽', exact: true, includeHidden: true })
+        .getByRole('button', { name: '關於 Renamed', exact: true, includeHidden: true }),
     ).toHaveCount(1)
     const saved = await fetch(rig.base + '/client/v1/character/soul', {
       method: 'PUT',

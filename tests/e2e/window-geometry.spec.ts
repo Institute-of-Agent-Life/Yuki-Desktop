@@ -99,12 +99,34 @@ test('native movement persists without resizing feedback and a cold launch recov
         await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getBounds()),
       ).toEqual(restored)
     }
-    const nativeMoved = await app.evaluate(({ BrowserWindow }, area) => {
-      const window = BrowserWindow.getAllWindows()[0]!
-      window.setPosition(area.x + area.width - 100, area.y + area.height - 100)
-      return window.getBounds()
+    await app.evaluate(({ BrowserWindow }, area) => {
+      BrowserWindow.getAllWindows()[0]!.setPosition(
+        area.x + area.width - 100,
+        area.y + area.height - 100,
+      )
     }, area)
-    await expect.poll(() => savedBounds(app)).toEqual(nativeMoved)
+    // The window manager can adjust position asynchronously after setPosition returns.
+    // Compare the persisted receipt to the settled native fact, not that immediate return.
+    await expect
+      .poll(async () => {
+        const live = await app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()[0]!.getBounds(),
+        )
+        const saved = await savedBounds(app)
+        return {
+          moved: live.x > restored.x && live.y > restored.y,
+          savedCurrent:
+            !!saved &&
+            Object.keys(live).every(
+              (key) => live[key as keyof typeof live] === saved[key as keyof typeof saved],
+            ),
+        }
+      })
+      .toEqual({ moved: true, savedCurrent: true })
+    const nativeMoved = await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0]!.getBounds(),
+    )
+    expect(await savedBounds(app)).toEqual(nativeMoved)
     expect(
       await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getBounds()),
     ).toEqual(nativeMoved)

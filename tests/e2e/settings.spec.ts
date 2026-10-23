@@ -312,9 +312,13 @@ test('settings use the original role workspace, preserve its inspector and resto
       (await page.getByRole('tablist', { name: '設定分類', exact: true }).boundingBox())!.width,
     ).toBe(200)
     await expect(page.getByRole('complementary', { name: '檢視器', exact: true })).toHaveCount(0)
-    await page.screenshot({
-      path: test.info().outputPath('settings-with-original-role-sidebar.png'),
-    })
+    const settingsViewport = await page.evaluate(() => [innerWidth, innerHeight])
+    await captureViewport(
+      app,
+      page,
+      test.info().outputPath('settings-with-original-role-sidebar.png'),
+    )
+    expect(await page.evaluate(() => [innerWidth, innerHeight])).toEqual(settingsViewport)
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await expect(composer).toHaveValue(draft)
     await expect(page.getByRole('complementary', { name: '檢視器', exact: true })).toBeVisible()

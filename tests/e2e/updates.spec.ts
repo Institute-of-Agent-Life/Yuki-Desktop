@@ -3,7 +3,7 @@ import type { AppUpdater, UpdateCheckResult } from 'electron-updater'
 import type { CancellationToken } from 'builder-util-runtime'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
-import { contentSize } from '../fixtures/visual'
+import { captureViewport, contentSize } from '../fixtures/visual'
 
 interface FixtureState {
   checks: number
@@ -321,7 +321,11 @@ test('update UI with simulated packaged mode cancels a download, rejects corrupt
           await ready.scrollIntoViewIfNeeded()
           await expect(ready).toBeInViewport()
         }).toPass()
-        await page.screenshot({ path: test.info().outputPath(`S16-settings-${mode}-${width}.png`) })
+        await captureViewport(
+          app,
+          page,
+          test.info().outputPath(`S16-settings-${mode}-${width}.png`),
+        )
         await page.getByRole('button', { name: '返回', exact: true }).click()
         const toolbarReady = page
           .locator('[data-region="toolbar"]')
@@ -329,7 +333,7 @@ test('update UI with simulated packaged mode cancels a download, rejects corrupt
         await toolbarReady.focus()
         await expect(toolbarReady).toBeFocused()
         await expect(toolbarReady).toBeInViewport()
-        await page.screenshot({ path: test.info().outputPath(`S16-toolbar-${mode}-${width}.png`) })
+        await captureViewport(app, page, test.info().outputPath(`S16-toolbar-${mode}-${width}.png`))
         await page.keyboard.press('ControlOrMeta+,')
       }
     }

@@ -134,7 +134,7 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
     await expect(page.getByRole('menuitemradio', { name: /初始角色/ })).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('button', { name: '切換角色', exact: true })).toBeFocused()
-    await page.screenshot({ path: join(test.info().outputDir, 'mika-role-switch.png') })
+    await captureViewport(app, page, join(test.info().outputDir, 'mika-role-switch.png'))
     await app.close()
     app = await first.launch('multiple-roles')
     page = await app.firstWindow()

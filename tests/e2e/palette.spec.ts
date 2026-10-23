@@ -35,7 +35,7 @@ test('palette searches only actual loaded entries and exact-event verification n
     await page.keyboard.press('Escape')
     await navigate(page, /^QQ ·/)
     await expect(page.getByText('QQ 原入口的真實帳本內容', { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '回到桌面對話', exact: true }).click()
+    await navigate(page, '回到桌面對話')
     const composer = page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })
     await composer.fill('新的桌面訊息不會移除已載入的 QQ 搜尋內容')
     await page.getByRole('button', { name: '送出', exact: true }).click()
@@ -61,14 +61,14 @@ test('palette searches only actual loaded entries and exact-event verification n
         .locator(`article[data-event-id="${source.event_id}"]`),
     ).toBeVisible()
     await page.keyboard.press('ControlOrMeta+Shift+e')
-    await page.getByRole('button', { name: '回到桌面對話', exact: true }).click()
+    await navigate(page, '回到桌面對話')
     const nextResponse = await fetch(`${rig.base}/__test/qq-entry`, { method: 'POST' })
     expect(nextResponse.status).toBe(200)
     const next = (await nextResponse.json()) as { event_id: number; conversation_id: string }
     expect(next.conversation_id).toBe(source.conversation_id)
     await navigate(page, /^QQ ·/)
     await expect(page.locator(`article[data-event-id="${next.event_id}"]`)).toBeVisible()
-    await page.getByRole('button', { name: '回到桌面對話', exact: true }).click()
+    await navigate(page, '回到桌面對話')
     palette = await open(page, 'QQ 原入口')
     const original = palette.dialog.locator(
       `[data-item-id="message/${source.conversation_id}/${source.event_id}"]`,

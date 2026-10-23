@@ -98,7 +98,7 @@ test('real clamped columns move four visible pixels per key and stop an unfinish
     await page.mouse.up()
     await page.getByRole('button', { name: '檢視器', exact: true }).click()
     await expect(inspector(page)).toHaveAttribute('aria-valuenow', '392')
-    await page.screenshot({ path: test.info().outputPath('stopped-column-drag.png') })
+    await captureViewport(app, page, test.info().outputPath('stopped-column-drag.png'))
     success = true
   } finally {
     const page = await app.firstWindow().catch(() => undefined)
