@@ -1,10 +1,10 @@
-import { _electron as electron, expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { spawn } from 'node:child_process'
-import { mkdtemp, realpath, rm, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, realpath, rm, readFile } from 'node:fs/promises'
 import { openSync, closeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { delimiter, join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { delimiter, join } from 'node:path'
+import { isolatedDesktop } from './isolated-desktop'
 import { createServer } from 'node:net'
 import type { Connection, EventsPage } from '../../src/shared/api'
 
@@ -95,38 +95,11 @@ export async function yukiFixture() {
     closeSync(log)
     throw new Error(`Backend startup failed; local evidence: ${root}`, { cause: error })
   }
-  const appRoot = resolve('.'),
-    wrapper = join(root, 'desktop-entry.cjs')
-  await writeFile(
-    wrapper,
-    `
-const electron = require('electron');
-const {app, clipboard, shell} = electron;
-const fs = require('node:fs'), path = require('node:path');
-const root = ${JSON.stringify(appRoot)};
-app.getAppPath = () => root;
-app.setAsDefaultProtocolClient = () => false;
-let copied = '';
-clipboard.writeText = value => { copied = value };
-clipboard.readText = () => copied;
-shell.openExternal = async () => {};
-shell.openPath = async () => '';
-shell.showItemInFolder = () => {};
-fs.mkdirSync(process.env.YUKI_DESKTOP_DATA, { recursive: true });
-const Database = require(path.join(root, 'node_modules/better-sqlite3'));
-const db = new Database(path.join(process.env.YUKI_DESKTOP_DATA, 'desktop.sqlite3'));
-db.exec('CREATE TABLE IF NOT EXISTS preferences(key TEXT PRIMARY KEY,value TEXT NOT NULL)');
-const row = db.prepare("SELECT value FROM preferences WHERE key='appearance'").get();
-if (!row) db.prepare('INSERT INTO preferences VALUES(?,?)').run('appearance', JSON.stringify({keepInTray:false}));
-db.close();
-import(${JSON.stringify(pathToFileURL(join(appRoot, 'out/main/app.js')).href)});
-`,
-    { mode: 0o600 },
-  )
+  const desktop = await isolatedDesktop(root)
   return {
     root,
     base,
-    entry: wrapper,
+    ...desktop,
     state: async () =>
       JSON.parse(await readFile(join(root, 'ready.json'), 'utf8')) as {
         owner_pairing_code: string
@@ -136,17 +109,6 @@ import(${JSON.stringify(pathToFileURL(join(appRoot, 'out/main/app.js')).href)});
         artifact_event_id: number
         artifact_conversation_id: string
       },
-    launch: (profile: string, args: string[] = []) =>
-      electron.launch({
-        args: [wrapper, ...args],
-        env: {
-          ...Object.fromEntries(
-            Object.entries(process.env).filter(([key]) => key !== 'ELECTRON_RUN_AS_NODE'),
-          ),
-          YUKI_DESKTOP_DATA: join(root, profile),
-        },
-        chromiumSandbox: true,
-      }),
     async code() {
       return (
         (await (await fetch(`${base}/__test/link-code`, { method: 'POST' })).json()) as {

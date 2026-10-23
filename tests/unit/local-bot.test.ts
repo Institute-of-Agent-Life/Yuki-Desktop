@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve, relative, isAbsolute } from 'node:path'
 import { createServer } from 'node:net'
@@ -91,6 +91,7 @@ it.skipIf(process.env.YUKI_TEST_DOCKER !== '1')(
     const originalDevice = result.deviceId
     expect((await bot.connect()).deviceId).toBe(originalDevice)
     expect((await bot.state()).running).toBe(true)
+    expect((await readFile(join(directory, 'character', 'SOUL.md'))).length).toBeGreaterThan(0)
   },
   180_000,
 )

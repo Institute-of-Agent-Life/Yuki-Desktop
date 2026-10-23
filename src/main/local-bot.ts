@@ -211,6 +211,8 @@ export class LocalBot {
         JSON.stringify(item.image),
       )
       .replace('${YUKI_LOCAL_PORT:-8080}', String(item.port))
+      .replace('${YUKI_LOCAL_UID:-10001}', String(process.getuid?.() ?? 10001))
+      .replace('${YUKI_LOCAL_GID:-10001}', String(process.getgid?.() ?? 10001))
     const { writeFile } = await import('node:fs/promises')
     await writeFile(join(directory, 'docker-compose.local.yml'), configuredOverride)
     this.options.progress('準備本機 Yuki 映像')

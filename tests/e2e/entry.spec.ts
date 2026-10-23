@@ -60,6 +60,7 @@ test('reads another actual personal ingress and quotes its exact original event 
     await fetch(`${rig.base}/__test/events/${original.event_id}?lose_hint=true`, {
       method: 'DELETE',
     })
+    await page.getByRole('button').filter({ hasText: '引用：QQ 原入口的真實帳本內容' }).click()
     await expect(page.getByText('引用的訊息無法讀取', { exact: true })).toBeVisible()
     success = true
   } finally {
