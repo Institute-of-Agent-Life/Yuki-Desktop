@@ -296,7 +296,6 @@ async function packagedFixture(root) {
       '<script src="assets/index.js"></script><link href="assets/index.css">',
     'out/renderer/assets/index.js': 'export const fixture = true',
     'out/renderer/assets/index.css': 'body { color: black }',
-    'out/renderer/assets/diff.worker-fixture.js': 'onmessage = () => {}',
     'resources/icons/trayTemplate.png': 'icon fixture',
     'resources/icons/trayTemplate@2x.png': 'icon fixture',
     'package.json': '{"name":"integrity-fixture"}',
@@ -304,15 +303,6 @@ async function packagedFixture(root) {
   }
   for (const size of [16, 32, 64, 128, 256, 512, 1024])
     files[`resources/icons/app/${size}x${size}.png`] = 'icon fixture'
-  for (const file of [
-    'AUTHORS',
-    'NOTICE.txt',
-    'LICENSE.MPL-2.0',
-    'LICENSE.BSD-2-Clause',
-    'LICENSE.BSD-3-Clause',
-    'LICENSE.OFL-1.1',
-  ])
-    files[`resources/legal/novnc/${file}`] = 'legal fixture'
   for (const [path, content] of Object.entries(files)) {
     const destination = join(source, path)
     await mkdir(join(destination, '..'), { recursive: true })
@@ -321,7 +311,37 @@ async function packagedFixture(root) {
   await mkdir(directory)
   const archive = join(directory, 'app.asar')
   await createPackage(source, archive)
-  return { directory, archive, marker }
+  const runtimeFiles = {
+    'python/python.exe': 'isolated Python fixture',
+    'legal/Yuki-LICENSE': 'license fixture',
+    'legal/dependency-lock.toml': 'locked fixture',
+  }
+  const extra = Object.fromEntries(
+    Object.entries(runtimeFiles).map(([path, body]) => ['agent-connector/' + path, body]),
+  )
+  extra['agent-connector/manifest.json'] = JSON.stringify({
+    executable: 'python/python.exe',
+    files: Object.entries(runtimeFiles).map(([path, body]) => ({
+      path,
+      sha256: createHash('sha256').update(body).digest('hex'),
+    })),
+  })
+  for (const name of [
+    '.env.example',
+    'docker-compose.yml',
+    'docker-compose.local.yml',
+    'config/SOUL.md',
+  ])
+    extra['local-bot/' + name] = 'template fixture'
+  extra['local-bot/manifest.json'] = JSON.stringify({
+    revision: 'a'.repeat(40),
+    image: 'fixture-image',
+  })
+  for (const [path, body] of Object.entries(extra)) {
+    await mkdir(join(directory, path, '..'), { recursive: true })
+    await writeFile(join(directory, path), body)
+  }
+  return { directory, archive, marker, extra }
 }
 
 // Build a real newc payload so the fixed 7-Zip parser and ASAR audit both run.
@@ -350,16 +370,31 @@ function cpio(entries) {
 
 test('actual RPM CPIO audits internal build-id links and rejects escaping, missing or symbolic targets', async () =>
   fixture(async (root) => {
-    const { archive } = await packagedFixture(root),
+    const { archive, extra } = await packagedFixture(root),
       product = await readFile(archive),
       link = './usr/lib/.build-id/42/' + 'f'.repeat(38)
-    async function payload(label, destination, targetMode = 0o100755) {
+    const nested = 'agent-connector/python/bin/python3.12'
+    extra[nested] = 'nested interpreter fixture'
+    const manifest = JSON.parse(extra['agent-connector/manifest.json'])
+    manifest.files.push({
+      path: nested.slice('agent-connector/'.length),
+      sha256: createHash('sha256').update(extra[nested]).digest('hex'),
+    })
+    extra['agent-connector/manifest.json'] = JSON.stringify(manifest)
+    async function payload(label, destination, targetMode = 0o100755, tamper = false) {
       const file = join(root, label + '.rpm')
       await writeFile(
         file,
         cpio([
           { path: './opt/Yuki/resources/app.asar', body: product },
+          ...Object.entries(extra).map(([path, body]) => ({
+            path: './opt/Yuki/resources/' + path,
+            body: tamper && path === nested ? 'altered interpreter fixture' : body,
+          })),
           { path: './opt/Yuki/yuki-bin', body: 'executable fixture', mode: targetMode },
+          ...(label === 'prefix-sibling'
+            ? [{ path: './opt/Yuki-other/yuki-bin', body: 'outside product root', mode: 0o100755 }]
+            : []),
           { path: link, body: destination, mode: 0o120777 },
         ]),
       )
@@ -370,7 +405,18 @@ test('actual RPM CPIO audits internal build-id links and rejects escaping, missi
       file: 'internal.rpm',
       archives: 1,
     })
+    const nestedDestination = '../../../../opt/Yuki/resources/' + nested
+    assert.deepEqual(await auditInstaller(await payload('nested-runtime', nestedDestination)), {
+      file: 'nested-runtime.rpm',
+      archives: 1,
+    })
+    await assert.rejects(
+      auditInstaller(await payload('tampered-runtime', nestedDestination, 0o100755, true)),
+      /Changed Connector file: python\/bin\/python3\.12/,
+    )
     for (const [label, destination, mode] of [
+      ['prefix-sibling', '../../../../opt/Yuki-other/yuki-bin', 0o100755],
+      ['nested-escape', '../../../../opt/Yuki/../../../outside', 0o100755],
       ['escape', '../../../../../outside', 0o100755],
       ['absolute', '/opt/Yuki/yuki-bin', 0o100755],
       ['missing', '../../../../opt/Yuki/missing', 0o100755],
@@ -414,4 +460,40 @@ test('actual ASAR integrity rejects a changed block digest even when the file di
     bytes[offset] = bytes[offset] === 0x61 ? 0x62 : 0x61
     await writeFile(archive, bytes)
     assert.throws(() => checkPackage(directory), /Corrupt packaged block: out\/main\/app.js/)
+  }))
+
+test('runtime resources preserve dependency files and reject changed bytes or extra local configuration', async () =>
+  fixture(async (root) => {
+    const { directory } = await packagedFixture(root)
+    assert.equal(checkPackage(directory), 1)
+    await writeFile(join(directory, 'agent-connector/python/python.exe'), 'changed Python')
+    assert.throws(() => checkPackage(directory), /Changed Connector file/)
+  }))
+
+test('installer payload uses current ARM64 codecs and still checks every runtime file', async () =>
+  fixture(async (root) => {
+    const { directory } = await packagedFixture(root)
+    const tool = await getPath7za()
+    const payload = join(root, 'app-64.7z')
+    const installer = join(root, 'codec-fixture.exe')
+    const pack = async () => {
+      await run(tool, ['a', '-t7z', '-m0=ARM64', '-m1=LZMA2', payload, '.'], { cwd: directory })
+      const { stdout } = await run(tool, ['l', '-slt', payload])
+      assert.match(stdout, /Method = .*ARM64/)
+      // The outer ZIP is only a container fixture; the production NSIS is audited separately.
+      await run(tool, ['a', '-tzip', installer, 'app-64.7z'], { cwd: root })
+    }
+    await pack()
+    assert.equal((await auditInstaller(installer)).payloads, 1)
+    await writeFile(join(directory, 'agent-connector/.env'), 'unexpected fixture data')
+    await rm(payload)
+    await rm(installer)
+    await pack()
+    await assert.rejects(auditInstaller(installer), /Unexpected Connector runtime content/)
+  }))
+test('local Bot resources reject an accidental private env file', async () =>
+  fixture(async (root) => {
+    const { directory } = await packagedFixture(root)
+    await writeFile(join(directory, 'local-bot/.env'), 'isolated synthetic private value')
+    assert.throws(() => checkPackage(directory), /Unexpected local Bot resources/)
   }))

@@ -1,14 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
 import { pairUI, yukiFixture } from '../fixtures/backend'
-import { captureWorkspace, contentSize } from '../fixtures/visual'
+import { contentSize } from '../fixtures/visual'
 
 const inspector = (page: Page) => page.getByRole('complementary', { name: '檢視器', exact: true })
 const tabs = (page: Page) => inspector(page).getByRole('tablist', { name: '檢視器內容' })
 const toolbar = (page: Page) => page.locator('[data-region="toolbar"]')
 
-test('inspector segments preserve original work drafts and immutable file selections and remove revoked computer controls', async () => {
-  test.setTimeout(240000)
-  const rig = await yukiFixture({ computer: true, character: true }),
+test('inspector tabs preserve original Work drafts and immutable file selection without retired computer controls', async () => {
+  const rig = await yukiFixture(),
     app = await rig.launch('inspector-segments')
   let success = false
   try {
@@ -17,104 +16,30 @@ test('inspector segments preserve original work drafts and immutable file select
     page.on('pageerror', (error) => errors.push(error.message))
     await pairUI(page, rig.base, await rig.code())
     await contentSize(app, page, 1440, 900)
-    await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('請建立原工作整合測試')
-    await page.getByRole('button', { name: '送出', exact: true }).click()
-    const card = page.getByRole('article').filter({
-      has: page.getByRole('heading', { name: '原工作整合測試', exact: true }),
-    })
-    await expect(card.getByText('等你回覆', { exact: true })).toBeVisible({ timeout: 20000 })
-    await card.getByRole('button', { name: '查看詳情', exact: true }).click()
+    const response = await fetch(`${rig.base}/__test/work`, { method: 'POST' })
+    expect(response.ok).toBe(true)
+    await page.keyboard.press('ControlOrMeta+2')
+    await page.getByRole('button', { name: /Desktop reference work/ }).click()
     await expect(tabs(page).getByRole('tab', { name: '工作', exact: true })).toHaveAttribute(
       'aria-selected',
       'true',
     )
-    const draft = '原工作尚未送出的城市補充：台北'
+    const draft = '原工作尚未送出的補充：台北'
     await inspector(page).getByRole('textbox').fill(draft)
     await tabs(page).getByRole('tab', { name: '工作', exact: true }).focus()
     await page.keyboard.press('ArrowRight')
-    await expect(tabs(page).getByRole('tab', { name: '電腦', exact: true })).toBeFocused()
-    await expect(
-      inspector(page).getByRole('button', { name: '儲存目前內容', exact: true }),
-    ).toBeVisible()
-    await page.keyboard.press('ArrowRight')
     await expect(tabs(page).getByRole('tab', { name: '檔案', exact: true })).toBeFocused()
-    await expect(inspector(page).getByRole('heading', { name: '尚未選取檔案' })).toBeVisible()
-    const response = await fetch(`${rig.base}/__test/artifacts`, { method: 'POST' })
-    expect(response.status).toBe(200)
-    const artifacts = (await response.json()) as { artifact_id: string }[]
-    await inspector(page).getByRole('button', { name: '開啟檔案與成果', exact: true }).click()
-    await expect(inspector(page)).toHaveCount(0)
-    await page.getByRole('button').filter({ hasText: artifacts[1]!.artifact_id }).click()
-    await expect(page.getByRole('region', { name: '成果預覽' })).toContainText(
-      'Different immutable content.',
-    )
+    await expect(tabs(page).getByRole('tab', { name: '電腦', exact: true })).toHaveCount(0)
     await page.keyboard.press('ControlOrMeta+1')
-    await toolbar(page).getByRole('button', { name: '檢視器', exact: true }).click()
-    await expect(tabs(page).getByRole('tab', { name: '檔案', exact: true })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    )
-    await expect(inspector(page)).toContainText('Different immutable content.')
+    await page
+      .getByRole('button', { name: /desktop-reference.txt/ })
+      .first()
+      .click()
+    await expect(inspector(page)).toContainText('Desktop reference artifact')
     await tabs(page).getByRole('tab', { name: '工作', exact: true }).click()
     await expect(inspector(page).getByRole('textbox')).toHaveValue(draft)
-    await expect(
-      inspector(page).getByRole('heading', { name: '原工作整合測試', exact: true }),
-    ).toBeVisible()
-    await captureWorkspace(
-      app,
-      page,
-      'inspector-work',
-      async () => {
-        await page.keyboard.press('ControlOrMeta+1')
-        if (!(await inspector(page).count()))
-          await toolbar(page).getByRole('button', { name: '檢視器', exact: true }).click()
-        await tabs(page).getByRole('tab', { name: '工作', exact: true }).click()
-        await expect(inspector(page).getByRole('textbox')).toHaveValue(draft)
-      },
-      {
-        verify: async () => {
-          await expect(tabs(page)).toBeInViewport({ ratio: 1 })
-          await expect(inspector(page).getByRole('textbox')).toHaveValue(draft)
-        },
-      },
-    )
-    await contentSize(app, page, 1440, 900)
-    await captureWorkspace(
-      app,
-      page,
-      'inspector-computer',
-      async () => {
-        if (!(await inspector(page).count()))
-          await toolbar(page).getByRole('button', { name: '檢視器', exact: true }).click()
-        await tabs(page).getByRole('tab', { name: '電腦', exact: true }).click()
-        await expect(
-          inspector(page).getByRole('button', { name: '儲存目前內容', exact: true }),
-        ).toBeVisible()
-      },
-      {
-        verify: async () => {
-          await expect(tabs(page)).toBeInViewport({ ratio: 1 })
-          await expect(inspector(page).getByRole('img', { name: '遠端電腦預覽' })).toBeInViewport({
-            ratio: 1,
-          })
-          await expect(
-            inspector(page).getByRole('button', { name: '開啟完整畫面', exact: true }),
-          ).toBeInViewport({ ratio: 1 })
-        },
-      },
-    )
-    await contentSize(app, page, 1440, 900)
-    expect((await fetch(`${rig.base}/__test/revoke-character-owner`, { method: 'POST' })).ok).toBe(
-      true,
-    )
-    await expect(tabs(page).getByRole('tab', { name: '電腦', exact: true })).toHaveCount(0)
-    await expect(
-      inspector(page).getByRole('button', { name: '儲存目前內容', exact: true }),
-    ).toHaveCount(0)
-    await expect(inspector(page).getByRole('textbox')).toHaveValue(draft)
     await tabs(page).getByRole('tab', { name: '檔案', exact: true }).click()
-    await expect(inspector(page)).toContainText('Different immutable content.')
+    await expect(inspector(page)).toContainText('Desktop reference artifact')
     expect(errors).toEqual([])
     success = true
   } finally {
@@ -152,7 +77,7 @@ test('only visible columns resize and actual close paths leave the expanded stag
     await sidebarButton.click()
     await expect(page.getByRole('navigation', { name: '主要導覽' })).toBeVisible()
     await expect(sidebar).toHaveCount(0)
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).click()
+    await page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ }).click()
     await expect(inspector(page)).toHaveCount(0)
     await expect(page.getByRole('navigation', { name: '主要導覽' })).not.toBeVisible()
     await inspectorButton.click()

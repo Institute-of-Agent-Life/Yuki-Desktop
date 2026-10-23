@@ -138,12 +138,13 @@ test('real QR pixels pair a second device once; original device revocation survi
         (c) => c.method === 'DELETE' && c.path.endsWith(`/devices/${second.deviceId}`),
       )
     expect(writes()).toHaveLength(1)
-    a.process().kill('SIGKILL')
-    await a.close().catch(() => {})
+    const crashed = a.waitForEvent('close')
+    await a.evaluate(() => process.exit(1)).catch(() => {})
+    await crashed
     proxy.faults.holdReceipts = false
     a = await rig.launch('security-a')
     pa = await a.firstWindow()
-    await expect(pa.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
+    await expect(pa.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })).toBeVisible()
     await security(pa)
     await expect
       .poll(() =>
@@ -160,8 +161,9 @@ test('real QR pixels pair a second device once; original device revocation survi
     expect(writes()).toHaveLength(1)
     await expect(pa.getByRole('button', { name: '撤銷 Mac B', exact: true })).toHaveCount(0)
     await expect(pa.getByText('已撤銷', { exact: true })).toBeVisible()
-    await assertNotOnDisk(join(rig.root, 'security-a'), code!)
     await pa.screenshot({ path: test.info().outputPath('darwin-2x-device-security.png') })
+    await a.close()
+    await assertNotOnDisk(join(rig.root, 'security-a'), code!)
     success = true
   } finally {
     await a.close().catch(() => {})

@@ -4,15 +4,18 @@
 
 ## 本地產物
 
-使用 Node.js 22.12+、`npm ci` 與已提交的 lockfile。`npm ci` 已安裝 Electron；不需另外下載名為 install-electron 的 npm 套件。
+使用 Node.js 22.12+、uv、`npm ci` 與已提交的 lockfile。`npm ci` 已安裝 Electron；不需另外下載名為 install-electron 的 npm 套件。先檢出 `contracts/source.json` 指定的後端提交，準備本建置主機架構的 Connector 與同一提交的本地 Bot 資源：
 
 ```sh
+node build-tools/prepare-connector.mjs --backend /absolute/path/to/pinned-Yuki
+node build-tools/prepare-local-bot.mjs --source /absolute/path/to/pinned-Yuki
 npm run lint
 npm run typecheck
 npm run check:contract
 npm test
 npm run test:release
-npm run package -- --mac --arm64 --x64
+npm run package -- --mac --arm64
+# Intel Mac 原生環境：npm run package -- --mac --x64
 # Windows x64 原生環境：npm run package -- --win --x64
 # Linux 各自原生環境：npm run package -- --linux --x64
 #                    npm run package -- --linux --arm64
@@ -20,7 +23,7 @@ npm run check:package
 node build-tools/prepare-upload.mjs dist/upload dist
 ```
 
-macOS 產生兩架構各自的 DMG、zip；Windows 為每使用者 NSIS x64；Linux 各架構產生 AppImage、deb、rpm。固定 SQLite 13 使用 Node-API 10 預建模組，打包不重編譯 V8 ABI；beforePack 會核對已安裝版本與目標 Mach-O／PE／ELF 架構及 Node-API 匯出，缺失或不符即失敗。實際 SQLite 執行由 shipped Electron 的單元測試驗證。Linux 打包主機需 rpm 工具；設定明確產生 RPM 4 格式，避免建置主機升級 rpm 後改變套件相容性與解包稽核能力。AppImage 內容審查用固定 builder 的 7-Zip 直接解出 SquashFS，不執行 ELF 或安裝系統套件。Ubuntu 與 Fedora 的實際安裝、Wayland／X11、portal、libsecret、AppIndicator 與縮放仍須原生驗收。
+macOS 在兩種原生架構主機上分別產生 DMG、zip；不要用一份本機 Connector 目錄同時打兩種架構。Windows 為每使用者 NSIS x64；Linux 各架構產生 AppImage、deb、rpm。固定 SQLite 13 使用 Node-API 10 預建模組，打包不重編譯 V8 ABI；beforePack 會核對已安裝版本與目標 Mach-O／PE／ELF 架構及 Node-API 匯出，缺失或不符即失敗。實際 SQLite 執行由 shipped Electron 的單元測試驗證。Linux 打包主機需 rpm 工具；設定明確產生 RPM 4 格式，避免建置主機升級 rpm 後改變套件相容性與解包稽核能力。AppImage 內容審查用固定 builder 的 7-Zip 直接解出 SquashFS，不執行 ELF 或安裝系統套件。Ubuntu 與 Fedora 的實際安裝、Wayland／X11、portal、libsecret、AppIndicator 與縮放仍須原生驗收。
 
 `build-tools/builder-config.mjs` 由版本決定 feed：正式版為 `latest*.yml`，`-beta.N` 為 `beta*.yml`。不要省略這個設定直接呼叫 builder，GitHub provider 不會自行推導 beta feed。檔名使用 `Yuki-<version>-<mac|win|linux>-<架構>.<ext>`；架構沿 builder 的格式慣例：mac／win 為 x64／arm64，Linux x64 的 AppImage／rpm 為 x86_64、deb 為 amd64，Linux arm64 的 rpm 為 aarch64、其他為 arm64。GitHub tag 為 `desktop-v<version>`。App 的 provider 支援此標籤前綴，beta 通道也能採用較新的正式版；兩個通道均禁止降版。
 
@@ -28,7 +31,7 @@ Linux `.desktop` 的名稱與 Electron app_id 使用同一個 `yuki.desktop`。L
 
 ## 內容與完整性
 
-`check:package` 審查 ASAR 產品白名單。`prepare-upload` 另解開實際 zip、DMG、NSIS、deb、rpm 或 AppImage，檢查外層與解出的 ASAR，核對真正應用程式執行檔的 CPU 與發行檔名一致、Linux 保留已核准的 sandbox 啟動器，再核對 feed 中每個檔案的 SHA-512。它拒絕本地文件／原型路徑、未知待上傳檔案、跨版本／跨平台 feed、缺失檔案、衝突檔名與逃逸路徑。DMG 以唯讀方式掛載並卸載；Windows 審查使用 lockfile 內 electron-winstaller 固定的完整 7-Zip 執行檔與 DLL（builder 的精簡 Windows 7za 缺少 NSIS／CPIO），按建置主機架構取用並只複製到本輪稽核的暫存目錄；其他平台使用 builder 固定工具。RPM build-id 連結逐項核對包內 regular file 目標，不在暫存目錄物化；越界、缺失或異常目標仍拒絕。包裝工具下載走既有 builder 工具鏈。
+`check:package` 審查 ASAR 產品白名單。`prepare-upload` 另解開實際 zip、DMG、NSIS、deb、rpm 或 AppImage，檢查外層與解出的 ASAR，核對真正應用程式執行檔的 CPU 與發行檔名一致、Linux 保留已核准的 sandbox 啟動器，再核對 feed 中每個檔案的 SHA-512。它拒絕本地文件／原型路徑、未知待上傳檔案、跨版本／跨平台 feed、缺失檔案、衝突檔名與逃逸路徑。DMG 以唯讀方式掛載並卸載；Windows 審查使用 lockfile 內 electron-winstaller 固定的完整 7-Zip 執行檔與 DLL（builder 的精簡 Windows 7za 缺少 NSIS／CPIO），按建置主機架構取用並只複製到本輪稽核的暫存目錄；NSIS 內部的 app-*.7z 改用 builder 固定新版工具，才能完整解碼 ARM64 filter，仍逐項檢查路徑與內容。其他平台使用 builder 固定工具。RPM build-id 連結逐項核對包內 regular file 目標，不在暫存目錄物化；越界、缺失或異常目標仍拒絕。包裝工具下載走既有 builder 工具鏈。
 
 只上傳新生成的 upload 目錄，不能直接上傳整個 dist、工作目錄、測試報告或暫存目錄。upload 只含安裝檔、對應 blockmap、feed 與 `SHA256SUMS`。產物審查 JSON 寫在旁邊的 `<upload目錄>.local-audit.json`，僅供本地核對，不可上傳或加入 CI artifacts。審查紀錄不等於簽章或原生安裝通過。
 
@@ -42,13 +45,16 @@ node build-tools/prepare-upload.mjs --merge --complete dist/release-upload /path
 
 ## macOS 正式簽章
 
+隨附 Connector 的原始 manifest 在打包前先校驗。正式 Mac 設定委託原 `@electron/osx-sign` 簽內層二進位；在最外層 `.app` 簽章前更新原簽名器實際處理的 runtime 檔案雜湊，再由原簽名器完成 app seal 與嚴格核驗。其他檔案、清單與連結仍須完全相符；不可在 afterSign 修改 manifest。CI 另對臨時副本執行 `node build-tools/check-mac-runtime-signing.mjs dist` 的真實 ad-hoc 簽章與清單檢查，不改 unsigned 發行產物；這不代表 Developer ID、公證或原生安裝驗收。
+
 需已核准的 Apple Developer Program、Developer ID Application 憑證、私鑰及 notarytool 憑據。私密值透過受控環境或 Keychain 提供，不放在命令輸出、倉庫或 upload。`YUKI_MAC_SIGNING_IDENTITY` 為完整 Developer ID 名稱；可透過 builder 的 `CSC_LINK`／`CSC_KEY_PASSWORD` 注入憑證，或使用既有 Keychain。Apple 公證環境組合見[固定 v26 文件](https://www.electron.build/v26/docs/notarization/)。
 
 獲得正式簽章與提交 Apple 的授權後：
 
 ```sh
 npm run build
-npx electron-builder --config electron-builder.release-mac.yml --config.directories.output=dist/release-mac --mac --arm64 --x64 --publish never
+npx electron-builder --config electron-builder.release-mac.yml --config.directories.output=dist/release-mac --mac --arm64 --publish never
+# Intel Mac 使用其本機準備的 Connector，改為 --mac --x64。
 node build-tools/finalize-mac.mjs dist/release-mac APPROVED_NOTARY_PROFILE
 node build-tools/prepare-upload.mjs dist/upload-signed-mac dist/release-mac
 ```
@@ -56,6 +62,8 @@ node build-tools/prepare-upload.mjs dist/upload-signed-mac dist/release-mac
 正式設定強制簽章、hardened runtime 與 App 公證／stapling。DMG 另簽章，再由明確 operator 命令提交 Apple、staple 及 Gatekeeper 核驗；任何一步失敗都不進入上傳目錄。更新使用已 stapled App 的 zip；正式 DMG 不列入更新 feed／blockmap，避免後續 stapling 改變已列入 feed 的位元組。SHA256SUMS 在這些步驟之後才生成。仍需在乾淨 Mac 驗證下載隔離、DMG 拖入安裝、兩架構啟動及舊版升級保留資料。
 
 ## Windows 正式簽章
+
+固定 builder 在複製 extraResources 時已依其原 `shouldSignFile` 選擇簽署 Connector 的 exe。afterPack 以已核驗的來源清單更新這些目標檔案的簽後雜湊，其他檔案仍比對原雜湊，之後繼續原主應用／NSIS 簽章流程。不關閉簽章，也不略過 native 檔案完整性。無憑證本地包只能證明打包／完整性接線，不能宣稱 helper、主應用或安裝器已完成正式 Authenticode。
 
 需已核准的 Azure Trusted Signing 帳戶／certificate profile、Microsoft Entra 身份與簽章費用授權。設定 `YUKI_WINDOWS_PUBLISHER`、`YUKI_AZURE_SIGNING_ENDPOINT`、`YUKI_AZURE_CERTIFICATE_PROFILE`、`YUKI_AZURE_SIGNING_ACCOUNT`；身份透過 Azure 支援的環境憑據提供。publisher 必須與實際憑證一致，以供更新驗證；不能填示意發行者。[v26 Windows 設定](https://www.electron.build/v26/docs/win/)。
 

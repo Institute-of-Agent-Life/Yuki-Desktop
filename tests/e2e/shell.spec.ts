@@ -2,11 +2,12 @@ import { expect, test } from '@playwright/test'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { launchShell } from '../fixtures/shell-app'
+import { isolatedDesktop } from '../fixtures/isolated-desktop'
 
 test('native startup, actual button and keyboard paths, preferences survive restart', async () => {
   const data = await mkdtemp(join(tmpdir(), 'yuki-desktop-test-'))
-  const launch = () => launchShell(data)
+  const desktop = await isolatedDesktop(data)
+  const launch = () => desktop.launch('shell')
   const started = performance.now()
   const timings: Record<string, number> = {}
   let success = false
@@ -53,11 +54,12 @@ test('native startup, actual button and keyboard paths, preferences survive rest
       expect(runtime.menuLabels).toEqual(['Yuki', '檔案', '編輯', '顯示', '視窗', '說明'])
       await expect(page.getByRole('button', { name: '更多命令', exact: true })).toHaveCount(0)
     }
-    await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
     timings.firstControlReadyMs = performance.now() - started
-    await page.getByRole('button', { name: '開始', exact: true }).click()
-    await expect(page.getByLabel('伺服器位址')).toBeFocused()
+    await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
+    await page.getByRole('button', { name: '手動輸入伺服器位址', exact: true }).click()
     await page.getByLabel('伺服器位址').fill('https://example.invalid/mika')
+    await expect(page.getByLabel('伺服器位址')).toBeFocused()
     await page.keyboard.press('ControlOrMeta+,')
     await expect(page.getByRole('region', { name: '設定', exact: true })).toBeVisible()
     await page.getByRole('tab', { name: '外觀', exact: true }).click()

@@ -4,17 +4,23 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pairUI, yukiFixture } from '../fixtures/backend'
-import { launchShell } from '../fixtures/shell-app'
-import { captureViewport, contentSize } from '../fixtures/visual'
+import { isolatedDesktop } from '../fixtures/isolated-desktop'
+import {
+  captureViewport,
+  contentSize,
+  systemAccessibility,
+  workspaceSizes,
+} from '../fixtures/visual'
 
 test('frosted workspace keeps opaque paper, floating controls, real receipts and drafts across appearances and sizes', async () => {
   test.setTimeout(180000)
   const external = process.env.YUKI_DESKTOP_NATIVE_BACKEND_URL?.replace(/\/+$/, '')
-  const rig = external ? undefined : await yukiFixture({ character: true, prompts: true })
+  const rig = external ? undefined : await yukiFixture()
   const base = external ?? rig!.base
   expect(['127.0.0.1', 'localhost', '[::1]']).toContain(new URL(base).hostname)
   const data = await mkdtemp(join(tmpdir(), 'yuki-frosted-')),
-    app = await launchShell(data)
+    desktop = await isolatedDesktop(data),
+    app = await desktop.launch('workspace')
   const stages: unknown[] = [],
     evidence: Record<string, unknown> = { data, stages }
   let success = false
@@ -30,16 +36,24 @@ test('frosted workspace keeps opaque paper, floating controls, real receipts and
         sandboxed: app
           .getAppMetrics()
           .find((entry) => entry.pid === win.webContents.getOSProcessId())?.sandboxed,
+        linuxSeccomp:
+          process.platform === 'linux'
+            ? process
+                .getBuiltinModule('node:fs')
+                .readFileSync(`/proc/${win.webContents.getOSProcessId()}/status`, 'utf8')
+                .match(/^Seccomp:\s+(\d+)$/m)?.[1]
+            : undefined,
         noSandbox: app.commandLine.hasSwitch('no-sandbox'),
       }
     })
     evidence.native = native
-    expect(native.sandboxed).toBe(true)
+    if (native.platform === 'linux') expect(native.linuxSeccomp).toBe('2')
+    else expect(native.sandboxed).toBe(true)
     expect(native.noSandbox).toBe(false)
-    if (process.env.YUKI_ELECTRON_EXECUTABLE) expect(native.packaged).toBe(true)
+    expect(native.packaged).toBe(false)
     const link = await fetch(base + '/__test/link-code', { method: 'POST' })
     expect(link.ok).toBe(true)
-    await pairUI(page, base, ((await link.json()) as { code: string }).code, '霜面桌面驗證', 20000)
+    await pairUI(page, base, ((await link.json()) as { code: string }).code, '霜面桌面驗證')
     const composer = page.locator('[data-region="composer"]:visible'),
       input = composer.getByRole('textbox')
     const marker = randomUUID()
@@ -61,18 +75,7 @@ test('frosted workspace keeps opaque paper, floating controls, real receipts and
     evidence.event = event
     const draft = '浮動輸入框保留真實草稿\n第二行，跨外觀與視窗尺寸仍然存在。'
     await input.fill(draft)
-    const sizes =
-      native.platform === 'win32'
-        ? [
-            [1360, 833],
-            [1100, 760],
-            [960, 492],
-          ]
-        : [
-            [1440, 900],
-            [1100, 760],
-            [960, 492],
-          ]
+    const sizes = workspaceSizes
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
       await contentSize(app, page, sizes[0]![0]!, sizes[0]![1]!)
       await page.keyboard.press('ControlOrMeta+,')
@@ -89,6 +92,10 @@ test('frosted workspace keeps opaque paper, floating controls, real receipts and
         await expect(toggle).toHaveAttribute('aria-checked', String(checked))
       }
       await page.getByRole('button', { name: '返回', exact: true }).click()
+      const system = await systemAccessibility(page)
+      const expectedOpaque =
+        mode === 'opaque' || mode === 'contrast' || Object.values(system).some(Boolean)
+      await expect(page.locator('html')).toHaveAttribute('data-opaque', String(expectedOpaque))
       for (const [width, height] of sizes) {
         const method = await contentSize(app, page, width!, height!)
         await expect(input).toHaveValue(draft)
@@ -130,13 +137,14 @@ test('frosted workspace keeps opaque paper, floating controls, real receipts and
         expect(geometry.capsuleHeight).toBe(34)
         expect(geometry.logPadding).toBeGreaterThanOrEqual(geometry.footerHeight + 26)
         expect(geometry.htmlWidth).toBe(geometry.viewport)
-        if (geometry.opaque === 'true') expect(geometry.filter).toBe('none')
+        expect(geometry.opaque).toBe(String(expectedOpaque))
+        if (expectedOpaque) expect(geometry.filter).toBe('none')
         else {
           expect(geometry.filter).toContain('blur(28px)')
           expect(geometry.refract).toContain('url(')
         }
         await expect(original).toHaveAttribute('data-event-id', event!)
-        stages.push({ mode, width, height, method, geometry })
+        stages.push({ mode, width, height, method, system, expectedOpaque, geometry })
         await captureViewport(
           app,
           page,

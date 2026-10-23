@@ -1,8 +1,81 @@
 import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test } from '@playwright/test'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pairUI, yukiFixture } from '../fixtures/backend'
+
+test('standalone and connected settings fill the available column with their form groups', async () => {
+  test.setTimeout(120000)
+  const rig = await yukiFixture(),
+    app = await rig.launch('settings-width')
+  let success = false
+  const observations: unknown[] = []
+  try {
+    const page = await app.firstWindow()
+    await page.getByRole('button', { name: '設定', exact: true }).click()
+    for (const mode of ['standalone', 'connected'] as const) {
+      if (mode === 'connected') {
+        await page.getByRole('button', { name: '返回', exact: true }).click()
+        await pairUI(page, rig.base, await rig.code())
+        await page.keyboard.press('ControlOrMeta+,')
+      }
+      for (const [width, height] of [
+        [1440, 900],
+        [960, 640],
+      ] as const) {
+        await app.evaluate(
+          ({ BrowserWindow }, size) =>
+            BrowserWindow.getAllWindows()[0]!.setContentSize(size.width, size.height),
+          { width, height },
+        )
+        await page.evaluate(
+          () =>
+            new Promise<void>((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+            ),
+        )
+        const pane = page.getByRole('tabpanel')
+        await expect(pane).toBeVisible()
+        const measurements = await pane.evaluate((element) => {
+          const panel = element as HTMLElement,
+            layout = panel.parentElement!,
+            group = panel.querySelector<HTMLElement>(':scope > div')!
+          const style = getComputedStyle(panel)
+          return {
+            viewportWidth: innerWidth,
+            viewportHeight: innerHeight,
+            panelRight: panel.getBoundingClientRect().right,
+            layoutRight: layout.getBoundingClientRect().right,
+            panelWidth: panel.clientWidth,
+            paddingLeft: parseFloat(style.paddingLeft),
+            paddingRight: parseFloat(style.paddingRight),
+            groupWidth: group.getBoundingClientRect().width,
+            overflow: panel.scrollWidth > panel.clientWidth,
+          }
+        })
+        observations.push({ mode, width, ...measurements })
+        expect(measurements.panelRight).toBeCloseTo(measurements.layoutRight, 1)
+        // clientWidth is integer CSS pixels; the group rect retains fractional display scaling.
+        expect(Math.round(measurements.groupWidth)).toBe(
+          measurements.panelWidth - measurements.paddingLeft - measurements.paddingRight,
+        )
+        expect(measurements.overflow).toBe(false)
+        await page.screenshot({
+          path: test.info().outputPath(`settings-${mode}-${width}.png`),
+          animations: 'disabled',
+        })
+      }
+    }
+    await writeFile(
+      test.info().outputPath('settings-widths.json'),
+      JSON.stringify(observations, null, 2),
+    )
+    success = true
+  } finally {
+    await app.close()
+    await rig.close(success)
+  }
+})
 
 test('actual settings paths retain native preferences, timezone, notifications and private diagnostic export', async () => {
   test.setTimeout(120000)
@@ -42,9 +115,9 @@ test('actual settings paths retain native preferences, timezone, notifications a
     }, exportPath)
     await pairUI(page, rig.base, await rig.code())
     const privateText = '這是診斷檔不得包含的原訊息 /private/project/source-secret.md'
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill(privateText)
+    await page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ }).fill(privateText)
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(page.getByText('真實帳本回覆', { exact: true })).toBeVisible()
+    await expect(page.getByText('Desktop reference reply', { exact: true }).last()).toBeVisible()
     const cdp = await app.context().newCDPSession(page)
     await cdp.send('Emulation.setTimezoneOverride', { timezoneId: 'America/Los_Angeles' })
     const time = page.locator('article[aria-label="你的訊息"] time').first()
@@ -132,7 +205,7 @@ test('actual settings paths retain native preferences, timezone, notifications a
     await app.close()
     app = await rig.launch('settings')
     page = await app.firstWindow()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })).toBeVisible()
     expect(await page.evaluate(async () => (await window.yuki.boot()).preferences)).toEqual(saved)
     success = true
   } finally {
@@ -183,14 +256,14 @@ test('settings categories remain keyboard reachable in all four themes and small
             test
               .info()
               .outputPath(
-                `darwin-2x-${mode}-settings-${category}-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
+                `${process.platform}-${await page.evaluate(() => devicePixelRatio)}x-${mode}-settings-${category}-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
               ),
           )
         }
       }
     }
     await page.keyboard.press('ControlOrMeta+1')
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })).toBeVisible()
     success = true
   } finally {
     await app.close().catch(() => {})
@@ -200,7 +273,7 @@ test('settings categories remain keyboard reachable in all four themes and small
 
 test('settings use the original role workspace, preserve its inspector and restore navigation from a small overlay', async () => {
   test.setTimeout(120000)
-  const rig = await yukiFixture({ character: true }),
+  const rig = await yukiFixture(),
     app = await rig.launch('settings-workspace')
   let success = false
   try {
@@ -208,7 +281,7 @@ test('settings use the original role workspace, preserve its inspector and resto
     await pairUI(page, rig.base, await rig.code())
     await contentSize(app, page, 1440, 900)
     const draft = '設定導覽切換仍保留的原角色草稿'
-    const composer = page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+    const composer = page.getByRole('textbox', { name: /^和 .+ 說點什麼$/, exact: true })
     await composer.fill(draft)
     const sidebar = page.getByRole('navigation', { name: '主要導覽', exact: true })
     const divider = page.getByRole('separator', { name: '調整側邊欄', exact: true })
@@ -239,9 +312,13 @@ test('settings use the original role workspace, preserve its inspector and resto
       (await page.getByRole('tablist', { name: '設定分類', exact: true }).boundingBox())!.width,
     ).toBe(200)
     await expect(page.getByRole('complementary', { name: '檢視器', exact: true })).toHaveCount(0)
-    await page.screenshot({
-      path: test.info().outputPath('settings-with-original-role-sidebar.png'),
-    })
+    const settingsViewport = await page.evaluate(() => [innerWidth, innerHeight])
+    await captureViewport(
+      app,
+      page,
+      test.info().outputPath('settings-with-original-role-sidebar.png'),
+    )
+    expect(await page.evaluate(() => [innerWidth, innerHeight])).toEqual(settingsViewport)
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await expect(composer).toHaveValue(draft)
     await expect(page.getByRole('complementary', { name: '檢視器', exact: true })).toBeVisible()
@@ -260,7 +337,7 @@ test('settings use the original role workspace, preserve its inspector and resto
     await page.keyboard.press('ControlOrMeta+1')
     await expect(composer).toHaveValue(draft)
     await page.keyboard.press('ControlOrMeta+,')
-    await sidebar.getByRole('button', { name: '關於 Yuki', exact: true }).click()
+    await sidebar.getByRole('button', { name: /^關於 .+$/ }).click()
     await expect(page.getByRole('tablist', { name: '設定分類', exact: true })).toHaveCount(0)
     await expect(page.getByRole('button', { name: '編輯角色資料', exact: true })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+,')

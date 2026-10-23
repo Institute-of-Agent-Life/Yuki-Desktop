@@ -156,7 +156,18 @@ export class WorkCommands {
       ? {
           operation: 'client.work_input',
           path: `works/${command.workId}/inputs`,
-          payload: { text: command.text },
+          payload: {
+            text: command.text,
+            ...(command.agentTarget
+              ? {
+                  agent_target: Object.fromEntries(
+                    Object.entries(command.agentTarget).filter(
+                      ([, value]) => value !== null && value !== undefined,
+                    ),
+                  ),
+                }
+              : {}),
+          },
         }
       : {
           operation: 'client.work_cancel',

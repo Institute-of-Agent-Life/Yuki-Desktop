@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import type { LinkCodeReply, LinkCodeRequest, OriginalRequest } from '../../shared/api'
-import type { ProductModels as components } from '../../shared/product-models'
+import type { components } from '../../shared/contract.gen'
 import { ApiClient, ApiError } from '../api/client'
 import type { Outbox } from './index'
 import { payloadHash } from './fingerprint'
 
-type Issued = components['schemas']['LinkCode']
+type Issued = components['schemas']['LinkCodeReceipt']
 const terminal = new Set([
   'not_found',
   'unauthenticated',
@@ -34,6 +34,11 @@ export class LinkCodes {
     box.db.exec(
       'CREATE TABLE IF NOT EXISTS link_code_commands(request_id TEXT PRIMARY KEY, hash TEXT NOT NULL, state TEXT NOT NULL, problem TEXT, result TEXT)',
     )
+    const columns = box.db.prepare('PRAGMA table_info(link_code_commands)').all() as {
+      name: string
+    }[]
+    if (!columns.some((column) => column.name === 'purpose'))
+      box.db.exec("ALTER TABLE link_code_commands ADD COLUMN purpose TEXT NOT NULL DEFAULT 'chat'")
   }
   get(id: string): LinkCodeRequest {
     const row = this.box.db
@@ -45,10 +50,12 @@ export class LinkCodes {
           state: LinkCodeRequest['state']
           problem: string | null
           result: string | null
+          purpose: 'chat' | 'connector'
         }
       | undefined
     if (!row) throw new ApiError('not_found')
     return {
+      purpose: row.purpose,
       requestId: row.request_id,
       payloadHash: row.hash,
       state: row.state,
@@ -63,14 +70,17 @@ export class LinkCodes {
       }[]
     ).map((row) => this.get(row.request_id))
   }
-  prepare() {
+  prepare(purpose: 'chat' | 'connector' = 'chat') {
     const id = randomUUID(),
       hash = payloadHash('client.link_code', this.box.owner.personId, {
         source_binding_id: this.box.owner.bindingId,
+        ...(purpose === 'connector' ? { purpose } : {}),
       })
     this.box.db
-      .prepare("INSERT INTO link_code_commands VALUES(?,?,'submitted',NULL,NULL)")
-      .run(id, hash)
+      .prepare(
+        "INSERT INTO link_code_commands(request_id,hash,state,problem,result,purpose) VALUES(?,?,'submitted',NULL,NULL,?)",
+      )
+      .run(id, hash, purpose)
     return this.get(id)
   }
   private update(
@@ -123,7 +133,10 @@ export class LinkCodes {
           code: null,
         }
       }
-      const result = await client.post<Issued>('link-codes', { request_id: id }),
+      const result = await client.post<Issued>('link-codes', {
+          request_id: id,
+          ...(item.purpose === 'connector' ? { purpose: item.purpose } : {}),
+        }),
         safe = metadata(result)
       if (
         (result.request_id && result.request_id !== id) ||

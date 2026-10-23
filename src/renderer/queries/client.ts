@@ -34,6 +34,17 @@ export function hidesPrivateData(error: unknown) {
   )
 }
 const messages: Record<string, string> = {
+  docker_unavailable: '找不到 Docker 或引擎尚未啟動。請安裝或開啟 Docker，再重新檢測。',
+  docker_linux_required: '請將 Docker 切換為 Linux 容器，再繼續部署。',
+  local_port_in_use: '這個本機連接埠已被使用。請選另一個連接埠，不需要關閉其他服務。',
+  local_image_unavailable: 'Yuki 映像尚未下載完成，請檢查網路與 Docker 的映像來源後重試。',
+  local_deployment_failed: '這次本機設定或啟動未完成。已保留原目錄，請檢查 Docker 與模型設定後繼續。',
+  local_existing_deployment: '這個目錄已有部署或資料。請連接原服務，或為新部署選另一個目錄；原資料未改動。',
+  local_installation_exists: '目前正管理另一個本機部署。請先返回原部署；連接其他服務可使用「連接已有 Yuki」。',
+  local_bot_not_bundled: '這份建置未包含配套部署資源，請使用完整桌面測試包。',
+  local_bot_not_configured: '尚未選擇本機部署，請先完成設定。',
+  local_pairing_code_unavailable: '原配對碼已簽發，明文無法取回。請明確重新取得配對，再繼續連接。',
+  connector_authorization_unconfirmed: '電腦授權碼的結果尚未確認。請先查原授權狀態，需要新碼時重新授權。',
   feature_unavailable: '目前連線的後端尚未提供這項功能。',
   logout_pending: '請先完成這個角色的登出與本機資料選擇。',
   unsupported_image: '無法讀取這張圖片，請選擇 PNG、JPEG 或 WebP 圖片。',
@@ -60,20 +71,12 @@ const messages: Record<string, string> = {
   different_character: '這個位址已是另一個角色，請確認原角色的新位址。',
   client_upgrade_required: '這個伺服器需要新版桌面 App，請先更新。',
   validation_error: '請檢查輸入內容。',
-  control_held: '電腦目前由另一台裝置接手。',
   media_unavailable: '附件內容目前無法取得。',
   upload_pending: '附件尚未完成上傳，內容仍保存在這台電腦。',
   content_hash_mismatch: '附件內容核對失敗，尚未顯示或存檔。',
   local_file_missing: '尚未存到本機，或已存的檔案已移動。',
   open_failed: '系統無法開啟此檔案，請先存到本機並選擇開啟程式。',
   microphone_denied: '麥克風權限未開啟，請到系統設定允許 Yuki 使用麥克風。',
-  executor_offline: '這台電腦尚未連線，操作未建立。',
-  executor_paused: '這台電腦已暫停，新的操作尚未開始。',
-  executor_not_installed: '請先允許角色使用這台電腦。',
-  executor_not_local: '只能在這台電腦上新增它的本機授權。',
-  executor_credentials_unavailable: '這台電腦的原連線憑據已遺失。請先移除原電腦紀錄，再重新允許。',
-  scope_alias_conflict: '這個名稱已用於另一個資料夾，請換一個名稱。',
-  scope_unavailable: '此資料夾的本機授權已失效，請重新選擇。',
   not_a_directory: '請選擇一個資料夾。',
 }
 export function problemText(code: string): string {

@@ -26,9 +26,7 @@ export function keyboardCommand(
                     {
                       '1': 'chat',
                       '2': 'works',
-                      '3': 'computer',
-                      '4': 'files',
-                      '5': 'about',
+                      '3': 'about',
                     } as Record<string, Command>
                   )[key]
 }

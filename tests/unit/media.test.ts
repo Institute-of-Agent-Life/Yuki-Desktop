@@ -26,7 +26,7 @@ const me: Me = {
   binding_id: owner.bindingId,
   conversation_id: owner.conversationId,
   platform: 'app',
-  presence_id: null,
+  presence_id: '00000000-0000-4000-8000-000000000099',
   thread_id: null,
   display_name: 'Test',
   devices: [],
@@ -84,7 +84,7 @@ it('requires the requested artifact version even when another valid hash is serv
     const body = changed ? Buffer.from('another valid version') : bytes
     return new Response(body, {
       headers: {
-        'X-Yuki-Sha256': createHash('sha256').update(body).digest('hex'),
+        ETag: '"' + createHash('sha256').update(body).digest('hex') + '"',
         'Content-Length': String(body.length),
         'Content-Disposition': "attachment; filename*=UTF-8''%E5%8E%9F%E7%A8%BF.md",
       },
@@ -113,7 +113,7 @@ it('revokes external original exports and legacy previews while preserving other
     bytes = Buffer.from('original immutable artifact'),
     sha256 = createHash('sha256').update(bytes).digest('hex')
   const original = await cache.download(
-    api(async () => new Response(bytes, { headers: { 'X-Yuki-Sha256': sha256 } })),
+    api(async () => new Response(bytes, { headers: { ETag: '"' + sha256 + '"' } })),
     'artifact',
     sha256,
   )
@@ -151,7 +151,7 @@ it.each([false, true])(
       if (url.pathname.endsWith('/me')) return data('Envelope_Me_', me)
       if (url.pathname.includes('/requests/'))
         return data(
-          'Envelope_OriginalRequest_',
+          'Envelope_RequestReceipt_',
           committed
             ? {
                 found: true,
@@ -182,7 +182,7 @@ it.each([false, true])(
         replay: false,
       }
       if (posts === 1) throw new Error('response lost')
-      return data('Envelope_UploadResult_', receipt)
+      return data('Envelope_UploadReceipt_', receipt)
     })
     expect((await uploads.upload(client, draft.requestId)).state).toBe('submitted')
     box.db.close()
@@ -225,7 +225,7 @@ it('does not retransmit a previously submitted upload after not_found', async ()
   const forgotten = api(async (raw, init) => {
     if (String(raw).endsWith('/me')) return data('Envelope_Me_', me)
     if (init?.method === 'POST') posts++
-    return data('Envelope_OriginalRequest_', { found: false })
+    return data('Envelope_RequestReceipt_', { found: false })
   })
   expect(await uploads.upload(forgotten, draft.requestId)).toMatchObject({
     state: 'failed',
@@ -244,7 +244,7 @@ it('checks downloaded bytes before cache publication and never bypasses authoriz
     mode === 'denied'
       ? Response.json({ problem: { code: 'not_found' } }, { status: 404 })
       : new Response(mode === 'corrupt' ? Buffer.from('different bytes') : original, {
-          headers: { 'X-Yuki-Sha256': sha256 },
+          headers: { ETag: '"' + sha256 + '"' },
         }),
   )
   await expect(cache.download(client, 'attachment')).rejects.toThrow('content_hash_mismatch')

@@ -5,6 +5,11 @@ directories:
   output: dist
   buildResources: resources
 asar: true
+extraResources:
+  - from: .cache/connector-runtime
+    to: agent-connector
+  - from: resources/local-bot
+    to: local-bot
 # Fixed SQLite 13 ships Node-API 10 binaries; validate target prebuilts in beforePack.
 npmRebuild: false
 files:
@@ -14,7 +19,6 @@ files:
   - package.json
   - LICENSE
   - resources/icons/**/*.png
-  - resources/legal/novnc/*
   - '!**/*.map'
   - '!**/docs{,/**}'
   - '!assets{,/**}'

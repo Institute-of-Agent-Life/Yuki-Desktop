@@ -7,7 +7,7 @@ export interface LoginItemState {
   available: boolean
   reason: 'install-required' | 'system-approval-required' | null
 }
-export type View = 'chat' | 'works' | 'computer' | 'files' | 'about' | 'settings'
+export type View = 'chat' | 'works' | 'about' | 'settings'
 export type Command =
   | View
   | 'focus-composer'
@@ -77,6 +77,7 @@ export interface BootInfo {
 }
 
 export interface DesktopBridge {
+  localBot: import('./local-bot').LocalBotBridge
   connector: import('./connector').ConnectorBridge
   client: ConversationBridge
   updates: {

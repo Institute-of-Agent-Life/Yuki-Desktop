@@ -12,8 +12,8 @@ import type {
   Home,
   Profile,
   PublicEvent,
+  Work,
 } from '../../src/shared/api'
-import type { ProductModels as components } from '../../src/shared/product-models'
 import { validateFixture } from '../fixtures/schema'
 
 const id = '00000000-0000-4000-8000-000000000001',
@@ -21,7 +21,6 @@ const id = '00000000-0000-4000-8000-000000000001',
   binding = '00000000-0000-4000-8000-000000000003',
   conversation = '00000000-0000-4000-8000-000000000004',
   workId = '00000000-0000-4000-8000-000000000005'
-type Work = components['schemas']['WorkView']
 const source = {
   binding_id: binding,
   conversation_id: conversation,
@@ -37,7 +36,6 @@ function work(patch: Partial<Work> = {}): Work {
     conversation_id: conversation,
     generation: 1,
     goal: '原工作目標',
-    help_requested: false,
     result_delivery: source,
     results: [],
     revision: 1,
@@ -52,6 +50,13 @@ function work(patch: Partial<Work> = {}): Work {
 }
 function event(event_id: number, origin: string): PublicEvent {
   return {
+    asr: [],
+    id: event_id,
+    author_person_id: null,
+    content: 'original outbound',
+    event_kind: 'message',
+    observed_at: '2026-10-19T00:00:00Z',
+    occurred_at: null,
     attachments: [],
     author_kind: 'yuki',
     binding_id: binding,
@@ -83,7 +88,7 @@ function setup(initial: Work[] = [work()]) {
     conversation_id: conversation,
     display_name: '這是本人而不是角色',
     generation: 1,
-    latest_event_id: null,
+    latest_event_id: 0,
     platform: 'app',
     revision: 1,
     status: 'active',
@@ -110,7 +115,7 @@ function setup(initial: Work[] = [work()]) {
     generation: 1,
     has_more: false,
     items: [],
-    latest_event_id: null,
+    latest_event_id: 0,
     next_after: 0,
     next_before: null,
     revision: 1,
@@ -126,7 +131,7 @@ function setup(initial: Work[] = [work()]) {
       if (failure) throw new ApiError(failure)
       const row = ended.get(route.workId)
       if (!row) throw new ApiError('not_found')
-      validateFixture('Envelope_WorkView_', { data: row })
+      validateFixture('Envelope_Work_', { data: row })
       return structuredClone(row) as T
     }
     const [schema, value] =
@@ -134,7 +139,7 @@ function setup(initial: Work[] = [work()]) {
         ? ['Envelope_Home_', home]
         : route.kind === 'character'
           ? ['Envelope_CharacterProfile_', profile]
-          : ['Envelope_EventsPage_', events]
+          : ['Envelope_Events_', events]
     validateFixture(schema as string, { data: value })
     return structuredClone(value) as T
   }
@@ -161,44 +166,22 @@ afterEach(() => {
   }
 })
 
-it('uses live facts for help without treating wait-control as a help request, and finds a completed Work missing from active home', async () => {
+it('does not invent help for external waits and finds completed Work missing from active home', async () => {
   const facts = setup(),
     service = facts.create()
+  facts.store.set('appearance', { notifyHelp: true })
   await service.wake(id)
-  facts.home.works = [
-    work({
-      state: 'waiting_external',
-      revision: 2,
-      wait: {
-        mode: 'all',
-        conditions: [{ kind: 'owned_run', run_kind: 'wait_control' }],
-        since: '2026-10-19T00:00:00Z',
-        deadline_at: null,
-      },
-    }),
-  ]
+  facts.home.works = [work({ state: 'waiting_external', revision: 2, waiting_kind: 'external' })]
   await service.wake(id)
-  expect(facts.shown).toEqual([])
-  facts.home.works = [work({ state: 'waiting_external', revision: 2, help_requested: true })]
-  await service.wake(id)
-  expect(facts.shown).toMatchObject([
-    {
-      category: 'help',
-      title: '目前角色 · 需要你幫忙',
-      target: { characterId: id, view: 'computer', workId },
-    },
-  ])
   await facts.create().wake(id)
-  expect(facts.shown).toHaveLength(1)
+  expect(facts.shown).toEqual([])
+  expect(facts.store.preferences().notifyHelp).toBe(true)
   facts.home.works = []
   facts.ended.set(workId, work({ state: 'completed', revision: 3 }))
   await service.wake(id)
-  expect(facts.shown.at(-1)).toMatchObject({
-    category: 'completed',
-    target: { workId, view: 'works' },
-  })
+  expect(facts.shown).toMatchObject([{ category: 'completed', target: { workId, view: 'works' } }])
   await service.wake(id)
-  expect(facts.shown).toHaveLength(2)
+  expect(facts.shown).toHaveLength(1)
 })
 it('does not lose the last active Work when its completion GET temporarily fails', async () => {
   const facts = setup(),
@@ -248,9 +231,9 @@ it('keeps proactive notification watermarks across restarts and honors disabled 
       target: { characterId: id, conversationId: conversation },
     },
   ])
-  facts.store.set('appearance', { notifyProactive: false, notifyHelp: false })
+  facts.store.set('appearance', { notifyProactive: false, notifyWaiting: false })
   facts.events.items.push(event(4, 'self_initiative'))
-  facts.home.works = [work({ help_requested: true })]
+  facts.home.works = [work({ state: 'waiting_user' })]
   await service.wake(id)
   expect(facts.shown).toHaveLength(1)
 })

@@ -1,20 +1,15 @@
-import type { EventsPage, Home, Profile } from '../shared/api'
-import type { ProductModels as components } from '../shared/product-models'
+import type { EventsPage, Home, Profile, Work } from '../shared/api'
 import type { NavigationTarget } from '../shared/desktop'
 import type { Connections } from './connections'
 import type { LocalStore } from './store'
 import { ApiError } from './api/client'
 
-type Work = components['schemas']['WorkView']
 interface Snapshot {
   latest: number
-  works: Record<
-    string,
-    { state: Work['state']; revision: number; help: boolean; question: number | null }
-  >
+  works: Record<string, { state: Work['state']; revision: number; question: number | null }>
 }
 export interface ClientNotice {
-  category: 'proactive' | 'waiting' | 'completed' | 'help'
+  category: 'proactive' | 'waiting' | 'completed'
   title: string
   body: string
   target: NavigationTarget
@@ -82,7 +77,6 @@ export class ClientNotifications {
         next.works[work.work_id] = {
           state: work.state,
           revision: work.revision,
-          help: work.help_requested,
           question: work.waiting_question?.event_id ?? null,
         }
       if (previous) {
@@ -104,13 +98,6 @@ export class ClientNotifications {
             title: `${profile.display_name} · 等待你回覆`,
             body: work.waiting_question?.text ?? work.goal,
             target,
-          })
-        if (work.help_requested && !old?.help && preferences.notifyHelp)
-          notices.push({
-            category: 'help',
-            title: `${profile.display_name} · 需要你幫忙`,
-            body: work.goal,
-            target: { ...target, view: 'computer' },
           })
       }
     }

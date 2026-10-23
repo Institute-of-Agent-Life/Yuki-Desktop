@@ -4,6 +4,7 @@ import { prerelease, valid } from 'semver'
 import { load } from 'js-yaml'
 import { checkNativePrebuild } from './native-prebuild.mjs'
 import { installLinuxLauncher } from './linux-launcher.mjs'
+import { checkConnectorSource, finalizeWindowsConnector } from './connector-signing.mjs'
 
 export function releaseChannel(version) {
   if (!valid(version) || (prerelease(version) && prerelease(version)[0] !== 'beta'))
@@ -16,8 +17,14 @@ const version = JSON.parse(
 const base = load(readFileSync(new URL('../electron-builder.yml', import.meta.url), 'utf8'))
 export default {
   ...base,
-  beforePack: checkNativePrebuild,
-  afterPack: installLinuxLauncher,
+  async beforePack(context) {
+    checkConnectorSource(context)
+    await checkNativePrebuild(context)
+  },
+  async afterPack(context) {
+    finalizeWindowsConnector(context)
+    await installLinuxLauncher(context)
+  },
   directories: {
     ...base.directories,
     buildResources: fileURLToPath(new URL('../resources', import.meta.url)),

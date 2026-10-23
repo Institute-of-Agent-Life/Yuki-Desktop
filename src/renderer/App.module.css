@@ -21,6 +21,7 @@
   padding: 52px 24px 24px;
 }
 .welcomeInner {
+  position: relative;
   margin: auto 0;
   flex-shrink: 0;
   width: min(640px, 100%);
@@ -38,28 +39,18 @@
   color: var(--accent);
   margin-bottom: 12px;
 }
+.entryChoices {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: min(320px, 100%);
+}
 .welcomeInner p {
   max-width: 480px;
   color: var(--text-secondary);
   line-height: 22px;
   font-size: 14px;
-}
-.pairingSteps {
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  padding: 0;
-  margin: 8px 0 0;
-  list-style: none;
-}
-.pairingSteps li {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--separator-strong);
-}
-.pairingSteps li[aria-current='step'] {
-  background: var(--accent);
 }
 .server {
   width: min(480px, 100%);

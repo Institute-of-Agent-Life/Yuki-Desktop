@@ -1,23 +1,41 @@
-import { _electron as electron, expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { spawn } from 'node:child_process'
-import { mkdtemp, realpath, rm } from 'node:fs/promises'
+import { copyFile, mkdtemp, realpath, rm, readFile } from 'node:fs/promises'
 import { openSync, closeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
+import { isolatedDesktop } from './isolated-desktop'
 import { createServer } from 'node:net'
+import type { Connection, EventsPage } from '../../src/shared/api'
+import { parsePairing } from '../../src/shared/pairing'
 
-export async function yukiFixture(
-  options: {
-    computer?: boolean
-    computerWork?: boolean
-    character?: boolean
-    prompts?: boolean | 'readonly'
-    executor?: boolean
-    longText?: boolean
-  } = {},
-) {
+export async function currentConnection(page: Page): Promise<Connection> {
+  return page.evaluate(async () => {
+    const result = await window.yuki.client.connections()
+    if (!result.ok || !result.value[0]) throw Error('Missing current paired connection')
+    return result.value[0]
+  })
+}
+
+export async function currentEvents(page: Page): Promise<EventsPage> {
+  return page.evaluate(async () => {
+    const result = await window.yuki.client.connections()
+    if (!result.ok || !result.value[0]) throw Error('Missing current paired connection')
+    const connection = result.value[0]
+    const events = await window.yuki.client.read<EventsPage>(connection.characterId, {
+      kind: 'events',
+      conversationId: connection.conversationId,
+    })
+    if (!events.ok) throw Error(events.code)
+    return events.value
+  })
+}
+
+export async function yukiFixture(options: { managedUpdates?: boolean } = {}) {
   const backend = process.env.YUKI_BACKEND_TEST_ROOT,
     python = process.env.YUKI_BACKEND_TEST_PYTHON
+  if (process.env.CI && (!backend || !python))
+    throw Error('CI must select YUKI_BACKEND_TEST_ROOT and YUKI_BACKEND_TEST_PYTHON')
   test.skip(
     !backend || !python,
     'Requires the explicitly selected backend test checkout and Python.',
@@ -33,20 +51,29 @@ export async function yukiFixture(
   })
   const log = openSync(join(root, 'server.log'), 'w', 0o600),
     spawnServer = () =>
-      spawn(python!, ['-m', 'tests.support.desktop_reference_server', root, String(port)], {
-        cwd: backend,
-        env: {
-          ...process.env,
-          YUKI_DESKTOP_COMPUTER_FIXTURE: options.computer || options.computerWork ? '1' : '0',
-          YUKI_DESKTOP_COMPUTER_WORK_FIXTURE: options.computerWork ? '1' : '0',
-          YUKI_DESKTOP_EXECUTOR_FIXTURE: options.executor ? '1' : '0',
-          YUKI_DESKTOP_LONG_TEXT_FIXTURE: options.longText ? '1' : '0',
-          YUKI_DESKTOP_CHARACTER_FIXTURE: options.character ? '1' : '0',
-          YUKI_DESKTOP_PROMPT_FIXTURE:
-            options.prompts === 'readonly' ? 'readonly' : options.prompts ? '1' : '0',
+      spawn(
+        python!,
+        [
+          '-m',
+          'tests.support.desktop_reference_server',
+          '--root',
+          root,
+          '--state-file',
+          join(root, 'ready.json'),
+          '--port',
+          String(port),
+          '--base-path',
+          '/role/yuki',
+        ],
+        {
+          cwd: backend,
+          env: {
+            ...process.env,
+            PYTHONPATH: [join(backend!, 'src'), backend!].join(delimiter),
+          },
+          stdio: ['ignore', 'ignore', log],
         },
-        stdio: ['ignore', log, log],
-      }),
+      ),
     base = `http://127.0.0.1:${port}/role/yuki`
   let server = spawnServer()
   const ready = () =>
@@ -67,19 +94,25 @@ export async function yukiFixture(
   } catch (error) {
     server.kill('SIGTERM')
     closeSync(log)
+    await copyFile(join(root, 'server.log'), test.info().outputPath('backend-server.log'))
     throw new Error(`Backend startup failed; local evidence: ${root}`, { cause: error })
   }
+  const desktop = await isolatedDesktop(root, options)
   return {
     root,
     base,
-    launch: (profile: string, args: string[] = []) =>
-      electron.launch({
-        ...(process.env.YUKI_DESKTOP_EXECUTABLE
-          ? { executablePath: process.env.YUKI_DESKTOP_EXECUTABLE }
-          : {}),
-        args: process.env.YUKI_DESKTOP_EXECUTABLE ? args : [...args, '.'],
-        env: { ...process.env, YUKI_DESKTOP_DATA: join(root, profile) },
-      }),
+    ...desktop,
+    state: async () =>
+      JSON.parse(await readFile(join(root, 'ready.json'), 'utf8')) as {
+        owner_pairing_code: string
+        nonowner_pairing_code: string
+        owner_person_id: string
+        nonowner_person_id: string
+        artifact_id: string
+        artifact_version: string
+        artifact_event_id: number
+        artifact_conversation_id: string
+      },
     async code() {
       return (
         (await (await fetch(`${base}/__test/link-code`, { method: 'POST' })).json()) as {
@@ -90,21 +123,24 @@ export async function yukiFixture(
     async restart() {
       if (server.exitCode === null && server.signalCode === null) {
         const stopped = new Promise<void>((resolve) => server.once('exit', () => resolve()))
-        server.kill('SIGKILL')
+        await fetch(`${base}/__test/shutdown`, { method: 'POST' })
         await stopped
       }
       server = spawnServer()
       await ready()
     },
     async close(success: boolean) {
-      server.kill('SIGTERM')
-      await new Promise<void>((resolve) => {
-        if (server.exitCode !== null || server.signalCode !== null) resolve()
-        else server.once('exit', () => resolve())
-      })
+      if (server.exitCode === null && server.signalCode === null) {
+        const stopped = new Promise<void>((resolve) => server.once('exit', () => resolve()))
+        await fetch(`${base}/__test/shutdown`, { method: 'POST' })
+        await stopped
+      }
       closeSync(log)
       if (success) await rm(root, { recursive: true, force: true })
-      else console.error(`Backend evidence retained at ${root}`)
+      else {
+        await copyFile(join(root, 'server.log'), test.info().outputPath('backend-server.log'))
+        console.error(`Backend evidence retained at ${root}`)
+      }
     },
   }
 }
@@ -118,8 +154,11 @@ export async function pairUI(
   type ProbeWindow = Window & {
     __yukiPairProbe?: { online: Record<string, boolean>; dispose(): void }
   }
-  const start = page.getByRole('button', { name: '開始', exact: true })
-  await expect(start.or(page.getByLabel('伺服器位址'))).toBeVisible()
+  const start = page.getByRole('button', { name: '連接已有 Yuki', exact: true })
+  const input = page
+    .getByLabel('配對連結、綁定碼或完整回覆', { exact: true })
+    .filter({ visible: true })
+  await expect(start.or(input)).toBeVisible({ timeout })
   await page.evaluate(() => {
     const target = window as ProbeWindow
     target.__yukiPairProbe?.dispose()
@@ -131,12 +170,15 @@ export async function pairUI(
   })
   try {
     if (await start.isVisible()) await start.click()
-    await page.getByLabel('伺服器位址').fill(base)
+    const parsed = parsePairing(code)
+    await input.fill(
+      parsed?.server
+        ? code
+        : `yuki://pair?server=${encodeURIComponent(base)}&code=${encodeURIComponent(parsed?.code ?? code)}`,
+    )
     await page.getByRole('button', { name: '繼續', exact: true }).click()
-    await page.getByLabel('綁定碼或完整回覆').fill(code)
-    if (label) await page.getByLabel('裝置名稱').fill(label)
-    await page.getByRole('button', { name: '配對', exact: true }).click()
-    await page.getByRole('button', { name: '進入', exact: true }).click({ timeout })
+    if (label) await page.getByLabel('這台裝置的名稱').fill(label)
+    await page.getByRole('button', { name: '確認並連接', exact: true }).click({ timeout })
     let pairedId = ''
     await expect
       .poll(
@@ -158,12 +200,36 @@ export async function pairUI(
           pairedId = value.id
           return value.online
         },
-        { timeout: 10000 },
+        // A fresh Windows profile awaits Chromium's deferred encryption-key write before pairing.
+        { timeout: 30000 },
       )
       .toBe(true)
     await expect(
       page.locator(`[data-character-session="${pairedId}"] [data-region="toolbar"]`),
     ).toBeVisible()
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('pairing-failure.png') })
+    const state = await page.evaluate(async () => {
+      const connections = await window.yuki.client.connections()
+      const pending = await window.yuki.client.pendingPairings()
+      return {
+        online: (window as ProbeWindow).__yukiPairProbe?.online,
+        connections: connections.ok
+          ? connections.value.map((item) => ({ id: item.characterId, base: item.baseUrl }))
+          : connections.code,
+        pending: pending.ok
+          ? pending.value.map((item) => ({
+              characterId: item.characterId,
+              deviceId: item.deviceId,
+              persistentCredentials: item.persistentCredentials,
+            }))
+          : { code: pending.code },
+        errors: Array.from(document.querySelectorAll('[role="alert"], [role="status"]')).map(
+          (element) => element.textContent,
+        ),
+      }
+    })
+    throw new Error(`Pairing did not become online: ${JSON.stringify(state)}`, { cause: error })
   } finally {
     await page
       .evaluate(() => {

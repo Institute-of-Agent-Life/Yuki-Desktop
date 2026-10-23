@@ -1,3 +1,4 @@
+import { navigate } from '../fixtures/navigation'
 import { expect, test } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -13,7 +14,7 @@ test('single SOUL saves empty text and preserves a raw draft after process reope
   try {
     let page = await app.firstWindow()
     await pairUI(page, rig.base, rig.ownerCode, undefined, 30000)
-    await page.getByRole('button', { name: '關於 初始角色', exact: true }).click()
+    await navigate(page, '關於 初始角色')
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     let editor = page.getByRole('textbox', { name: 'SOUL.md 內容', exact: true })
     await expect(editor).toBeVisible()
@@ -36,7 +37,7 @@ test('single SOUL saves empty text and preserves a raw draft after process reope
     await crashSoulApp(app)
     app = await rig.launch('owner')
     page = await app.firstWindow()
-    await page.getByRole('button', { name: '關於 初始角色', exact: true }).click()
+    await navigate(page, '關於 初始角色')
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     await expect(page.getByRole('dialog', { name: '恢復未儲存的草稿？' })).toBeVisible()
     await page.getByRole('button', { name: '恢復草稿', exact: true }).click()
@@ -63,7 +64,7 @@ test('another real device updates the name and SOUL, preserves conflicts and rev
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, rig.ownerCode, undefined, 30000)
-    await page.getByRole('button', { name: '關於 初始角色', exact: true }).click()
+    await navigate(page, '關於 初始角色')
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     const editor = page.getByRole('textbox', { name: 'SOUL.md 內容', exact: true })
     await editor.fill('local private draft')
@@ -88,8 +89,10 @@ test('another real device updates the name and SOUL, preserves conflicts and rev
     })
     expect(renamed.status).toBe(200)
     await expect(
-      page.getByRole('button', { name: '關於 Renamed', exact: true }).first(),
-    ).toBeVisible()
+      page
+        .getByRole('navigation', { name: '主要導覽', exact: true, includeHidden: true })
+        .getByRole('button', { name: '關於 Renamed', exact: true, includeHidden: true }),
+    ).toHaveCount(1)
     const saved = await fetch(rig.base + '/client/v1/character/soul', {
       method: 'PUT',
       headers,
@@ -103,13 +106,19 @@ test('another real device updates the name and SOUL, preserves conflicts and rev
     await expect(page.getByText('另一台裝置儲存了新版本。你的草稿基於較早的版本。')).toBeVisible()
     await expect(editor).toContainText('local private draft')
     await page.getByRole('button', { name: '儲存', exact: false }).click()
-    await expect(page.getByText('儲存未完成：伺服器版本已改變，請先處理差異')).toBeVisible()
+    await expect(
+      page.getByText('儲存未完成：伺服器版本已改變，請先處理差異').filter({ visible: true }),
+    ).toBeVisible()
     expect(await readFile(join(rig.root, 'character/SOUL.md'), 'utf8')).toBe(
       'remote private original',
     )
-    await fetch(rig.base + '/__test/revoke-owner', { method: 'POST' })
+    expect((await fetch(rig.base + '/__test/revoke-owner', { method: 'POST' })).status).toBe(200)
+    const revoked = await fetch(rig.base + '/client/v1/character', { headers })
+    expect(revoked.status).toBe(200)
+    expect((await revoked.json()).data.viewer.is_owner).toBe(false)
     await expect(editor).not.toBeVisible()
-    await expect(page.getByText('這項操作需要角色擁有者權限。')).toBeVisible()
+    // The parent profile refresh can unmount the editor before its own denied read completes.
+    await expect(page.getByRole('button', { name: '編輯提示詞', exact: true })).toHaveCount(0)
     await expect(page.locator('body')).not.toContainText('local private draft')
     await page.screenshot({ path: test.info().outputPath('soul-owner-revoked.png') })
     success = true

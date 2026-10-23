@@ -1,15 +1,14 @@
 import type { components as ServerComponents } from './contract.gen'
-import type { ProductModels as components } from './product-models'
+import type { components } from './contract.gen'
 import type { NavigationTarget } from './desktop'
-import type { ExecutorAction, ExecutorCommandItem, LocalExecutorState } from './executor'
 import type { MessageReference } from './message'
 
 export const REQUIRED_API_REVISION = 6
 
 export type Meta = ServerComponents['schemas']['Meta']
 export type Me = components['schemas']['Me']
-export type ProactiveRoute = components['schemas']['ProactiveRoute']
 export interface LinkCodeRequest {
+  purpose: 'chat' | 'connector'
   requestId: string
   payloadHash: string
   state: 'submitted' | 'result'
@@ -22,7 +21,6 @@ export interface LinkCodeReply {
 }
 export type Home = components['schemas']['Home']
 export type Profile = ServerComponents['schemas']['CharacterProfile']
-export type CharacterStatus = components['schemas']['CharacterStatus']
 export type SoulDocument = ServerComponents['schemas']['SoulDocument']
 export interface SoulEdit {
   baseRevision: string
@@ -43,52 +41,14 @@ export interface SoulCommandItem {
   result: ServerComponents['schemas']['SoulResult'] | null
   details: Record<string, components['schemas']['JsonValue']> | null
 }
-export interface AvatarInput {
-  filename: string
-  bytes: Uint8Array
-  sourceSize?: number
-}
-export interface AvatarCommandItem {
-  requestId: string
-  action: 'set' | 'reset'
-  expectedRevision: number
-  sha256: string | null
-  size: number | null
-  payloadHash: string
-  state: 'submitted' | 'result'
-  problem: string | null
-  result: Profile | null
-  current: Profile | null
-  acknowledged: boolean
-}
-export type MemoryFact = components['schemas']['MemoryFactView']
-export type MemoryDetail = components['schemas']['MemoryDetail']
-export type MemoryPage = components['schemas']['MemoryPage']
-export type Automation = components['schemas']['AutomationView']
-export type AutomationPage = components['schemas']['AutomationPage']
-export type Capabilities = components['schemas']['CharacterCapabilities']
 export type CharacterCommand =
   | { kind: 'device-revoke'; deviceId: string }
-  | { kind: 'proactive-route'; expectedRevision: number; bindingId: string }
   | {
       kind: 'profile'
       expectedRevision: number
       displayName: string
       bio: string
       accent: Profile['accent']
-    }
-  | {
-      kind: 'memory'
-      factId: number
-      expectedRevision: string
-      action: 'correct' | 'retract'
-      text?: string
-    }
-  | {
-      kind: 'automation'
-      automationId: number
-      expectedRevision: string
-      action: 'pause' | 'resume' | 'delete'
     }
 export interface CharacterCommandItem {
   requestId: string
@@ -100,32 +60,18 @@ export interface CharacterCommandItem {
   details: Record<string, components['schemas']['JsonValue']> | null
 }
 export type Activity = components['schemas']['Activity']
-export type EventsPage = components['schemas']['EventsPage']
-export type PublicEvent = components['schemas']['PublicEvent']
-export type OriginalRequest = components['schemas']['OriginalRequest']
-export type MessageResult = components['schemas']['MessageResult']
-export type Work = components['schemas']['WorkView']
-export type WorkSteps = components['schemas']['WorkSteps']
-export type WorkPage = components['schemas']['WorkPage']
-export type ArtifactPage = components['schemas']['ArtifactPage']
-export type Computer = components['schemas']['ComputerView']
-export type ComputerResult = components['schemas']['ComputerResult']
-export type ComputerFiles = components['schemas']['ComputerFiles']
-export type ComputerCommand =
-  | { action: 'take'; note?: string }
-  | { action: 'return' | 'transfer'; leaseId: string; note?: string }
-  | { action: 'wake' }
-  | { action: 'sleep'; confirmActiveWorkTabs: boolean }
-export interface ComputerCommandItem {
-  requestId: string
-  command: ComputerCommand
-  payloadHash: string
-  state: 'submitted' | 'result'
-  problem: string | null
-  result: ComputerResult | null
-}
+export type EventsPage = components['schemas']['Events']
+export type PublicEvent = components['schemas']['Event']
+export type OriginalRequest = components['schemas']['RequestReceipt']
+export type MessageResult = components['schemas']['MessageReceipt']
+export type Work = components['schemas']['Work']
 export type WorkCommand =
-  | { kind: 'input'; workId: string; text: string }
+  | {
+      kind: 'input'
+      workId: string
+      text: string
+      agentTarget?: components['schemas']['AgentTarget']
+    }
   | { kind: 'cancel'; workId: string; expectedRevision: number }
 export type WorkDraftQuestion = MessageReference
 export interface WorkQuestionDraft {
@@ -154,6 +100,13 @@ export interface Connection {
   needsPairing?: boolean
   credentialProblem?: string
   logout?: { drafts: number; pending: number; attachments: number; choice?: 'keep' | 'delete' }
+}
+export interface PendingPairing {
+  characterId: string
+  baseUrl: string
+  name: string
+  deviceId: string
+  persistentCredentials: boolean
 }
 export interface LogoutSummary {
   connection: Connection
@@ -205,56 +158,21 @@ export interface ArtifactSource {
   version: string
 }
 export type ApiRead =
-  | {
-      kind:
-        | 'me'
-        | 'home'
-        | 'character'
-        | 'character-status'
-        | 'computer'
-        | 'proactive-route'
-        | 'executors'
-    }
-  | { kind: 'executor-operations'; executorId: string; cursor?: string }
-  | { kind: 'memory'; about: 'me' | 'self'; cursor?: string }
-  | { kind: 'memory-fact'; factId: number }
-  | { kind: 'automations'; scope: 'mine' | 'self' }
-  | { kind: 'capabilities' }
-  | { kind: 'computer-files'; path: string; cursor?: string }
+  | { kind: 'me' | 'home' | 'character' }
   | { kind: 'events'; conversationId: string; after?: number; before?: number; limit?: 1 | 50 }
   | { kind: 'request'; requestId: string }
   | { kind: 'work'; workId: string }
-  | {
-      kind: 'works'
-      group: 'active' | 'ended'
-      origin: 'all' | 'this_entry' | 'other'
-      before?: string
-    }
-  | { kind: 'steps'; workId: string; after?: string }
-  | { kind: 'artifacts'; category: 'all' | 'image' | 'document' | 'code'; cursor?: string }
   | { kind: 'activity'; conversationId: string }
 
 export interface ConversationBridge {
-  executorState(characterId: string): Promise<ApiReply<LocalExecutorState>>
-  clearUnavailableExecutor(characterId: string): Promise<ApiReply<LocalExecutorState>>
-  enableExecutor(characterId: string): Promise<ApiReply<LocalExecutorState>>
-  executorAction(
-    characterId: string,
-    action: ExecutorAction,
-  ): Promise<ApiReply<ExecutorCommandItem>>
-  executorCommands(characterId: string): Promise<ApiReply<ExecutorCommandItem[]>>
-  verifyExecutorCommand(
-    characterId: string,
-    requestId: string,
-  ): Promise<ApiReply<ExecutorCommandItem>>
-  pickExecutorFolder(
-    characterId: string,
-    alias: string,
-  ): Promise<ApiReply<{ alias: string; digest: string } | null>>
-  removeExecutorFolder(characterId: string, digest: string): Promise<ApiReply<LocalExecutorState>>
+  pendingPairings(): Promise<ApiReply<PendingPairing[]>>
+  resumePairing(characterId: string, deviceId: string): Promise<ApiReply<Connection>>
+  forgetPairing(characterId: string, deviceId: string): Promise<ApiReply<void>>
 
   prepareLogout(characterId: string): Promise<ApiReply<LogoutSummary>>
   logoutSummary(characterId: string): Promise<ApiReply<LogoutSummary>>
+  retiredHistory(characterId: string): Promise<ApiReply<{ table: string; count: number }[]>>
+  exportRetiredHistory(characterId: string): Promise<ApiReply<boolean>>
   finishLogout(
     characterId: string,
     deviceId: string,
@@ -279,20 +197,8 @@ export interface ConversationBridge {
     avatarRevision: number,
     bytes: Uint8Array,
   ): Promise<ApiReply<void>>
-  pickAvatar(): Promise<ApiReply<AvatarInput | null>>
-  dropAvatar(file: File): Promise<ApiReply<AvatarInput>>
-  pasteAvatar(): Promise<ApiReply<AvatarInput>>
   avatarBytes(characterId: string, sha256: string, size: number): Promise<ApiReply<Uint8Array>>
   previewAvatar(server: string): Promise<ApiReply<Uint8Array | null>>
-  avatarCommand(
-    characterId: string,
-    expectedRevision: number,
-    bytes?: Uint8Array,
-  ): Promise<ApiReply<AvatarCommandItem>>
-  avatarCommands(characterId: string): Promise<ApiReply<AvatarCommandItem[]>>
-  avatarDraft(characterId: string, requestId: string): Promise<ApiReply<AvatarInput | null>>
-  acknowledgeAvatarCommand(characterId: string, requestId: string): Promise<ApiReply<void>>
-  verifyAvatarCommand(characterId: string, requestId: string): Promise<ApiReply<AvatarCommandItem>>
   characterCommand(
     characterId: string,
     command: CharacterCommand,
@@ -302,19 +208,6 @@ export interface ConversationBridge {
     characterId: string,
     requestId: string,
   ): Promise<ApiReply<CharacterCommandItem>>
-  computerTicket(characterId: string): Promise<ApiReply<string>>
-  saveComputerFile(characterId: string, path: string): Promise<ApiReply<boolean>>
-  computerCommand(
-    characterId: string,
-    command: ComputerCommand,
-  ): Promise<ApiReply<ComputerCommandItem>>
-  computerCommands(characterId: string): Promise<ApiReply<ComputerCommandItem[]>>
-  verifyComputerCommand(
-    characterId: string,
-    requestId: string,
-  ): Promise<ApiReply<ComputerCommandItem>>
-  keyboardCapture(captured: boolean): Promise<ApiReply<void>>
-  saveScreenshot(characterId: string, bytes: Uint8Array): Promise<ApiReply<boolean>>
   connections(): Promise<ApiReply<Connection[]>>
   meta(server: string): Promise<ApiReply<Meta>>
   pair(server: string, code: string, label: string): Promise<ApiReply<Connection>>

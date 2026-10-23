@@ -4,6 +4,7 @@ node_modules/
 dist/
 out/
 resources/icons/
+resources/local-bot/
 coverage/
 .env
 .env.*
@@ -25,3 +26,5 @@ coverage/
 /INTEGRATION.md
 /NOTICE.md
 /LOCAL-README.md
+
+.cache/

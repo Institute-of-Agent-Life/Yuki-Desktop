@@ -21,6 +21,381 @@
         "title": "Accent",
         "type": "object"
       },
+      "Activity": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "evidence": {
+            "title": "Evidence",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/ActivitySource"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "step_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Kind"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "evidence",
+          "sources",
+          "step_kind",
+          "revision"
+        ],
+        "title": "Activity",
+        "type": "object"
+      },
+      "ActivitySource": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "origin": {
+            "title": "Origin",
+            "type": "string"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "origin",
+          "started_at",
+          "kind"
+        ],
+        "title": "ActivitySource",
+        "type": "object"
+      },
+      "AgentTarget": {
+        "additionalProperties": false,
+        "properties": {
+          "cwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cwd"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
+          },
+          "instance_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Id"
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "enum": [
+                  "prompt",
+                  "watch",
+                  "queue",
+                  "steer",
+                  "respond",
+                  "cancel",
+                  "detach"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent"
+          },
+          "operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Id"
+          },
+          "option_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option Id"
+          },
+          "permission_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permission Id"
+          },
+          "response": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          }
+        },
+        "title": "AgentTarget",
+        "type": "object"
+      },
+      "Artifact": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "artifact_id"
+        ],
+        "title": "Artifact",
+        "type": "object"
+      },
+      "Attachment": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "artifact_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Id"
+          },
+          "attachment_index": {
+            "title": "Attachment Index",
+            "type": "integer"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "media_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Id"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "segment_index": {
+            "title": "Segment Index",
+            "type": "integer"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "attachment_index",
+          "segment_index",
+          "kind"
+        ],
+        "title": "Attachment",
+        "type": "object"
+      },
       "Avatar": {
         "properties": {
           "sha256": {
@@ -40,6 +415,42 @@
           "sizes"
         ],
         "title": "Avatar",
+        "type": "object"
+      },
+      "Binding": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "binding_id": {
+            "title": "Binding Id",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "source_person_id": {
+            "title": "Source Person Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "binding_id",
+          "platform",
+          "display_name",
+          "status",
+          "source_person_id"
+        ],
+        "title": "Binding",
         "type": "object"
       },
       "CharacterProfile": {
@@ -156,6 +567,78 @@
         "title": "CharacterUpdateBody",
         "type": "object"
       },
+      "ConnectorPairBody": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "format": "password",
+            "title": "Code",
+            "type": "string",
+            "writeOnly": true
+          },
+          "device_label": {
+            "title": "Device Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "device_label"
+        ],
+        "title": "ConnectorPairBody",
+        "type": "object"
+      },
+      "Conversation": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "binding_id": {
+            "title": "Binding Id",
+            "type": "string"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "generation": {
+            "title": "Generation",
+            "type": "integer"
+          },
+          "latest_event_id": {
+            "title": "Latest Event Id",
+            "type": "integer"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "binding_id",
+          "platform",
+          "display_name",
+          "status",
+          "generation",
+          "latest_event_id",
+          "revision"
+        ],
+        "title": "Conversation",
+        "type": "object"
+      },
       "CurrentAvatar": {
         "properties": {
           "revision": {
@@ -187,6 +670,67 @@
         "title": "CurrentAvatar",
         "type": "object"
       },
+      "Device": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "purpose": {
+            "enum": [
+              "chat",
+              "connector"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          }
+        },
+        "required": [
+          "device_id",
+          "purpose",
+          "label",
+          "created_at",
+          "revoked_at"
+        ],
+        "title": "Device",
+        "type": "object"
+      },
+      "Envelope_Activity_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Activity"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[Activity]",
+        "type": "object"
+      },
       "Envelope_CharacterProfile_": {
         "properties": {
           "data": {
@@ -199,6 +743,78 @@
         "title": "Envelope[CharacterProfile]",
         "type": "object"
       },
+      "Envelope_Events_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Events"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[Events]",
+        "type": "object"
+      },
+      "Envelope_Home_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Home"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[Home]",
+        "type": "object"
+      },
+      "Envelope_InputReceipt_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/InputReceipt"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[InputReceipt]",
+        "type": "object"
+      },
+      "Envelope_LinkCodeReceipt_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LinkCodeReceipt"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[LinkCodeReceipt]",
+        "type": "object"
+      },
+      "Envelope_Me_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Me"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[Me]",
+        "type": "object"
+      },
+      "Envelope_MessageReceipt_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MessageReceipt"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[MessageReceipt]",
+        "type": "object"
+      },
       "Envelope_Meta_": {
         "properties": {
           "data": {
@@ -209,6 +825,30 @@
           "data"
         ],
         "title": "Envelope[Meta]",
+        "type": "object"
+      },
+      "Envelope_PairReceipt_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PairReceipt"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[PairReceipt]",
+        "type": "object"
+      },
+      "Envelope_RequestReceipt_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RequestReceipt"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[RequestReceipt]",
         "type": "object"
       },
       "Envelope_SoulDocument_": {
@@ -235,6 +875,225 @@
         "title": "Envelope[SoulResult]",
         "type": "object"
       },
+      "Envelope_UploadReceipt_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UploadReceipt"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[UploadReceipt]",
+        "type": "object"
+      },
+      "Envelope_WorkCancelReceipt_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WorkCancelReceipt"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[WorkCancelReceipt]",
+        "type": "object"
+      },
+      "Envelope_Work_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Work"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[Work]",
+        "type": "object"
+      },
+      "Event": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "asr": {
+            "items": {
+              "$ref": "#/components/schemas/Transcript"
+            },
+            "title": "Asr",
+            "type": "array"
+          },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/Attachment"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "author_kind": {
+            "title": "Author Kind",
+            "type": "string"
+          },
+          "author_person_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Person Id"
+          },
+          "binding_id": {
+            "title": "Binding Id",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "event_kind": {
+            "title": "Event Kind",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurred At"
+          },
+          "origin": {
+            "title": "Origin",
+            "type": "string"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "sender_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sender Display Name"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "event_id",
+          "conversation_id",
+          "event_kind",
+          "origin",
+          "direction",
+          "text",
+          "content",
+          "binding_id",
+          "platform",
+          "author_kind",
+          "author_person_id",
+          "attachments",
+          "asr",
+          "observed_at",
+          "occurred_at",
+          "created_at"
+        ],
+        "title": "Event",
+        "type": "object"
+      },
+      "Events": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "generation": {
+            "title": "Generation",
+            "type": "integer"
+          },
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Event"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "latest_event_id": {
+            "title": "Latest Event Id",
+            "type": "integer"
+          },
+          "next_after": {
+            "title": "Next After",
+            "type": "integer"
+          },
+          "next_before": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "generation",
+          "revision",
+          "items",
+          "has_more",
+          "next_after",
+          "next_before",
+          "latest_event_id"
+        ],
+        "title": "Events",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -248,9 +1107,306 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "Home": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/Conversation"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "main": {
+            "$ref": "#/components/schemas/Conversation"
+          },
+          "snapshot_at": {
+            "title": "Snapshot At",
+            "type": "string"
+          },
+          "works": {
+            "items": {
+              "$ref": "#/components/schemas/Work"
+            },
+            "title": "Works",
+            "type": "array"
+          }
+        },
+        "required": [
+          "main",
+          "entries",
+          "works",
+          "snapshot_at"
+        ],
+        "title": "Home",
+        "type": "object"
+      },
+      "InputReceipt": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "input_id": {
+            "title": "Input Id",
+            "type": "integer"
+          },
+          "replay": {
+            "title": "Replay",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "event_id",
+          "input_id",
+          "replay"
+        ],
+        "title": "InputReceipt",
+        "type": "object"
+      },
+      "JsonValue": {},
+      "LinkCodeBody": {
+        "additionalProperties": false,
+        "properties": {
+          "purpose": {
+            "default": "chat",
+            "enum": [
+              "chat",
+              "connector"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "title": "LinkCodeBody",
+        "type": "object"
+      },
+      "LinkCodeReceipt": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "code_id": {
+            "title": "Code Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "title": "Expires At",
+            "type": "string"
+          },
+          "purpose": {
+            "enum": [
+              "chat",
+              "connector"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          },
+          "replay": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replay"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          }
+        },
+        "required": [
+          "code_id",
+          "code",
+          "expires_at",
+          "purpose"
+        ],
+        "title": "LinkCodeReceipt",
+        "type": "object"
+      },
+      "LinkedWork": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "work_id": {
+            "title": "Work Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "work_id",
+          "state",
+          "revision",
+          "reason",
+          "active"
+        ],
+        "title": "LinkedWork",
+        "type": "object"
+      },
+      "Me": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "binding_id": {
+            "title": "Binding Id",
+            "type": "string"
+          },
+          "bindings": {
+            "items": {
+              "$ref": "#/components/schemas/Binding"
+            },
+            "title": "Bindings",
+            "type": "array"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/Device"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "person_id": {
+            "title": "Person Id",
+            "type": "string"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "presence_id": {
+            "title": "Presence Id",
+            "type": "string"
+          },
+          "request_conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Conversation Id"
+          },
+          "request_person_id": {
+            "title": "Request Person Id",
+            "type": "string"
+          },
+          "request_scope": {
+            "title": "Request Scope",
+            "type": "string"
+          },
+          "source_person_id": {
+            "title": "Source Person Id",
+            "type": "string"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          }
+        },
+        "required": [
+          "person_id",
+          "source_person_id",
+          "request_person_id",
+          "request_conversation_id",
+          "request_scope",
+          "platform",
+          "presence_id",
+          "thread_id",
+          "binding_id",
+          "display_name",
+          "conversation_id",
+          "bindings",
+          "devices"
+        ],
+        "title": "Me",
+        "type": "object"
+      },
       "MessageBody": {
         "additionalProperties": false,
         "properties": {
+          "agent_target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "attachments": {
             "default": [],
             "items": {
@@ -274,6 +1430,32 @@
           "text"
         ],
         "title": "MessageBody",
+        "type": "object"
+      },
+      "MessageReceipt": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "replay": {
+            "title": "Replay",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "event_id",
+          "conversation_id",
+          "replay"
+        ],
+        "title": "MessageReceipt",
         "type": "object"
       },
       "Meta": {
@@ -342,6 +1524,493 @@
         "title": "MinimumClient",
         "type": "object"
       },
+      "NativeDevice": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "online": {
+            "title": "Online",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "online"
+        ],
+        "title": "NativeDevice",
+        "type": "object"
+      },
+      "NativeDirectory": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/NativeDevice"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "instances": {
+            "items": {
+              "$ref": "#/components/schemas/NativeInstance"
+            },
+            "title": "Instances",
+            "type": "array"
+          }
+        },
+        "required": [
+          "devices",
+          "instances"
+        ],
+        "title": "NativeDirectory",
+        "type": "object"
+      },
+      "NativeEvent": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "cursor": {
+            "title": "Cursor",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          },
+          "permission_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permission Id"
+          }
+        },
+        "required": [
+          "cursor",
+          "kind"
+        ],
+        "title": "NativeEvent",
+        "type": "object"
+      },
+      "NativeInstance": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "capabilities": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capabilities"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "driver": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver"
+          },
+          "error_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Type"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "local_id": {
+            "title": "Local Id",
+            "type": "string"
+          },
+          "online": {
+            "title": "Online",
+            "type": "boolean"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "id",
+          "local_id",
+          "device_id",
+          "online"
+        ],
+        "title": "NativeInstance",
+        "type": "object"
+      },
+      "NativeOperation": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "admitted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admitted"
+          },
+          "events": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NativeEvent"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Events"
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
+          },
+          "instance_id": {
+            "title": "Instance Id",
+            "type": "string"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "operation_id": {
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "uncertain": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncertain"
+          },
+          "work_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Id"
+          }
+        },
+        "required": [
+          "operation_id",
+          "instance_id"
+        ],
+        "title": "NativeOperation",
+        "type": "object"
+      },
+      "NativeOperations": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NativeOperation"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "NativeOperations",
+        "type": "object"
+      },
+      "NativeSession": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "cwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cwd"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "NativeSession",
+        "type": "object"
+      },
+      "NativeSessions": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "executed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executed"
+          },
+          "instance_id": {
+            "title": "Instance Id",
+            "type": "string"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "sessions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NativeSession"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sessions"
+          }
+        },
+        "required": [
+          "instance_id"
+        ],
+        "title": "NativeSessions",
+        "type": "object"
+      },
       "PairBody": {
         "additionalProperties": false,
         "properties": {
@@ -363,6 +2032,27 @@
           "device_label"
         ],
         "title": "PairBody",
+        "type": "object"
+      },
+      "PairReceipt": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "token"
+        ],
+        "title": "PairReceipt",
         "type": "object"
       },
       "PersonalRequest": {
@@ -409,6 +2099,172 @@
           "avatar_url"
         ],
         "title": "PublicCharacter",
+        "type": "object"
+      },
+      "RequestReceipt": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "found": {
+            "title": "Found",
+            "type": "boolean"
+          },
+          "operation_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Kind"
+          },
+          "payload_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload Hash"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "problem_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem Code"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "result_event_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Event Ids"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "turn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TurnState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinkedWork"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "found"
+        ],
+        "title": "RequestReceipt",
         "type": "object"
       },
       "SoulDocument": {
@@ -547,6 +2403,128 @@
         "title": "SoulSaveBody",
         "type": "object"
       },
+      "Transcript": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "segment_index": {
+            "title": "Segment Index",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment_index",
+          "text",
+          "source"
+        ],
+        "title": "Transcript",
+        "type": "object"
+      },
+      "TurnState": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "error_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Category"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "state": {
+            "enum": [
+              "running",
+              "ended",
+              "unknown"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "outcome"
+        ],
+        "title": "TurnState",
+        "type": "object"
+      },
+      "UploadReceipt": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "expires_at": {
+            "title": "Expires At",
+            "type": "number"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "media_id": {
+            "title": "Media Id",
+            "type": "string"
+          },
+          "replay": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replay"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "media_id",
+          "sha256",
+          "size",
+          "filename",
+          "kind",
+          "expires_at"
+        ],
+        "title": "UploadReceipt",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -600,6 +2578,150 @@
         "title": "Viewer",
         "type": "object"
       },
+      "Work": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "budget": {
+            "$ref": "#/components/schemas/WorkBudget"
+          },
+          "child_count": {
+            "title": "Child Count",
+            "type": "integer"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "generation": {
+            "title": "Generation",
+            "type": "integer"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "result_delivery": {
+            "$ref": "#/components/schemas/WorkSource"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/WorkResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/WorkSource"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "number"
+          },
+          "waiting_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiting Kind"
+          },
+          "waiting_question": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_id": {
+            "title": "Work Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "work_id",
+          "conversation_id",
+          "generation",
+          "state",
+          "revision",
+          "goal",
+          "source",
+          "result_delivery",
+          "waiting_kind",
+          "waiting_question",
+          "child_count",
+          "budget",
+          "results",
+          "updated_at"
+        ],
+        "title": "Work",
+        "type": "object"
+      },
+      "WorkBudget": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "model_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Limit"
+          },
+          "models": {
+            "title": "Models",
+            "type": "integer"
+          },
+          "root_id": {
+            "title": "Root Id",
+            "type": "string"
+          },
+          "tool_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Limit"
+          },
+          "tools": {
+            "title": "Tools",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "root_id",
+          "models",
+          "model_limit",
+          "tools",
+          "tool_limit"
+        ],
+        "title": "WorkBudget",
+        "type": "object"
+      },
       "WorkCancelBody": {
         "additionalProperties": false,
         "properties": {
@@ -621,9 +2743,50 @@
         "title": "WorkCancelBody",
         "type": "object"
       },
+      "WorkCancelReceipt": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "replay": {
+            "title": "Replay",
+            "type": "boolean"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "work_id": {
+            "title": "Work Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "work_id",
+          "state",
+          "revision",
+          "replay"
+        ],
+        "title": "WorkCancelReceipt",
+        "type": "object"
+      },
       "WorkInputBody": {
         "additionalProperties": false,
         "properties": {
+          "agent_target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "request_id": {
             "format": "uuid4",
             "title": "Request Id",
@@ -640,6 +2803,102 @@
         ],
         "title": "WorkInputBody",
         "type": "object"
+      },
+      "WorkResult": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/Artifact"
+            },
+            "title": "Artifacts",
+            "type": "array"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "conversation_id",
+          "text",
+          "artifacts"
+        ],
+        "title": "WorkResult",
+        "type": "object"
+      },
+      "WorkSource": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "binding_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Binding Id"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
+          "space_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Space Id"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "kind",
+          "binding_id",
+          "platform",
+          "display_name",
+          "space_id"
+        ],
+        "title": "WorkSource",
+        "type": "object"
       }
     }
   },
@@ -650,6 +2909,317 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/agents/v1/devices": {
+      "get": {
+        "operationId": "devices_agents_v1_devices_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeDirectory"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Devices"
+      }
+    },
+    "/agents/v1/instances/{instance_id}/sessions": {
+      "get": {
+        "operationId": "sessions_agents_v1_instances__instance_id__sessions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instance_id",
+            "required": true,
+            "schema": {
+              "title": "Instance Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeSessions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sessions"
+      }
+    },
+    "/agents/v1/operations": {
+      "get": {
+        "operationId": "operations_agents_v1_operations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "work_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Work Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeOperations"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Operations"
+      }
+    },
+    "/agents/v1/operations/{operation_id}": {
+      "get": {
+        "operationId": "operation_agents_v1_operations__operation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "operation_id",
+            "required": true,
+            "schema": {
+              "title": "Operation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Cursor",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeOperation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Operation"
+      }
+    },
+    "/agents/v1/pair": {
+      "post": {
+        "operationId": "pair_agents_v1_pair_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorPairBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Pair Agents V1 Pair Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pair"
+      }
+    },
     "/client/v1/acp/sessions": {
       "post": {
         "operationId": "new_session_client_v1_acp_sessions_post",
@@ -976,7 +3546,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Activity Client V1 Activity Get"
+                  "$ref": "#/components/schemas/Envelope_Activity_"
                 }
               }
             },
@@ -1614,7 +4184,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Events Client V1 Conversations  Identity  Events Get"
+                  "$ref": "#/components/schemas/Envelope_Events_"
                 }
               }
             },
@@ -1632,6 +4202,110 @@
           }
         },
         "summary": "Events"
+      }
+    },
+    "/client/v1/conversations/{identity}/events/{event_id}/attachments/{attachment_index}": {
+      "get": {
+        "operationId": "attachment_client_v1_conversations__identity__events__event_id__attachments__attachment_index__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachment_index",
+            "required": true,
+            "schema": {
+              "title": "Attachment Index",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-yuki-entry",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Yuki-Entry"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-yuki-conversation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Yuki-Conversation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Attachment"
       }
     },
     "/client/v1/devices/{identity}": {
@@ -1797,7 +4471,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Home Client V1 Home Get"
+                  "$ref": "#/components/schemas/Envelope_Home_"
                 }
               }
             },
@@ -1876,7 +4550,7 @@
               "schema": {
                 "anyOf": [
                   {
-                    "$ref": "#/components/schemas/PersonalRequest"
+                    "$ref": "#/components/schemas/LinkCodeBody"
                   },
                   {
                     "type": "null"
@@ -1892,7 +4566,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Link Code Client V1 Link Codes Post"
+                  "$ref": "#/components/schemas/Envelope_LinkCodeReceipt_"
                 }
               }
             },
@@ -1970,7 +4644,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Me Client V1 Me Get"
+                  "$ref": "#/components/schemas/Envelope_Me_"
                 }
               }
             },
@@ -2058,7 +4732,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Messages Client V1 Messages Post"
+                  "$ref": "#/components/schemas/Envelope_MessageReceipt_"
                 }
               }
             },
@@ -2132,7 +4806,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Pair Client V1 Pair Post"
+                  "$ref": "#/components/schemas/Envelope_PairReceipt_"
                 }
               }
             },
@@ -2220,7 +4894,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Original Request Client V1 Requests  Request Id  Get"
+                  "$ref": "#/components/schemas/Envelope_RequestReceipt_"
                 }
               }
             },
@@ -2421,7 +5095,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Upload Client V1 Uploads Post"
+                  "$ref": "#/components/schemas/Envelope_UploadReceipt_"
                 }
               }
             },
@@ -2509,7 +5183,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Work Client V1 Works  Identity  Get"
+                  "$ref": "#/components/schemas/Envelope_Work_"
                 }
               }
             },
@@ -2607,7 +5281,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Work Cancel Client V1 Works  Identity  Cancel Post"
+                  "$ref": "#/components/schemas/Envelope_WorkCancelReceipt_"
                 }
               }
             },
@@ -2705,7 +5379,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Work Input Client V1 Works  Identity  Inputs Post"
+                  "$ref": "#/components/schemas/Envelope_InputReceipt_"
                 }
               }
             },
