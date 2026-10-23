@@ -9,7 +9,7 @@ test('paginates real history without moving the visible message and jumps to the
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
-    const composer = page.getByRole('textbox', { name: '和 Yuki 說點什麼' })
+    const composer = page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })
     await composer.fill('原始歷史錨點')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     const original = page
@@ -58,7 +58,7 @@ test('paginates real history without moving the visible message and jumps to the
     await expect(page.getByText('原始歷史錨點', { exact: true })).toHaveCount(1)
     await expect(page.getByRole('button', { name: '↓ 新訊息', exact: true })).toHaveCount(0)
     // A read-only sync does not pretend that another message arrived.
-    await fetch(`${rig.base}/__test/disconnect`, { method: 'POST' })
+    await page.evaluate(() => window.yuki.client.reconnect())
     await expect(page.getByText('已連線', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '↓ 新訊息', exact: true })).toHaveCount(0)
     await page.screenshot({

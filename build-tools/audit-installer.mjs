@@ -21,11 +21,15 @@ import { inspectExecutable } from './native-prebuild.mjs'
 const run = promisify(execFile)
 const forbidden =
   /(^|\/)(?:docs|prototype|previews|screens|scripts|third-party|AGENTS\.md|LOCAL-README\.md|INTEGRATION\.md|NOTICE\.md|實作進度\.md|修訂與拆倉紀錄[^/]*|驗證證據)(\/|$)/i
+// Python dependencies have their own scripts/licenses. Their exact files are
+// checked against the product runtime manifest, outside the application ASAR.
+const runtimeEntry = (name) => /(?:^|\/)resources\/agent-connector\//i.test(name)
 async function inspectTree(root, path = root, target) {
   for (const entry of await readdir(path)) {
     const full = join(path, entry),
       name = relative(root, full).replaceAll('\\', '/')
-    if (forbidden.test(name)) throw Error(`Local material in installer: ${name}`)
+    if (!runtimeEntry(name) && forbidden.test(name))
+      throw Error(`Local material in installer: ${name}`)
     const stat = await lstat(full)
     if (entry === 'app.asar' && stat.isFile()) {
       for (const sibling of await readdir(path))
@@ -38,6 +42,8 @@ async function inspectTree(root, path = root, target) {
             'elevate.exe',
             'package-type',
             'apparmor-profile',
+            'agent-connector',
+            'local-bot',
           ].includes(sibling) &&
           !/^[a-z]{2,3}(?:_[A-Z]{2}|_[0-9]{3})?\.lproj$/.test(sibling)
         )
@@ -89,7 +95,7 @@ async function extract7z(file, target, tool) {
       path.startsWith('/') ||
       /^[A-Za-z]:/.test(path) ||
       path.split('/').includes('..') ||
-      forbidden.test(path)
+      (!runtimeEntry(path) && forbidden.test(path))
     )
       throw Error(`Unsafe installer entry: ${path}`)
     if (

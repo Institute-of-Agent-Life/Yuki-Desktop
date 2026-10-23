@@ -10,7 +10,7 @@ import { captureViewport, contentSize } from '../fixtures/visual'
 test('frosted workspace keeps opaque paper, floating controls, real receipts and drafts across appearances and sizes', async () => {
   test.setTimeout(180000)
   const external = process.env.YUKI_DESKTOP_NATIVE_BACKEND_URL?.replace(/\/+$/, '')
-  const rig = external ? undefined : await yukiFixture({ character: true, prompts: true })
+  const rig = external ? undefined : await yukiFixture()
   const base = external ?? rig!.base
   expect(['127.0.0.1', 'localhost', '[::1]']).toContain(new URL(base).hostname)
   const data = await mkdtemp(join(tmpdir(), 'yuki-frosted-')),

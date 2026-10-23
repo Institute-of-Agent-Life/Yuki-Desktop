@@ -17,9 +17,7 @@ export function installMenu(window: () => BrowserWindow | undefined) {
     { type: 'separator' },
     { label: '對話', accelerator: 'CmdOrCtrl+1', click: send('chat') },
     { label: '工作', accelerator: 'CmdOrCtrl+2', click: send('works') },
-    { label: '電腦', accelerator: 'CmdOrCtrl+3', click: send('computer') },
-    { label: '檔案與成果', accelerator: 'CmdOrCtrl+4', click: send('files') },
-    { label: '關於角色', accelerator: 'CmdOrCtrl+5', click: send('about') },
+    { label: '關於角色', accelerator: 'CmdOrCtrl+3', click: send('about') },
     { type: 'separator' },
     {
       label: '側邊欄',

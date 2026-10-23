@@ -5,6 +5,8 @@ import styles from './App.module.css'
 import { useCommands } from './state/commands'
 import type { Connection } from '../shared/api'
 import { Pairing } from './views/Pairing'
+import { DisconnectedHome } from './views/DisconnectedHome'
+import { LocalBot } from './views/LocalBot'
 import { Conversation } from './views/Conversation'
 import { WorkspaceSession, workspaceFor, workspaceScope, forgetWorkspace } from './state/workspace'
 import { problemText, unwrap } from './queries/client'
@@ -20,8 +22,14 @@ import { useQueryClient } from '@tanstack/react-query'
 export function App({ boot }: { boot: BootInfo }) {
   const query = useQueryClient()
   const selection = useRef<string | undefined>(undefined)
-  const [step, setStep] = useState<'welcome' | 'adding' | 'settings'>('welcome')
-  const [folderSettings, setFolderSettings] = useState(false)
+  const [step, setStep] = useState<'welcome' | 'adding' | 'settings' | 'local'>(
+    boot.pairLink ? 'adding' : 'welcome',
+  )
+  const settingsReturn = useRef<typeof step>('welcome')
+  const openSettings = () => {
+    settingsReturn.current = step
+    setStep('settings')
+  }
   const [serverSettings, setServerSettings] = useState(false)
   const [preferences, setPreferences] = useState(boot.preferences)
   const [cssAccessibility, setCssAccessibility] = useState(() => ({
@@ -183,25 +191,43 @@ export function App({ boot }: { boot: BootInfo }) {
   useCommands((command) => {
     if (command === 'settings')
       requestNavigation(() => {
-        setFolderSettings(false)
         setServerSettings(false)
-        setStep('settings')
+        openSettings()
       })
-    if (command === 'back' && step === 'settings') setStep('welcome')
+    if (command === 'back' && step === 'settings') setStep(settingsReturn.current)
     if (command === 'previous-character' || command === 'next-character') {
       if (!connections.length) return
       const at = connections.findIndex((item) => item.characterId === connection?.characterId)
       const offset = command === 'next-character' ? 1 : -1
       select(connections[(at + offset + connections.length) % connections.length]!)
     }
-    if (step === 'settings' && ['chat', 'works', 'computer', 'files', 'about'].includes(command)) {
+    if (step === 'settings' && ['chat', 'works', 'about'].includes(command)) {
       requestNavigation(() => {
         workspace?.setView(command as import('../shared/desktop').View)
         setStep('welcome')
       })
     }
   })
-  const pairing = step === 'adding' || !connection || !!pairingTarget
+  const complete = (value: Connection, activate = true) => {
+    void query.cancelQueries({ queryKey: [value.characterId] })
+    query.removeQueries({ queryKey: [value.characterId] })
+    if (!activate) {
+      setConnections((current) => [
+        ...current.filter((item) => item.characterId !== value.characterId),
+        value,
+      ])
+      return
+    }
+    updateConnection(value)
+    setPairingTarget(undefined)
+    setPairLink(null)
+    setStep('welcome')
+    if (target?.characterId === value.characterId) {
+      workspaceFor(workspaceScope(value)).getState().navigate(target)
+      void window.yuki.client.acknowledgeTarget(target)
+    }
+  }
+  const pairing = step === 'adding' || !!pairingTarget
   const showingSettings = step === 'settings' || (step !== 'adding' && !!connection?.logout)
   const settingsInWorkspace =
     showingSettings && connection && !connection.logout && !connection.needsPairing && !pairing
@@ -209,7 +235,6 @@ export function App({ boot }: { boot: BootInfo }) {
     <Settings
       key={connection?.characterId ?? 'desktop'}
       embedded={!!settingsInWorkspace}
-      folderRequest={folderSettings}
       serverRequest={serverSettings}
       boot={boot}
       preferences={preferences}
@@ -238,7 +263,7 @@ export function App({ boot }: { boot: BootInfo }) {
         workspace?.setView('about')
         setStep('welcome')
       }}
-      back={() => setStep('welcome')}
+      back={() => setStep(settingsReturn.current)}
     />
   )
   return (
@@ -251,7 +276,8 @@ export function App({ boot }: { boot: BootInfo }) {
           {connections
             .filter((item) => !item.logout && !item.needsPairing)
             .map((item) => {
-              const active = item.characterId === connection?.characterId && !pairing
+              const active =
+                item.characterId === connection?.characterId && !pairing && step !== 'local'
               const scope = workspaceScope(item)
               return (
                 <WorkspaceSession key={scope} scope={scope} active={active}>
@@ -276,11 +302,10 @@ export function App({ boot }: { boot: BootInfo }) {
                           />
                         ) : undefined
                       }
-                      onSettings={(next) =>
+                      onSettings={() =>
                         requestNavigation(() => {
-                          setFolderSettings(next === 'folder')
                           setServerSettings(false)
-                          setStep('settings')
+                          openSettings()
                         })
                       }
                       onPairAgain={() =>
@@ -295,29 +320,40 @@ export function App({ boot }: { boot: BootInfo }) {
                 </WorkspaceSession>
               )
             })}
-          {showingSettings ? (
-            !settingsInWorkspace && settings
-          ) : pairing ? (
-            <Pairing
-              key={`${step}/${pairingTarget?.characterId ?? 'new'}`}
-              label={boot.deviceLabel}
-              onUpdate={() => {
-                setFolderSettings(false)
-                setServerSettings(false)
-                setStep('settings')
+          {showingSettings && !settingsInWorkspace && settings}
+          {!showingSettings && step === 'local' && (
+            <LocalBot back={() => setStep('welcome')} done={complete} />
+          )}
+          {!showingSettings && !pairing && !connection && step !== 'local' && (
+            <DisconnectedHome
+              connect={adding}
+              deploy={() => setStep('local')}
+              settings={openSettings}
+              help={() => {
+                void window.yuki.client.external(
+                  'https://github.com/Institute-of-Agent-Life/Yuki-Desktop',
+                )
               }}
+            />
+          )}
+          <div
+            hidden={!pairing || showingSettings || step === 'local'}
+            inert={!pairing || showingSettings || step === 'local'}
+          >
+            <Pairing
+              key={pairingTarget?.characterId ?? 'new'}
+              active={pairing && !showingSettings}
+              label={boot.deviceLabel}
+              onUpdate={openSettings}
               initialLink={pairLink}
               initialServer={pairingTarget?.baseUrl}
               reconnect={!!pairingTarget}
-              startAtServer={step === 'adding'}
-              onCancel={
-                step === 'adding' && connection
-                  ? () => {
-                      setPairLink(null)
-                      setStep('settings')
-                    }
-                  : undefined
-              }
+              startAtServer
+              onCancel={() => {
+                setPairLink(null)
+                setPairingTarget(undefined)
+                setStep(connection?.needsPairing ? 'settings' : 'welcome')
+              }}
               onResumeLogout={async (id) => {
                 const candidate = unwrap(await window.yuki.client.connections()).find(
                   (item) => item.characterId === id,
@@ -328,21 +364,12 @@ export function App({ boot }: { boot: BootInfo }) {
                 updateConnection(candidate)
                 setStep('settings')
               }}
-              onDone={(value) => {
-                void query.cancelQueries({ queryKey: [value.characterId] })
-                query.removeQueries({ queryKey: [value.characterId] })
-                updateConnection(value)
-                setPairingTarget(undefined)
-                setPairLink(null)
-                setStep('welcome')
-                if (target?.characterId === value.characterId) {
-                  workspaceFor(workspaceScope(value)).getState().navigate(target)
-                  void window.yuki.client.acknowledgeTarget(target)
-                }
-              }}
+              onDone={complete}
             />
-          ) : null}
-          {pairing && !showingSettings && <ApplicationMenu platform={boot.platform} overlay />}
+          </div>
+          {(pairing || !connection || step === 'local') && !showingSettings && (
+            <ApplicationMenu platform={boot.platform} overlay />
+          )}
         </main>
       </TimeZoneContext.Provider>
     </UpdateProvider>

@@ -14,7 +14,7 @@ export async function contentSize(
   height: number,
 ) {
   const viewportMethod = await app.evaluate(
-    ({ BrowserWindow, screen }, size) => {
+    async ({ BrowserWindow, screen }, size) => {
       const window = BrowserWindow.getAllWindows()[0]!
       window.webContents.disableDeviceEmulation()
       const [minimumWidth, minimumHeight] = window.getMinimumSize()
@@ -26,6 +26,18 @@ export async function contentSize(
         size.height <= area.height
       ) {
         window.setContentSize(size.width, size.height)
+        const actual = (await window.webContents.executeJavaScript(
+          'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve({width: innerWidth, height: innerHeight}))))',
+        )) as { width: number; height: number }
+        // Fractional display scaling can round the native client and CSS viewport differently.
+        // Correct using the measured difference rather than a platform-specific frame constant.
+        if (actual.width !== size.width || actual.height !== size.height) {
+          const content = window.getContentBounds()
+          window.setContentSize(
+            content.width + size.width - actual.width,
+            content.height + size.height - actual.height,
+          )
+        }
         return 'native-window' as const
       }
       window.webContents.enableDeviceEmulation({
@@ -99,7 +111,10 @@ export async function captureWorkspace(
       'data-contrast',
       String(theme === 'contrast'),
     )
-    await expect(page.locator('html')).toHaveAttribute('data-opaque', String(theme === 'opaque'))
+    await expect(page.locator('html')).toHaveAttribute(
+      'data-opaque',
+      String(theme === 'opaque' || theme === 'contrast'),
+    )
     await prepare()
     for (const [width, height] of workspaceSizes) {
       const viewportMethod = await contentSize(app, page, width, height)

@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createHash } from 'node:crypto'
 vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false } }))
 const faults = vi.hoisted(() => ({ unlink: false }))
 vi.mock('node:fs/promises', async (original) => {
@@ -20,7 +21,6 @@ vi.mock('node:fs/promises', async (original) => {
 import { Connections } from '../../src/main/connections'
 import { LocalStore } from '../../src/main/store'
 import { Outbox } from '../../src/main/outbox'
-import { ExecutorInstallation } from '../../src/main/executor/installation'
 import type { Connection, Me, Meta } from '../../src/shared/api'
 const connection: Connection = {
   characterId: '00000000-0000-4000-8000-000000000001',
@@ -51,7 +51,7 @@ const me: Me = {
   request_scope: connection.personId,
   request_conversation_id: null,
   platform: 'app',
-  presence_id: null,
+  presence_id: 'fixture-presence',
   thread_id: null,
   binding_id: connection.bindingId,
   display_name: '本人',
@@ -94,6 +94,25 @@ afterEach(async () => {
   faults.unlink = false
 })
 const data = (value: unknown) => Response.json({ data: value })
+
+it('keeps a legacy executor credential dormant when the app starts without a chat credential', async () => {
+  const { client } = setup()
+  const owner = client.box(connection.characterId).owner
+  const key = `executor:${createHash('sha256').update(JSON.stringify(owner)).digest('hex')}`
+  const original =
+    '{ "executorId": "original-executor", "token": "fixture-only", "localPaused": false }'
+  client.credentials.set(key, original)
+  client.credentials.remove(`device/${connection.characterId}/${connection.personId}`)
+  const fetcher = vi.fn(() => {
+    throw Error('must not start retired executor')
+  })
+  vi.stubGlobal('fetch', fetcher)
+  Connections.prototype.start.call(client, connection.characterId)
+  await new Promise((resolve) => setImmediate(resolve))
+  expect(fetcher).not.toHaveBeenCalled()
+  expect(client.credentials.get(key)).toBe(original)
+  expect(client.retiredHistory(connection.characterId)).toEqual([])
+})
 function server(options: { lost?: boolean; offline?: boolean } = {}) {
   let revoked = false
   const deletes: string[] = []
@@ -115,61 +134,6 @@ function server(options: { lost?: boolean; offline?: boolean } = {}) {
   })
   return { deletes }
 }
-it('pauses local dispatch and persists its original command even while public identity is offline', async () => {
-  const { client } = setup(),
-    box = client.box(connection.characterId),
-    installation = new ExecutorInstallation(client.credentials, box.owner),
-    executorId = '00000000-0000-4000-8000-000000000007'
-  installation.install(executorId, 'executor-only-test-token')
-  server({ offline: true })
-  await expect(
-    client.executorAction(connection.characterId, { kind: 'pause', executorId }),
-  ).rejects.toThrow('transport_unknown')
-  expect(installation.current()?.localPaused).toBe(true)
-  const pending = client.executorCommands(connection.characterId)
-  expect(pending).toHaveLength(1)
-  expect(pending[0]).toMatchObject({ state: 'submitted', command: { kind: 'pause', executorId } })
-  expect(JSON.stringify(pending)).not.toContain('executor-only-test-token')
-})
-
-it('starts an installed executor with only its own credential when no chat credential is present', async () => {
-  const { client } = setup(),
-    box = client.box(connection.characterId),
-    installation = new ExecutorInstallation(client.credentials, box.owner)
-  installation.install('00000000-0000-4000-8000-000000000007', 'executor-only-test-token')
-  client.credentials.remove(`device/${connection.characterId}/${connection.personId}`)
-  const paths: string[] = []
-  vi.stubGlobal('fetch', async (input: string, init: RequestInit) => {
-    const path = new URL(input).pathname
-    paths.push(path)
-    if (path.endsWith('/client/v1/meta')) {
-      expect(new Headers(init.headers).has('Authorization')).toBe(false)
-      return data(meta)
-    }
-    expect(path).toContain('/executor/v1/')
-    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer executor-only-test-token')
-    expect(new Headers(init.headers).has('X-Yuki-Entry')).toBe(false)
-    if (path.endsWith('/config'))
-      return data({
-        executor_id: installation.current()!.executorId,
-        grants: [],
-        grants_digest: 'empty',
-        paused: false,
-      })
-    if (path.endsWith('/heartbeat')) return data({ grants_digest: 'empty', paused: false })
-    return new Response(
-      new ReadableStream({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode('event: sync\ndata: {"pending":[]}\n\n'))
-          init.signal?.addEventListener('abort', () => controller.close(), { once: true })
-        },
-      }),
-    )
-  })
-  Connections.prototype.start.call(client, connection.characterId)
-  await vi.waitFor(() => expect(client.executorState(connection.characterId).state).toBe('online'))
-  expect(paths.some((path) => path.endsWith('/client/v1/me'))).toBe(false)
-})
 
 it('logout drains a prior activity before revoking and keeps original drafts for the same Person', async () => {
   const { client, path } = setup(),

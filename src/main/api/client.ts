@@ -4,7 +4,7 @@ export class ApiError extends Error {
     readonly reason?: string,
     readonly details?: Record<
       string,
-      import('../../shared/product-models').ProductModels['schemas']['JsonValue']
+      import('../../shared/contract.gen').components['schemas']['JsonValue']
     >,
   ) {
     super(code)
@@ -37,6 +37,7 @@ export class ApiClient {
     readonly entry?: string,
     readonly version = '1.0.0-beta.1',
     readonly fetcher: typeof fetch = fetch,
+    readonly namespace = 'client/v1',
   ) {
     this.base = normalizeServer(base)
   }
@@ -48,7 +49,7 @@ export class ApiClient {
     }
   }
   endpoint(path: string) {
-    return `${this.base}/client/v1/${path}`
+    return `${this.base}/${this.namespace}/${path}`
   }
   async response(path: string, init?: RequestInit) {
     let response: Response

@@ -1,5 +1,56 @@
 import type { Outbox } from './index'
 
+const retiredTables = [
+  'computer_commands',
+  'avatar_commands',
+  'avatar_command_acknowledgements',
+  'executor_commands',
+  'executor_setup',
+  'local_executor_operations',
+  'character_commands',
+] as const
+
+function retiredTablesPresent(box: Outbox) {
+  return retiredTables.flatMap((table) => {
+    if (!box.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table))
+      return []
+    const condition =
+      table === 'character_commands'
+        ? " WHERE json_extract(command, '$.kind') NOT IN ('profile', 'device-revoke')"
+        : ''
+    return [{ table, condition }]
+  })
+}
+
+export function retiredSummary(box: Outbox) {
+  return retiredTablesPresent(box)
+    .map(({ table, condition }) => ({
+      table,
+      count: (
+        box.db.prepare(`SELECT count(*) AS n FROM ${table}${condition}`).get() as { n: number }
+      ).n,
+    }))
+    .filter(({ count }) => count > 0)
+}
+
+export function exportRetired(box: Outbox) {
+  return (
+    JSON.stringify(
+      {
+        owner: box.owner,
+        tables: Object.fromEntries(
+          retiredTablesPresent(box).map(({ table, condition }) => [
+            table,
+            box.db.prepare(`SELECT * FROM ${table}${condition}`).all(),
+          ]),
+        ),
+      },
+      null,
+      2,
+    ) + '\n'
+  )
+}
+
 export function localSummary(box: Outbox) {
   const exists = (table: string) =>
     !!box.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table)

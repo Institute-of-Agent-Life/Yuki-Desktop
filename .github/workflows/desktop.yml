@@ -26,10 +26,37 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Read the pinned backend source
+        id: backend
+        run: node -e "const fs=require('node:fs');const s=JSON.parse(fs.readFileSync('contracts/source.json','utf8'));fs.appendFileSync(process.env.GITHUB_OUTPUT,'commit='+s.commit+'\n')"
+      - uses: actions/checkout@v4
+        with:
+          repository: YuanYeYouTao/Yuki
+          ref: ${{ steps.backend.outputs.commit }}
+          path: .cache/backend
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.11.31'
+          enable-cache: true
+          cache-dependency-glob: |
+            .cache/backend/uv.lock
+            .cache/backend/packages/yuki-agent-connector/uv.lock
+      - name: Prepare the actual backend test environment
+        run: uv sync --directory .cache/backend --frozen --all-extras --python 3.12
+      - name: Select the actual backend fixture
+        run: node -e "const fs=require('node:fs'),p=require('node:path');const root=p.resolve('.cache/backend');const py=p.join(root,'.venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');fs.appendFileSync(process.env.GITHUB_ENV,'YUKI_BACKEND_TEST_ROOT='+root+'\nYUKI_BACKEND_TEST_PYTHON='+py+'\n')"
       - run: npm ci
+      - name: Bundle the platform's standalone Connector
+        run: node build-tools/prepare-connector.mjs --backend .cache/backend
+      - name: Bundle the matching local Bot setup
+        run: node build-tools/prepare-local-bot.mjs --source .cache/backend
       - run: npm exec playwright install -- --with-deps chromium
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y rpm
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y rpm ffmpeg
+      - if: runner.os == 'macOS'
+        run: brew install ffmpeg
+      - if: runner.os == 'Windows'
+        run: choco install ffmpeg --yes --no-progress
       - name: Configure Electron sandbox for Ubuntu CI
         if: runner.os == 'Linux'
         shell: bash
@@ -41,6 +68,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run check:contract
+      - run: node build-tools/check-backend-contract.mjs
       - run: npm test
       - run: npm run test:release
       - if: runner.os != 'Linux'
@@ -55,3 +83,30 @@ jobs:
           name: Yuki-unsigned-${{ matrix.platform }}-${{ matrix.arch }}
           path: dist/upload/*
           if-no-files-found: error
+
+  local-bot:
+    name: Real local Bot deployment
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Read the pinned backend source
+        id: backend
+        run: node -e "const fs=require('node:fs');const s=JSON.parse(fs.readFileSync('contracts/source.json','utf8'));fs.appendFileSync(process.env.GITHUB_OUTPUT,'commit='+s.commit+'\n')"
+      - uses: actions/checkout@v4
+        with:
+          repository: YuanYeYouTao/Yuki
+          ref: ${{ steps.backend.outputs.commit }}
+          path: .cache/backend
+      - run: npm ci
+      - name: Build the actual App-only Bot image
+        run: docker build --target direct --tag yuki-desktop-local:ci .cache/backend
+      - name: Prepare matching local deployment templates
+        run: node build-tools/prepare-local-bot.mjs --source .cache/backend --image yuki-desktop-local:ci
+      - name: Deploy, initialize and pair through the actual services
+        run: npm test -- tests/unit/local-bot.test.ts
+        env:
+          YUKI_TEST_DOCKER: '1'

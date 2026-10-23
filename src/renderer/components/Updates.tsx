@@ -61,6 +61,7 @@ export function UpdatePanel({
     <>
       <Row title="更新通道" description="一般版本適合日常使用；測試版本會提供尚在驗證的新功能。">
         <Segmented
+          kind="radio"
           disabled={busy || state?.phase === 'installing' || state?.phase === 'preparing'}
           label="更新通道"
           value={preferences.updateChannel}

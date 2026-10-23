@@ -142,13 +142,13 @@ async function download(page: Page) {
   await expect(page.getByRole('button', { name: '重新啟動以更新', exact: true })).toBeVisible()
 }
 
-test('actual update buttons wait for a started native operation, recover a rejected install and retain original data on restart', async () => {
+test('actual update buttons recover a rejected install and retain the original draft on restart', async () => {
   test.skip(
     !process.env.YUKI_DESKTOP_EXECUTABLE,
     'Requires a packaged executable; development mode never updates.',
   )
   test.setTimeout(120000)
-  const rig = await yukiFixture({ executor: true })
+  const rig = await yukiFixture()
   let app = await rig.launch('update-boundary'),
     success = false
   try {
@@ -159,72 +159,14 @@ test('actual update buttons wait for a started native operation, recover a rejec
     )
     await mockInstaller(app)
     await pairUI(page, rig.base, await rig.code())
-    const owner = await page.evaluate(async () => {
-      const value = await window.yuki.client.connections()
-      if (!value.ok) throw Error(value.code)
-      return value.value[0]!
-    })
     await page
       .getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
       .fill('更新前要保留的草稿')
     await page.keyboard.press('ControlOrMeta+,')
-    await page.getByRole('tab', { name: '本機連接', exact: true }).click()
-    await page.getByRole('button', { name: '允許 Yuki 使用這台電腦', exact: true }).click()
-    await page.getByRole('switch', { name: '允許開啟網址', exact: true }).click()
-    await expect(page.getByRole('switch', { name: '允許開啟網址', exact: true })).toBeChecked()
-    const local = await page.evaluate(async (id) => {
-      const value = await window.yuki.client.executorState(id)
-      if (!value.ok || !value.value.installation) throw Error('executor unavailable')
-      return value.value.installation
-    }, owner.characterId)
     await download(page)
-    const invoke = fetch(rig.base + '/__test/executor/invoke', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        person_id: owner.personId,
-        tool_call_key: 'fixture:update-live-native',
-        arguments: {
-          executor_id: local.executorId,
-          capability: 'open.url',
-          params: { url: 'https://example.test/update-boundary' },
-        },
-      }),
-    })
-    await expect.poll(async () => (await snapshot(app)).physical).toBe(1)
     await page.getByRole('button', { name: '重新啟動以更新', exact: true }).click()
-    await expect.poll(async () => (await updateState(page)).phase).toBe('preparing')
-    expect((await snapshot(app)).installs).toBe(0)
-    await expect(page.getByRole('dialog', { name: '正在準備更新' })).toBeVisible()
-    await app.evaluate(() => {
-      ;(globalThis as unknown as { __updateFixture: FixtureState }).__updateFixture.release!()
-    })
-    await invoke
     await expect.poll(async () => (await snapshot(app)).installs).toBe(1)
     await expect.poll(async () => (await updateState(page)).phase).toBe('error')
-    const operations = async () =>
-      (await (await fetch(rig.base + '/__test/executor/state')).json()) as {
-        operations: { op_id: string; state: string }[]
-      }
-    await expect
-      .poll(async () => (await operations()).operations.map((op) => op.state))
-      .toEqual(['succeeded'])
-    const originalOperation = (await operations()).operations[0]!.op_id
-    await page.getByRole('tab', { name: '本機連接', exact: true }).click()
-    await expect
-      .poll(() =>
-        page.evaluate(async (id) => {
-          const value = await window.yuki.client.executorState(id)
-          return value.ok ? value.value.state : 'error'
-        }, owner.characterId),
-      )
-      .toBe('online')
-    await expect(page.getByRole('switch', { name: '允許開啟網址', exact: true })).toBeChecked()
-    await page.getByRole('button', { name: '返回', exact: true }).click()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })).toHaveValue(
-      '更新前要保留的草稿',
-    )
-    expect((await snapshot(app)).physical).toBe(1)
     await app.evaluate(() => {
       ;(globalThis as unknown as { __updateFixture: FixtureState }).__updateFixture.rejectInstall =
         false
@@ -242,12 +184,6 @@ test('actual update buttons wait for a started native operation, recover a rejec
     await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })).toHaveValue(
       '更新前要保留的草稿',
     )
-    const current = await page.evaluate(async (id) => {
-      const value = await window.yuki.client.executorState(id)
-      return value.ok ? value.value.installation?.executorId : undefined
-    }, owner.characterId)
-    expect(current).toBe(local.executorId)
-    expect((await operations()).operations.map((op) => op.op_id)).toEqual([originalOperation])
     success = true
   } finally {
     if (!success) app.process().kill('SIGKILL')

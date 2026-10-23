@@ -21,6 +21,7 @@
   padding: 52px 24px 24px;
 }
 .welcomeInner {
+  position: relative;
   margin: auto 0;
   flex-shrink: 0;
   width: min(640px, 100%);
@@ -37,6 +38,13 @@
 .welcomeMark {
   color: var(--accent);
   margin-bottom: 12px;
+}
+.entryChoices {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: min(320px, 100%);
 }
 .welcomeInner p {
   max-width: 480px;

@@ -7,17 +7,11 @@ import type { LocalStore } from './store'
 import { keyboardCommand } from '../shared/commands'
 
 const modes = new WeakMap<BrowserWindow, (pairing: boolean) => void>()
-const captures = new WeakSet<BrowserWindow>()
 const overlayAppearance = () => ({
   height: 52,
   color: '#00000000',
   symbolColor: nativeTheme.shouldUseDarkColors ? '#F2F2F4' : '#1D1D1F',
 })
-export function setKeyboardCapture(window: BrowserWindow, captured: boolean) {
-  if (captured) captures.add(window)
-  else captures.delete(window)
-  window.webContents.setIgnoreMenuShortcuts(captured)
-}
 export function setWindowMode(window: BrowserWindow, pairing: boolean) {
   modes.get(window)?.(pairing)
 }
@@ -138,15 +132,13 @@ export function createWindow(store: LocalStore, pairing = false) {
   })
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.on('before-input-event', (event, input) => {
-    if (captures.has(win)) return
-    if (input.type !== 'keyDown') return
+    if (input.type !== 'keyDown' || input.isComposing) return
     const command = keyboardCommand(input, process.platform)
     if (command) {
       event.preventDefault()
       win.webContents.send('yuki:command', command)
     }
   })
-  win.on('blur', () => setKeyboardCapture(win, false))
   win.webContents.on('will-navigate', (event, url) => {
     if (url !== win.webContents.getURL()) event.preventDefault()
   })

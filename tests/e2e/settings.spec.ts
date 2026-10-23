@@ -42,9 +42,9 @@ test('actual settings paths retain native preferences, timezone, notifications a
     }, exportPath)
     await pairUI(page, rig.base, await rig.code())
     const privateText = '這是診斷檔不得包含的原訊息 /private/project/source-secret.md'
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill(privateText)
+    await page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ }).fill(privateText)
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(page.getByText('真實帳本回覆', { exact: true })).toBeVisible()
+    await expect(page.getByText('Desktop reference reply', { exact: true }).last()).toBeVisible()
     const cdp = await app.context().newCDPSession(page)
     await cdp.send('Emulation.setTimezoneOverride', { timezoneId: 'America/Los_Angeles' })
     const time = page.locator('article[aria-label="你的訊息"] time').first()
@@ -132,7 +132,7 @@ test('actual settings paths retain native preferences, timezone, notifications a
     await app.close()
     app = await rig.launch('settings')
     page = await app.firstWindow()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })).toBeVisible()
     expect(await page.evaluate(async () => (await window.yuki.boot()).preferences)).toEqual(saved)
     success = true
   } finally {
@@ -183,14 +183,14 @@ test('settings categories remain keyboard reachable in all four themes and small
             test
               .info()
               .outputPath(
-                `darwin-2x-${mode}-settings-${category}-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
+                `${process.platform}-${await page.evaluate(() => devicePixelRatio)}x-${mode}-settings-${category}-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
               ),
           )
         }
       }
     }
     await page.keyboard.press('ControlOrMeta+1')
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })).toBeVisible()
     success = true
   } finally {
     await app.close().catch(() => {})
@@ -200,7 +200,7 @@ test('settings categories remain keyboard reachable in all four themes and small
 
 test('settings use the original role workspace, preserve its inspector and restore navigation from a small overlay', async () => {
   test.setTimeout(120000)
-  const rig = await yukiFixture({ character: true }),
+  const rig = await yukiFixture(),
     app = await rig.launch('settings-workspace')
   let success = false
   try {
@@ -208,7 +208,7 @@ test('settings use the original role workspace, preserve its inspector and resto
     await pairUI(page, rig.base, await rig.code())
     await contentSize(app, page, 1440, 900)
     const draft = '設定導覽切換仍保留的原角色草稿'
-    const composer = page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+    const composer = page.getByRole('textbox', { name: /^和 .+ 說點什麼$/, exact: true })
     await composer.fill(draft)
     const sidebar = page.getByRole('navigation', { name: '主要導覽', exact: true })
     const divider = page.getByRole('separator', { name: '調整側邊欄', exact: true })
@@ -260,7 +260,7 @@ test('settings use the original role workspace, preserve its inspector and resto
     await page.keyboard.press('ControlOrMeta+1')
     await expect(composer).toHaveValue(draft)
     await page.keyboard.press('ControlOrMeta+,')
-    await sidebar.getByRole('button', { name: '關於 Yuki', exact: true }).click()
+    await sidebar.getByRole('button', { name: /^關於 .+$/ }).click()
     await expect(page.getByRole('tablist', { name: '設定分類', exact: true })).toHaveCount(0)
     await expect(page.getByRole('button', { name: '編輯角色資料', exact: true })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+,')
