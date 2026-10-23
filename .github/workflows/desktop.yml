@@ -55,7 +55,7 @@ jobs:
         run: node build-tools/prepare-local-bot.mjs --source .cache/backend
       - run: npm exec playwright install -- --with-deps chromium
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y rpm ffmpeg dbus-x11 gnome-keyring openbox
+        run: sudo apt-get install --no-install-recommends -y rpm ffmpeg dbus-x11 gnome-keyring openbox
       - if: runner.os == 'macOS'
         run: brew install ffmpeg
       - if: runner.os == 'Windows'
