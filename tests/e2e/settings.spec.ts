@@ -1,8 +1,81 @@
 import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test } from '@playwright/test'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pairUI, yukiFixture } from '../fixtures/backend'
+
+test('standalone and connected settings fill the available column with their form groups', async () => {
+  test.setTimeout(120000)
+  const rig = await yukiFixture(),
+    app = await rig.launch('settings-width')
+  let success = false
+  const observations: unknown[] = []
+  try {
+    const page = await app.firstWindow()
+    await page.getByRole('button', { name: '設定', exact: true }).click()
+    for (const mode of ['standalone', 'connected'] as const) {
+      if (mode === 'connected') {
+        await page.getByRole('button', { name: '返回', exact: true }).click()
+        await pairUI(page, rig.base, await rig.code())
+        await page.keyboard.press('ControlOrMeta+,')
+      }
+      for (const [width, height] of [
+        [1440, 900],
+        [960, 640],
+      ] as const) {
+        await app.evaluate(
+          ({ BrowserWindow }, size) =>
+            BrowserWindow.getAllWindows()[0]!.setContentSize(size.width, size.height),
+          { width, height },
+        )
+        await page.evaluate(
+          () =>
+            new Promise<void>((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+            ),
+        )
+        const pane = page.getByRole('tabpanel')
+        await expect(pane).toBeVisible()
+        const measurements = await pane.evaluate((element) => {
+          const panel = element as HTMLElement,
+            layout = panel.parentElement!,
+            group = panel.querySelector<HTMLElement>(':scope > div')!
+          const style = getComputedStyle(panel)
+          return {
+            viewportWidth: innerWidth,
+            viewportHeight: innerHeight,
+            panelRight: panel.getBoundingClientRect().right,
+            layoutRight: layout.getBoundingClientRect().right,
+            panelWidth: panel.clientWidth,
+            paddingLeft: parseFloat(style.paddingLeft),
+            paddingRight: parseFloat(style.paddingRight),
+            groupWidth: group.getBoundingClientRect().width,
+            overflow: panel.scrollWidth > panel.clientWidth,
+          }
+        })
+        observations.push({ mode, width, ...measurements })
+        expect(measurements.panelRight).toBeCloseTo(measurements.layoutRight, 1)
+        // clientWidth is integer CSS pixels; the group rect retains fractional display scaling.
+        expect(Math.round(measurements.groupWidth)).toBe(
+          measurements.panelWidth - measurements.paddingLeft - measurements.paddingRight,
+        )
+        expect(measurements.overflow).toBe(false)
+        await page.screenshot({
+          path: test.info().outputPath(`settings-${mode}-${width}.png`),
+          animations: 'disabled',
+        })
+      }
+    }
+    await writeFile(
+      test.info().outputPath('settings-widths.json'),
+      JSON.stringify(observations, null, 2),
+    )
+    success = true
+  } finally {
+    await app.close()
+    await rig.close(success)
+  }
+})
 
 test('actual settings paths retain native preferences, timezone, notifications and private diagnostic export', async () => {
   test.setTimeout(120000)

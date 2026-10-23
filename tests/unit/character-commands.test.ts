@@ -6,7 +6,7 @@ import { Outbox } from '../../src/main/outbox'
 import { CharacterCommands } from '../../src/main/outbox/character-commands'
 import { ApiClient } from '../../src/main/api/client'
 import type { CharacterCommand, Me, OutboxOwner } from '../../src/shared/api'
-import { retiredSummary, exportRetired } from '../../src/main/outbox/local-summary'
+import { retiredSummary, exportRetired, localSummary } from '../../src/main/outbox/local-summary'
 const owner: OutboxOwner = {
   characterId: '00000000-0000-4000-8000-000000000001',
   personId: '00000000-0000-4000-8000-000000000002',
@@ -100,6 +100,7 @@ it('leaves retired requests and executor results byte-for-byte intact across reo
     })
     expect(retiredSummary(recovered).reduce((sum, item) => sum + item.count, 0)).toBe(6)
     expect(exportRetired(recovered)).toBe(before)
+    expect(localSummary(recovered)).toEqual({ drafts: 0, pending: 5, attachments: 0 })
     expect(recovered.db.prepare('SELECT command FROM character_commands').get()).toEqual({
       command,
     })

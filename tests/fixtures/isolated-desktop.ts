@@ -15,6 +15,7 @@ const {app, clipboard, shell} = electron;
 const fs = require('node:fs'), path = require('node:path');
 const root = ${JSON.stringify(appRoot)};
 app.getAppPath = () => root;
+app.getVersion = () => JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
 app.setAsDefaultProtocolClient = () => false;
 let copied = '';
 clipboard.writeText = value => { copied = value };

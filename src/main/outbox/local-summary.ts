@@ -84,10 +84,6 @@ export function localSummary(box: Outbox) {
       )
         drafts++
     }
-  drafts += count(
-    'avatar_commands',
-    "state='result' AND problem IS NOT NULL AND NOT EXISTS(SELECT 1 FROM avatar_command_acknowledgements ack WHERE ack.request_id=avatar_commands.request_id)",
-  )
   const pending = [
     'requests',
     'work_commands',
