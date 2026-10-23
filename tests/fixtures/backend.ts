@@ -211,11 +211,19 @@ export async function pairUI(
     await page.screenshot({ path: test.info().outputPath('pairing-failure.png') })
     const state = await page.evaluate(async () => {
       const connections = await window.yuki.client.connections()
+      const pending = await window.yuki.client.pendingPairings()
       return {
         online: (window as ProbeWindow).__yukiPairProbe?.online,
         connections: connections.ok
           ? connections.value.map((item) => ({ id: item.characterId, base: item.baseUrl }))
           : connections.code,
+        pending: pending.ok
+          ? pending.value.map((item) => ({
+              characterId: item.characterId,
+              deviceId: item.deviceId,
+              persistentCredentials: item.persistentCredentials,
+            }))
+          : { code: pending.code },
         errors: Array.from(document.querySelectorAll('[role="alert"], [role="status"]')).map(
           (element) => element.textContent,
         ),

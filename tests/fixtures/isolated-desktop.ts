@@ -34,6 +34,7 @@ shell.openExternal = async () => {};
 shell.openPath = async () => '';
 shell.showItemInFolder = () => {};
 fs.mkdirSync(process.env.YUKI_DESKTOP_DATA, { recursive: true });
+app.setPath('userData', process.env.YUKI_DESKTOP_DATA);
 const Database = require(path.join(root, 'node_modules/better-sqlite3'));
 const db = new Database(path.join(process.env.YUKI_DESKTOP_DATA, 'desktop.sqlite3'));
 db.exec('CREATE TABLE IF NOT EXISTS preferences(key TEXT PRIMARY KEY,value TEXT NOT NULL)');
