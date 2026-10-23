@@ -1,5 +1,12 @@
 import { createHash } from 'node:crypto'
-import { readFileSync, readdirSync, lstatSync, readlinkSync } from 'node:fs'
+import {
+  readFileSync,
+  readdirSync,
+  lstatSync,
+  readlinkSync,
+  realpathSync,
+  writeFileSync,
+} from 'node:fs'
 import { join, relative, resolve, isAbsolute, sep } from 'node:path'
 
 function entries(root, directory = root) {
@@ -10,9 +17,10 @@ function entries(root, directory = root) {
       : [relative(root, path).replaceAll('\\', '/')]
   })
 }
-export function checkProductResources(resources) {
-  const runtime = join(resources, 'agent-connector')
-  const manifest = JSON.parse(readFileSync(join(runtime, 'manifest.json'), 'utf8'))
+export function checkConnectorRuntime(
+  runtime,
+  manifest = JSON.parse(readFileSync(join(runtime, 'manifest.json'), 'utf8')),
+) {
   const expected = new Set(['manifest.json', ...manifest.files.map((file) => file.path)])
   const actual = entries(runtime)
   if (actual.length !== expected.size || actual.some((path) => !expected.has(path)))
@@ -33,6 +41,29 @@ export function checkProductResources(resources) {
     !expected.has('legal/dependency-lock.toml')
   )
     throw new Error('Incomplete Connector runtime')
+  return manifest
+}
+export function refreshSignedConnectorFiles(runtime, manifest, signed) {
+  const updated = {
+    ...manifest,
+    files: manifest.files.map((file) =>
+      file.sha256 && signed.has(realpathSync(join(runtime, file.path)))
+        ? {
+            ...file,
+            sha256: createHash('sha256')
+              .update(readFileSync(join(runtime, file.path)))
+              .digest('hex'),
+          }
+        : file,
+    ),
+  }
+  checkConnectorRuntime(runtime, updated)
+  writeFileSync(join(runtime, 'manifest.json'), JSON.stringify(updated, null, 2) + '\n')
+  return updated
+}
+export function checkProductResources(resources) {
+  const runtime = join(resources, 'agent-connector')
+  const manifest = checkConnectorRuntime(runtime)
   const bot = join(resources, 'local-bot')
   const templates = [
     'manifest.json',
@@ -47,5 +78,5 @@ export function checkProductResources(resources) {
   const source = JSON.parse(readFileSync(join(bot, 'manifest.json'), 'utf8'))
   if (!/^[0-9a-f]{40}$/.test(source.revision) || typeof source.image !== 'string')
     throw new Error('Missing local Bot source/image provenance')
-  return { runtimeFiles: actual.length, botFiles: actualBot.length }
+  return { runtimeFiles: manifest.files.length + 1, botFiles: actualBot.length }
 }

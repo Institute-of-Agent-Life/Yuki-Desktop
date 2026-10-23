@@ -24,7 +24,7 @@
     "lint": "eslint src tests build-tools *.ts *.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node build-tools/test.mjs",
-    "test:release": "node --test --experimental-test-isolation=none tests/release/packages.test.mjs",
+    "test:release": "node --test --experimental-test-isolation=none tests/release/packages.test.mjs tests/release/connector-signing.test.mjs",
     "test:signing": "node --test --experimental-test-isolation=none tests/release/signing.test.mjs",
     "test:e2e": "npm run build && playwright test",
     "package": "npm run build && electron-builder --config build-tools/builder-config.mjs --publish never",

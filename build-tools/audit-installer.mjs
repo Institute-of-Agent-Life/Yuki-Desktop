@@ -219,7 +219,9 @@ export async function auditInstaller(input) {
             : []
       for (const [i, payload] of payloads.entries()) {
         const layer = join(root, `payload-${i}`)
-        await extract7z(payload, layer, tool)
+        // NSIS needs the full extractor; its .7z payload uses the builder's
+        // current codecs (including ARM64), absent from the older full tool.
+        await extract7z(payload, layer, payload.endsWith('.7z') ? await getPath7za() : tool)
         const nested = await findPayloads(layer, /^data\.tar$|\.cpio$/)
         if (nested.length)
           for (const [j, path] of nested.entries())

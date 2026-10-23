@@ -447,6 +447,28 @@ test('runtime resources preserve dependency files and reject changed bytes or ex
     await writeFile(join(directory, 'agent-connector/python/python.exe'), 'changed Python')
     assert.throws(() => checkPackage(directory), /Changed Connector file/)
   }))
+
+test('installer payload uses current ARM64 codecs and still checks every runtime file', async () =>
+  fixture(async (root) => {
+    const { directory } = await packagedFixture(root)
+    const tool = await getPath7za()
+    const payload = join(root, 'app-64.7z')
+    const installer = join(root, 'codec-fixture.exe')
+    const pack = async () => {
+      await run(tool, ['a', '-t7z', '-m0=ARM64', '-m1=LZMA2', payload, '.'], { cwd: directory })
+      const { stdout } = await run(tool, ['l', '-slt', payload])
+      assert.match(stdout, /Method = .*ARM64/)
+      // The outer ZIP is only a container fixture; the production NSIS is audited separately.
+      await run(tool, ['a', '-tzip', installer, 'app-64.7z'], { cwd: root })
+    }
+    await pack()
+    assert.equal((await auditInstaller(installer)).payloads, 1)
+    await writeFile(join(directory, 'agent-connector/.env'), 'unexpected fixture data')
+    await rm(payload)
+    await rm(installer)
+    await pack()
+    await assert.rejects(auditInstaller(installer), /Unexpected Connector runtime content/)
+  }))
 test('local Bot resources reject an accidental private env file', async () =>
   fixture(async (root) => {
     const { directory } = await packagedFixture(root)
