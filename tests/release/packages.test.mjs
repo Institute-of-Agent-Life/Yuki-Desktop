@@ -373,7 +373,15 @@ test('actual RPM CPIO audits internal build-id links and rejects escaping, missi
     const { archive, extra } = await packagedFixture(root),
       product = await readFile(archive),
       link = './usr/lib/.build-id/42/' + 'f'.repeat(38)
-    async function payload(label, destination, targetMode = 0o100755) {
+    const nested = 'agent-connector/python/bin/python3.12'
+    extra[nested] = 'nested interpreter fixture'
+    const manifest = JSON.parse(extra['agent-connector/manifest.json'])
+    manifest.files.push({
+      path: nested.slice('agent-connector/'.length),
+      sha256: createHash('sha256').update(extra[nested]).digest('hex'),
+    })
+    extra['agent-connector/manifest.json'] = JSON.stringify(manifest)
+    async function payload(label, destination, targetMode = 0o100755, tamper = false) {
       const file = join(root, label + '.rpm')
       await writeFile(
         file,
@@ -381,9 +389,12 @@ test('actual RPM CPIO audits internal build-id links and rejects escaping, missi
           { path: './opt/Yuki/resources/app.asar', body: product },
           ...Object.entries(extra).map(([path, body]) => ({
             path: './opt/Yuki/resources/' + path,
-            body,
+            body: tamper && path === nested ? 'altered interpreter fixture' : body,
           })),
           { path: './opt/Yuki/yuki-bin', body: 'executable fixture', mode: targetMode },
+          ...(label === 'prefix-sibling'
+            ? [{ path: './opt/Yuki-other/yuki-bin', body: 'outside product root', mode: 0o100755 }]
+            : []),
           { path: link, body: destination, mode: 0o120777 },
         ]),
       )
@@ -394,7 +405,18 @@ test('actual RPM CPIO audits internal build-id links and rejects escaping, missi
       file: 'internal.rpm',
       archives: 1,
     })
+    const nestedDestination = '../../../../opt/Yuki/resources/' + nested
+    assert.deepEqual(await auditInstaller(await payload('nested-runtime', nestedDestination)), {
+      file: 'nested-runtime.rpm',
+      archives: 1,
+    })
+    await assert.rejects(
+      auditInstaller(await payload('tampered-runtime', nestedDestination, 0o100755, true)),
+      /Changed Connector file: python\/bin\/python3\.12/,
+    )
     for (const [label, destination, mode] of [
+      ['prefix-sibling', '../../../../opt/Yuki-other/yuki-bin', 0o100755],
+      ['nested-escape', '../../../../opt/Yuki/../../../outside', 0o100755],
       ['escape', '../../../../../outside', 0o100755],
       ['absolute', '/opt/Yuki/yuki-bin', 0o100755],
       ['missing', '../../../../opt/Yuki/missing', 0o100755],

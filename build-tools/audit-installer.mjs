@@ -115,7 +115,7 @@ async function extract7z(file, target, tool) {
       if (
         posix.isAbsolute(link) ||
         link.includes('\\') ||
-        !/^opt\/Yuki\/[A-Za-z0-9_.-]+$/.test(destination) ||
+        !destination.startsWith('opt/Yuki/') ||
         !source?.Mode?.startsWith('-') ||
         source['Symbolic Link']
       )
