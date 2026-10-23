@@ -23,7 +23,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      YUKI_E2E_OUTPUT: ${{ runner.temp }}/yuki-desktop-e2e
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -48,7 +47,7 @@ jobs:
       - name: Prepare the actual backend test environment
         run: uv sync --directory .cache/backend --frozen --all-extras --python 3.12
       - name: Select the actual backend fixture
-        run: node -e "const fs=require('node:fs'),p=require('node:path');const root=p.resolve('.cache/backend');const py=p.join(root,'.venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');fs.appendFileSync(process.env.GITHUB_ENV,'YUKI_BACKEND_TEST_ROOT='+root+'\nYUKI_BACKEND_TEST_PYTHON='+py+'\n')"
+        run: node -e "const fs=require('node:fs'),p=require('node:path');const root=p.resolve('.cache/backend');const py=p.join(root,'.venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');fs.appendFileSync(process.env.GITHUB_ENV,'YUKI_BACKEND_TEST_ROOT='+root+'\nYUKI_BACKEND_TEST_PYTHON='+py+'\nYUKI_E2E_OUTPUT='+p.join(process.env.RUNNER_TEMP,'yuki-desktop-e2e')+'\n')"
       - run: npm ci
       - name: Bundle the platform's standalone Connector
         run: node build-tools/prepare-connector.mjs --backend .cache/backend
