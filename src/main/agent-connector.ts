@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { gte } from 'semver'
 import type {
   ConnectorAdmission,
   ConnectorCandidate,
@@ -357,9 +358,17 @@ export class AgentConnector {
     return JSON.parse(await this.run(['diagnose', '--instance', instanceId]))
   }
   async nativeExecutable(instanceId: string): Promise<string> {
-    const current = await this.state()
+    const installation = this.installations.selected() ?? null
+    const current = await this.state(undefined, installation)
     const instance = current.available && current.instances.find((item) => item.id === instanceId)
     if (!instance || !instance.command) throw new ApiError('native_not_installed')
+    if (current.version && gte(current.version, '0.3.4')) {
+      const resolved: { instance_id: string; command: string } = JSON.parse(
+        await this.run(['discover', '--instance', instanceId, '--json'], undefined, installation),
+      )
+      if (resolved.instance_id !== instanceId) throw new ApiError('connector_instance_missing')
+      return resolved.command
+    }
     return instance.command
   }
 }

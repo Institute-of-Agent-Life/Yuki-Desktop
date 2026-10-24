@@ -1,7 +1,17 @@
 import { PassThrough } from 'node:stream'
-import { ChildProcess, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
-import { join } from 'node:path'
+import { ChildProcess, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import {
+  mkdtemp,
+  mkdir,
+  writeFile,
+  readFile,
+  rm,
+  chmod,
+  realpath,
+  symlink,
+  unlink,
+} from 'node:fs/promises'
+import { delimiter, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
@@ -280,6 +290,156 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
   },
   30000,
 )
+it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
+  'actual standalone CLI follows the original instance through a directory-alias upgrade and preserves its receipts',
+  async () => {
+    const manifest = JSON.parse(await readFile(join(actualBundle, 'manifest.json'), 'utf8'))
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'connector-cli-upgrade-')))
+    temporary.push(root)
+    const firstVersion = join(root, 'version-one'),
+      nextVersion = join(root, 'version-two'),
+      bin = join(root, 'bin'),
+      data = join(root, 'data'),
+      project = join(root, 'project'),
+      editedProject = join(root, 'edited-project')
+    for (const directory of [firstVersion, nextVersion, data, project, editedProject])
+      await mkdir(directory)
+    const name = process.platform === 'win32' ? 'codex.exe' : 'codex'
+    const oldExecutable = join(firstVersion, name),
+      currentExecutable = join(nextVersion, name)
+    for (const executable of [oldExecutable, currentExecutable]) {
+      await writeFile(executable, 'Native configuration target only; never executed')
+      await chmod(executable, 0o755)
+    }
+    const linkType = process.platform === 'win32' ? 'junction' : 'dir'
+    await symlink(firstVersion, bin, linkType)
+    const parentPath = process.env.PATH
+    const launched: { executable: string; args: readonly string[] }[] = []
+    const launch: NonNullable<Parameters<typeof runConnector>[3]> = (executable, args, options) => {
+      launched.push({ executable, args })
+      return spawn(executable, args, {
+        ...options,
+        env: { ...options.env, PATH: bin + delimiter + parentPath },
+      })
+    }
+    const execute: typeof runConnector = (selected, args, input) =>
+      runConnector(selected, args, input, launch)
+    const selected = {
+      directory: actualBundle,
+      executable: join(actualBundle, manifest.executable),
+      arguments: manifest.arguments,
+      version: manifest.version,
+      protocol: manifest.protocol,
+      build: 'actual-bundled-cli',
+    }
+    const connector = new AgentConnector(
+      {
+        root: join(root, 'managed'),
+        bundledRuntime: join(root, 'absent'),
+        store: store(),
+        authorize: vi.fn(),
+        admission: vi.fn(),
+      },
+      execute,
+    )
+    connector.installations.select({ managed: false, dataDirectory: data, runtime: selected })
+    const identity = {
+      url: 'ws://127.0.0.1:9/agents/v1/connect',
+      device_id: 'original-upgrade-device',
+      token: 'fixture-only',
+      instances: [],
+    }
+    const configPath = join(data, 'config.json'),
+      journalPath = join(data, 'journal.sqlite3')
+    await writeFile(configPath, JSON.stringify(identity))
+    const candidate = (await connector.discover()).find((item) => item.command === oldExecutable)
+    expect(candidate).toBeDefined()
+    const instanceId = 'original-upgrade-instance'
+    await execute(selected, [
+      '--data-dir',
+      data,
+      'instance',
+      'add',
+      '--id',
+      instanceId,
+      '--driver',
+      'codex',
+      '--label',
+      'Original Codex',
+      '--command',
+      candidate!.command,
+      '--cwd',
+      project,
+      '--env',
+      'UPGRADE_FIXTURE=original-environment',
+      '--endpoint',
+      'ws://127.0.0.1:9/original-native-owner',
+      '--agent-arg=--original-argument',
+    ])
+    expect(
+      await connector.configure({
+        id: instanceId,
+        create: false,
+        candidateId: candidate!.id,
+        label: '原安裝',
+        cwd: project,
+      }),
+    ).toEqual({ instanceId })
+    const originalConfig = JSON.parse(await readFile(configPath, 'utf8'))
+    expect(originalConfig.instances).toHaveLength(1)
+    expect(originalConfig.instances[0].installation).toBe(`path:${join(bin, name)}`)
+    await execute(
+      {
+        ...selected,
+        arguments: [
+          ...selected.arguments.slice(0, selected.arguments.indexOf('-m')),
+          '-c',
+          `import sys\nfrom pathlib import Path\nfrom yuki_agent_connector.journal import Journal\njournal=Journal(Path(sys.argv[1]),namespace=sys.argv[2])\njournal.begin({'id':'original-journal-operation','action':'list'})\njournal.complete('original-journal-operation',{'type':'response','id':'original-journal-operation','result':{'status':'completed'}})\njournal.close()`,
+        ],
+      },
+      [journalPath, JSON.stringify([identity.url, identity.device_id])],
+    )
+    const configBytes = await readFile(configPath),
+      journalBytes = await readFile(journalPath)
+    expect(await realpath(bin)).toBe(firstVersion)
+    await unlink(bin)
+    await symlink(nextVersion, bin, linkType)
+    await unlink(oldExecutable)
+    expect(await realpath(bin)).toBe(nextVersion)
+    expect(existsSync(oldExecutable)).toBe(false)
+    expect(await connector.nativeExecutable(instanceId)).toBe(currentExecutable)
+    expect(await readFile(configPath)).toEqual(configBytes)
+    expect(await readFile(journalPath)).toEqual(journalBytes)
+    expect(
+      await connector.configure({
+        id: instanceId,
+        create: false,
+        command: oldExecutable,
+        label: '升級後的原安裝',
+        cwd: editedProject,
+      }),
+    ).toEqual({ instanceId })
+    expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual({
+      ...originalConfig,
+      instances: [
+        {
+          ...originalConfig.instances[0],
+          command: currentExecutable,
+          label: '升級後的原安裝',
+          cwd: editedProject,
+        },
+      ],
+    })
+    expect(await readFile(journalPath)).toEqual(journalBytes)
+    expect(process.env.PATH).toBe(parentPath)
+    expect(launched.every((call) => call.executable === selected.executable)).toBe(true)
+    expect(
+      launched.some((call) => call.args.includes('service') || call.args.includes('diagnose')),
+    ).toBe(false)
+  },
+  30000,
+)
+
 it('creation, configuration and background actions keep their original installation while discovery is pending', async () => {
   const root = await mkdtemp(join(tmpdir(), 'connector-bound-'))
   temporary.push(root)
@@ -611,21 +771,119 @@ it('a separate installation leaves the other role configuration, journal and run
   expect(run.mock.calls.some((call) => call[1].includes('service'))).toBe(false)
 })
 
-it('reveals only the native executable saved in the selected installation without launching it', async () => {
-  const executable = join(tmpdir(), 'actual-codex.exe')
-  const run = vi.fn(async () =>
-    JSON.stringify({
-      ...publicStatus,
-      instances: [{ ...publicStatus.instances[0], command: executable }],
-    }),
-  )
+it.each(['0.3.1', '0.3.3'])(
+  'reads the original %s runtime command without unsupported discovery flags or upgrading it',
+  async (version) => {
+    const executable = join(tmpdir(), 'actual-codex.exe')
+    const run = vi.fn(async (_runtime: unknown, args: readonly string[]) => {
+      expect(args.slice(2)).toEqual(['status', '--json'])
+      return JSON.stringify({
+        ...publicStatus,
+        version,
+        instances: [{ ...publicStatus.instances[0], command: executable }],
+      })
+    })
+    const { connector } = fixture(run)
+    const installation = connector.installations.selected()
+    expect(await connector.nativeExecutable('original-profile')).toBe(executable)
+    await expect(connector.nativeExecutable('another-instance')).rejects.toHaveProperty(
+      'code',
+      'native_not_installed',
+    )
+    expect(run.mock.calls).toHaveLength(2)
+    expect(connector.installations.selected()).toEqual(installation)
+  },
+)
+
+it('resolves the original instance source after an upgrade without opening its stale command', async () => {
+  const stale = join(tmpdir(), 'Codex-previous-version', 'codex.exe')
+  const current = join(tmpdir(), 'Codex-current-version', 'codex.exe')
+  const run = vi.fn(async (_runtime: unknown, args: readonly string[]) => {
+    if (args.includes('status'))
+      return JSON.stringify({
+        ...publicStatus,
+        version: '0.3.4',
+        instances: [{ ...publicStatus.instances[0], command: stale }],
+      })
+    expect(args.slice(2)).toEqual(['discover', '--instance', 'original-profile', '--json'])
+    return JSON.stringify({ instance_id: 'original-profile', command: current })
+  })
   const { connector } = fixture(run)
-  expect(await connector.nativeExecutable('original-profile')).toBe(executable)
-  await expect(connector.nativeExecutable('another-instance')).rejects.toHaveProperty(
+  const installation = connector.installations.selected()
+  expect(await connector.nativeExecutable('original-profile')).toBe(current)
+  expect(run.mock.calls).toHaveLength(2)
+  expect(connector.installations.selected()).toEqual(installation)
+})
+
+it('propagates a missing original installation instead of revealing the stale command', async () => {
+  const run = vi.fn(async (_runtime: unknown, args: readonly string[]) => {
+    if (args.includes('status'))
+      return JSON.stringify({
+        ...publicStatus,
+        version: '0.3.4',
+        instances: [{ ...publicStatus.instances[0], command: join(tmpdir(), 'old-codex.exe') }],
+      })
+    throw new ApiError('native_not_installed')
+  })
+  const { connector } = fixture(run)
+  await expect(connector.nativeExecutable('original-profile')).rejects.toHaveProperty(
     'code',
     'native_not_installed',
   )
   expect(run.mock.calls).toHaveLength(2)
+})
+
+it('never reveals a resolved executable returned for another instance', async () => {
+  const run = vi.fn(async (_runtime: unknown, args: readonly string[]) =>
+    JSON.stringify(
+      args.includes('status')
+        ? {
+            ...publicStatus,
+            version: '0.3.4',
+            instances: [{ ...publicStatus.instances[0], command: join(tmpdir(), 'old-codex.exe') }],
+          }
+        : { instance_id: 'another-instance', command: join(tmpdir(), 'other-codex.exe') },
+    ),
+  )
+  const { connector } = fixture(run)
+  await expect(connector.nativeExecutable('original-profile')).rejects.toHaveProperty(
+    'code',
+    'connector_instance_missing',
+  )
+})
+
+it('keeps the original installation while its native executable read is pending', async () => {
+  let entered!: () => void, release!: () => void
+  const reading = new Promise<void>((resolve) => (entered = resolve))
+  const released = new Promise<void>((resolve) => (release = resolve))
+  const run = vi.fn(async (_runtime: unknown, args: readonly string[]) => {
+    if (args.includes('status')) {
+      entered()
+      await released
+      return JSON.stringify({
+        ...publicStatus,
+        version: '0.3.4',
+        instances: [{ ...publicStatus.instances[0], command: join(tmpdir(), 'old-codex.exe') }],
+      })
+    }
+    return JSON.stringify({
+      instance_id: 'original-profile',
+      command: join(tmpdir(), 'original-current-codex.exe'),
+    })
+  })
+  const { connector } = fixture(run)
+  const first = connector.installations.selected()!
+  const second = { ...first, dataDirectory: join(tmpdir(), 'other-data') }
+  const pending = connector.nativeExecutable('original-profile')
+  await reading
+  connector.installations.select(second)
+  release()
+  expect(await pending).toBe(join(tmpdir(), 'original-current-codex.exe'))
+  expect(run.mock.calls.map((call) => call[1][1])).toEqual([
+    first.dataDirectory,
+    first.dataDirectory,
+  ])
+  expect(connector.installations.selected()).toEqual(second)
 })
 
 it('offline admission keeps real local service controls without claiming another owner', async () => {
