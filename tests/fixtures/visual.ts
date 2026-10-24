@@ -11,6 +11,23 @@ const viewports = new WeakMap<
   { width: number; height: number; emulated: boolean; scale: number }
 >()
 let measurement = 0
+async function renderedWorkspaceLayout(page: Page) {
+  return page.evaluate(() => ({
+    viewport: { width: innerWidth, height: innerHeight },
+    regions: [...document.querySelectorAll<HTMLElement>('[data-region]')]
+      .filter((element) => !element.closest('[hidden]') && element.getClientRects().length > 0)
+      .map((element) => {
+        const { x, y, width, height } = element.getBoundingClientRect()
+        const style = getComputedStyle(element)
+        return {
+          region: element.dataset.region,
+          rect: { x, y, width, height },
+          visibility: style.visibility,
+          position: style.position,
+        }
+      }),
+  }))
+}
 export async function systemAccessibility(page: Page) {
   return page.evaluate(async () => {
     const boot = await window.yuki.boot()
@@ -94,11 +111,14 @@ export async function captureViewport(app: ElectronApplication, page: Page, path
   if (!viewport?.emulated) return page.screenshot({ path, animations: 'disabled' })
   const { width, height } = viewport
   await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([width, height])
+  const layoutBefore = await renderedWorkspaceLayout(page)
   const nativeSurface = await app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]!.getContentBounds(),
   )
   const dpr = await page.evaluate(() => devicePixelRatio)
   const cdp = await page.context().newCDPSession(page)
+  let pngPixels: { width: number; height: number } | null = null
+  let layoutAfter: typeof layoutBefore | null = null
   try {
     // An explicit Chromium viewport paints the whole CSS view rather than padding
     // a cropped native surface. It remains virtual, not a larger physical display.
@@ -123,42 +143,54 @@ export async function captureViewport(app: ElectronApplication, page: Page, path
       clip: { x: 0, y: 0, width, height, scale: 1 },
     })
     const buffer = Buffer.from(frame.data, 'base64')
+    pngPixels = { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) }
     await writeFile(path, buffer)
-    await writeFile(
-      path.replace(/\.png$/, '.capture.json'),
-      JSON.stringify(
-        {
-          viewport: { width, height },
-          viewportMethod: 'electron-device-emulation',
-          captureMethod: 'cdp-virtual-viewport',
-          interactionScale: 1,
-          captureScale: 1,
-          nativeSurface,
-          captureDip: { width, height },
-          pngPixels: { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) },
-        },
-        null,
-        2,
-      ),
-    )
     return buffer
   } finally {
-    await cdp.send('Emulation.clearDeviceMetricsOverride')
-    await cdp.detach()
-    await app.evaluate(
-      ({ BrowserWindow }, size) => {
-        BrowserWindow.getAllWindows()[0]!.webContents.enableDeviceEmulation({
-          screenPosition: 'desktop',
-          screenSize: size,
-          viewPosition: { x: 0, y: 0 },
-          deviceScaleFactor: 0,
-          viewSize: size,
-          scale: 1,
+    try {
+      await cdp.send('Emulation.clearDeviceMetricsOverride')
+      await cdp.detach()
+      await app.evaluate(
+        ({ BrowserWindow }, size) => {
+          BrowserWindow.getAllWindows()[0]!.webContents.enableDeviceEmulation({
+            screenPosition: 'desktop',
+            screenSize: size,
+            viewPosition: { x: 0, y: 0 },
+            deviceScaleFactor: 0,
+            viewSize: size,
+            scale: 1,
+          })
+        },
+        { width, height },
+      )
+      // Restoring CSS dimensions does not mean React has committed its resize layout.
+      await expect
+        .poll(async () => {
+          layoutAfter = await renderedWorkspaceLayout(page)
+          return layoutAfter
         })
-      },
-      { width, height },
-    )
-    await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([width, height])
+        .toEqual(layoutBefore)
+    } finally {
+      await writeFile(
+        path.replace(/\.png$/, '.capture.json'),
+        JSON.stringify(
+          {
+            viewport: { width, height },
+            viewportMethod: 'electron-device-emulation',
+            captureMethod: 'cdp-virtual-viewport',
+            interactionScale: 1,
+            captureScale: 1,
+            nativeSurface,
+            captureDip: { width, height },
+            pngPixels,
+            layoutBefore,
+            layoutAfter,
+          },
+          null,
+          2,
+        ),
+      )
+    }
   }
 }
 /** Captures the real app; theme changes go through its normal Settings controls. */
