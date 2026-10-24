@@ -95,6 +95,12 @@ jobs:
         run: node build-tools/check-mac-runtime-signing.mjs dist
       - run: npm run check:package
       - run: node build-tools/prepare-upload.mjs dist/upload dist
+      - name: Preserve native package content audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: Yuki-package-audit-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/upload.local-audit.json
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: Yuki-unsigned-${{ matrix.platform }}-${{ matrix.arch }}
