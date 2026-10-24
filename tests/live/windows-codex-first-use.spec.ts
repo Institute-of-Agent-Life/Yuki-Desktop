@@ -5,6 +5,8 @@ import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
+import { navigate } from '../fixtures/navigation'
+import type { OriginalRequest } from '../../src/shared/api'
 import type { ConnectorOperation, ConnectorState } from '../../src/shared/connector'
 import { nativeProbe } from './native-probe'
 import { agents } from './native-navigation'
@@ -378,6 +380,10 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
       original!.session_id,
       original!.execution_id,
     ])
+    expect(await operation(page, connection.characterId, original!.id)).toMatchObject({
+      id: original!.id,
+      work_id: original!.work_id,
+    })
     await writeFile(release, 'release only this isolated task', 'utf8')
     await expect
       .poll(async () => (await facts()).work?.state, { timeout: 120_000 })
@@ -423,6 +429,33 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
     })
     await openOriginal(page, original!.work_id, original!.id)
     await expect(page.getByText(marker, { exact: true }).first()).toBeVisible()
+    await navigate(page, '工作')
+    await page.getByRole('button', { name: new RegExp(marker) }).click()
+    const detail = page.getByRole('complementary', { name: '檢視器', exact: true })
+    await expect(detail.getByRole('heading', { name: marker, exact: true })).toBeVisible()
+    await expect(detail.getByText('已完成', { exact: true }).first()).toBeVisible()
+    const originalReceipt = await page.evaluate(
+      async ({ character, requestId }) => {
+        const receipt = await window.yuki.client.read<OriginalRequest>(character, {
+          kind: 'request',
+          requestId,
+        })
+        if (!receipt.ok) throw Error(receipt.code)
+        return receipt.value
+      },
+      { character: connection.characterId, requestId: originalInput.requestId },
+    )
+    expect(originalReceipt).toMatchObject({
+      found: true,
+      operation_kind: 'message',
+      target: connection.conversationId,
+      payload_hash: originalInput.payloadHash,
+      event_id: before.event_id,
+      conversation_id: connection.conversationId,
+      work: { work_id: original!.work_id, state: 'completed' },
+      result_event_ids: [delivery.event_id],
+    })
+    await agents(page)
     await page.getByRole('button', { name: '讀取原生會話', exact: true }).click()
     const sessions = page.getByRole('combobox', { name: '原生會話', exact: true })
     await expect(sessions.locator(`option[value="${completed.session_id}"]`)).toHaveCount(1)
@@ -442,6 +475,8 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
           local_instance_id: local.id,
           instance_id: admitted.id,
           request_id: originalInput.requestId,
+          payload_hash: originalInput.payloadHash,
+          original_receipt: originalReceipt,
           event_id: before.event_id,
           work_id: completed.work_id,
           run_id: completed.run_id,
