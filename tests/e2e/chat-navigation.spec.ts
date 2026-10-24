@@ -55,6 +55,16 @@ test('the main chat entry, shortcut and palette return from another actual ingre
       ).toHaveAttribute('aria-current', 'page')
       expect(await currentConnection(page)).toEqual(original)
     }
+    await page.keyboard.press('ControlOrMeta+,')
+    await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeVisible()
+    await navigate(page, /^QQ ·/)
+    await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeHidden()
+    await expect(page.locator(`article[data-event-id="${source.event_id}"]`)).toBeVisible()
+    await expect(composer).toHaveCount(0)
+    await navigate(page, '對話')
+    await expect(composer).toHaveValue(draft)
+    expect(await currentConnection(page)).toEqual(original)
+
     for (const sourceIsQQ of [true, false]) {
       if (sourceIsQQ) await navigate(page, /^QQ ·/)
       await navigate(page, '關於 初始角色')

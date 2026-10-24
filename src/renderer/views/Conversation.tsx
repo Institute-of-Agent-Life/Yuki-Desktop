@@ -662,10 +662,12 @@ export function Conversation({
                       ? 'page'
                       : undefined
                   }
-                  onClick={() => {
-                    choose(item.conversation_id)
-                    if (settings) onSettingsBack?.()
-                  }}
+                  onClick={() =>
+                    requestNavigation(() => {
+                      choose(item.conversation_id)
+                      if (settings) onSettingsBack?.()
+                    })
+                  }
                 >
                   {item.platform.toUpperCase()} · {item.display_name}
                 </button>
