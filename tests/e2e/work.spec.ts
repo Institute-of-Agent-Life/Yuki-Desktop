@@ -1,7 +1,13 @@
 import { navigate } from '../fixtures/navigation'
-import { expect, test } from '@playwright/test'
-import { currentConnection, currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
-import type { Home, Work, OriginalRequest } from '../../src/shared/api'
+import { expect, test, type Page } from '@playwright/test'
+import {
+  currentConnection,
+  currentEvents,
+  pairUI,
+  recordBusinessState,
+  yukiFixture,
+} from '../fixtures/backend'
+import type { Home, Work, WorkSteps, OriginalRequest } from '../../src/shared/api'
 import { writeFile } from 'node:fs/promises'
 
 test('continues the original work through an actual reply and confirms cancellation with lost command responses', async () => {
@@ -10,6 +16,36 @@ test('continues the original work through an actual reply and confirms cancellat
     app = await rig.launch('work-device')
   let second: Awaited<ReturnType<typeof rig.launch>> | undefined
   let success = false
+  let third: { characterId: string; requestId: string; eventId: number; workId: string } | undefined
+  const recordThirdWork = async (page: Page, device: string) => {
+    if (!third) return
+    const facts = await page.evaluate(async (identity) => {
+      const id = identity.characterId
+      const commands = await window.yuki.client.workCommands(id)
+      const related = commands.ok
+        ? commands.value.filter((item) => item.command.workId === identity.workId)
+        : []
+      const requestIds = new Set([identity.requestId, ...related.map((item) => item.requestId)])
+      const [work, steps, requests] = await Promise.all([
+        window.yuki.client.read<Work>(id, { kind: 'work', workId: identity.workId }),
+        window.yuki.client.read<WorkSteps>(id, { kind: 'steps', workId: identity.workId }),
+        Promise.all(
+          [...requestIds].map(async (requestId) => ({
+            requestId,
+            result: await window.yuki.client.read<OriginalRequest>(id, {
+              kind: 'request',
+              requestId,
+            }),
+          })),
+        ),
+      ])
+      return { identity, commands, related, work, steps, requests }
+    }, third)
+    await writeFile(
+      test.info().outputPath(`third-work-state-${device}.json`),
+      JSON.stringify(facts, null, 2),
+    )
+  }
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
@@ -139,6 +175,32 @@ test('continues the original work through an actual reply and confirms cancellat
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await navigate(page, '工作')
     await expect(row).toBeVisible({ timeout: 20000 })
+    third = await page.evaluate(async (id) => {
+      const outbox = await window.yuki.client.outbox(id)
+      if (!outbox.ok) throw Error(outbox.code)
+      const sent = outbox.value.find((item) => item.body.text === '兩台裝置同時處理的工作')
+      if (!sent) throw Error('Original third Work request is missing')
+      const request = await window.yuki.client.read<OriginalRequest>(id, {
+        kind: 'request',
+        requestId: sent.requestId,
+      })
+      if (!request.ok) throw Error(request.code)
+      const home = await window.yuki.client.read<Home>(id, { kind: 'home' })
+      if (!home.ok) throw Error(home.code)
+      const work = home.value.works.find((item) => item.trigger_event_id === request.value.event_id)
+      if (!request.value.event_id || !work)
+        throw Error('Original third Work association is missing')
+      return {
+        characterId: id,
+        requestId: sent.requestId,
+        eventId: request.value.event_id,
+        workId: work.work_id,
+      }
+    }, original.characterId)
+    await writeFile(
+      test.info().outputPath('third-work-identity.json'),
+      JSON.stringify(third, null, 2),
+    )
     await row.click()
     await detail.getByRole('button', { name: '取消工作', exact: true }).click()
     second = await rig.launch('another-work-device')
@@ -149,6 +211,24 @@ test('continues the original work through an actual reply and confirms cancellat
     const otherDetail = other.getByRole('complementary', { name: '檢視器' })
     await otherDetail.getByRole('textbox').fill('另一台裝置回答：台北')
     await otherDetail.getByRole('button', { name: '傳送給這項工作', exact: true }).click()
+    const thirdInput = await other.evaluate(async ({ characterId, workId }) => {
+      const commands = await window.yuki.client.workCommands(characterId)
+      return {
+        commands,
+        input: commands.ok
+          ? (commands.value.find(
+              (item) =>
+                item.command.workId === workId &&
+                item.command.kind === 'input' &&
+                item.command.text === '另一台裝置回答：台北',
+            ) ?? null)
+          : null,
+      }
+    }, third)
+    await writeFile(
+      test.info().outputPath('third-work-input.json'),
+      JSON.stringify({ identity: third, ...thirdInput }, null, 2),
+    )
     await expect(otherDetail.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
     // The original confirmation keeps the revision observed before the other device's reply.
     await page.getByRole('button', { name: '仍然取消', exact: true }).click()
@@ -166,6 +246,15 @@ test('continues the original work through an actual reply and confirms cancellat
       .toBe('version_conflict')
     success = true
   } finally {
+    for (const [device, instance] of [
+      ['a', app],
+      ['b', second],
+    ] as const) {
+      if (!instance) continue
+      const page = await instance.firstWindow()
+      await recordBusinessState(page, `work-state-${device}.json`).catch(console.error)
+      await recordThirdWork(page, device).catch(console.error)
+    }
     await second?.close()
     await app.close()
     await rig.close(success)
