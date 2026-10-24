@@ -1,5 +1,5 @@
 import { useFloatingInsets } from '../materials/floating'
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   Connection,
@@ -104,6 +104,7 @@ export function Conversation({
   const [search, setSearch] = useState<string | null>(null)
   const [palette, setPalette] = useState(false)
   const alive = useRef(true)
+  const invalidatedReads = useRef(new Set<Promise<unknown>>())
   useEffect(() => {
     alive.current = true
     return () => {
@@ -125,6 +126,11 @@ export function Conversation({
   const earlierBusy = useRef(false)
   const needsEarlier = useRef(false)
   const activeRange = useRef('')
+  const prepend = useRef<{
+    range: string
+    eventId: string
+    top: number
+  } | null>(null)
   activeRange.current = `${conversation}/${anchor}`
   const latestSeen = useRef<{ range: string; event: number }>({ range: '', event: 0 })
   const home = useQuery({ queryKey: [id, 'home'], queryFn: () => read<Home>(id, { kind: 'home' }) })
@@ -181,6 +187,20 @@ export function Conversation({
     queryFn: () => read<Activity>(id, { kind: 'activity', conversationId: conversation }),
   })
   const events = useHistory(id, conversation, anchor)
+  useLayoutEffect(() => {
+    const snapshot = prepend.current
+    prepend.current = null
+    if (snapshot?.range === activeRange.current) {
+      const element = list.current,
+        article = element?.querySelector<HTMLElement>(
+          `article[data-event-id="${snapshot.eventId}"]`,
+        )
+      if (element && article)
+        element.scrollTo({
+          top: element.scrollTop + article.getBoundingClientRect().top - snapshot.top,
+        })
+    }
+  })
   useEffect(() => {
     if (view !== 'chat') workspace.patch({ messageStage: undefined })
   }, [view])
@@ -208,16 +228,43 @@ export function Conversation({
     homeData = accessLost || hidesPrivateData(home.error) ? undefined : home.data,
     profileData = accessLost || hidesPrivateData(profile.error) ? undefined : profile.data
   const refresh = useCallback(() => {
-    void query.invalidateQueries({ queryKey: [id, 'home'] })
-    void query.invalidateQueries({ queryKey: [id, 'character'] })
-    void query.invalidateQueries({ queryKey: [id, 'events'] })
-    void query.invalidateQueries({ queryKey: [id, 'reference'] })
-    void query.invalidateQueries({ queryKey: [id, 'outbox'] })
-    void query.invalidateQueries({ queryKey: [id, 'uploads'] })
-    void query.invalidateQueries({ queryKey: [id, 'content'] })
-    void query.invalidateQueries({ queryKey: [id, 'activity'] })
-    void query.invalidateQueries({ queryKey: [id, 'work'] })
-    void query.invalidateQueries({ queryKey: [id, 'character-commands'] })
+    for (const key of [
+      'home',
+      'character',
+      'events',
+      'reference',
+      'outbox',
+      'uploads',
+      'content',
+      'activity',
+      'work',
+      'character-commands',
+    ]) {
+      const filter = { queryKey: [id, key] }
+      for (const entry of query.getQueryCache().findAll({
+        ...filter,
+        type: 'active',
+        fetchStatus: 'fetching',
+      })) {
+        const pending = entry.promise
+        if (!pending || invalidatedReads.current.has(pending)) continue
+        invalidatedReads.current.add(pending)
+        // Initial fetches reuse their old response even when invalidated. Deliver it,
+        // then honour the real change once without cancelling reads under frequent hints.
+        void pending.then(
+          () => {
+            invalidatedReads.current.delete(pending)
+            if (alive.current)
+              void query.invalidateQueries(
+                { queryKey: entry.queryKey, exact: true },
+                { cancelRefetch: false },
+              )
+          },
+          () => invalidatedReads.current.delete(pending),
+        )
+      }
+      void query.invalidateQueries(filter, { cancelRefetch: false })
+    }
   }, [id, query])
   const finishVoice = useCallback(() => {
     setRecording(false)
@@ -381,16 +428,17 @@ export function Conversation({
   useEffect(() => {
     if (!active || settings) setPalette(false)
   }, [active, settings])
-  const choose = (next: string) => {
-    needsEarlier.current = false
-    setAnchor(null)
-    setHistoryError('')
-    setNewMessages(false)
-    workspace.patch({ conversationId: next })
-    setSelection(undefined)
-    bottom.current = true
-    workspace.setView('chat')
-  }
+  const choose = (next: string) =>
+    requestNavigation(() => {
+      needsEarlier.current = false
+      setAnchor(null)
+      setHistoryError('')
+      setNewMessages(false)
+      workspace.patch({ conversationId: next })
+      setSelection(undefined)
+      bottom.current = true
+      workspace.setView('chat')
+    })
   const updateDraft = (value: string) => {
     currentDraft.current = value
     setDraft(value)
@@ -436,18 +484,27 @@ export function Conversation({
   const more = async () => {
     if (earlierBusy.current || !eventData?.has_more || events.isFetching) return
     needsEarlier.current = false
-    const element = list.current,
-      height = element?.scrollHeight ?? 0,
-      top = element?.scrollTop ?? 0,
-      range = activeRange.current
+    const range = activeRange.current,
+      article = list.current?.querySelector<HTMLElement>('article[data-event-id]'),
+      snapshot = article
+        ? {
+            range,
+            eventId: article.dataset.eventId!,
+            top: article.getBoundingClientRect().top,
+          }
+        : null
     earlierBusy.current = true
     setLoadingEarlier(true)
     setHistoryError('')
     try {
       const page = await events.earlier(eventData)
-      query.setQueryData(events.key, page)
-      if (activeRange.current === range)
-        requestAnimationFrame(() => element?.scrollTo({ top: top + element.scrollHeight - height }))
+      const entry = query.getQueryCache().find<EventsPage>({ queryKey: events.key, exact: true })!
+      if (entry.state.fetchStatus !== 'idle' || entry.state.data !== eventData) {
+        // Settle older Query delivery before reading the expanded range.
+        await entry.cancel({ revert: true })
+        await entry.fetch(undefined, { cancelRefetch: false })
+      } else query.setQueryData(events.key, page)
+      if (activeRange.current === range) prepend.current = snapshot
     } catch (error) {
       if (activeRange.current === range)
         setHistoryError(error instanceof Error ? error.message : '無法載入更早訊息。')
@@ -582,7 +639,10 @@ export function Conversation({
     ...(['chat', 'works', 'about'] as const).map((view, index) => ({
       id: `command/${view}`,
       title: ['開啟對話', '開啟工作', '開啟角色資料'][index]!,
-      run: () => paletteNavigate(() => workspace.setView(view)),
+      run: () =>
+        paletteNavigate(() =>
+          view === 'chat' ? choose(connection.conversationId) : workspace.setView(view),
+        ),
     })),
     {
       id: 'command/inspector',
@@ -620,6 +680,7 @@ export function Conversation({
       <Workspace
         scrolled={scrolled}
         mainConversation={isMain}
+        onChat={() => choose(connection.conversationId)}
         settings={settings}
         onView={settings ? onSettingsBack : undefined}
         toolbar={
@@ -657,25 +718,16 @@ export function Conversation({
                       ? 'page'
                       : undefined
                   }
-                  onClick={() => {
-                    choose(item.conversation_id)
-                    if (settings) onSettingsBack?.()
-                  }}
+                  onClick={() =>
+                    requestNavigation(() => {
+                      choose(item.conversation_id)
+                      if (settings) onSettingsBack?.()
+                    })
+                  }
                 >
                   {item.platform.toUpperCase()} · {item.display_name}
                 </button>
               ))}
-            {!isMain && (
-              <Button
-                variant="plain"
-                onClick={() => {
-                  choose(connection.conversationId)
-                  if (settings) onSettingsBack?.()
-                }}
-              >
-                回到桌面對話
-              </Button>
-            )}
           </>
         }
         inspector={

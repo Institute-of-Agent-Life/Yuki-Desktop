@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
 import type { CharacterCommand, CharacterCommandItem, Profile } from '../../shared/api'
 import { Banner, Button, TextField } from '../components/Controls'
 import { problemText, unwrap } from '../queries/client'
 import { CharacterAvatar } from '../components/CharacterAvatar'
+import { AvatarStatus } from './AvatarStatus'
 import styles from './About.module.css'
 
 export function About({
@@ -17,6 +18,7 @@ export function About({
   editSoul(): void
 }) {
   const query = useQueryClient()
+  const profileHeading = useId()
   const [editing, setEditing] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -64,7 +66,7 @@ export function About({
               {profile.viewer.is_owner && !editing && (
                 <Button variant="plain" aria-label="編輯角色資料" onClick={() => setEditing(true)}>
                   <Pencil size={14} />
-                  編輯
+                  編輯角色資料
                 </Button>
               )}
             </div>
@@ -78,17 +80,26 @@ export function About({
                 refresh={refresh}
               />
             ) : (
-              <>
-                <p>{profile.bio}</p>
-                {profile.viewer.is_owner && (
-                  <div className={styles.heroActions}>
-                    <Button onClick={editSoul}>編輯提示詞</Button>
-                  </div>
-                )}
-              </>
+              <p>{profile.bio || '尚未設定角色簡介。'}</p>
             )}
           </div>
         </header>
+        <div className={styles.sections}>
+          <section className={styles.details} aria-labelledby={profileHeading}>
+            <h2 id={profileHeading}>角色資料</h2>
+            <p>
+              {profile.viewer.is_owner
+                ? '你是這個角色的擁有者，可以修改名稱、簡介與提示詞。'
+                : '你目前可以查看角色資料。名稱、簡介與提示詞由角色擁有者管理。'}
+            </p>
+            {profile.viewer.is_owner && !editing && (
+              <div className={styles.heroActions}>
+                <Button onClick={editSoul}>編輯提示詞</Button>
+              </div>
+            )}
+          </section>
+          <AvatarStatus profile={profile} />
+        </div>
         {error && <Banner status="failed">{error}</Banner>}
         {commands.data
           ?.filter((item) => item.state !== 'result' && item.command.kind === 'profile')

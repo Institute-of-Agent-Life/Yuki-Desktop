@@ -44,7 +44,7 @@ test('reads another actual personal ingress and quotes its exact original event 
     await page.getByRole('button').filter({ hasText: '引用：QQ 原入口的真實帳本內容' }).click()
     await expect(page.locator('article[aria-label="你的訊息"]')).toHaveClass(/selected/)
     await expect(page.locator('textarea')).toHaveCount(0)
-    await navigate(page, '回到桌面對話')
+    await navigate(page, '對話')
     await composer.fill('請接續這個原入口的事情')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect

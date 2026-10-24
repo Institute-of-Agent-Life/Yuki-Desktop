@@ -5,6 +5,7 @@ import { createServer, request as forward, type IncomingMessage } from 'node:htt
 export async function forwardProxy(target: string, prefix: string) {
   const root = new URL(target)
   const calls: { path: string; method: string; bearer: boolean; requestId?: string }[] = []
+  const completed = new Set<(typeof calls)[number]>()
   const faults = {
     offline: false,
     holdReceipts: false,
@@ -29,6 +30,7 @@ export async function forwardProxy(target: string, prefix: string) {
       requestId: parsed.searchParams.get('request_id') ?? undefined,
     }
     calls.push(call)
+    res.once('finish', () => completed.add(call))
     if (
       faults.offline ||
       (req.method === 'POST' &&
@@ -121,6 +123,7 @@ export async function forwardProxy(target: string, prefix: string) {
   return {
     base: `http://127.0.0.1:${address.port}${prefix}`,
     calls,
+    completed,
     lostStatuses,
     held,
     pauseActive(path: string) {

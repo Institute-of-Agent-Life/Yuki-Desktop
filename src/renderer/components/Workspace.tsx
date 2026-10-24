@@ -35,6 +35,7 @@ interface Props {
   inspector?: ReactNode
   inspectorTitle?: string
   entries?: ReactNode
+  onChat?(): void
   onSettings?: () => void
   toolbar?: ReactNode
   toolbarTitle?: ReactNode
@@ -58,10 +59,12 @@ export function Workspace(props: Props) {
   const focusMode = !props.settings && state.focusMode
   const inspector = !props.settings && state.inspector
   const selectedView = props.settings ? 'settings' : state.view
-  const selectView = (view: View) => {
-    state.setView(view)
-    props.onView?.()
-  }
+  const selectView = (view: View) =>
+    requestNavigation(() => {
+      if (view === 'chat' && props.onChat) props.onChat()
+      else state.setView(view)
+      props.onView?.()
+    })
   const [width, setWidth] = useState(window.innerWidth)
   const stopDrag = useRef<(() => void) | undefined>(undefined)
   useLayoutEffect(
