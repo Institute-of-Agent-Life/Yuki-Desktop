@@ -9,6 +9,7 @@ import {
   pairUI,
   waitForAcceptedMessage,
   waitForMainEnded,
+  waitForWorkState,
   yukiFixture,
 } from '../fixtures/backend'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
@@ -255,6 +256,7 @@ test('another real device can finish the work without discarding this device’s
       .getByRole('textbox', { name: '回答這個問題', exact: true })
       .fill('另一台裝置回答：台北')
     await detail(pb).getByRole('button', { name: '送出回答', exact: true }).click()
+    await waitForWorkState(pb, original.connection.characterId, original.work.work_id, 'completed')
     await expect(detail(pa).getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
     await expect(
       detail(pa).getByRole('textbox', { name: '未送出的回答 1', exact: true }),
