@@ -63,6 +63,7 @@ export function Settings({
   onLoggedOut,
   serverRequest = false,
   onAddCharacter,
+  onDeployLocal,
 }: {
   boot: BootInfo
   embedded?: boolean
@@ -75,6 +76,7 @@ export function Settings({
   onLoggedOut(): Promise<void>
   serverRequest?: boolean
   onAddCharacter(): void
+  onDeployLocal(): void
 }) {
   const [category, setCategory] = useState<Category>(
       connection?.logout ? 'security' : serverRequest ? 'server' : 'general',
@@ -330,17 +332,31 @@ export function Settings({
               <p className={styles.notice}>配對角色後可管理本人的裝置。</p>
             )
           ) : category === 'server' ? (
-            connection ? (
-              <ServerSettings
-                key={connection.characterId}
-                connection={connection}
-                onConnection={onConnection}
-                about={about}
-                onAddCharacter={onAddCharacter}
-              />
-            ) : (
-              <p className={styles.notice}>配對角色後可查看伺服器與角色設定。</p>
-            )
+            <>
+              <div className={styles.group}>
+                <Row title={connection ? '其他角色' : '連接 Yuki'}>
+                  <Button onClick={onAddCharacter}>
+                    {connection ? '加入另一個角色' : '連接已有 Yuki'}
+                  </Button>
+                </Row>
+                <Row
+                  title="本機 Yuki"
+                  description="在這台電腦部署 Yuki，或管理已有的本機部署。"
+                >
+                  <Button onClick={onDeployLocal}>本機部署與管理</Button>
+                </Row>
+              </div>
+              {connection ? (
+                <ServerSettings
+                  key={connection.characterId}
+                  connection={connection}
+                  onConnection={onConnection}
+                  about={about}
+                />
+              ) : (
+                <p className={styles.notice}>連接角色後，這裡會顯示伺服器與角色設定。</p>
+              )}
+            </>
           ) : (
             <>
               <div className={styles.group}>

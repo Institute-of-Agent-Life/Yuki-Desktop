@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test'
 import { yukiFixture } from '../fixtures/backend'
 import { captureViewport, captureWorkspace, contentSize } from '../fixtures/visual'
+import { sidebar } from '../fixtures/navigation'
 
-test('first use offers three choices and the real pairing confirmation remains reachable at short sizes', async () => {
+test('first use opens an unconfigured workspace and later pairing remains reachable at short sizes', async () => {
   test.setTimeout(180000)
   const rig = await yukiFixture()
   const app = await rig.launch('pairing-visual')
@@ -16,21 +17,28 @@ test('first use offers three choices and the real pairing confirmation remains r
       )
       .toBe(true)
     await contentSize(app, page, 960, 720)
-    for (const name of ['連接已有 Yuki', '在本機部署 Yuki', '先逛逛，稍後設定']) {
+    for (const name of ['連接已有 Yuki', '在本機部署 Yuki']) {
       await expect(page.getByRole('button', { name, exact: true })).toBeInViewport({ ratio: 1 })
     }
-    const artwork = page.locator('svg.lucide-snowflake')
-    await expect(artwork).toBeInViewport({ ratio: 1 })
-    const mark = await artwork.boundingBox()
-    expect(mark?.width).toBeGreaterThan(0)
-    expect(mark?.width).toBe(mark?.height)
-    await captureViewport(app, page, test.info().outputPath('first-use-three-choices.png'))
-    await page.getByRole('button', { name: '先逛逛，稍後設定', exact: true }).click()
-    await expect(page.getByRole('heading', { name: '你的 Yuki 工作區', exact: true })).toBeVisible()
+    const navigation = await sidebar(page)
+    for (const name of ['對話', '工作', '設定'])
+      await expect(navigation.getByRole('button', { name, exact: true })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-region="toolbar"]')).toBeVisible()
+    await expect(page.getByRole('button', { name: '先逛逛，稍後設定', exact: true })).toHaveCount(0)
+    expect(await page.evaluate(() => window.yuki.client.connections())).toEqual({
+      ok: true,
+      value: [],
+    })
+    await expect(page.locator('[data-character-session]')).toHaveCount(0)
+    await captureViewport(app, page, test.info().outputPath('first-use-unconfigured-workspace.png'))
     await expect(page.getByLabel('伺服器位址', { exact: true })).toHaveCount(0)
     await page.keyboard.press('ControlOrMeta+,')
     await expect(page.getByRole('tab', { name: '外觀', exact: true })).toBeVisible()
+    await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('button', { name: '返回', exact: true }).click()
+    await expect(page.getByRole('tablist', { name: '設定分類', exact: true })).toHaveCount(0)
+    await expect(page.locator('[data-region="toolbar"]')).toBeVisible()
     await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
 
     const code = await rig.code()

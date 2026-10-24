@@ -6,13 +6,17 @@ import { unwrap, problemText, ClientProblem } from '../queries/client'
 import styles from '../App.module.css'
 
 export function LocalBot({
+  active,
   back,
   done,
 }: {
+  active: boolean
   back(): void
   done(connection: Connection, activate?: boolean): void
 }) {
   const mounted = useRef(true)
+  const activeRef = useRef(active)
+  activeRef.current = active
   const [state, setState] = useState<LocalBotState>()
   const [directory, setDirectory] = useState(''),
     [characterName, setCharacterName] = useState('Yuki'),
@@ -39,13 +43,15 @@ export function LocalBot({
   }
   useEffect(() => {
     mounted.current = true
-    void refresh().catch((failure) => setError(failure.message))
     const unsubscribe = window.yuki.localBot.onProgress(setProgress)
     return () => {
       mounted.current = false
       unsubscribe()
     }
   }, [])
+  useEffect(() => {
+    if (active) void refresh().catch((failure) => setError(failure.message))
+  }, [active])
   const run = async (operation: () => Promise<void>) => {
     setBusy(true)
     setError('')
@@ -108,7 +114,7 @@ export function LocalBot({
                 }),
               )
               setKey('')
-              done(connection, mounted.current)
+              done(connection, mounted.current && activeRef.current)
             })
           }}
         >
@@ -236,7 +242,10 @@ export function LocalBot({
               disabled={busy}
               onClick={() =>
                 void run(async () => {
-                  done(unwrap(await window.yuki.localBot.connect()))
+                  done(
+                    unwrap(await window.yuki.localBot.connect()),
+                    mounted.current && activeRef.current,
+                  )
                 })
               }
             >

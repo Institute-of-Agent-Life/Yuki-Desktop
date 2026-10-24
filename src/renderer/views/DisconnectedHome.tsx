@@ -1,64 +1,94 @@
-import { useState } from 'react'
-import { Snowflake } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { ArrowLeft, BriefcaseBusiness, MessageCircle, Settings2, Snowflake } from 'lucide-react'
 import { Button } from '../components/Controls'
-import styles from '../App.module.css'
+import { Workspace } from '../components/Workspace'
+import { useWorkspace } from '../state/workspace'
+import styles from './DisconnectedHome.module.css'
 
 export function DisconnectedHome({
+  platform,
   connect,
   deploy,
-  settings,
+  onSettings,
+  onSettingsBack,
   help,
+  settings,
+  roleSwitcher,
 }: {
+  platform: string
   connect(): void
   deploy(): void
-  settings(): void
+  onSettings(): void
+  onSettingsBack(): void
   help(): void
+  settings?: ReactNode
+  roleSwitcher?: ReactNode
 }) {
-  const [exploring, setExploring] = useState(false)
+  const view = useWorkspace((state) => state.view)
+  const title = view === 'works' ? '工作' : view === 'about' ? '關於 Yuki Desktop' : '對話'
+  const Icon = view === 'works' ? BriefcaseBusiness : view === 'about' ? Snowflake : MessageCircle
   return (
-    <div className={styles.welcome}>
-      <section data-glass="card" className={styles.welcomeInner}>
-        <Snowflake className={styles.welcomeMark} size={80} strokeWidth={1} />
-        <h1>{exploring ? '你的 Yuki 工作區' : 'Yuki'}</h1>
-        <p>
-          {exploring
-            ? '尚未連接角色。本機設定和使用說明現在就能使用，連接後即可聊天和接續工作。'
-            : '和她聊聊，一起把事情做好。你可以連接已有 Yuki，也可以把她部署在這台電腦。'}
+    <Workspace
+      name="Yuki Desktop"
+      avatar={<Snowflake size={28} strokeWidth={1.5} aria-hidden="true" />}
+      status="尚未連接 Bot"
+      presence="offline"
+      owner={false}
+      platform={platform}
+      floating={false}
+      roleSwitcher={roleSwitcher}
+      settings={settings}
+      onSettings={onSettings}
+      onView={settings ? onSettingsBack : undefined}
+      toolbar={
+        <>
+          {settings && (
+            <Button variant="plain" onClick={onSettingsBack}>
+              <ArrowLeft size={16} />
+              返回
+            </Button>
+          )}
+          <strong className={styles.toolbarTitle}>{settings ? '設定' : title}</strong>
+          {!settings && (
+            <Button variant="plain" onClick={onSettings}>
+              <Settings2 size={16} />
+              設定
+            </Button>
+          )}
+        </>
+      }
+      inspectorTitle="尚未連接 Bot"
+      inspector={<p className={styles.inspectorEmpty}>連接 Bot 後，可以在這裡查看原工作與檔案。</p>}
+    >
+      <section className={styles.empty} aria-labelledby="disconnected-heading">
+        <Icon className={styles.mark} size={40} strokeWidth={1.25} aria-hidden="true" />
+        <h1 id="disconnected-heading">
+          {view === 'works'
+            ? '工作會顯示在這裡'
+            : view === 'about'
+              ? 'Yuki Desktop'
+              : '你的 Yuki 工作區'}
+        </h1>
+        <p className={styles.description}>
+          {view === 'works'
+            ? '連接你的 Bot 後，可以查看真實工作、補充要求，並跟進原本的進度與結果。'
+            : view === 'about'
+              ? '與自己的 Bot 對話、查看工作，也可以讓她使用本機的編程 Agent。角色資料會在連接後顯示。'
+              : 'Bot 可以稍後再設定。你現在就能使用工作區、本機設定和說明；連接後即可開始對話。'}
         </p>
-        <div className={styles.entryChoices}>
+        <div className={styles.actions}>
           <Button variant="primary" large onClick={connect}>
             連接已有 Yuki
           </Button>
           <Button large onClick={deploy}>
             在本機部署 Yuki
           </Button>
-          {!exploring && (
-            <Button variant="plain" onClick={() => setExploring(true)}>
-              先逛逛，稍後設定
-            </Button>
-          )}
         </div>
-        {exploring && (
-          <div className={styles.server}>
-            <h2>對話與工作</h2>
-            <p>連接你的角色後，可以讀取本人對話、傳送文字和附件，接續她正在處理的工作。</p>
-            <h2>本機 Codex</h2>
-            <p>
-              已有並登入 Codex 時，可在連接 Yuki 後明確授權這台電腦，讓她在你選的專案或會話中工作。
-            </p>
-            <h2>角色與 SOUL</h2>
-            <p>角色擁有者可以修改名稱、資料與同一份 SOUL。未連接時不會建立人物或發出業務請求。</p>
-          </div>
-        )}
-        <div className={styles.actions}>
-          <Button variant="plain" onClick={settings}>
-            設定
-          </Button>
-          <Button variant="plain" onClick={help}>
-            使用說明
-          </Button>
-        </div>
+        <p className={styles.hint}>隨時可以從設定中的「伺服器與角色」繼續配置 Bot。</p>
+        <Button variant="plain" onClick={help}>
+          使用說明
+        </Button>
       </section>
-    </div>
+    </Workspace>
   )
 }

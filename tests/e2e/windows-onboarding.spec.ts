@@ -4,9 +4,10 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Meta } from '../../src/shared/api'
 import { yukiFixture } from '../fixtures/backend'
+import { navigate, sidebar } from '../fixtures/navigation'
 import { launchShell } from '../fixtures/shell-app'
 
-test('Windows packaged onboarding offers three choices and pairs through the actual keyboard path', async () => {
+test('Windows packaged workspace is usable before Bot configuration and pairs later through the actual keyboard path', async () => {
   test.skip(process.platform !== 'win32', 'Requires an actual Windows interactive desktop')
   test.setTimeout(120000)
   expect(process.env.YUKI_ELECTRON_EXECUTABLE).toBeTruthy()
@@ -19,13 +20,14 @@ test('Windows packaged onboarding offers three choices and pairs through the act
   let success = false
   try {
     const page = await app.firstWindow()
-    for (const name of [
-      '連接已有 Yuki',
-      '在本機部署 Yuki',
-      '先逛逛，稍後設定',
-      '設定',
-      '使用說明',
-    ]) {
+    await expect(page.getByRole('heading', { name: '你的 Yuki 工作區', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '先逛逛，稍後設定', exact: true })).toHaveCount(0)
+    expect(await page.evaluate(() => window.yuki.client.connections())).toEqual({
+      ok: true,
+      value: [],
+    })
+    await expect(page.locator('[data-character-session]')).toHaveCount(0)
+    for (const name of ['連接已有 Yuki', '在本機部署 Yuki', '使用說明']) {
       const button = page.getByRole('button', { name, exact: true })
       await button.scrollIntoViewIfNeeded()
       await expect(button).toBeInViewport({ ratio: 1 })
@@ -70,13 +72,20 @@ test('Windows packaged onboarding offers three choices and pairs through the act
     })
     expect(session.SessionId).toBeGreaterThan(0)
     expect(session.DesktopPresent).toBe(true)
-    await page.getByRole('button', { name: '先逛逛，稍後設定', exact: true }).press('Enter')
-    await expect(page.getByRole('heading', { name: '你的 Yuki 工作區', exact: true })).toBeVisible()
+    const navigation = await sidebar(page)
+    for (const name of ['對話', '工作', '關於 Yuki Desktop', '設定'])
+      await expect(navigation.getByRole('button', { name, exact: true })).toBeVisible()
     await expect(page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })).toHaveCount(0)
-    await page.getByRole('button', { name: '設定', exact: true }).click()
+    await navigate(page, '工作')
+    await expect(page.getByRole('heading', { name: '工作會顯示在這裡', exact: true })).toBeVisible()
+    await navigate(page, '設定')
     await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '返回', exact: true }).click()
-    await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).press('Enter')
+    await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
+    const serverPanel = page.getByRole('tabpanel')
+    await expect(
+      serverPanel.getByRole('button', { name: '本機部署與管理', exact: true }),
+    ).toBeVisible()
+    await serverPanel.getByRole('button', { name: '連接已有 Yuki', exact: true }).press('Enter')
     const input = page
       .getByLabel('配對連結、綁定碼或完整回覆', { exact: true })
       .filter({ visible: true })
