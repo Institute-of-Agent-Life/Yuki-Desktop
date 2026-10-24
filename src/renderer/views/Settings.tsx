@@ -343,7 +343,12 @@ export function Settings({
               <p className={styles.notice}>配對角色後可設定本機連接。</p>
             )
           ) : category === 'agents' ? (
-            <AgentConnector connection={connection} deviceLabel={boot.deviceLabel} />
+            <AgentConnector
+              key={connection?.characterId}
+              connection={connection}
+              deviceLabel={boot.deviceLabel}
+              onUpdates={() => setCategory('general')}
+            />
           ) : category === 'security' ? (
             connection ? (
               <DeviceSecurity

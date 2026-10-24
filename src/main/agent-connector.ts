@@ -1,6 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { isAbsolute } from 'node:path'
-import { createHash } from 'node:crypto'
+import { extname, isAbsolute } from 'node:path'
+import { createHash, randomUUID } from 'node:crypto'
+import { homedir } from 'node:os'
+import { stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import type {
   ConnectorAdmission,
@@ -12,7 +14,11 @@ import type {
   ConnectorState,
 } from '../shared/connector'
 import { ApiError, normalizeServer } from './api/client'
-import { ConnectorInstallations, type ConnectorRuntime } from './connector-installation'
+import {
+  ConnectorInstallations,
+  type ConnectorInstallation,
+  type ConnectorRuntime,
+} from './connector-installation'
 import type { LocalStore } from './store'
 
 type Launch = (
@@ -89,8 +95,11 @@ export class AgentConnector {
       options.store,
     )
   }
-  private run(args: readonly string[], input?: string) {
-    const installation = this.installations.selected()
+  private run(
+    args: readonly string[],
+    input?: string,
+    installation: ConnectorInstallation | null = this.installations.selected() ?? null,
+  ) {
     if (!installation) throw new ApiError('connector_not_installed')
     return this.runner(
       installation.runtime,
@@ -98,11 +107,21 @@ export class AgentConnector {
       input,
     )
   }
-  async state(characterId?: string): Promise<ConnectorState> {
-    const installation = this.installations.selected()
+  private async stage<T>(name: string, operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation()
+    } catch (error) {
+      if (error instanceof ApiError) throw new ApiError(error.code, name, error.details)
+      throw error
+    }
+  }
+  async state(
+    characterId?: string,
+    installation: ConnectorInstallation | null = this.installations.selected() ?? null,
+  ): Promise<ConnectorState> {
     const bundle = await this.installations.manifest()
     if (!installation) return { available: false, bundled: !!bundle }
-    const status = JSON.parse(await this.run(['status', '--json']))
+    const status = JSON.parse(await this.run(['status', '--json'], undefined, installation))
     const state: Extract<ConnectorState, { available: true }> = {
       available: true,
       managed: installation.managed,
@@ -142,15 +161,30 @@ export class AgentConnector {
     }
     return state
   }
-  async install(separate = false, adopt = false): Promise<ConnectorState> {
-    const previous = separate ? undefined : await this.state()
-    await this.installations.install(separate, adopt)
+  private async prepareInstallation(
+    selected: ConnectorInstallation | null,
+    separate = false,
+    adopt = false,
+  ) {
+    const previous = separate || !selected ? undefined : await this.state(undefined, selected)
+    const installation = await this.stage('prepare', () =>
+      this.installations.install(separate, adopt, selected),
+    )
     if (previous?.available && previous.service.installed) {
       // This user's explicit upgrade changes only the selected installation's service.
-      await this.run(['service', 'stop'])
-      await this.run(['service', 'install'])
-      if (previous.service.running) await this.run(['service', 'start'])
+      await this.stage('service-stop', () => this.run(['service', 'stop'], undefined, installation))
+      await this.stage('service-install', () =>
+        this.run(['service', 'install'], undefined, installation),
+      )
+      if (previous.service.running)
+        await this.stage('service-start', () =>
+          this.run(['service', 'start'], undefined, installation),
+        )
     }
+    return installation
+  }
+  async install(separate = false, adopt = false): Promise<ConnectorState> {
+    await this.prepareInstallation(this.installations.selected() ?? null, separate, adopt)
     return this.state()
   }
   adopt(): Promise<ConnectorState> {
@@ -160,6 +194,7 @@ export class AgentConnector {
     executable: string
     dataDirectory: string
   }): Promise<ConnectorState> {
+    const selected = this.installations.selected() ?? null
     if (!isAbsolute(input.executable) || !isAbsolute(input.dataDirectory))
       throw new ApiError('validation_error')
     const runtime = {
@@ -178,26 +213,40 @@ export class AgentConnector {
       typeof status.version === 'string'
         ? status.version
         : (await this.runner(runtime, ['--version'])).trim()
-    this.installations.select({
-      managed: false,
-      dataDirectory: input.dataDirectory,
-      runtime: { ...runtime, version, protocol: status.protocol ?? 0 },
-    })
+    this.installations.selectIfCurrent(
+      {
+        managed: false,
+        dataDirectory: input.dataDirectory,
+        runtime: { ...runtime, version, protocol: status.protocol ?? 0 },
+      },
+      selected,
+    )
     return this.state()
   }
   async connect(input: { characterId: string; label: string }): Promise<ConnectorState> {
-    const current = await this.state(input.characterId)
+    let installation = this.installations.selected() ?? null
+    const current = await this.state(input.characterId, installation)
     if (current.available && current.paired) {
       if (current.admission?.matched !== true)
         throw new ApiError(current.admission?.problem ?? 'connector_owner_mismatch')
+      if (current.managed && current.updateAvailable) {
+        installation = await this.prepareInstallation(installation)
+        return this.state(input.characterId, installation)
+      }
       return current
     }
-    if (!current.available) await this.install()
-    const { server, code } = await this.options.authorize(input.characterId)
-    await this.pair({ server, code, label: input.label })
-    return this.state(input.characterId)
+    if (!current.available || (current.managed && current.updateAvailable))
+      installation = await this.prepareInstallation(installation)
+    const { server, code } = await this.stage('authorize', () =>
+      this.options.authorize(input.characterId),
+    )
+    await this.stage('pair', () => this.pair({ server, code, label: input.label }, installation))
+    return this.state(input.characterId, installation)
   }
-  async pair(input: ConnectorPairing): Promise<ConnectorState> {
+  async pair(
+    input: ConnectorPairing,
+    installation: ConnectorInstallation | null = this.installations.selected() ?? null,
+  ): Promise<ConnectorState> {
     if (!input.label.trim() || !input.code.trim() || /[\r\n]/.test(input.code))
       throw new ApiError('validation_error')
     await this.run(
@@ -210,28 +259,107 @@ export class AgentConnector {
         '--code-stdin',
       ],
       input.code.trim() + '\n',
+      installation,
     )
-    return this.state()
+    return this.state(undefined, installation)
   }
-  async service(action: ConnectorServiceAction): Promise<ConnectorState> {
+  async service(
+    action: ConnectorServiceAction,
+    installation: ConnectorInstallation | null = this.installations.selected() ?? null,
+  ): Promise<ConnectorState> {
     if (!['install', 'start', 'stop', 'uninstall'].includes(action))
       throw new ApiError('validation_error')
-    await this.run(['service', action])
-    return this.state()
+    await this.stage(`service-${action}`, () =>
+      this.run(['service', action], undefined, installation),
+    )
+    return this.state(undefined, installation)
   }
-  async discover(): Promise<ConnectorCandidate[]> {
-    const values = JSON.parse(await this.run(['discover', '--json']))
+  async discover(
+    installation: ConnectorInstallation | null = this.installations.selected() ?? null,
+  ): Promise<ConnectorCandidate[]> {
+    const values = JSON.parse(await this.run(['discover', '--json'], undefined, installation))
     return values.map((item: ConnectorCandidate) => ({
       id: item.id,
       label: item.label,
       command: item.command,
     }))
   }
-  async configure(input: ConnectorConfiguration): Promise<ConnectorState> {
-    await this.run(['instance', 'configure'], JSON.stringify(input))
-    return this.state()
+  async configure(input: ConnectorConfiguration, start = false) {
+    let installation = this.installations.selected() ?? null
+    const current = await this.state(undefined, installation)
+    const { create, ...configuration } = input
+    const instanceId = input.id ?? randomUUID()
+    const original = current.available && current.instances.find((item) => item.id === instanceId)
+    if (!original && !(create ?? !input.id))
+      throw new ApiError('connector_instance_missing', 'configure')
+    let command = input.command ?? (original ? original.command : undefined)
+    if (input.candidateId) {
+      const candidate = (await this.discover(installation)).find(
+        (item) => item.id === input.candidateId,
+      )
+      if (!candidate) throw new ApiError('native_not_installed', 'configure')
+      command = candidate.command
+    }
+    const cwd = input.cwd ?? (original ? original.cwd : undefined) ?? homedir()
+    if (!original) {
+      if (!command || !isAbsolute(command) || !isAbsolute(cwd))
+        throw new ApiError('validation_error', 'configure')
+      const [executable, directory] = await Promise.all([stat(command), stat(cwd)])
+      if (
+        !executable.isFile() ||
+        !directory.isDirectory() ||
+        (process.platform === 'win32' && extname(command).toLowerCase() !== '.exe')
+      )
+        throw new ApiError('validation_error', 'configure')
+    }
+    if (current.available && current.managed && current.updateAvailable)
+      installation = await this.prepareInstallation(installation)
+    if (!original) {
+      await this.stage('configure', () =>
+        this.run(
+          [
+            'instance',
+            'add',
+            '--id',
+            instanceId,
+            '--driver',
+            'codex',
+            '--label',
+            input.label,
+            '--command',
+            command!,
+            '--cwd',
+            cwd,
+          ],
+          undefined,
+          installation,
+        ),
+      )
+    }
+    await this.stage('configure', () =>
+      this.run(
+        ['instance', 'configure'],
+        JSON.stringify({ ...configuration, id: instanceId, command, cwd }),
+        installation,
+      ),
+    )
+    if (start) {
+      const configured = await this.state(undefined, installation)
+      if (configured.available && configured.service.running)
+        await this.service('stop', installation)
+      if (configured.available && !configured.service.installed)
+        await this.service('install', installation)
+      await this.service('start', installation)
+    }
+    return { instanceId }
   }
   async diagnose(instanceId: string): Promise<ConnectorDiagnostic> {
     return JSON.parse(await this.run(['diagnose', '--instance', instanceId]))
+  }
+  async nativeExecutable(instanceId: string): Promise<string> {
+    const current = await this.state()
+    const instance = current.available && current.instances.find((item) => item.id === instanceId)
+    if (!instance || !instance.command) throw new ApiError('native_not_installed')
+    return instance.command
   }
 }

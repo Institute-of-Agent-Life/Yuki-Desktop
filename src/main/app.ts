@@ -386,8 +386,13 @@ else {
     action('connector-pair', (input: ConnectorPairing) => connector.pair(input))
     action('connector-service', (command: ConnectorServiceAction) => connector.service(command))
     action('connector-discover', () => connector.discover())
-    action('connector-configure', (input: ConnectorConfiguration) => connector.configure(input))
+    action('connector-configure', (input: ConnectorConfiguration, start?: boolean) =>
+      connector.configure(input, start),
+    )
     action('connector-diagnose', (id: string) => connector.diagnose(id))
+    action('connector-reveal-native', async (id: string) =>
+      shell.showItemInFolder(await connector.nativeExecutable(id)),
+    )
     const choosePath = async (directory: boolean) => {
       const options: Electron.OpenDialogOptions = {
         properties: directory ? ['openDirectory'] : ['openFile'],

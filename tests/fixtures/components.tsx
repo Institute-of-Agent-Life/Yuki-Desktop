@@ -3,7 +3,7 @@ import { useLayoutEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AgentConnector } from '../../src/renderer/views/AgentConnector'
-import type { ConnectorState } from '../../src/shared/connector'
+import type { ConnectorOperation, ConnectorState } from '../../src/shared/connector'
 import type { Connection } from '../../src/shared/api'
 import { defaultPreferences } from '../../src/shared/desktop'
 import {
@@ -32,14 +32,14 @@ const connectorConnection: Connection = {
   name: 'Fixture Yuki',
   persistentCredentials: false,
 }
-const connectorCalls: { method: string; input?: unknown }[] = []
+const connectorCalls: { method: string; input?: unknown; start?: boolean }[] = []
 Object.assign(window, { __connectorCalls: connectorCalls })
 const preparedConnector = (): Extract<ConnectorState, { available: true }> => ({
   available: true,
   managed: true,
   paired: false,
   version: 'component-fixture',
-  protocol: 1,
+  protocol: 3,
   runtime: '/fixture/connector/python',
   dataDirectory: '/fixture/connector/data',
   instances: [],
@@ -49,6 +49,94 @@ let connectorState: ConnectorState =
   connectorMode && connectorMode !== 'missing'
     ? preparedConnector()
     : { available: false, bundled: true }
+if (
+  connectorMode?.startsWith('protocol-') ||
+  connectorMode === 'native-unavailable' ||
+  connectorMode === 'operation-detail'
+) {
+  connectorState = {
+    ...preparedConnector(),
+    paired: true,
+    deviceId: 'fixture-connector-device',
+    server: connectorConnection.baseUrl,
+    instances: [
+      {
+        id: 'fixture-native-instance',
+        label: 'My Codex',
+        driver: 'codex',
+        command: '/fixture/Codex/codex',
+        cwd: '/fixture/project',
+      },
+    ],
+    service: { installed: true, running: true },
+    admission: {
+      matched: true,
+      connected: true,
+      ...(connectorMode === 'protocol-unknown'
+        ? {}
+        : { serverProtocol: connectorMode === 'protocol-connector' ? 4 : 2 }),
+      instances: [
+        {
+          id: 'fixture-server-instance',
+          localId: 'fixture-native-instance',
+          label: 'My Codex',
+          driver: 'codex',
+          online: connectorMode !== 'native-unavailable',
+          status: connectorMode === 'native-unavailable' ? 'unavailable' : 'available',
+          ...(connectorMode === 'native-unavailable' ? { errorType: 'native_login_required' } : {}),
+        },
+      ],
+    },
+  }
+}
+if (connectorMode === 'paired')
+  connectorState = {
+    ...preparedConnector(),
+    paired: true,
+    deviceId: 'fixture-connector-device',
+    server: connectorConnection.baseUrl,
+    admission: { matched: true, connected: false },
+  }
+let failedServiceStart = false
+let operationPhase = 'initial'
+const operationReads: { id: string; cursor: number }[] = []
+const hintListeners = new Set<Parameters<typeof window.yuki.client.onHint>[0]>()
+Object.assign(window, {
+  __connectorOperationReads: operationReads,
+  __connectorAdvance(phase: string, emit = true) {
+    operationPhase = phase
+    if (emit)
+      for (const listener of hintListeners) listener(connectorConnection.characterId, 'refresh', {})
+  },
+})
+function operationPage(id: string, cursor = 0): ConnectorOperation {
+  const events: NonNullable<ConnectorOperation['events']> = Array.from(
+    { length: 201 },
+    (_, index) => ({
+      cursor: index + 1,
+      kind: 'progress',
+      payload: { text: index === 0 ? '第一頁原進度' : index === 200 ? '第二頁原進度' : '' },
+    }),
+  )
+  if (operationPhase !== 'initial')
+    events.push({
+      cursor: 202,
+      kind: 'permission',
+      permission_id: 'original-permission',
+      payload: { options: ['accept'], native_request: { command: '原任務的遲到權限要求' } },
+    })
+  if (operationPhase === 'terminal')
+    events.push({ cursor: 203, kind: 'result', payload: { text: '原任務的真終態結果' } })
+  const page = events.filter((event) => event.cursor > cursor).slice(0, 200)
+  return {
+    id,
+    instance_id: 'fixture-server-instance',
+    status: operationPhase === 'terminal' ? 'completed' : 'running',
+    pending: operationPhase !== 'terminal',
+    events: page,
+    next_cursor: page.at(-1)?.cursor ?? cursor,
+  }
+}
 
 window.yuki = {
   localBot: {
@@ -87,14 +175,92 @@ window.yuki = {
       }
       return { ok: true, value: connectorState }
     },
-    discover: async () => ({ ok: true, value: [] }),
-    configure: async () => ({ ok: true, value: connectorState }),
-    diagnose: async (id) => ({ ok: true, value: { id, available: true } }),
-    chooseProject: async () => ({ ok: true, value: null }),
+    discover: async () => {
+      connectorCalls.push({ method: 'discover' })
+      return {
+        ok: true,
+        value: [
+          { id: 'fixture-codex-one', label: 'Codex App', command: '/fixture/Codex/codex' },
+          ...(connectorMode === 'multiple'
+            ? [{ id: 'fixture-codex-two', label: 'Codex CLI', command: '/fixture/cli/codex' }]
+            : []),
+        ],
+      }
+    },
+    configure: async (input, start) => {
+      connectorCalls.push({ method: 'configure', input, start })
+      if (!connectorState.available) throw Error('Connector runtime has not been prepared')
+      const local = input.id ?? 'fixture-native-instance'
+      connectorState = {
+        ...connectorState,
+        instances: [
+          {
+            id: local,
+            label: input.label,
+            driver: 'codex',
+            command: '/fixture/Codex/codex',
+            cwd: input.cwd ?? '/fixture/home',
+          },
+        ],
+        service: start ? { installed: true, running: true } : connectorState.service,
+        admission: {
+          matched: true,
+          connected: !!start,
+          instances: [
+            {
+              id: 'fixture-server-instance',
+              localId: local,
+              label: input.label,
+              driver: 'codex',
+              online: !!start,
+              status: 'available',
+            },
+          ],
+        },
+      }
+      if (start && connectorMode === 'service-failure' && !failedServiceStart) {
+        failedServiceStart = true
+        connectorState = { ...connectorState, service: { installed: true, running: false } }
+        return { ok: false, code: 'connector_failed', reason: 'service-start' }
+      }
+      return { ok: true, value: { instanceId: local } }
+    },
+    diagnose: async (id) => ({
+      ok: true,
+      value: {
+        id,
+        available: connectorMode !== 'native-unavailable',
+        ...(connectorMode === 'native-unavailable' ? { problem: 'native_login_required' } : {}),
+      },
+    }),
+    revealNative: async () => ({ ok: true, value: undefined }),
+    chooseProject: async () => {
+      connectorCalls.push({ method: 'chooseProject' })
+      return { ok: true, value: '/fixture/project' }
+    },
     chooseExecutable: async () => ({ ok: true, value: null }),
     sessions: async () => ({ ok: true, value: { sessions: [] } }),
-    operations: async () => ({ ok: true, value: { operations: [] } }),
-    operation: async () => ({ ok: false, code: 'not_found' }),
+    operations: async () => ({
+      ok: true,
+      value: {
+        operations:
+          connectorMode === 'operation-detail'
+            ? [
+                {
+                  id: 'original-operation',
+                  instance_id: 'fixture-server-instance',
+                  status: operationPhase === 'terminal' ? 'completed' : 'running',
+                },
+              ]
+            : [],
+      },
+    }),
+    operation: async (_character, id, cursor = 0) => {
+      operationReads.push({ id, cursor })
+      return connectorMode === 'operation-detail'
+        ? { ok: true, value: operationPage(id, cursor) }
+        : { ok: false, code: 'not_found' }
+    },
     submit: async () => ({ ok: false, code: 'fixture_only' }),
     pair: async (input) => {
       connectorCalls.push({ method: 'pair', input })
@@ -109,9 +275,8 @@ window.yuki = {
     },
     connect: async (input) => {
       connectorCalls.push({ method: 'connect', input })
-      if (!connectorState.available) throw Error('Connector runtime has not been prepared')
       connectorState = {
-        ...connectorState,
+        ...(connectorState.available ? connectorState : preparedConnector()),
         paired: true,
         deviceId: 'fixture-connector-device',
         server: connectorConnection.baseUrl,
@@ -121,10 +286,22 @@ window.yuki = {
     },
     service: async (action) => {
       connectorCalls.push({ method: 'service', input: action })
+      if (action === 'start' && connectorMode === 'service-failure' && !failedServiceStart) {
+        failedServiceStart = true
+        return { ok: false, code: 'connector_failed', reason: 'service-start' }
+      }
       if (!connectorState.available) throw Error('Connector runtime has not been prepared')
       connectorState = {
         ...connectorState,
         service: { installed: action !== 'uninstall', running: action === 'start' },
+        admission: {
+          ...connectorState.admission!,
+          connected: action === 'start',
+          instances: connectorState.admission?.instances?.map((item) => ({
+            ...item,
+            online: action === 'start',
+          })),
+        },
       }
       return { ok: true, value: connectorState }
     },
@@ -218,7 +395,12 @@ window.yuki = {
     verifyWorkCommand: async () => ({ ok: false, code: 'fixture_only' }),
     workDraft: async () => ({ ok: true, value: '' }),
     draft: async () => ({ ok: false, code: 'fixture_only' }),
-    onHint: () => () => {},
+    onHint: (listener) => {
+      hintListeners.add(listener)
+      return () => {
+        hintListeners.delete(listener)
+      }
+    },
   },
   boot: async () => {
     throw new Error('fixture only')

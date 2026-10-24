@@ -46,6 +46,7 @@ import { ExecutorSetup } from './executor/setup'
 import { LocalExecutorRuntime } from './executor/runtime'
 import type { NativeSubmissions } from './executor/effects'
 import type { ExecutorTask } from './executor/runner'
+import type { components } from '../shared/contract.gen'
 
 const uuid = (value: string) => {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value))
@@ -1370,20 +1371,14 @@ export class Connections {
   async connectorAdmission(id: string, server: string, deviceId: string) {
     if (normalizeServer(server) !== this.connection(id).baseUrl)
       return { matched: false, connected: false, problem: 'connector_other_server' }
-    const catalog = await this.agentRead<{
-      devices: { id: string; online: boolean }[]
-      instances: {
-        id: string
-        device_id: string
-        label: string
-        driver: string
-        local_id?: string
-      }[]
-    }>(id, 'devices')
+    const catalog = await this.agentRead<components['schemas']['NativeDirectory']>(id, 'devices')
     const device = catalog.devices.find((item) => item.id === deviceId)
     return {
       matched: !!device,
       connected: device?.online ?? false,
+      ...(catalog.connector_protocol !== undefined
+        ? { serverProtocol: catalog.connector_protocol }
+        : {}),
       ...(!device ? { problem: 'connector_other_person' } : {}),
       instances: catalog.instances
         .filter((item) => item.device_id === deviceId)
@@ -1392,6 +1387,9 @@ export class Connections {
           label: item.label,
           driver: item.driver,
           localId: item.local_id,
+          online: item.online,
+          status: item.status,
+          errorType: item.error_type,
         })),
     }
   }

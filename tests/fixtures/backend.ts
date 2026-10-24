@@ -177,6 +177,7 @@ export async function yukiFixture(
     character?: boolean
     prompts?: boolean | 'readonly'
     executor?: boolean
+    native?: boolean
     maxInputCharacters?: number
   } = {},
 ) {
@@ -224,6 +225,7 @@ export async function yukiFixture(
             YUKI_DESKTOP_COMPUTER_FIXTURE: options.computer || options.computerWork ? '1' : '0',
             YUKI_DESKTOP_COMPUTER_WORK_FIXTURE: options.computerWork ? '1' : '0',
             YUKI_DESKTOP_EXECUTOR_FIXTURE: options.executor ? '1' : '0',
+            YUKI_DESKTOP_NATIVE_FIXTURE: options.native ? '1' : '0',
             YUKI_DESKTOP_CHARACTER_FIXTURE: options.character ? '1' : '0',
             YUKI_DESKTOP_PROMPT_FIXTURE:
               options.prompts === 'readonly' ? 'readonly' : options.prompts ? '1' : '0',
