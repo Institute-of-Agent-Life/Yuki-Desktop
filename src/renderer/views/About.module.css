@@ -1,6 +1,7 @@
 .about {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  height: 100%;
 }
 .inner {
   max-width: 760px;
@@ -10,7 +11,7 @@
 }
 .hero {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 28px;
   margin-bottom: 28px;
 }
@@ -28,6 +29,7 @@
 .name {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .name h1 {
@@ -42,6 +44,30 @@
   color: var(--text-secondary);
   line-height: 22px;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sections {
+  display: grid;
+  gap: 16px;
+}
+.details {
+  padding: 16px 20px;
+  border: 1px solid var(--separator);
+  border-radius: 12px;
+  background: var(--bg-inspector);
+}
+.details h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+}
+.details p {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 21px;
+  overflow-wrap: anywhere;
 }
 .actions {
   display: flex;
