@@ -10,6 +10,7 @@ import {
   currentConnection,
   waitForAcceptedMessage,
   waitForMainEnded,
+  waitForWorkState,
   yukiFixture,
 } from '../fixtures/backend'
 import { transportGate } from '../fixtures/transport'
@@ -193,6 +194,7 @@ test('two actual devices submit different answers to one work and recover their 
           { timeout: 20000 },
         )
         .toEqual([['result', null]])
+    await waitForWorkState(pb, original.characterId, original.work.work_id, 'completed')
     for (const detail of details)
       await expect(detail.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
     const results = await Promise.all(

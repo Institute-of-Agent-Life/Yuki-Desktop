@@ -1,6 +1,13 @@
 import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
-import { ledgerEvents, pairUI, waitForMainEnded, yukiFixture } from '../fixtures/backend'
+import { referencedMessage } from '../../src/shared/message'
+import {
+  ledgerEvents,
+  pairUI,
+  waitForAcceptedMessage,
+  waitForMainEnded,
+  yukiFixture,
+} from '../fixtures/backend'
 
 test('paginates real history without moving the visible message and jumps to the exact older reference', async () => {
   test.setTimeout(120000)
@@ -26,19 +33,14 @@ test('paginates real history without moving the visible message and jumps to the
       const connections = await window.yuki.client.connections()
       if (!connections.ok || !connections.value[0]) throw new Error('Missing paired connection')
       const id = connections.value[0].characterId
-      const results: Awaited<ReturnType<typeof window.yuki.client.send>>[] = []
-      for (let offset = 0; offset < 61; offset += 8) {
-        results.push(
-          ...(await Promise.all(
-            Array.from({ length: Math.min(8, 61 - offset) }, (_, localIndex) =>
-              window.yuki.client.send(
-                id,
-                `歷史測試 ${String(offset + localIndex).padStart(2, '0')}\n${'真實帳本的一段較長文字。'.repeat(4)}`,
-              ),
-            ),
-          )),
-        )
-      }
+      const results = await Promise.all(
+        Array.from({ length: 61 }, (_, index) =>
+          window.yuki.client.send(
+            id,
+            `歷史測試 ${String(index).padStart(2, '0')}\n${'真實帳本的一段較長文字。'.repeat(4)}`,
+          ),
+        ),
+      )
       for (const result of results) if (!result.ok) throw new Error(result.code)
       const submitted = results.map((result) => {
         if (!result.ok) throw Error(result.code)
@@ -50,7 +52,11 @@ test('paginates real history without moving the visible message and jumps to the
           .map((item) => window.yuki.client.verify(id, item.requestId)),
       )
       for (const receipt of receipts) if (!receipt.ok) throw Error(receipt.code)
-      return { id, requests: submitted.map((item) => item.requestId) }
+      return {
+        id,
+        conversationId: connections.value[0].conversationId,
+        requests: submitted.map((item) => item.requestId),
+      }
     })
     const readSeeded = () =>
       page.evaluate(async ({ id, requests }) => {
@@ -73,22 +79,22 @@ test('paginates real history without moving the visible message and jumps to the
     const seeded = await readSeeded()
     await composer.fill('引用很早以前的原事件')
     await page.getByRole('button', { name: '送出', exact: true }).click()
+    const finalSubmission = await waitForAcceptedMessage(
+      page,
+      submission.id,
+      referencedMessage(
+        [{ conversationId: submission.conversationId, eventId: originalId }],
+        '引用很早以前的原事件',
+      ),
+    )
     await expect(page.getByText('引用很早以前的原事件', { exact: true })).toBeVisible()
     await expect(composer).toHaveValue('')
     const latest = page
       .getByRole('article')
       .filter({ has: page.getByText('引用很早以前的原事件', { exact: true }) })
-    await expect(latest).toHaveAttribute('data-event-id', /^\d+$/)
-    const latestId = Number(await latest.getAttribute('data-event-id'))
-    const finalRequest = await page.evaluate(
-      async ({ id, eventId }) => {
-        const journal = await window.yuki.client.outbox(id)
-        if (!journal.ok) throw Error(journal.code)
-        return journal.value.find((item) => item.eventId === eventId)!.requestId
-      },
-      { id: submission.id, eventId: latestId },
-    )
-    const ended = await waitForMainEnded(page, submission.id, finalRequest)
+    await expect(latest).toHaveAttribute('data-event-id', String(finalSubmission.eventId))
+    const latestId = finalSubmission.eventId
+    const ended = await waitForMainEnded(page, submission.id, finalSubmission.requestId)
     expect(ended.event_id).toBe(latestId)
     expect(Array.isArray(ended.result_event_ids)).toBe(true)
     for (const eventId of ended.result_event_ids!)
