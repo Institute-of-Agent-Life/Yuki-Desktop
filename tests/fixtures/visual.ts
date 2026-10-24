@@ -76,18 +76,17 @@ export async function contentSize(
   const emulated = viewportMethod === 'electron-device-emulation'
   if (emulated)
     await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([width, height])
-  else {
-    // Native DPI/frame rounding is measured, never replaced with a claimed exact CSS size.
-    let previous = ''
-    await expect
-      .poll(async () => {
-        const current = await page.evaluate(() => JSON.stringify([innerWidth, innerHeight]))
-        const settled = current === previous
-        previous = current
-        return settled
-      })
-      .toBe(true)
-  }
+  // Keep the existing stability observation, including React's rendered resize layout.
+  let previous = ''
+  await expect
+    .poll(async () => {
+      const current = JSON.stringify(await renderedWorkspaceLayout(page))
+      const settled = current === previous
+      previous = current
+      return settled
+    })
+    .toBe(true)
+  // Native DPI/frame rounding is measured, never replaced with a claimed exact CSS size.
   const actual = await page.evaluate(() => ({
     width: innerWidth,
     height: innerHeight,
@@ -111,14 +110,14 @@ export async function captureViewport(app: ElectronApplication, page: Page, path
   if (!viewport?.emulated) return page.screenshot({ path, animations: 'disabled' })
   const { width, height } = viewport
   await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([width, height])
-  const layoutBefore = await renderedWorkspaceLayout(page)
   const nativeSurface = await app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]!.getContentBounds(),
   )
   const dpr = await page.evaluate(() => devicePixelRatio)
   const cdp = await page.context().newCDPSession(page)
+  let layoutBefore: Awaited<ReturnType<typeof renderedWorkspaceLayout>> | null = null
   let pngPixels: { width: number; height: number } | null = null
-  let layoutAfter: typeof layoutBefore | null = null
+  let layoutAfter: Awaited<ReturnType<typeof renderedWorkspaceLayout>> | null = null
   try {
     // An explicit Chromium viewport paints the whole CSS view rather than padding
     // a cropped native surface. It remains virtual, not a larger physical display.
@@ -136,6 +135,7 @@ export async function captureViewport(app: ElectronApplication, page: Page, path
           requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
         ),
     )
+    layoutBefore = await renderedWorkspaceLayout(page)
     const frame = await cdp.send('Page.captureScreenshot', {
       format: 'png',
       fromSurface: true,
@@ -164,12 +164,13 @@ export async function captureViewport(app: ElectronApplication, page: Page, path
         { width, height },
       )
       // Restoring CSS dimensions does not mean React has committed its resize layout.
-      await expect
-        .poll(async () => {
-          layoutAfter = await renderedWorkspaceLayout(page)
-          return layoutAfter
-        })
-        .toEqual(layoutBefore)
+      if (layoutBefore)
+        await expect
+          .poll(async () => {
+            layoutAfter = await renderedWorkspaceLayout(page)
+            return layoutAfter
+          })
+          .toEqual(layoutBefore)
     } finally {
       await writeFile(
         path.replace(/\.png$/, '.capture.json'),
