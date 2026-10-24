@@ -1,4 +1,6 @@
+import { navigate } from '../fixtures/navigation'
 import { activeCharacterName } from '../fixtures/active-character'
+import { crashElectron } from '../fixtures/electron-process'
 import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
 import { readFile, writeFile, access } from 'node:fs/promises'
@@ -66,9 +68,7 @@ test('logout drains a real delayed read; kept original pending content survives 
     await expect(page.getByText('Desktop reference reply', { exact: true })).toBeVisible()
     const seeded = await fetch(`${rig.base}/__test/character-data`, { method: 'POST' })
     expect(seeded.status).toBe(200)
-    await page
-      .getByRole('button', { name: `關於 ${await activeCharacterName(page)}`, exact: true })
-      .click()
+    await navigate(page, `關於 ${await activeCharacterName(page)}`)
     await expect(page.getByRole('button', { name: '已核對的記錄 52', exact: false })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+1')
     const source = join(rig.root, 'private-local-attachment.txt'),
@@ -119,7 +119,7 @@ test('logout drains a real delayed read; kept original pending content survives 
       test.info().outputPath('darwin-2x-logout-choice-960x492-emulated.png'),
     )
     await contentSize(app, page, 1440, 900)
-    app.process().kill('SIGKILL')
+    await crashElectron(app)
     await app.close().catch(() => {})
     app = await rig.launch('logout-owners')
     page = await app.firstWindow()
@@ -134,7 +134,9 @@ test('logout drains a real delayed read; kept original pending content survives 
       ({ app }, link) => app.emit('open-url', { preventDefault() {} }, link),
       earlyLink,
     )
-    await expect(page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })).toHaveValue(earlyLink)
+    await expect(page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })).toHaveValue(
+      earlyLink,
+    )
     await expect(page.getByText(`伺服器：${proxy.base}`, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '確認並連接', exact: true }).click()
     await expect(
@@ -170,9 +172,7 @@ test('logout drains a real delayed read; kept original pending content survives 
     expect(otherItems.some((i) => i.requestId === requestId)).toBe(false)
     const memoryPath = '/client/v1/memory/facts?about=me&limit=50'
     proxy.faults.holdResponses.add(memoryPath)
-    await page
-      .getByRole('button', { name: `關於 ${await activeCharacterName(page)}`, exact: true })
-      .click()
+    await navigate(page, `關於 ${await activeCharacterName(page)}`)
     await expect.poll(() => proxy.held.has(memoryPath)).toBe(true)
     await expect(page.getByRole('button', { name: /^已核對的記錄 / })).toHaveCount(0)
     proxy.releaseResponses(memoryPath)
@@ -346,7 +346,9 @@ test(
         .getByRole('dialog', { name: '處理本機內容', exact: true })
         .getByRole('button', { name: '保留並登出', exact: true })
         .click()
-      await expect(page.getByRole('region', { name: '你的 Yuki 工作區', exact: true })).toBeVisible()
+      await expect(
+        page.getByRole('region', { name: '你的 Yuki 工作區', exact: true }),
+      ).toBeVisible()
       success = true
     } finally {
       await app.close().catch(() => {})

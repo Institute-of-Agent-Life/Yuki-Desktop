@@ -1,8 +1,9 @@
+import { navigate } from '../fixtures/navigation'
 import { expect, test } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
+import { recordBusinessState, currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
 import type { ArtifactPage, OriginalRequest, Profile } from '../../src/shared/api'
 
 test('reads real delivered artifacts, keeps same names separate, saves exact versions and removes revoked previews', async () => {
@@ -78,7 +79,7 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
         return ''
       }
     }, saved)
-    await page.getByRole('button', { name: '檔案與成果', exact: true }).click()
+    await navigate(page, '檔案與成果')
     const stage = page.getByRole('region', { name: '成果預覽' })
     await expect(stage.getByRole('heading', { name: 'First artifact', exact: true })).toBeVisible()
     const rows = page.getByRole('button').filter({ hasText: 'same.md' })
@@ -169,7 +170,7 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
       .first()
       .click()
     await expect(page.locator(`article[data-event-id="${facts.refs[0]}"]`)).toHaveClass(/selected/)
-    await page.getByRole('button', { name: '檔案與成果', exact: true }).click()
+    await navigate(page, '檔案與成果')
     for (const event of facts.refs) {
       const deletion = await fetch(`${rig.base}/__test/events/${event}?lose_hint=true`, {
         method: 'DELETE',
@@ -248,6 +249,8 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
     })
     success = true
   } finally {
+    if (!success)
+      await recordBusinessState(await app.firstWindow(), 'business-state.json').catch(console.error)
     await app.close()
     await rig.close(success)
   }

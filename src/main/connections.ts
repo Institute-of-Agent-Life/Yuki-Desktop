@@ -1141,7 +1141,13 @@ export class Connections {
       () => uploadIds.forEach((item) => uploads.remove(item)),
       agentTarget,
     )
-    const result = offline ? item : await box.send(client, item.requestId)
+    let result = item
+    if (!offline) {
+      const key = `${id}/${item.requestId}`
+      const pending = box.send(client, item.requestId).finally(() => this.checking.delete(key))
+      this.checking.set(key, pending)
+      result = await pending
+    }
     this.emit(id, 'outbox', {})
     return result
   }

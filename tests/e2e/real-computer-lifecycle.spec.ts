@@ -1,4 +1,6 @@
+import { navigate } from '../fixtures/navigation'
 import { activeCharacterName } from '../fixtures/active-character'
+import { crashElectron } from '../fixtures/electron-process'
 import { expect, test, type Page } from '@playwright/test'
 import { createHash, randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
@@ -85,9 +87,7 @@ test('real wait-control follows three leases and survives each Manager restart b
     await contentSize(a, pa, 1440, 900)
     await contentSize(b, pb, 1440, 900)
     for (const page of [pa, pb]) {
-      await page
-        .getByRole('button', { name: `${await activeCharacterName(page)} 的電腦`, exact: true })
-        .click()
+      await navigate(page, `${await activeCharacterName(page)} 的電腦`)
       await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled({
         timeout: 20000,
       })
@@ -117,7 +117,7 @@ test('real wait-control follows three leases and survives each Manager restart b
     }, wait.work_id)
     if (expectedGoal) expect(original.work.goal).toBe(expectedGoal)
     expect(initial.control.device_id).toBe(original.deviceId)
-    await pa.getByRole('button', { name: '對話', exact: true }).click()
+    await navigate(pa, '對話')
     await expect(
       pa
         .getByRole('article')
@@ -126,9 +126,7 @@ test('real wait-control follows three leases and survives each Manager restart b
         })
         .getByText(/等待電腦交回/),
     ).toBeVisible({ timeout: 20000 })
-    await pa
-      .getByRole('button', { name: `${await activeCharacterName(pa)} 的電腦`, exact: true })
-      .click()
+    await navigate(pa, `${await activeCharacterName(pa)} 的電腦`)
     const stages: Facts[] = []
     for (const [index, page] of [pa, pb, pa].entries()) {
       if (index > 0) {
@@ -279,7 +277,7 @@ test('real wait-control follows three leases and survives each Manager restart b
     )
   } finally {
     for (const app of [a, b]) {
-      app.process().kill('SIGKILL')
+      await crashElectron(app).catch(() => {})
       await app.close().catch(() => {})
     }
     console.info(`Real-host desktop evidence retained at ${rig.root}`)

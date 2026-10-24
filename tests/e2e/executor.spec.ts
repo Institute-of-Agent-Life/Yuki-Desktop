@@ -1,4 +1,5 @@
 import { captureViewport, contentSize } from '../fixtures/visual'
+import { crashElectron } from '../fixtures/electron-process'
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -214,7 +215,7 @@ test('actual Electron SIGKILL recovers a finished result without rewriting and r
       .toBe('original bytes')
     await expect.poll(async () => (await local(page, owner)).problem).toBe('unavailable')
     await writeFile(join(folder, 'once.txt'), 'later edit must survive')
-    app.process().kill('SIGKILL')
+    await crashElectron(app)
     await app.close().catch(() => {})
     proxy.faults.rejectPostSuffixes.clear()
     app = await rig.launch('executor-crash')
@@ -238,7 +239,7 @@ test('actual Electron SIGKILL recovers a finished result without rewriting and r
     await expect(readFile(join(folder, 'never-started.txt'))).rejects.toMatchObject({
       code: 'ENOENT',
     })
-    app.process().kill('SIGKILL')
+    await crashElectron(app)
     await app.close().catch(() => {})
     proxy.faults.holdResponseSuffixes.clear()
     app = await rig.launch('executor-crash')
@@ -287,7 +288,7 @@ test('lost create and revoke replies recover across actual cold starts, then a n
     )!
     expect(firstCreate.requestId).toBeTruthy()
     await page.screenshot({ path: test.info().outputPath('executor-unclaimed.png') })
-    app.process().kill('SIGKILL')
+    await crashElectron(app)
     await app.close().catch(() => {})
     proxy.faults.holdReceipts = false
     proxy.faults.loseNextSuffix = `/executors/${orphan.executor_id}`
@@ -298,7 +299,7 @@ test('lost create and revoke replies recover across actual cold starts, then a n
       (call) => call.method === 'DELETE' && call.path.endsWith(orphan.executor_id),
     )!
     expect(deletion.requestId).toBeTruthy()
-    app.process().kill('SIGKILL')
+    await crashElectron(app)
     await app.close().catch(() => {})
     proxy.faults.holdReceipts = false
     app = await rig.launch('executor-setup-loss')
@@ -335,9 +336,26 @@ test('lost create and revoke replies recover across actual cold starts, then a n
       },
     })
     expect(dispatched.state).toBe('dispatched')
-    await expect
-      .poll(() => operation(page, owner, rows[0]!.executor_id, dispatched.op_id))
-      .toMatchObject({ state: 'succeeded', level: 'submitted' })
+    try {
+      await expect
+        .poll(() => operation(page, owner, rows[0]!.executor_id, dispatched.op_id))
+        .toMatchObject({ state: 'succeeded', level: 'submitted' })
+    } finally {
+      await writeFile(
+        test.info().outputPath('native-notification-receipt.json'),
+        JSON.stringify(
+          {
+            operation: await operation(page, owner, rows[0]!.executor_id, dispatched.op_id),
+            native: await app.evaluate(({ Notification }) => ({
+              platform: process.platform,
+              supported: Notification.isSupported(),
+            })),
+          },
+          null,
+          2,
+        ),
+      )
+    }
     await page.getByRole('button', { name: '操作紀錄', exact: true }).click()
     await expect(page.getByRole('dialog').getByText('已交給系統', { exact: true })).toBeVisible()
     await expect(page.getByRole('dialog').getByText('已確認', { exact: true })).toHaveCount(0)

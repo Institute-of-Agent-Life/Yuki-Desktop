@@ -1,3 +1,4 @@
+import { navigate } from '../fixtures/navigation'
 import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test, type Page } from '@playwright/test'
 import { mkdtemp, writeFile } from 'node:fs/promises'
@@ -101,9 +102,7 @@ test('Windows native character data keeps original memory receipts across crashe
     proof.owner = owner
     proof.seeded = seeded
     await save()
-    await pa
-      .getByRole('button', { name: `關於 ${await activeCharacterName(pa)}`, exact: true })
-      .click()
+    await navigate(pa, `關於 ${await activeCharacterName(pa)}`)
     await expect(pa.getByRole('button', { name: '已核對的記錄 52', exact: false })).toBeVisible()
     await expect(pa.getByRole('button', { name: /^已核對的記錄 / })).toHaveCount(50)
     await pa.screenshot({
@@ -120,9 +119,7 @@ test('Windows native character data keeps original memory receipts across crashe
     await expect(pa.locator(`article[data-event-id="${seeded.source_event_id}"]`)).toContainText(
       sourceText,
     )
-    await pa
-      .getByRole('button', { name: `關於 ${await activeCharacterName(pa)}`, exact: true })
-      .click()
+    await navigate(pa, `關於 ${await activeCharacterName(pa)}`)
     await pairUI(pb, base!, await code(), 'Windows 記憶觀察裝置', 20000)
     const otherOwner = await connection(pb)
     expect(otherOwner.deviceId).not.toBe(owner.deviceId)
@@ -130,9 +127,7 @@ test('Windows native character data keeps original memory receipts across crashe
     expect(otherOwner.bindingId).toBe(owner.bindingId)
     expect(otherOwner.conversationId).toBe(owner.conversationId)
     proof.otherOwner = otherOwner
-    await pb
-      .getByRole('button', { name: `關於 ${await activeCharacterName(pb)}`, exact: true })
-      .click()
+    await navigate(pb, `關於 ${await activeCharacterName(pb)}`)
     for (const page of [pa, pb]) {
       await page.getByRole('button', { name: '已核對的記錄 52', exact: false }).click()
       await page.getByRole('button', { name: '更正', exact: true }).click()
@@ -186,9 +181,7 @@ test('Windows native character data keeps original memory receipts across crashe
     ).toBeVisible()
     expect(await connection(pa)).toEqual(owner)
     pa.on('pageerror', (error) => errors.push(error.message))
-    await pa
-      .getByRole('button', { name: `關於 ${await activeCharacterName(pa)}`, exact: true })
-      .click()
+    await navigate(pa, `關於 ${await activeCharacterName(pa)}`)
     await expect(pa.getByRole('button', { name: new RegExp(`^${recoveredText}`) })).toBeVisible()
     await expect
       .poll(() =>

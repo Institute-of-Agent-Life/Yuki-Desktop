@@ -1,4 +1,5 @@
 import { activeCharacterName } from '../fixtures/active-character'
+import { crashElectron } from '../fixtures/electron-process'
 import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
 import { execFile } from 'node:child_process'
@@ -205,7 +206,7 @@ test('real QR pixels pair a second device once; original device revocation survi
         (c) => c.method === 'DELETE' && c.path.endsWith(`/devices/${second.deviceId}`),
       )
     expect(writes()).toHaveLength(1)
-    a.process().kill('SIGKILL')
+    await crashElectron(a)
     await a.close().catch(() => {})
     proxy.faults.holdReceipts = false
     a = await rig.launch('security-a')

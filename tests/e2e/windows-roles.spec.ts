@@ -1,3 +1,4 @@
+import { navigate } from '../fixtures/navigation'
 import { activeCharacterName } from '../fixtures/active-character'
 import { contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
@@ -97,6 +98,10 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
     page.on('pageerror', (error) => errors.push(error.message))
     await pairUI(page, first.base, await first.code(), 'Windows 原角色一', 20000)
     const firstName = await activeCharacterName(page)
+    await page.keyboard.press('ControlOrMeta+,')
+    await page.getByRole('tab', { name: '外觀', exact: true }).click()
+    await page.getByRole('radio', { name: '淺色', exact: true }).click()
+    await page.getByRole('button', { name: '返回', exact: true }).click()
     await expect(page.getByRole('button', { name: '切換角色', exact: true })).toHaveCount(0)
     const native = await app.evaluate(({ app, BrowserWindow, screen }) => {
       const window = BrowserWindow.getAllWindows()[0]!
@@ -174,8 +179,8 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
       .click()
     await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
     await add(page)
-    await page.getByRole('button', { name: '取消', exact: true }).click()
-    await page.getByRole('button', { name: '加入另一個角色', exact: true }).click()
+    await page.getByRole('button', { name: '返回', exact: true }).click()
+    await add(page)
     await pairUI(page, second.base, await second.code(), 'Windows 原角色二', 20000)
     const owners = await connections(page)
     expect(owners).toHaveLength(2)
@@ -204,16 +209,14 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
         .getByRole('tab', { name: '工作', exact: true }),
     ).toHaveAttribute('aria-selected', 'true')
     await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
-    await page
-      .getByRole('button', { name: `關於 ${await activeCharacterName(page)}`, exact: true })
-      .click()
+    await navigate(page, `關於 ${await activeCharacterName(page)}`)
     await page.getByRole('button', { name: '編輯角色資料', exact: true }).click()
     await page.getByLabel('名稱', { exact: true }).fill('Mika')
     await page.getByLabel('淺色外觀', { exact: true }).fill('#b0466b')
     await page.getByLabel('深色外觀', { exact: true }).fill('#e5a2bc')
     await page.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(page.getByRole('button', { name: '關於 Mika', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '對話', exact: true }).click()
+    await navigate(page, '對話')
     await page
       .getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })
       .fill('只有 Mika 的草稿')
@@ -249,7 +252,7 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
     await switchRole(page, firstName)
     await expect(
       page.getByRole('textbox', {
-        name: `和 ${await activeCharacterName(page)} 說點什麼`,
+        name: `和 ${firstName} 說點什麼`,
         exact: true,
       }),
     ).toHaveValue('只有第一角色的草稿')
@@ -272,7 +275,7 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
     await expect(page.getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })).toHaveValue(
       '只有 Mika 的草稿',
     )
-    await page.getByRole('button', { name: '關於 Mika', exact: true }).click()
+    await navigate(page, '關於 Mika')
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     const editor = page.getByRole('textbox', { name: 'SOUL.md 內容', exact: true })
     await editor.click()
@@ -286,14 +289,12 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
     await page.getByRole('dialog').getByRole('button', { name: '儲存', exact: true }).click()
     await expect(
       page.getByRole('textbox', {
-        name: `和 ${await activeCharacterName(page)} 說點什麼`,
+        name: `和 ${firstName} 說點什麼`,
         exact: true,
       }),
     ).toBeVisible()
-    await page
-      .getByRole('button', { name: `關於 ${await activeCharacterName(page)}`, exact: true })
-      .click()
-    await page.getByRole('button', { name: '編輯頭像', exact: true }).click()
+    await navigate(page, `關於 ${await activeCharacterName(page)}`)
+    await page.getByRole('button', { name: '更換角色頭像', exact: true }).click()
     await expect(page.getByRole('dialog', { name: `更換 ${firstName} 的頭像` })).toBeVisible()
     const avatarOwner = await windowsFileDialogOwner(app)
     await page.getByRole('button', { name: '選擇圖片…', exact: true }).click()
@@ -314,7 +315,9 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
     await expect(page.getByRole('button', { name: '選擇其他圖片…', exact: true })).toBeVisible()
     await page.getByRole('slider', { name: '頭像縮放', exact: true }).focus()
     await page.keyboard.press('ArrowRight')
-    const zoom = await page.getByRole('slider', { name: '頭像縮放', exact: true }).inputValue()
+    const zoom = await page
+      .getByRole('slider', { name: '頭像縮放', exact: true })
+      .getAttribute('aria-valuenow')
     await page.keyboard.press('ControlOrMeta+Shift+BracketRight')
     await expect(page.getByRole('dialog', { name: `更換 ${firstName} 的頭像` })).toHaveCount(0)
     await expect(editor).toBeVisible()
@@ -323,18 +326,21 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
       .locator('[data-region="toolbar"]')
       .getByRole('button', { name: '關於 Mika', exact: true })
       .click()
-    await page.getByRole('button', { name: '編輯頭像', exact: true }).click()
+    await page.getByRole('button', { name: '更換角色頭像', exact: true }).click()
     await expect(page.getByRole('dialog', { name: '更換 Mika 的頭像' })).toBeVisible()
     await expect(page.getByRole('button', { name: '選擇圖片…', exact: true })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+Shift+BracketLeft')
     await expect(page.getByRole('dialog', { name: `更換 ${firstName} 的頭像` })).toBeVisible()
     await expect(page.getByRole('button', { name: '選擇其他圖片…', exact: true })).toBeVisible()
-    await expect(page.getByRole('slider', { name: '頭像縮放', exact: true })).toHaveValue(zoom)
+    await expect(page.getByRole('slider', { name: '頭像縮放', exact: true })).toHaveAttribute(
+      'aria-valuenow',
+      zoom!,
+    )
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: '編輯頭像', exact: true })).toBeFocused()
+    await expect(page.getByRole('button', { name: '更換角色頭像', exact: true })).toBeFocused()
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     await expect(editor).not.toContainText('只屬於 Mika 的提示詞')
-    await page.getByRole('button', { name: '對話', exact: true }).click()
+    await navigate(page, '對話')
     await switchRole(page, 'Mika')
     await expect(page.getByRole('dialog', { name: '更換 Mika 的頭像' })).toBeVisible()
     await page.keyboard.press('Escape')
@@ -380,7 +386,7 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
     await switchRole(page, firstName)
     await expect(
       page.getByRole('textbox', {
-        name: `和 ${await activeCharacterName(page)} 說點什麼`,
+        name: `和 ${firstName} 說點什麼`,
         exact: true,
       }),
     ).toHaveValue('只有第一角色的草稿')

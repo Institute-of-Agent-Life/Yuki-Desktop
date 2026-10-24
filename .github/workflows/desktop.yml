@@ -86,6 +86,7 @@ jobs:
             printf "%s" "yuki-ci-test" | gnome-keyring-daemon --unlock --components=secrets > "$RUNNER_TEMP/keyring-startup.log"
             openbox > "$RUNNER_TEMP/openbox.log" 2>&1 &
             node build-tools/check-linux-keyring.mjs
+            node build-tools/diagnose-linux-notifications.mjs
             npm run test:e2e
           '
       - run: npm run package -- --${{ matrix.platform }} --${{ matrix.arch }}

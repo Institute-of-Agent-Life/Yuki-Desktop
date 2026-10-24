@@ -9,6 +9,12 @@ test('uses the real paste/copy, send-key and close/reopen UI paths with isolated
   test.setTimeout(120000)
   const rig = await yukiFixture(),
     app = await rig.launch('native-device')
+  const launcher = app.process()
+  let firstStderr = ''
+  launcher.stderr?.on('data', (chunk) => {
+    firstStderr += chunk.toString()
+  })
+  let second: ReturnType<typeof spawn> | undefined
   let success = false
   try {
     let page = await app.firstWindow()
@@ -29,7 +35,18 @@ test('uses the real paste/copy, send-key and close/reopen UI paths with isolated
     })
     await writeFile(
       test.info().outputPath('native-initial-geometry.json'),
-      JSON.stringify({ native, viewport: await page.evaluate(() => ({ width: innerWidth, height: innerHeight, dpr: devicePixelRatio })) }, null, 2),
+      JSON.stringify(
+        {
+          native,
+          viewport: await page.evaluate(() => ({
+            width: innerWidth,
+            height: innerHeight,
+            dpr: devicePixelRatio,
+          })),
+        },
+        null,
+        2,
+      ),
     )
     expect(bounds.width).toBe(720)
     expect(bounds.height).toBe(560)
@@ -81,26 +98,143 @@ test('uses the real paste/copy, send-key and close/reopen UI paths with isolated
     await expect(composer).toHaveValue('')
     const pid = app.process().pid,
       reopened = app.waitForEvent('window')
+    const firstInstance = await app.evaluate(({ app, BrowserWindow }, log) => {
+      const fs = process.getBuiltinModule('node:fs'),
+        path = process.getBuiltinModule('node:path')
+      const require = process
+        .getBuiltinModule('node:module')
+        .createRequire(path.join(app.getAppPath(), 'package.json'))
+      const Database = require('better-sqlite3') as typeof import('better-sqlite3')
+      const db = new Database(path.join(app.getPath('userData'), 'desktop.sqlite3'), {
+        readonly: true,
+      })
+      const row = db.prepare("SELECT value FROM preferences WHERE key='appearance'").get() as {
+        value: string
+      }
+      const keepInTray: boolean = JSON.parse(row.value).keepInTray
+      db.close()
+      const first = {
+        pid: process.pid,
+        name: app.getName(),
+        userData: app.getPath('userData'),
+        executable: process.execPath,
+        argv: process.argv,
+        keepInTray,
+      }
+      const observe = (stage: string, details: object = {}) =>
+        fs.appendFileSync(
+          log,
+          JSON.stringify({
+            ...first,
+            stage,
+            ...details,
+            windows: BrowserWindow.getAllWindows().map((window) => ({
+              id: window.id,
+              destroyed: window.isDestroyed(),
+              visible: window.isVisible(),
+              bounds: window.getBounds(),
+            })),
+          }) + '\n',
+        )
+      app.prependListener('second-instance', (_event, argv, workingDirectory) =>
+        observe('second-instance', { argv, workingDirectory }),
+      )
+      app.prependListener('browser-window-created', (_event, window) => {
+        observe('browser-window-created', { id: window.id })
+        window.once('closed', () => observe('browser-window-closed', { id: window.id }))
+      })
+      app.prependListener('window-all-closed', () => observe('window-all-closed'))
+      process.prependListener('uncaughtExceptionMonitor', (error) =>
+        observe('uncaught-exception', { message: error.message, stack: error.stack }),
+      )
+      for (const window of BrowserWindow.getAllWindows())
+        window.once('closed', () => observe('browser-window-closed', { id: window.id }))
+      observe('before-close')
+      return first
+    }, test.info().outputPath('native-instance-events.jsonl'))
+    expect(firstInstance.keepInTray).toBe(true)
     await (await app.browserWindow(page)).evaluate((window) => window.close())
     await expect.poll(() => app.windows().length).toBe(0)
-    const second = spawn(app.process().spawnfile, process.env.YUKI_DESKTOP_EXECUTABLE ? [] : [rig.entry], {
-      env: {
-        ...Object.fromEntries(
-          Object.entries(process.env).filter(([key]) => key !== 'ELECTRON_RUN_AS_NODE'),
-        ),
-        YUKI_DESKTOP_DATA: join(rig.root, 'native-device'),
+    second = spawn(
+      firstInstance.executable,
+      process.env.YUKI_DESKTOP_EXECUTABLE ? [] : [rig.entry],
+      {
+        env: {
+          ...Object.fromEntries(
+            Object.entries(process.env).filter(([key]) => key !== 'ELECTRON_RUN_AS_NODE'),
+          ),
+          YUKI_DESKTOP_DATA: join(rig.root, 'native-device'),
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
       },
-      stdio: 'ignore',
+    )
+    let stdout = '',
+      stderr = ''
+    second.stdout!.on('data', (chunk) => {
+      stdout += chunk.toString()
     })
-    await new Promise<void>((resolve) => second.once('exit', () => resolve()))
+    second.stderr!.on('data', (chunk) => {
+      stderr += chunk.toString()
+    })
+    const secondExit = await new Promise<{ code: number | null; signal: string | null }>(
+      (resolve) => second!.once('close', (code, signal) => resolve({ code, signal })),
+    )
+    await writeFile(
+      test.info().outputPath('native-second-instance.json'),
+      JSON.stringify(
+        {
+          firstInstance,
+          launcher: {
+            pid: launcher.pid,
+            spawnfile: launcher.spawnfile,
+            spawnargs: launcher.spawnargs,
+          },
+          entry: rig.entry,
+          secondPid: second.pid,
+          secondExit,
+          stdout,
+          stderr,
+        },
+        null,
+        2,
+      ),
+    )
     page = await reopened
     await expect(
       page.getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` }),
     ).toBeVisible()
     expect(app.process().pid).toBe(pid)
+    expect(await app.evaluate(() => process.pid)).toBe(firstInstance.pid)
     await expect(page.getByRole('button', { name: '複製程式碼', exact: true })).toBeVisible()
     success = true
   } finally {
+    await writeFile(
+      test.info().outputPath('native-instance-final.json'),
+      JSON.stringify(
+        {
+          launcher: {
+            pid: launcher.pid,
+            spawnfile: launcher.spawnfile,
+            spawnargs: launcher.spawnargs,
+            exitCode: launcher.exitCode,
+            signal: launcher.signalCode,
+          },
+          second: second && {
+            pid: second.pid,
+            exitCode: second.exitCode,
+            signal: second.signalCode,
+          },
+          firstStderr,
+        },
+        null,
+        2,
+      ),
+    )
+    if (second && second.exitCode === null && second.signalCode === null) {
+      const exited = new Promise<void>((resolve) => second!.once('close', () => resolve()))
+      second.kill('SIGKILL')
+      await exited
+    }
     await app.close()
     await rig.close(success)
   }

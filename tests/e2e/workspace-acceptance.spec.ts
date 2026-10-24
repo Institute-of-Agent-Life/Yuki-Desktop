@@ -1,7 +1,9 @@
+import { navigate } from '../fixtures/navigation'
 import { activeCharacterName } from '../fixtures/active-character'
+import { crashElectron } from '../fixtures/electron-process'
 import { expect, test } from '@playwright/test'
 import { createHash } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { currentConnection, ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
 import type { OriginalRequest } from '../../src/shared/api'
@@ -9,7 +11,7 @@ import { captureWorkspace, contentSize } from '../fixtures/visual'
 
 test('real workspace handles long conversations, separate entries, work details and immutable long file names across themes', async () => {
   test.setTimeout(240000)
-  const rig = await yukiFixture(),
+  const rig = await yukiFixture({ maxInputCharacters: 6000 }),
     app = await rig.launch('workspace-content')
   let success = false
   try {
@@ -24,15 +26,72 @@ test('real workspace handles long conversations, separate entries, work details 
     await composer.fill(longPlainText)
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(composer).toHaveValue('')
-    const plainRequest = await page.evaluate(async ({ id, text }) => {
-      const result = await window.yuki.client.outbox(id)
-      if (!result.ok) throw Error(result.code)
-      return result.value.find((item) => item.body.text === text)!
-    }, { id: original.characterId, text: longPlainText })
+    const plainRequest = await page.evaluate(
+      async ({ id, text }) => {
+        const result = await window.yuki.client.outbox(id)
+        if (!result.ok) throw Error(result.code)
+        return result.value.find((item) => item.body.text === text)!
+      },
+      { id: original.characterId, text: longPlainText },
+    )
     expect(plainRequest.eventId).toBeGreaterThan(0)
-    expect((await ledgerEvents(rig.base))
-      .filter((event) => event.event_id === plainRequest.eventId)
-      .map((event) => event.content)).toEqual([longPlainText])
+    expect(
+      (await ledgerEvents(rig.base))
+        .filter((event) => event.event_id === plainRequest.eventId)
+        .map((event) => event.content),
+    ).toEqual([longPlainText])
+    const rejected = () =>
+      page.evaluate(
+        async ({ id, requestId }) => {
+          const result = await window.yuki.client.read<OriginalRequest>(id, {
+            kind: 'request',
+            requestId,
+          })
+          if (!result.ok) throw Error(result.code)
+          return result.value
+        },
+        { id: original.characterId, requestId: plainRequest.requestId },
+      )
+    await expect
+      .poll(async () => (await rejected()).turn)
+      .toMatchObject({
+        state: 'ended',
+        outcome: 'input_too_long',
+      })
+    const rejection = await rejected()
+    expect(rejection.turn).not.toHaveProperty('error_category')
+    expect(rejection.event_id).toBe(plainRequest.eventId)
+    expect(rejection.result_event_ids).toHaveLength(1)
+    const originalAdmissions = await app.evaluate(
+      ({ app }, { path, eventId }) => {
+        const { createRequire } = process.getBuiltinModule('node:module')
+        const require = createRequire(app.getAppPath() + '/package.json')
+        const Database = require('better-sqlite3') as typeof import('better-sqlite3')
+        const db = new Database(path, { readonly: true })
+        try {
+          return db
+            .prepare('SELECT COUNT(*) AS count FROM ordinary_turn_admissions WHERE event_id=?')
+            .get(eventId) as { count: number }
+        } finally {
+          db.close()
+        }
+      },
+      { path: join(rig.root, 'yuki.sqlite3'), eventId: plainRequest.eventId! },
+    )
+    expect(originalAdmissions.count).toBe(0)
+    const notice = page.locator(`article[data-event-id="${rejection.result_event_ids![0]}"]`)
+    await expect(
+      notice.getByText('消息过长，请控制在 6000 个字符以内。', { exact: true }),
+    ).toBeVisible()
+    const originalNotice = (await ledgerEvents(rig.base)).find(
+      (event) => event.event_id === rejection.result_event_ids![0],
+    )!
+    expect(originalNotice).toMatchObject({
+      content: '消息过长，请控制在 6000 个字符以内。',
+      direction: 'outbound',
+      author_kind: 'yuki',
+      conversation_id: original.conversationId,
+    })
     const longText =
       '# 長文字與中英混排\n\n' +
       '中英混排內容 Mixed writing retains its real source. '.repeat(150).slice(0, 5000) +
@@ -41,22 +100,54 @@ test('real workspace handles long conversations, separate entries, work details 
     await composer.fill(longText)
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(composer).toHaveValue('')
-    const richRequest = await page.evaluate(async ({ id, text }) => {
-      const result = await window.yuki.client.outbox(id)
-      if (!result.ok) throw Error(result.code)
-      return result.value.find((item) => item.body.text === text)!
-    }, { id: original.characterId, text: longText })
-    const receipt = () => page.evaluate(async ({ id, requestId }) => {
-      const result = await window.yuki.client.read<OriginalRequest>(id, { kind: 'request', requestId })
-      if (!result.ok) throw Error(result.code)
-      return result.value
-    }, { id: original.characterId, requestId: richRequest.requestId })
+    const richRequest = await page.evaluate(
+      async ({ id, text }) => {
+        const result = await window.yuki.client.outbox(id)
+        if (!result.ok) throw Error(result.code)
+        return result.value.find((item) => item.body.text === text)!
+      },
+      { id: original.characterId, text: longText },
+    )
+    const receipt = () =>
+      page.evaluate(
+        async ({ id, requestId }) => {
+          const result = await window.yuki.client.read<OriginalRequest>(id, {
+            kind: 'request',
+            requestId,
+          })
+          if (!result.ok) throw Error(result.code)
+          return result.value
+        },
+        { id: original.characterId, requestId: richRequest.requestId },
+      )
     await expect.poll(async () => (await receipt()).turn?.state).toBe('ended')
     const replied = await receipt()
     expect(replied.event_id).toBe(richRequest.eventId)
+    expect(replied.turn).toMatchObject({ state: 'ended', outcome: 'chat' })
+    expect(replied.turn).not.toHaveProperty('error_category')
     expect(replied.result_event_ids).toHaveLength(1)
-    await expect(page.locator(`article[data-event-id="${replied.result_event_ids![0]}"]`)
-      .getByText('Desktop reference reply', { exact: true })).toBeVisible()
+    await expect(
+      page
+        .locator(`article[data-event-id="${replied.result_event_ids![0]}"]`)
+        .getByText('Desktop reference reply', { exact: true }),
+    ).toBeVisible()
+    await writeFile(
+      test.info().outputPath('long-input-original-receipts.json'),
+      JSON.stringify(
+        {
+          maxInputCharacters: 6000,
+          rejected: {
+            requestId: plainRequest.requestId,
+            length: longPlainText.length,
+            receipt: rejection,
+            mainAdmissions: originalAdmissions.count,
+          },
+          accepted: { requestId: richRequest.requestId, length: longText.length, receipt: replied },
+        },
+        null,
+        2,
+      ),
+    )
     await composer.fill('視覺核對的未送出草稿')
     await captureWorkspace(
       app,
@@ -92,7 +183,7 @@ test('real workspace handles long conversations, separate entries, work details 
       page,
       'state-entry-readonly',
       async () => {
-        await page.getByRole('button', { name: /^QQ ·/ }).click()
+        await navigate(page, /^QQ ·/)
         await expect(page.getByText('QQ 原入口的真實帳本內容', { exact: true })).toBeVisible()
         await expect(page.locator('textarea')).toHaveCount(0)
       },
@@ -175,7 +266,10 @@ test('real workspace handles long conversations, separate entries, work details 
       'flow-09-files-original',
       async () => {
         await page.keyboard.press('ControlOrMeta+4')
-        await expect(page.getByTitle(name, { exact: true })).toHaveCount(2)
+        const versions = page.getByRole('button').and(page.getByTitle(name, { exact: true }))
+        await expect(versions).toHaveCount(2)
+        for (const item of delivered.slice(0, 2))
+          await expect(versions.filter({ hasText: item.artifact_id })).toHaveCount(1)
         await expect(
           page
             .getByRole('region', { name: '成果預覽' })
@@ -213,7 +307,7 @@ test('real workspace handles long conversations, separate entries, work details 
       .toBe(delivered[0]!.sha256)
     success = true
   } finally {
-    if (!success) app.process().kill('SIGKILL')
+    if (!success) await crashElectron(app).catch(() => {})
     await app.close().catch(() => {})
     await rig.close(success)
   }
@@ -304,7 +398,7 @@ test(
       await expect(page.getByRole('button', { name: '接手', exact: true })).toBeVisible()
       success = true
     } finally {
-      if (!success) app.process().kill('SIGKILL')
+      if (!success) await crashElectron(app).catch(() => {})
       await app.close().catch(() => {})
       await rig.close(success)
     }

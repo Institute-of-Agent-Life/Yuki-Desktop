@@ -1,12 +1,20 @@
 import { expect, test, type Page } from '@playwright/test'
 import { spawn } from 'node:child_process'
-import { copyFile, mkdtemp, realpath, rm, readFile } from 'node:fs/promises'
+import { copyFile, mkdtemp, realpath, rm, readFile, writeFile } from 'node:fs/promises'
 import { openSync, closeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { isolatedDesktop } from './isolated-desktop'
 import { createServer } from 'node:net'
-import type { Connection, EventsPage, PublicEvent } from '../../src/shared/api'
+import type {
+  Connection,
+  EventsPage,
+  PublicEvent,
+  Home,
+  Work,
+  OriginalRequest,
+  Computer,
+} from '../../src/shared/api'
 import { parsePairing } from '../../src/shared/pairing'
 
 export async function currentConnection(page: Page): Promise<Connection> {
@@ -52,6 +60,62 @@ export async function ledgerEvents(base: string): Promise<LedgerEvent[]> {
   return events
 }
 
+/** Read the original business identities and receipts after an acceptance failure. */
+export async function recordBusinessState(page: Page, name: string, computer = false) {
+  const state = await page.evaluate(async (computer) => {
+    const connections = await window.yuki.client.connections()
+    if (!connections.ok) return connections
+    return Promise.all(
+      connections.value.map(async (connection) => {
+        const id = connection.characterId
+        const [home, outbox, commands] = await Promise.all([
+          window.yuki.client.read<Home>(id, { kind: 'home' }),
+          window.yuki.client.outbox(id),
+          window.yuki.client.workCommands(id),
+        ])
+        const requestIds = new Set([
+          ...(outbox.ok ? outbox.value.map((item) => item.requestId) : []),
+          ...(commands.ok ? commands.value.map((item) => item.requestId) : []),
+        ])
+        const receipts = await Promise.all(
+          [...requestIds].map(async (requestId) => ({
+            requestId,
+            receipt: await window.yuki.client.read<OriginalRequest>(id, {
+              kind: 'request',
+              requestId,
+            }),
+          })),
+        )
+        const workIds = new Set([
+          ...(home.ok ? home.value.works.map((work) => work.work_id) : []),
+          ...(commands.ok ? commands.value.map((item) => item.command.workId) : []),
+          ...receipts.flatMap(({ receipt }) =>
+            receipt.ok && receipt.value.work ? [receipt.value.work.work_id] : [],
+          ),
+        ])
+        const works = await Promise.all(
+          [...workIds].map(async (workId) => ({
+            workId,
+            result: await window.yuki.client.read<Work>(id, { kind: 'work', workId }),
+          })),
+        )
+        return {
+          connection,
+          home,
+          outbox,
+          commands,
+          receipts,
+          works,
+          ...(computer
+            ? { computer: await window.yuki.client.read<Computer>(id, { kind: 'computer' }) }
+            : {}),
+        }
+      }),
+    )
+  }, computer)
+  await writeFile(test.info().outputPath(name), JSON.stringify(state, null, 2))
+}
+
 export async function yukiFixture(
   options: {
     managedUpdates?: boolean
@@ -60,6 +124,7 @@ export async function yukiFixture(
     character?: boolean
     prompts?: boolean | 'readonly'
     executor?: boolean
+    maxInputCharacters?: number
   } = {},
 ) {
   const backend = process.env.YUKI_BACKEND_TEST_ROOT,
@@ -99,6 +164,9 @@ export async function yukiFixture(
           cwd: backend,
           env: {
             ...process.env,
+            ...(options.maxInputCharacters === undefined
+              ? {}
+              : { MAX_INPUT_CHARACTERS: String(options.maxInputCharacters) }),
             PYTHONPATH: [join(backend!, 'src'), backend!].join(delimiter),
             YUKI_DESKTOP_COMPUTER_FIXTURE: options.computer || options.computerWork ? '1' : '0',
             YUKI_DESKTOP_COMPUTER_WORK_FIXTURE: options.computerWork ? '1' : '0',

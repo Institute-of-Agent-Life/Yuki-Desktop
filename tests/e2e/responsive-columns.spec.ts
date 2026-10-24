@@ -192,7 +192,9 @@ test('small emulated viewport survives capture and keeps actual settings control
     const minimum = await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0]!.getMinimumSize(),
     )
-    expect(await contentSize(app, page, 960, 492)).toBe('electron-device-emulation')
+    expect(await contentSize(app, page, 960, 492, { emulate: true })).toBe(
+      'electron-device-emulation',
+    )
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
     const frame = await captureViewport(

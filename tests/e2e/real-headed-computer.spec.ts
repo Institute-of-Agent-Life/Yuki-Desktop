@@ -1,3 +1,4 @@
+import { navigate } from '../fixtures/navigation'
 import { expect, test } from '@playwright/test'
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
@@ -87,7 +88,7 @@ test('actual headed Chromium preserves its lease while real pointer, keyboard, U
       return result.value
     }, connection.characterId)
     const returnLabel = `交回給 ${profile.display_name}`
-    await page.getByRole('button', { name: `${profile.display_name} 的電腦`, exact: true }).click()
+    await navigate(page, `${profile.display_name} 的電腦`)
     const screenshot = page.getByRole('button', { name: '截圖存檔', exact: true })
     await expect(screenshot).toBeEnabled()
     const canvas = page
@@ -154,8 +155,8 @@ test('actual headed Chromium preserves its lease while real pointer, keyboard, U
     ).toEqual({ width: pixels.width, height: pixels.height })
     await page.screenshot({ path: test.info().outputPath('actual-chinese-headed-desktop.png') })
     await test.info().attach('actual-remote-screen', { path: png, contentType: 'image/png' })
-    await page.getByRole('button', { name: '對話', exact: true }).click()
-    await page.getByRole('button', { name: `${profile.display_name} 的電腦`, exact: true }).click()
+    await navigate(page, '對話')
+    await navigate(page, `${profile.display_name} 的電腦`)
     await expect(screenshot).toBeEnabled()
     expect((await facts()).control.lease_id).toBe(lease)
     const current = await page.evaluate(async (id) => {

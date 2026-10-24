@@ -19,7 +19,9 @@ test('first-use artwork, pairing geometry and keyboard flow remain visible at na
     await expect.poll(() => window.evaluate((window) => window.isVisible())).toBe(true)
     const bounds = await window.evaluate((window) => window.getBounds())
     expect([bounds.width, bounds.height]).toEqual([720, 560])
-    await page.screenshot({ path: test.info().outputPath('native-unconfigured-workspace-720x560.png') })
+    await page.screenshot({
+      path: test.info().outputPath('native-unconfigured-workspace-720x560.png'),
+    })
     const entry = page.getByRole('region', { name: '你的 Yuki 工作區', exact: true })
     await expect(entry).toBeVisible()
     const artwork = entry.locator('svg.lucide-message-circle')
@@ -61,7 +63,7 @@ test('first-use artwork, pairing geometry and keyboard flow remain visible at na
       verify: async () => {
         const input = page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })
         await expect(input).toHaveCSS('height', '36px')
-        await expect(input).toHaveCSS('font-size', '14px')
+        await expect(input).toHaveCSS('font-size', '13px')
         await expect(page.getByRole('button', { name: '貼上', exact: true })).toHaveCSS(
           'height',
           '28px',

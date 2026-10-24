@@ -21,20 +21,27 @@ test('frosted workspace keeps opaque paper, floating controls, real receipts and
   try {
     const page = await app.firstWindow()
     const native = await app.evaluate(({ app, BrowserWindow, screen }) => {
-      const win = BrowserWindow.getAllWindows()[0]!
+      const win = BrowserWindow.getAllWindows()[0]!,
+        rendererPid = win.webContents.getOSProcessId()
       return {
         platform: process.platform,
         packaged: app.isPackaged,
         pid: process.pid,
         workArea: screen.getDisplayMatching(win.getBounds()).workArea,
-        sandboxed: app
-          .getAppMetrics()
-          .find((entry) => entry.pid === win.webContents.getOSProcessId())?.sandboxed,
+        sandboxed: app.getAppMetrics().find((entry) => entry.pid === rendererPid)?.sandboxed,
+        linuxSeccomp:
+          process.platform === 'linux'
+            ? process
+                .getBuiltinModule('node:fs')
+                .readFileSync(`/proc/${rendererPid}/status`, 'utf8')
+                .match(/^Seccomp:\s+(\d+)$/m)?.[1]
+            : undefined,
         noSandbox: app.commandLine.hasSwitch('no-sandbox'),
       }
     })
     evidence.native = native
-    expect(native.sandboxed).toBe(true)
+    if (native.platform === 'linux') expect(native.linuxSeccomp).toBe('2')
+    else expect(native.sandboxed).toBe(true)
     expect(native.noSandbox).toBe(false)
     if (process.env.YUKI_ELECTRON_EXECUTABLE) expect(native.packaged).toBe(true)
     const link = await fetch(base + '/__test/link-code', { method: 'POST' })

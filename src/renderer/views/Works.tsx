@@ -359,7 +359,8 @@ export function WorkDetail({
           <section>
             <h3>步驟</h3>
             {computer &&
-              allSteps.some((step) => ['browser', 'computer'].includes(step.category)) && (
+              (data.help_requested ||
+                allSteps.some((step) => ['browser', 'computer'].includes(step.category))) && (
                 <Button variant="plain" onClick={computer}>
                   在電腦上查看
                 </Button>

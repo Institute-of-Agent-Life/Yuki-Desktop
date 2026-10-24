@@ -1,7 +1,8 @@
+import { navigate } from '../fixtures/navigation'
 import { expect, test } from '@playwright/test'
 import type { AutomationPage, MemoryPage, OriginalRequest, Profile } from '../../src/shared/api'
 import { expectContainedText } from '../fixtures/contained-text'
-import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
+import { recordBusinessState, currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
 
 test('real Electron edits original memory and arrangements, handles two-device conflicts and lost responses', async () => {
   test.setTimeout(150000)
@@ -75,7 +76,7 @@ test('real Electron edits original memory and arrangements, handles two-device c
     const seeded = await seed.json()
     expect(seed.status, JSON.stringify(seeded)).toBe(200)
     expect(seeded.source_event_id).toBe(sent.eventId)
-    await pa.getByRole('button', { name: `關於 ${original.display_name}`, exact: true }).click()
+    await navigate(pa, `關於 ${original.display_name}`)
     await expect(pa.getByRole('button', { name: '已核對的記錄 52', exact: false })).toBeVisible()
     await expect(pa.getByRole('button', { name: /^已核對的記錄 / })).toHaveCount(50)
     await pa.screenshot({
@@ -92,9 +93,9 @@ test('real Electron edits original memory and arrangements, handles two-device c
     await expect(pa.locator(`article[data-event-id="${seeded.source_event_id}"]`)).toContainText(
       '這是記憶的原始依據。',
     )
-    await pa.getByRole('button', { name: `關於 ${original.display_name}`, exact: true }).click()
+    await navigate(pa, `關於 ${original.display_name}`)
     await pairUI(pb, rig.base, await rig.code())
-    await pb.getByRole('button', { name: `關於 ${original.display_name}`, exact: true }).click()
+    await navigate(pb, `關於 ${original.display_name}`)
     for (const page of [pa, pb]) {
       await page.getByRole('button', { name: '已核對的記錄 52', exact: false }).click()
       await page.getByRole('button', { name: '更正', exact: true }).click()
@@ -134,7 +135,7 @@ test('real Electron edits original memory and arrangements, handles two-device c
     a = await rig.launch('character-a')
     pa = await a.firstWindow()
     pa.on('pageerror', (error) => errors.push(error.message))
-    await pa.getByRole('button', { name: `關於 ${original.display_name}`, exact: true }).click()
+    await navigate(pa, `關於 ${original.display_name}`)
     await expect(pa.getByRole('button', { name: /^回應遺失後保留同一次修正/ })).toBeVisible()
     await expect
       .poll(() =>
@@ -227,6 +228,10 @@ test('real Electron edits original memory and arrangements, handles two-device c
     expect(errors).toEqual([])
     success = true
   } finally {
+    if (!success)
+      await recordBusinessState(await a.firstWindow(), 'business-state-a.json').catch(console.error)
+    if (!success)
+      await recordBusinessState(await b.firstWindow(), 'business-state-b.json').catch(console.error)
     await a.close()
     await b.close()
     await rig.close(success)

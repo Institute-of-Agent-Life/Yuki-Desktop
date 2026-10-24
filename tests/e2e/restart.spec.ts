@@ -55,7 +55,9 @@ test('the open desktop reconnects after a real backend process crash and keeps o
     await composer.fill('伺服器重啟時保留的草稿')
     await rig.crash()
     await expect(
-      page.locator('[data-region="sidebar"]').getByText('已連線', { exact: true }),
+      page
+        .locator('[data-character-session]:not([hidden]) [data-region="toolbar"]')
+        .getByText('已連線', { exact: true }),
     ).toBeVisible()
     await expect(composer).toHaveValue('伺服器重啟時保留的草稿')
     await expect(page.getByText('伺服器重啟前的原訊息', { exact: true })).toBeVisible()

@@ -1,3 +1,4 @@
+import { navigate } from '../fixtures/navigation'
 import { expect, test, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -188,7 +189,7 @@ test(
       let page = await app.firstWindow()
       await pairUI(page, rig.base, await rig.code())
       const name = await characterName(page)
-      await page.getByRole('button', { name: `${name} 的電腦`, exact: true }).click()
+      await navigate(page, `${name} 的電腦`)
       await page.getByRole('button', { name: '接手', exact: true }).click()
       await expect(page.getByRole('button', { name: '貼上到角色的電腦' })).toBeEnabled()
       const original = await control()
@@ -218,7 +219,7 @@ test(
       expect((await control()).lease_id).toBe(original.lease_id)
       app = await rig.launch('computer-quit')
       page = await app.firstWindow()
-      await page.getByRole('button', { name: `${name} 的電腦`, exact: true }).click()
+      await navigate(page, `${name} 的電腦`)
       await expect(page.getByRole('button', { name: '貼上到角色的電腦' })).toBeEnabled()
       expect((await control()).lease_id).toBe(original.lease_id)
       await app.evaluate(({ dialog }) => {

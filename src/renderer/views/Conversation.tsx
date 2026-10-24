@@ -230,6 +230,14 @@ export function Conversation({
     [events.error, home.error, profile.error].some(
       (error) => error instanceof ClientProblem && error.code === 'client_upgrade_required',
     )
+  const upgradeNotice = updateRequired && (
+    <Banner status="failed">
+      {problemText('client_upgrade_required')}
+      <Button variant="plain" onClick={() => onSettings()}>
+        查看 App 更新
+      </Button>
+    </Banner>
+  )
   const eventData = accessLost || hidesPrivateData(events.error) ? undefined : events.data,
     homeData = accessLost || hidesPrivateData(home.error) ? undefined : home.data,
     profileData = accessLost || hidesPrivateData(profile.error) ? undefined : profile.data
@@ -929,14 +937,7 @@ export function Conversation({
           )
         }
       >
-        {updateRequired && (
-          <Banner status="failed">
-            {problemText('client_upgrade_required')}
-            <Button variant="plain" onClick={() => onSettings()}>
-              查看 App 更新
-            </Button>
-          </Banner>
-        )}
+        {view !== 'chat' && !focusMode && upgradeNotice}
         {mediaError && view !== 'chat' && <Banner status="failed">{mediaError}</Banner>}
         {view === 'computer' && !focusMode ? (
           accessLost || !profileData?.viewer.is_owner ? (
@@ -1028,6 +1029,7 @@ export function Conversation({
           >
             {dragging && <div className={mediaStyles.drop}>放開以附加</div>}
             <div className={styles.notices} data-floating-notices>
+              {upgradeNotice}
               {mediaError && <Banner status="failed">{mediaError}</Banner>}
               {historyError && <Banner status="failed">{historyError}</Banner>}
               {online !== 'online' && !updateRequired && (
@@ -1037,7 +1039,7 @@ export function Conversation({
                     : '正在連接伺服器。草稿保存在這台電腦。'}
                 </Banner>
               )}
-              {(events.error || home.error || profile.error) && (
+              {!updateRequired && (events.error || home.error || profile.error) && (
                 <Banner status="failed">
                   {(events.error ?? home.error ?? profile.error)?.message}
                   <Button variant="plain" onClick={refresh}>

@@ -4,9 +4,12 @@ import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 /** Real source app, isolated profile and OS-boundary adapters; no backend responses are mocked. */
-export async function isolatedDesktop(root: string, options: { managedUpdates?: boolean } = {}) {
+export async function isolatedDesktop(
+  root: string,
+  options: { managedUpdates?: boolean; nativeShell?: boolean } = {},
+) {
   const appRoot = resolve('.'),
-    entry = join(root, 'desktop-entry.cjs')
+    entry = join(root, options.nativeShell ? 'native-shell-entry.cjs' : 'desktop-entry.cjs')
   await writeFile(
     entry,
     `
@@ -27,20 +30,32 @@ if (process.platform === 'linux') process.env.APPIMAGE = path.join(process.env.Y
     : ''
 }
 app.setAsDefaultProtocolClient = () => false;
+${
+  options.nativeShell
+    ? ''
+    : `
 let copied = '';
 clipboard.writeText = value => { copied = value };
 clipboard.readText = () => copied;
 shell.openExternal = async () => {};
 shell.openPath = async () => '';
 shell.showItemInFolder = () => {};
+`
+}
 fs.mkdirSync(process.env.YUKI_DESKTOP_DATA, { recursive: true });
 app.setPath('userData', process.env.YUKI_DESKTOP_DATA);
+${
+  options.nativeShell
+    ? ''
+    : `
 const Database = require(path.join(root, 'node_modules/better-sqlite3'));
 const db = new Database(path.join(process.env.YUKI_DESKTOP_DATA, 'desktop.sqlite3'));
 db.exec('CREATE TABLE IF NOT EXISTS preferences(key TEXT PRIMARY KEY,value TEXT NOT NULL)');
 const row = db.prepare("SELECT value FROM preferences WHERE key='appearance'").get();
 if (!row) db.prepare('INSERT INTO preferences VALUES(?,?)').run('appearance', JSON.stringify({keepInTray:false}));
 db.close();
+`
+}
 import(${JSON.stringify(pathToFileURL(join(appRoot, 'out/main/app.js')).href)});
 `,
     { mode: 0o600 },

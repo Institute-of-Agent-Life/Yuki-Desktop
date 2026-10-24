@@ -1,6 +1,6 @@
 import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test, type Page } from '@playwright/test'
-import { ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
+import { recordBusinessState, ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
 import type { OriginalRequest } from '../../src/shared/api'
 
 async function send(page: Page, text: string) {
@@ -101,6 +101,8 @@ test('two equally named real roles send to their own original Main and recover s
     ).toHaveCount(0)
     success = true
   } finally {
+    if (!success)
+      await recordBusinessState(await app.firstWindow(), 'business-state.json').catch(console.error)
     await app.close()
     await first.close(success)
     await second.close(success)

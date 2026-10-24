@@ -1,4 +1,5 @@
 import { activeCharacterName } from '../fixtures/active-character'
+import { crashElectron } from '../fixtures/electron-process'
 import { expect, test } from '@playwright/test'
 import { createHash, randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
@@ -91,9 +92,7 @@ test('isolated real computer accepts desktop input and resumes its original work
     )
     expect(initial.artifact).toBeNull()
     // Killing only the desktop must leave the real environment's original terminal waiting.
-    const exited = new Promise<void>((resolve) => app.process().once('exit', () => resolve()))
-    app.process().kill('SIGKILL')
-    await exited
+    await crashElectron(app)
     await app.close().catch(() => {})
     app = await rig.launch('real-computer')
     page = await app.firstWindow()
@@ -204,7 +203,7 @@ test('isolated real computer accepts desktop input and resumes its original work
       ) + '\n',
     )
   } finally {
-    app.process().kill('SIGKILL')
+    await crashElectron(app).catch(() => {})
     await app.close().catch(() => {})
     console.info(`Real-host desktop evidence retained at ${rig.root}`)
   }

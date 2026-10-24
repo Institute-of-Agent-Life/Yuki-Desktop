@@ -1,6 +1,7 @@
 import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
 import { ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
+import type { OriginalRequest } from '../../src/shared/api'
 
 test('paginates real history without moving the visible message and jumps to the exact older reference', async () => {
   test.setTimeout(120000)
@@ -22,28 +23,55 @@ test('paginates real history without moving the visible message and jumps to the
     const originalId = Number(await original.getAttribute('data-event-id'))
     await original.getByRole('button', { name: '引用回覆' }).click()
     // Populate history through the product's normal API/outbox, never by setting UI state.
-    const seeded = await page.evaluate(async () => {
+    const submission = await page.evaluate(async () => {
       const connections = await window.yuki.client.connections()
       if (!connections.ok || !connections.value[0]) throw new Error('Missing paired connection')
       const id = connections.value[0].characterId
-      const results = await Promise.all(
-        Array.from({ length: 61 }, (_, index) =>
-          window.yuki.client.send(
-            id,
-            `歷史測試 ${String(index).padStart(2, '0')}\n${'真實帳本的一段較長文字。'.repeat(4)}`,
-          ),
-        ),
-      )
+      const results: Awaited<ReturnType<typeof window.yuki.client.send>>[] = []
+      for (let offset = 0; offset < 61; offset += 8) {
+        results.push(
+          ...(await Promise.all(
+            Array.from({ length: Math.min(8, 61 - offset) }, (_, localIndex) =>
+              window.yuki.client.send(
+                id,
+                `歷史測試 ${String(offset + localIndex).padStart(2, '0')}\n${'真實帳本的一段較長文字。'.repeat(4)}`,
+              ),
+            ),
+          )),
+        )
+      }
       for (const result of results) if (!result.ok) throw new Error(result.code)
-      return results.map((result) => {
-        if (!result.ok || !result.value.eventId) throw Error('Original accepted request is missing')
-        return {
-          requestId: result.value.requestId,
-          eventId: result.value.eventId,
-          text: result.value.body.text,
-        }
+      const submitted = results.map((result) => {
+        if (!result.ok) throw Error(result.code)
+        return result.value
       })
+      const receipts = await Promise.all(
+        submitted
+          .filter((item) => item.eventId === null)
+          .map((item) => window.yuki.client.verify(id, item.requestId)),
+      )
+      for (const receipt of receipts) if (!receipt.ok) throw Error(receipt.code)
+      return { id, requests: submitted.map((item) => item.requestId) }
     })
+    const readSeeded = () =>
+      page.evaluate(async ({ id, requests }) => {
+        const journal = await window.yuki.client.outbox(id)
+        if (!journal.ok) throw Error(journal.code)
+        return journal.value
+          .filter((item) => requests.includes(item.requestId))
+          .map((item) => ({
+            requestId: item.requestId,
+            eventId: item.eventId,
+            text: item.body.text,
+          }))
+      }, submission)
+    await expect
+      .poll(async () => {
+        const items = await readSeeded()
+        return { count: items.length, accepted: items.every((item) => item.eventId !== null) }
+      })
+      .toEqual({ count: 61, accepted: true })
+    const seeded = await readSeeded()
     await composer.fill('引用很早以前的原事件')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(page.getByText('引用很早以前的原事件', { exact: true })).toBeVisible()
@@ -53,14 +81,41 @@ test('paginates real history without moving the visible message and jumps to the
       .filter({ has: page.getByText('引用很早以前的原事件', { exact: true }) })
     await expect(latest).toHaveAttribute('data-event-id', /^\d+$/)
     const latestId = Number(await latest.getAttribute('data-event-id'))
+    const finalRequest = await page.evaluate(
+      async ({ id, eventId }) => {
+        const journal = await window.yuki.client.outbox(id)
+        if (!journal.ok) throw Error(journal.code)
+        return journal.value.find((item) => item.eventId === eventId)!.requestId
+      },
+      { id: submission.id, eventId: latestId },
+    )
+    const finalReceipt = () =>
+      page.evaluate(
+        async ({ id, requestId }) => {
+          const receipt = await window.yuki.client.read<OriginalRequest>(id, {
+            kind: 'request',
+            requestId,
+          })
+          if (!receipt.ok) throw Error(receipt.code)
+          return receipt.value
+        },
+        { id: submission.id, requestId: finalRequest },
+      )
+    await expect.poll(async () => (await finalReceipt()).turn?.state).toBe('ended')
+    const ended = await finalReceipt()
+    expect(ended.event_id).toBe(latestId)
+    expect(Array.isArray(ended.result_event_ids)).toBe(true)
+    for (const eventId of ended.result_event_ids!)
+      await expect(page.locator(`article[data-event-id="${eventId}"]`)).toBeVisible()
     expect(new Set(seeded.map((item) => item.requestId)).size).toBe(61)
     expect(new Set(seeded.map((item) => item.eventId)).size).toBe(61)
     const ledger = await ledgerEvents(rig.base)
     for (const item of seeded) {
       expect(item.eventId).toBeGreaterThan(originalId)
       expect(item.eventId).toBeLessThan(latestId)
-      expect(ledger.filter((event) => event.event_id === item.eventId).map((event) => event.content))
-        .toEqual([item.text])
+      expect(
+        ledger.filter((event) => event.event_id === item.eventId).map((event) => event.content),
+      ).toEqual([item.text])
     }
     // Reload clears renderer history; only the latest API page is initially requested.
     await page.reload()
@@ -89,7 +144,11 @@ test('paginates real history without moving the visible message and jumps to the
     await expect(page.getByRole('button', { name: '↓ 新訊息', exact: true })).toHaveCount(0)
     // A read-only sync does not pretend that another message arrived.
     await fetch(`${rig.base}/__test/disconnect`, { method: 'POST' })
-    await expect(page.getByText('已連線', { exact: true })).toBeVisible()
+    await expect(
+      page
+        .locator('[data-character-session]:not([hidden]) [data-region="toolbar"]')
+        .getByText('已連線', { exact: true }),
+    ).toBeVisible()
     await expect(page.getByRole('button', { name: '↓ 新訊息', exact: true })).toHaveCount(0)
     await page.screenshot({
       animations: 'disabled',

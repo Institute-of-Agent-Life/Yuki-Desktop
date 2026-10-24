@@ -1,7 +1,9 @@
+import { navigate } from '../fixtures/navigation'
 import { expect, test } from '@playwright/test'
+import { crashElectron } from '../fixtures/electron-process'
 import { writeFile } from 'node:fs/promises'
 import type { Profile } from '../../src/shared/api'
-import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
+import { recordBusinessState, currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
 
 test(
@@ -28,7 +30,7 @@ test(
         if (!profile.ok) throw Error(profile.code)
         return profile.value.display_name
       }, connection.characterId)
-      await pa.getByRole('button', { name: `${name} 的電腦`, exact: true }).click()
+      await navigate(pa, `${name} 的電腦`)
       const toolbar = pa.locator('[data-region="toolbar"]')
       const controls = toolbar.getByRole('group', { name: '電腦狀態與控制', exact: true })
       await expect(
@@ -39,7 +41,7 @@ test(
         pa,
         'state-computer-toolbar-viewing',
         async () => {
-          await pa.getByRole('button', { name: `${name} 的電腦`, exact: true }).click()
+          await navigate(pa, `${name} 的電腦`)
           await expect(pa.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled()
         },
         {
@@ -72,7 +74,7 @@ test(
       ).toBeEnabled()
       const first = (await facts()).control
       expect(first.holder).toBe('human')
-      await pb.getByRole('button', { name: `${name} 的電腦`, exact: true }).click()
+      await navigate(pb, `${name} 的電腦`)
       const other = pb
         .locator('[data-region="toolbar"]')
         .getByRole('group', { name: '電腦狀態與控制', exact: true })
@@ -93,20 +95,20 @@ test(
       await expect.poll(async () => (await facts()).control.holder).toBe('none')
       await expect(controls.getByRole('button', { name: '接手', exact: true })).toBeEnabled()
       // Changing views removes only this role's portal and restores the common toolbar.
-      await pa.getByRole('button', { name: '對話', exact: true }).click()
+      await navigate(pa, '對話')
       await expect(toolbar.getByRole('group', { name: '電腦狀態與控制' })).toHaveCount(0)
       await expect(
         pa.getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true }),
       ).toBeVisible()
-      await pa.getByRole('button', { name: `${name} 的電腦`, exact: true }).click()
+      await navigate(pa, `${name} 的電腦`)
       await expect(controls.getByRole('button', { name: '接手', exact: true })).toBeEnabled()
       const longName = `${name}・在不同裝置間保留同一個長期角色的名稱`
-      await pa.getByRole('button', { name: `關於 ${name}`, exact: true }).click()
+      await navigate(pa, `關於 ${name}`)
       await pa.getByRole('button', { name: '編輯角色資料', exact: true }).click()
       await pa.getByRole('textbox', { name: '名稱', exact: true }).fill(longName)
       await pa.getByRole('button', { name: '儲存', exact: true }).click()
       await expect(pa.getByRole('heading', { name: longName, exact: true })).toBeVisible()
-      await pa.getByRole('button', { name: `${longName} 的電腦`, exact: true }).click()
+      await navigate(pa, `${longName} 的電腦`)
       await contentSize(a, pa, 960, 492)
       await controls.getByRole('button', { name: '接手', exact: true }).click()
       const longReturn = controls.getByRole('button', { name: `交回給 ${longName}`, exact: true })
@@ -132,8 +134,14 @@ test(
       success = true
     } finally {
       if (!success) {
-        a.process().kill('SIGKILL')
-        b.process().kill('SIGKILL')
+        await recordBusinessState(await a.firstWindow(), 'computer-state-a.json', true).catch(
+          console.error,
+        )
+        await recordBusinessState(await b.firstWindow(), 'computer-state-b.json', true).catch(
+          console.error,
+        )
+        await crashElectron(a).catch(() => {})
+        await crashElectron(b).catch(() => {})
       }
       await a.close().catch(() => {})
       await b.close().catch(() => {})

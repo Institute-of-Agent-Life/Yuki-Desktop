@@ -153,7 +153,11 @@ test('device A uploads with a lost receipt; device B previews and saves verified
         )
         throw error
       })
-    await page.getByRole('button', { name: /handoff\.txt/ }).click()
+    await page.getByRole('button', { name: '關閉預覽', exact: true }).click()
+    await page
+      .locator(`article[data-event-id="${original.event_id}"]`)
+      .getByRole('button', { name: /handoff\.txt/ })
+      .click()
     await expect(page.getByText('跨裝置內容\n原件已從裝置 A 移除。', { exact: true })).toBeVisible()
     await app.evaluate(({ dialog }, destination) => {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: destination })

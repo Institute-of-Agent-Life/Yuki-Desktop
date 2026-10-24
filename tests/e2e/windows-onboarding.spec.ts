@@ -26,7 +26,9 @@ test('Windows native onboarding keeps artwork and pairing controls reachable and
     const page = await app.firstWindow()
     await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
     await expect
-      .poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible()))
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible()),
+      )
       .toBe(true)
     const facts = await app.evaluate(({ app, BrowserWindow, screen }) => {
       const window = BrowserWindow.getAllWindows()[0]!
@@ -123,7 +125,7 @@ test('Windows native onboarding keeps artwork and pairing controls reachable and
     await input.fill(`綁定碼：${code}（10 分鐘內有效）`)
     await expect(pair).toBeEnabled()
     await expect(input).toHaveCSS('height', '36px')
-    await expect(input).toHaveCSS('font-size', '14px')
+    await expect(input).toHaveCSS('font-size', '13px')
     const paste = page.getByRole('button', { name: '貼上', exact: true })
     await expect(paste).toHaveCSS('height', '28px')
     await input.press('Tab')

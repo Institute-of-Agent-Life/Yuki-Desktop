@@ -1,4 +1,5 @@
 import { activeCharacterName } from '../fixtures/active-character'
+import { crashElectron } from '../fixtures/electron-process'
 import { expect, test } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -88,10 +89,7 @@ test(
       await page.getByRole('switch', { name: '增加對比', exact: true }).click()
       await page.getByRole('button', { name: '返回', exact: true }).click()
       await expect(page.locator('html')).toHaveAttribute('data-contrast', 'false')
-      const desktopProcess = app.process()
-      const stopped = new Promise<void>((resolve) => desktopProcess.once('exit', () => resolve()))
-      desktopProcess.kill('SIGKILL')
-      await stopped
+      await crashElectron(app)
       await app.close().catch(() => {})
       expect((await facts()).manager_jobs).toEqual(initial.manager_jobs)
       app = await rig.launch('original-computer-work')
@@ -279,7 +277,7 @@ test(
       )
       success = true
     } finally {
-      if (!success) app.process().kill('SIGKILL')
+      if (!success) await crashElectron(app).catch(() => {})
       await app.close().catch(() => {})
       await rig.close(success)
     }

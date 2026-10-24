@@ -168,15 +168,25 @@ test('Windows native workspace restores persisted frame and content bounds acros
     const offscreen = await nativeWindow(app, page)
     expect(offscreen.displayId).toBe(before.displayId)
     expect(offscreen.bounds).toMatchObject(outside)
-    expect(offscreen.bounds.x + offscreen.bounds.width).toBeGreaterThan(before.area.x + before.area.width)
-    expect(offscreen.bounds.y + offscreen.bounds.height).toBeGreaterThan(before.area.y + before.area.height)
+    expect(offscreen.bounds.x + offscreen.bounds.width).toBeGreaterThan(
+      before.area.x + before.area.width,
+    )
+    expect(offscreen.bounds.y + offscreen.bounds.height).toBeGreaterThan(
+      before.area.y + before.area.height,
+    )
     await expect.poll(() => savedBounds(app)).toEqual(offscreen.bounds)
     const persistedOffscreen = await nativeWindow(app, page)
     expect(persistedOffscreen.bounds).toEqual(offscreen.bounds)
     expect(persistedOffscreen.contentBounds).toEqual(offscreen.contentBounds)
     expect(persistedOffscreen.contentSize).toEqual(offscreen.contentSize)
     expect(persistedOffscreen.viewport).toEqual(offscreen.viewport)
-    stages.push({ stage: 'offscreen-persisted-before-crash', requested: outside, ...persistedOffscreen, original: offscreen, saved: await savedBounds(app) })
+    stages.push({
+      stage: 'offscreen-persisted-before-crash',
+      requested: outside,
+      ...persistedOffscreen,
+      original: offscreen,
+      saved: await savedBounds(app),
+    })
     await save()
     const exited = new Promise<void>((resolve) => app.process().once('exit', () => resolve()))
     expect(process.kill(pid!, 'SIGKILL')).toBe(true)
@@ -212,7 +222,9 @@ test('Windows native workspace restores persisted frame and content bounds acros
     expect(toolbar.y).toBe(0)
     expect(toolbar.height).toBe(52)
     expect(clamped.contentBounds.y + toolbar.y).toBeGreaterThanOrEqual(before.area.y)
-    expect(clamped.contentBounds.y + toolbar.y + toolbar.height).toBeLessThanOrEqual(before.area.y + before.area.height)
+    expect(clamped.contentBounds.y + toolbar.y + toolbar.height).toBeLessThanOrEqual(
+      before.area.y + before.area.height,
+    )
     await page.screenshot({ path: test.info().outputPath('windows-clamped-titlebar.png') })
     proof.complete = true
   } catch (error) {

@@ -1,3 +1,4 @@
+import { navigate } from '../fixtures/navigation'
 import { expect, test } from '@playwright/test'
 import { pairUI } from '../fixtures/backend'
 import { crashSoulApp, soulBackend } from '../fixtures/soul-backend'
@@ -10,7 +11,7 @@ test('Windows edits the single SOUL with native keyboard input', async () => {
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, rig.ownerCode, undefined, 30000)
-    await page.getByRole('button', { name: '關於 初始角色', exact: true }).click()
+    await navigate(page, '關於 初始角色')
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     const editor = page.getByRole('textbox', { name: 'SOUL.md 內容', exact: true })
     await editor.click()

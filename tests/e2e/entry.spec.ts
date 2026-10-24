@@ -1,3 +1,4 @@
+import { navigate } from '../fixtures/navigation'
 import { expect, test } from '@playwright/test'
 import { currentConnection, currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
 
@@ -25,7 +26,7 @@ test('reads another actual personal ingress and quotes its exact original event 
         ok: true,
         value: { entries: [{ conversation_id: original.conversation_id, platform: 'qq' }] },
       })
-    await page.getByRole('button', { name: /^QQ ·/ }).click()
+    await navigate(page, /^QQ ·/)
     await expect(page.getByText('QQ 原入口的真實帳本內容', { exact: true })).toBeVisible()
     const navigation = page.getByRole('navigation', { name: '主要導覽' })
     await expect(navigation.locator('[aria-current=page]')).toHaveCount(1)

@@ -1,8 +1,9 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import { crashElectron } from '../fixtures/electron-process'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import type { Connection, Home, Work } from '../../src/shared/api'
-import { currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
+import { recordBusinessState, currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
 
 const detail = (page: Page) => page.getByRole('complementary', { name: '檢視器', exact: true })
@@ -144,10 +145,7 @@ test('inline answers and supplements retain distinct multiline drafts, survive a
       },
     )
     await contentSize(app, page, 1440, 900)
-    const desktopProcess = app.process(),
-      stopped = new Promise<void>((resolve) => desktopProcess.once('exit', () => resolve()))
-    desktopProcess.kill('SIGKILL')
-    await stopped
+    await crashElectron(app)
     await app.close().catch(() => {})
     app = await rig.launch('inline-work')
     page = await app.firstWindow()
@@ -271,6 +269,10 @@ test('another real device can finish the work without discarding this device’s
     await pa.screenshot({ path: test.info().outputPath('retained-original-answer.png') })
     success = true
   } finally {
+    if (!success)
+      await recordBusinessState(await a.firstWindow(), 'business-state-a.json').catch(console.error)
+    if (!success)
+      await recordBusinessState(await b.firstWindow(), 'business-state-b.json').catch(console.error)
     await a.close().catch(() => {})
     await b.close()
     await rig.close(success)

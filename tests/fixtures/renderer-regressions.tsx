@@ -267,40 +267,42 @@ Object.assign(window, {
             }
           if (route.kind === 'steps') {
             const value = {
-                steps: (route.after
-                  ? [
-                      {
-                        step_id: 'original-second-step',
-                        label: 'Previously loaded second page step',
-                      },
-                      ...(lateReceipt
-                        ? [
-                            {
-                              step_id: 'original-late-effect',
-                              label: 'Original late effect receipt',
-                            },
-                          ]
-                        : []),
-                    ]
-                  : [{ step_id: 'original-first-step', label: 'Original first page step' }]
-                ).map((step) => ({
-                  ...step,
-                  category: 'terminal',
-                  record: 'committed',
-                  status: 'succeeded',
-                  created_at: '2026-10-24T00:00:00Z',
-                  updated_at: '2026-10-24T00:00:00Z',
-                  artifacts: [],
-                })),
-                children: [],
-                wait: null,
-                work_revision: historicalWork.revision,
-                steps_token: token,
-                next_after: route.after ? null : 'original-second-page',
-              } satisfies WorkSteps
+              steps: (route.after
+                ? [
+                    {
+                      step_id: 'original-second-step',
+                      label: 'Previously loaded second page step',
+                    },
+                    ...(lateReceipt
+                      ? [
+                          {
+                            step_id: 'original-late-effect',
+                            label: 'Original late effect receipt',
+                          },
+                        ]
+                      : []),
+                  ]
+                : [{ step_id: 'original-first-step', label: 'Original first page step' }]
+              ).map((step) => ({
+                ...step,
+                category: 'terminal',
+                record: 'committed',
+                status: 'succeeded',
+                created_at: '2026-10-24T00:00:00Z',
+                updated_at: '2026-10-24T00:00:00Z',
+                artifacts: [],
+              })),
+              children: [],
+              wait: null,
+              work_revision: historicalWork.revision,
+              steps_token: token,
+              next_after: route.after ? null : 'original-second-page',
+            } satisfies WorkSteps
             if (route.after && holdNextSecondPage) {
               holdNextSecondPage = false
-              await new Promise<void>((resolve) => { releaseSecondPage = resolve })
+              await new Promise<void>((resolve) => {
+                releaseSecondPage = resolve
+              })
             }
             return { ok: true, value }
           }
@@ -330,7 +332,16 @@ Object.assign(window, {
           if (route.kind === 'activity') return { ok: true, value: activity }
         }
         if (route.kind === 'home') return { ok: true, value: home }
-        if (route.kind === 'work') return { ok: true, value: work }
+        if (route.kind === 'work')
+          return {
+            ok: true,
+            value: {
+              ...work,
+              ...(mode === 'work-help'
+                ? { help_requested: new URLSearchParams(location.search).get('help') === 'true' }
+                : {}),
+            } satisfies Work,
+          }
         if (route.kind === 'works')
           return {
             ok: true,
@@ -387,11 +398,18 @@ Object.assign(window, {
   },
   regression: {
     snapshot: () => ({
-      draft, attempts, reads, contentReads, lateWorkReads,
+      draft,
+      attempts,
+      reads,
+      contentReads,
+      lateWorkReads,
       heldSecondPage: !!releaseSecondPage,
-      workStepsToken: queries.getQueryData<Work>(['role', 'work', historicalWork.work_id])?.steps_token,
+      workStepsToken: queries.getQueryData<Work>(['role', 'work', historicalWork.work_id])
+        ?.steps_token,
     }),
-    holdNextSecondPage: () => { holdNextSecondPage = true },
+    holdNextSecondPage: () => {
+      holdNextSecondPage = true
+    },
     releaseSecondPage: () => {
       const release = releaseSecondPage
       releaseSecondPage = undefined
@@ -411,6 +429,20 @@ function Case() {
   const [selected, setSelected] = useState('')
   const [attachment, setAttachment] = useState<AttachmentSource>()
   const mode = new URLSearchParams(location.search).get('case')
+  if (mode === 'work-help')
+    return (
+      <>
+        <WorkDetail
+          id="role"
+          workId={work.work_id}
+          open={() => {}}
+          replyInChat={() => {}}
+          artifact={() => {}}
+          computer={() => setCalls((value) => value + 1)}
+        />
+        <output data-testid="computer-open-count">{calls}</output>
+      </>
+    )
   if (mode === 'late-work')
     return (
       <WorkDetail

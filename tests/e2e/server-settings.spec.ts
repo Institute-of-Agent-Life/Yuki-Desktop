@@ -1,12 +1,21 @@
 import { activeCharacterName } from '../fixtures/active-character'
+import { crashElectron } from '../fixtures/electron-process'
 import { expect, test, type Page } from '@playwright/test'
 import { ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
-import type { Connection, Me, EventsPage, ProactiveRoute, OriginalRequest } from '../../src/shared/api'
+import type {
+  Connection,
+  Me,
+  EventsPage,
+  ProactiveRoute,
+  OriginalRequest,
+} from '../../src/shared/api'
 async function settings(page: Page) {
   await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
-  await expect(page.getByText('已連線', { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('region', { name: '設定', exact: true }).getByText('已連線', { exact: true }),
+  ).toBeVisible()
 }
 async function connection(page: Page) {
   return page.evaluate(async () => {
@@ -168,17 +177,26 @@ test('new server address proves real identity before bearer and resumes the orig
     expect(events.filter((event) => event.content === '換網址前已接納的原訊息')).toHaveLength(1)
     await page.getByRole('button', { name: '返回', exact: true }).click()
     const receipt = () =>
-      page.evaluate(async ({ id, requestId }) => {
-        const result = await window.yuki.client.read<OriginalRequest>(id, { kind: 'request', requestId })
-        if (!result.ok) throw Error(result.code)
-        return result.value
-      }, { id: original.characterId, requestId })
+      page.evaluate(
+        async ({ id, requestId }) => {
+          const result = await window.yuki.client.read<OriginalRequest>(id, {
+            kind: 'request',
+            requestId,
+          })
+          if (!result.ok) throw Error(result.code)
+          return result.value
+        },
+        { id: original.characterId, requestId },
+      )
     await expect.poll(async () => (await receipt()).turn?.state).toBe('ended')
     const result = await receipt()
-    expect(result.event_id).toBe(events.find((event) => event.content === '換網址前已接納的原訊息')!.event_id)
+    expect(result.event_id).toBe(
+      events.find((event) => event.content === '換網址前已接納的原訊息')!.event_id,
+    )
     expect(result.result_event_ids).toHaveLength(1)
     await expect(
-      page.locator(`article[data-event-id="${result.result_event_ids![0]}"]`)
+      page
+        .locator(`article[data-event-id="${result.result_event_ids![0]}"]`)
         .getByText('Desktop reference reply', { exact: true }),
     ).toBeVisible()
     await app.close()
@@ -222,13 +240,19 @@ test('two actual devices keep proactive route CAS and recover the original lost 
       if (!result.ok) throw Error(result.code)
       return result.value
     }, original.characterId)
-    const seeded = await pa.evaluate(async ({ id, entry }) => {
-      const result = await window.yuki.client.read<EventsPage>(id, {
-        kind: 'events', conversationId: entry.conversation_id, after: entry.event_id - 1, limit: 1,
-      })
-      if (!result.ok) throw Error(result.code)
-      return result.value.items[0]!
-    }, { id: original.characterId, entry })
+    const seeded = await pa.evaluate(
+      async ({ id, entry }) => {
+        const result = await window.yuki.client.read<EventsPage>(id, {
+          kind: 'events',
+          conversationId: entry.conversation_id,
+          after: entry.event_id - 1,
+          limit: 1,
+        })
+        if (!result.ok) throw Error(result.code)
+        return result.value.items[0]!
+      },
+      { id: original.characterId, entry },
+    )
     expect(seeded.event_id).toBe(entry.event_id)
     expect(seeded.conversation_id).toBe(entry.conversation_id)
     const qq = me.bindings.find((item) => item.binding_id === seeded.binding_id)!
@@ -264,7 +288,7 @@ test('two actual devices keep proactive route CAS and recover the original lost 
     )
     expect(writes).toHaveLength(2)
     const requestId = writes[1]!.requestId!
-    a.process().kill('SIGKILL')
+    await crashElectron(a)
     await a.close().catch(() => {})
     proxy.faults.holdReceipts = false
     a = await rig.launch('route-a')
@@ -291,17 +315,25 @@ test('two actual devices keep proactive route CAS and recover the original lost 
         (call) => call.method === 'PUT' && call.path.endsWith('/me/proactive-route'),
       ),
     ).toHaveLength(2)
-    const bindingResponse = await fetch(`${rig.base}/__test/qq-binding-without-destination`, { method: 'POST' })
+    const bindingResponse = await fetch(`${rig.base}/__test/qq-binding-without-destination`, {
+      method: 'POST',
+    })
     expect(bindingResponse.ok).toBe(true)
-    const withoutDestination = await bindingResponse.json() as {
-      binding_id: string; person_id: string; platform: string; external_account_id: string
+    const withoutDestination = (await bindingResponse.json()) as {
+      binding_id: string
+      person_id: string
+      platform: string
+      external_account_id: string
     }
     expect(withoutDestination.person_id).toBe(original.personId)
     expect(withoutDestination.platform).toBe('qq')
     expect(withoutDestination.binding_id).not.toBe(qq.binding_id)
     await pa.getByRole('button', { name: '重新讀取目的地', exact: true }).click()
-    await expect(pa.getByRole('combobox', { name: '主動訊息接收入口' })
-      .locator(`option[value="${withoutDestination.binding_id}"]`)).toHaveCount(1)
+    await expect(
+      pa
+        .getByRole('combobox', { name: '主動訊息接收入口' })
+        .locator(`option[value="${withoutDestination.binding_id}"]`),
+    ).toHaveCount(1)
     await pa
       .getByRole('combobox', { name: '主動訊息接收入口' })
       .selectOption(withoutDestination.binding_id)
@@ -313,7 +345,9 @@ test('two actual devices keep proactive route CAS and recover the original lost 
     await pa.getByRole('button', { name: '重新讀取目的地', exact: true }).click()
     await pa.screenshot({ path: test.info().outputPath(`${process.platform}-server-settings.png`) })
     await pa.getByRole('button', { name: '開啟角色資料', exact: true }).click()
-    await expect(pa.getByRole('heading', { name: await activeCharacterName(pa), exact: true })).toBeVisible()
+    await expect(
+      pa.getByRole('heading', { name: await activeCharacterName(pa), exact: true }),
+    ).toBeVisible()
     success = true
   } finally {
     await a.close().catch(() => {})

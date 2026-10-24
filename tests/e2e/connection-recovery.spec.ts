@@ -1,8 +1,9 @@
 import { activeCharacterName } from '../fixtures/active-character'
+import { crashElectron } from '../fixtures/electron-process'
 import { expect, test } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import type { Home, Work } from '../../src/shared/api'
-import { ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
+import { recordBusinessState, ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
 import { transportGate } from '../fixtures/transport'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
 
@@ -101,7 +102,13 @@ test('a real thirty second transport outage preserves the draft and converges an
     success = true
   } finally {
     gate.reconnect()
-    if (!success) for (const app of [a, b]) app.process().kill('SIGKILL')
+    if (!success)
+      for (const [index, app] of [a, b].entries()) {
+        await recordBusinessState(await app.firstWindow(), `business-state-${index}.json`).catch(
+          console.error,
+        )
+        await crashElectron(app).catch(() => {})
+      }
     await Promise.all([a.close().catch(() => {}), b.close().catch(() => {})])
     await gate.close()
     await rig.close(success)
@@ -231,7 +238,13 @@ test('two actual devices submit different answers to one work and recover their 
     )
     success = true
   } finally {
-    if (!success) for (const app of [a, b]) app.process().kill('SIGKILL')
+    if (!success)
+      for (const [index, app] of [a, b].entries()) {
+        await recordBusinessState(await app.firstWindow(), `business-state-${index}.json`).catch(
+          console.error,
+        )
+        await crashElectron(app).catch(() => {})
+      }
     await Promise.all([a.close().catch(() => {}), b.close().catch(() => {})])
     await rig.close(success)
   }

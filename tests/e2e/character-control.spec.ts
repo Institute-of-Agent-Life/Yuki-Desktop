@@ -1,3 +1,4 @@
+import { navigate, sidebar } from '../fixtures/navigation'
 import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test, type Page } from '@playwright/test'
 import { mkdir } from 'node:fs/promises'
@@ -32,6 +33,7 @@ test(
     try {
       const page = await app.firstWindow()
       await pairUI(page, first.base, await first.code())
+      const firstName = await activeCharacterName(page)
       const original = await page.evaluate(async () => {
         const value = await window.yuki.client.connections()
         if (!value.ok) throw Error(value.code)
@@ -68,21 +70,19 @@ test(
         return value.value.find((item) => item.characterId !== id)!
       }, original.characterId)
       await expect.poll(async () => (await state(page, next)).installation).toBeNull()
-      await page
-        .getByRole('button', { name: `關於 ${await activeCharacterName(page)}`, exact: true })
-        .click()
+      await navigate(page, `關於 ${await activeCharacterName(page)}`)
       await page.getByRole('button', { name: '編輯角色資料', exact: true }).click()
       await page.getByLabel('名稱', { exact: true }).fill('Mika')
       await page.getByRole('button', { name: '儲存', exact: true }).click()
-      await expect(page.getByRole('button', { name: 'Mika 的電腦', exact: true })).toBeVisible()
-      await page.getByRole('button', { name: 'Mika 的電腦', exact: true }).click()
+      await expect(
+        (await sidebar(page)).getByRole('button', { name: 'Mika 的電腦', exact: true }),
+      ).toBeVisible()
+      await navigate(page, 'Mika 的電腦')
       await page.getByRole('button', { name: '接手', exact: true }).click()
       await expect.poll(async () => (await facts(second.base)).control.holder).toBe('human')
       const mikaLease = (await facts(second.base)).control.lease_id
       await page.keyboard.press('ControlOrMeta+Shift+[')
-      await page
-        .getByRole('button', { name: `${await activeCharacterName(page)} 的電腦`, exact: true })
-        .click()
+      await navigate(page, `${firstName} 的電腦`)
       await page.getByRole('button', { name: '接手', exact: true }).click()
       await expect.poll(async () => (await facts(first.base)).control.holder).toBe('human')
       const yukiLease = (await facts(first.base)).control.lease_id
@@ -117,13 +117,11 @@ test(
       await page.keyboard.press('ControlOrMeta+Shift+[')
       await expect(
         page.getByRole('button', {
-          name: `交回給 ${await activeCharacterName(page)}`,
+          name: `交回給 ${firstName}`,
           exact: true,
         }),
       ).toBeVisible()
-      await page
-        .getByRole('button', { name: `交回給 ${await activeCharacterName(page)}`, exact: true })
-        .click()
+      await page.getByRole('button', { name: `交回給 ${firstName}`, exact: true }).click()
       await page.getByRole('dialog').getByRole('button', { name: '交回', exact: true }).click()
       await expect.poll(async () => (await facts(first.base)).control.holder).toBe('none')
       success = true

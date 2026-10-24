@@ -1,7 +1,14 @@
 import { expect, test } from '@playwright/test'
 import type { OriginalRequest, Profile } from '../../src/shared/api'
-import { currentConnection, ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
+import {
+  recordBusinessState,
+  currentConnection,
+  ledgerEvents,
+  pairUI,
+  yukiFixture,
+} from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
+import { crashElectron } from '../fixtures/electron-process'
 
 test('actual Yuki container: pairing, real ledger reply, lost response, cold recovery and draft', async () => {
   test.setTimeout(120000)
@@ -117,10 +124,7 @@ test('actual Yuki container: pairing, real ledger reply, lost response, cold rec
       return { requestId: item.requestId, state: item.state }
     }, connection.characterId)
     expect(unknown.state).toBe('submitted')
-    const process = app.process()
-    const stopped = new Promise<void>((resolve) => process.once('exit', () => resolve()))
-    process.kill('SIGKILL')
-    await stopped
+    await crashElectron(app)
     await app.close().catch(() => {})
     proxy.faults.holdReceipts = false
     app = await launch()
@@ -159,6 +163,8 @@ test('actual Yuki container: pairing, real ledger reply, lost response, cold rec
     })
     completed = true
   } finally {
+    if (!completed)
+      await recordBusinessState(await app.firstWindow(), 'business-state.json').catch(console.error)
     await app.close().catch(() => {})
     await proxy.close()
     await rig.close(completed)

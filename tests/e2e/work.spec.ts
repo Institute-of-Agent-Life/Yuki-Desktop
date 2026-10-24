@@ -1,6 +1,8 @@
+import { navigate } from '../fixtures/navigation'
 import { expect, test } from '@playwright/test'
 import { currentConnection, currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
-import type { Home, Work } from '../../src/shared/api'
+import type { Home, Work, OriginalRequest } from '../../src/shared/api'
+import { writeFile } from 'node:fs/promises'
 
 test('continues the original work through an actual reply and confirms cancellation with lost command responses', async () => {
   test.setTimeout(120000)
@@ -65,7 +67,7 @@ test('continues the original work through an actual reply and confirms cancellat
       .getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true })
       .fill('再建立一項可取消的工作')
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await page.getByRole('button', { name: '工作', exact: true }).click()
+    await navigate(page, '工作')
     const row = page.getByRole('button', { name: /等你回覆.*原工作整合測試/ })
     await expect(row).toBeVisible({ timeout: 20000 })
     await row.click()
@@ -76,6 +78,42 @@ test('continues the original work through an actual reply and confirms cancellat
     await fetch(`${rig.base}/__test/lose-next-work-response/cancel`, { method: 'POST' })
     await page.getByRole('button', { name: '仍然取消', exact: true }).click()
     await expect(detail.getByText('已取消', { exact: true })).toBeVisible({ timeout: 20000 })
+    const cancellation = await page.evaluate(async (id) => {
+      const commands = await window.yuki.client.workCommands(id)
+      if (!commands.ok) throw Error(commands.code)
+      return commands.value.find((item) => item.command.kind === 'cancel')!
+    }, original.characterId)
+    const cancellationReceipt = () =>
+      page.evaluate(
+        async ({ id, requestId }) => {
+          const value = await window.yuki.client.read<OriginalRequest>(id, {
+            kind: 'request',
+            requestId,
+          })
+          if (!value.ok) throw Error(value.code)
+          return value.value
+        },
+        { id: original.characterId, requestId: cancellation.requestId },
+      )
+    await expect.poll(async () => (await cancellationReceipt()).found).toBe(true)
+    await writeFile(
+      test.info().outputPath('original-cancellation-receipt.json'),
+      JSON.stringify(
+        { requestId: cancellation.requestId, receipt: await cancellationReceipt() },
+        null,
+        2,
+      ),
+    )
+    const cancellationState = await page.evaluate(
+      async ({ id, requestId }) => {
+        const commands = await window.yuki.client.workCommands(id)
+        if (!commands.ok) throw Error(commands.code)
+        return commands.value.find((item) => item.requestId === requestId)!.state
+      },
+      { id: original.characterId, requestId: cancellation.requestId },
+    )
+    if (cancellationState !== 'result')
+      await detail.getByRole('button', { name: '查詢', exact: true }).click()
     await expect
       .poll(() =>
         page.evaluate(async (id) => {
@@ -93,20 +131,20 @@ test('continues the original work through an actual reply and confirms cancellat
       animations: 'disabled',
       path: test.info().outputPath('work-cancelled.png'),
     })
-    await page.getByRole('button', { name: '對話', exact: true }).click()
+    await navigate(page, '對話')
     await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
     await page
       .getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true })
       .fill('兩台裝置同時處理的工作')
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await page.getByRole('button', { name: '工作', exact: true }).click()
+    await navigate(page, '工作')
     await expect(row).toBeVisible({ timeout: 20000 })
     await row.click()
     await detail.getByRole('button', { name: '取消工作', exact: true }).click()
     second = await rig.launch('another-work-device')
     const other = await second.firstWindow()
     await pairUI(other, rig.base, await rig.code())
-    await other.getByRole('button', { name: '工作', exact: true }).click()
+    await navigate(other, '工作')
     await other.getByRole('button', { name: /等你回覆.*原工作整合測試/ }).click()
     const otherDetail = other.getByRole('complementary', { name: '檢視器' })
     await otherDetail.getByRole('textbox').fill('另一台裝置回答：台北')

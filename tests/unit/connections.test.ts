@@ -76,6 +76,110 @@ function data(schema: string, value: unknown) {
   validateFixture(schema, { data: value })
   return Response.json({ data: value })
 }
+it.each([false, true])(
+  'shares an initial message POST with SSE verification until its response settles (lost response: %s)',
+  async (lostResponse) => {
+    const connections = setup(),
+      box = connections.box(original.characterId),
+      posts: { request_id: string; text: string; attachments: string[] }[] = [],
+      receiptReads: string[] = []
+    connections.credentials.set(
+      `device/${original.characterId}/${original.personId}`,
+      'fixture-only',
+    )
+    let releasePost!: () => void,
+      enteredPost!: () => void,
+      openedStream!: () => void,
+      enteredVerification!: () => void,
+      stream!: ReadableStreamDefaultController<Uint8Array>,
+      accepted = false
+    const postGate = new Promise<void>((resolve) => (releasePost = resolve)),
+      posted = new Promise<void>((resolve) => (enteredPost = resolve)),
+      streaming = new Promise<void>((resolve) => (openedStream = resolve)),
+      hintVerification = new Promise<void>((resolve) => (enteredVerification = resolve))
+    vi.stubGlobal('fetch', async (input: string, init: RequestInit) => {
+      const path = new URL(input).pathname
+      if (path.endsWith('/meta')) return data('Envelope_Meta_', meta)
+      if (path.endsWith('/me')) return data('Envelope_Me_', me)
+      if (path.endsWith('/stream')) {
+        const body = new ReadableStream<Uint8Array>({
+          start: (controller) => (stream = controller),
+        })
+        init.signal?.addEventListener('abort', () => stream.close(), { once: true })
+        openedStream()
+        return new Response(body, { headers: { 'Content-Type': 'text/event-stream' } })
+      }
+      if (path.endsWith('/messages')) {
+        const body = JSON.parse(init.body as string) as (typeof posts)[number]
+        posts.push(body)
+        enteredPost()
+        await postGate
+        accepted = true
+        if (lostResponse) throw Error('The committed message response was lost')
+        return data('Envelope_MessageReceipt_', {
+          request_id: body.request_id,
+          event_id: 11,
+          state: 'accepted',
+          replay: false,
+        })
+      }
+      const requestId = path.split('/').at(-1)!
+      if (path.includes('/requests/')) {
+        receiptReads.push(requestId)
+        return data(
+          'Envelope_RequestReceipt_',
+          accepted
+            ? {
+                found: true,
+                operation_kind: 'message',
+                target: original.conversationId,
+                payload_hash: box.get(requestId).payloadHash,
+                event_id: 11,
+                turn: { state: 'running', outcome: null },
+                result_event_ids: [],
+              }
+            : { found: false },
+        )
+      }
+      throw Error(`Unexpected route: ${path}`)
+    })
+    connections.start(original.characterId)
+    await streaming
+    const sending = connections.send(original.characterId, 'Keep this original request')
+    await posted
+    const prepared = box.list()[0]!
+    const verify = connections.verify.bind(connections)
+    vi.spyOn(connections, 'verify').mockImplementation((...args) => {
+      const result = verify(...args)
+      enteredVerification()
+      return result
+    })
+    stream.enqueue(new TextEncoder().encode('event: conversation\ndata: {}\n\n'))
+    await hintVerification
+    const verifying = connections.verify(original.characterId, prepared.requestId)
+    try {
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(posts).toEqual([prepared.body])
+      expect(receiptReads).toEqual([])
+      expect(box.get(prepared.requestId)).toMatchObject({ state: 'submitted', eventId: null })
+    } finally {
+      releasePost()
+      await Promise.all([sending, verifying])
+    }
+    expect(await verifying).toEqual(await sending)
+    expect(box.list()).toHaveLength(1)
+    const recovered = await connections.verify(original.characterId, prepared.requestId)
+    expect(recovered).toMatchObject({
+      requestId: prepared.requestId,
+      body: prepared.body,
+      state: 'accepted',
+      eventId: 11,
+      problem: null,
+    })
+    expect(receiptReads).toEqual([prepared.requestId])
+    expect(posts).toEqual([prepared.body])
+  },
+)
 it('uses the actual product route without a metadata capability gate and preserves server authorization', async () => {
   const connections = setup(),
     calls: string[] = []

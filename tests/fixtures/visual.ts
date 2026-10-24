@@ -44,6 +44,7 @@ export async function contentSize(
   page: Page,
   width: number,
   height: number,
+  options: { emulate?: boolean } = {},
 ) {
   const viewport = await app.evaluate(
     async ({ BrowserWindow, screen }, size) => {
@@ -52,6 +53,7 @@ export async function contentSize(
       const [minimumWidth, minimumHeight] = window.getMinimumSize()
       const area = screen.getDisplayMatching(window.getBounds()).workArea
       if (
+        !size.emulate &&
         size.width >= minimumWidth! &&
         size.height >= minimumHeight! &&
         size.width <= area.width &&
@@ -70,7 +72,7 @@ export async function contentSize(
       })
       return { method: 'electron-device-emulation' as const, scale: 1 }
     },
-    { width, height },
+    { width, height, emulate: options.emulate },
   )
   const viewportMethod = viewport.method
   const emulated = viewportMethod === 'electron-device-emulation'

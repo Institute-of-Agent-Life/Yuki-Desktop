@@ -1,5 +1,7 @@
 import { activeCharacterName } from '../fixtures/active-character'
+import { crashElectron } from '../fixtures/electron-process'
 import { contentSize } from '../fixtures/visual'
+import { writeFile } from 'node:fs/promises'
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import type { AppUpdater, UpdateCheckResult } from 'electron-updater'
 import type { CancellationToken } from 'builder-util-runtime'
@@ -263,7 +265,7 @@ test('actual update buttons wait for a started native operation, recover a rejec
     expect((await operations()).operations.map((op) => op.op_id)).toEqual([originalOperation])
     success = true
   } finally {
-    if (!success) app.process().kill('SIGKILL')
+    if (!success) await crashElectron(app).catch(() => {})
     await app
       .evaluate(() => {
         ;(globalThis as unknown as { __updateFixture?: FixtureState }).__updateFixture?.release?.()
@@ -311,6 +313,26 @@ test('minimum client rejection precedes credentials and opens App updates for ne
     await expect(page.getByRole('button', { name: '查看 App 更新', exact: true })).toBeVisible()
     expect(proxy.calls.length).toBeGreaterThan(0)
     expect(proxy.calls.every((call) => !call.bearer)).toBe(true)
+    await page.screenshot({ path: test.info().outputPath('returning-minimum-client-gate.png') })
+    await writeFile(
+      test.info().outputPath('returning-minimum-client-gate.json'),
+      JSON.stringify(
+        await page
+          .getByRole('button', { name: '查看 App 更新', exact: true })
+          .evaluate((button) => {
+            const box = button.getBoundingClientRect()
+            const target = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+            return {
+              box: { x: box.x, y: box.y, width: box.width, height: box.height },
+              viewport: { width: innerWidth, height: innerHeight },
+              target: target?.outerHTML,
+              enabled: !button.hasAttribute('disabled'),
+            }
+          }),
+        null,
+        2,
+      ),
+    )
     await page.getByRole('button', { name: '查看 App 更新', exact: true }).click()
     await expect(page.getByRole('tab', { name: '一般', exact: true })).toHaveAttribute(
       'aria-selected',
@@ -328,7 +350,7 @@ test('minimum client rejection precedes credentials and opens App updates for ne
     ).toHaveValue('最低版本檢查仍保留原草稿')
     success = true
   } finally {
-    if (!success) app.process().kill('SIGKILL')
+    if (!success) await crashElectron(app).catch(() => {})
     await app.close().catch(() => {})
     await proxy.close()
     await rig.close(success)
@@ -430,7 +452,7 @@ test('update controls cancel an active download, reject corrupt content, retain 
     expect((await updateState(page)).phase).toBe('idle')
     success = true
   } finally {
-    if (!success) app.process().kill('SIGKILL')
+    if (!success) await crashElectron(app).catch(() => {})
     await app.close().catch(() => {})
     await rig.close(success)
   }
