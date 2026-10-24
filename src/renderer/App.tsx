@@ -267,10 +267,11 @@ export function App({ boot }: { boot: BootInfo }) {
         setPairLink(null)
         setNavigationError('')
         const remaining = unwrap(await window.yuki.client.connections())
+        const first = remaining.find((item) => !item.needsPairing || item.logout)
         setConnections(remaining)
-        setConnection(remaining[0])
-        setPairingTarget(remaining[0]?.needsPairing ? remaining[0] : undefined)
-        selection.current = remaining[0]?.characterId
+        setConnection(first)
+        setPairingTarget(first?.needsPairing ? first : undefined)
+        selection.current = first?.characterId
         setSettingsOpen(false)
         setStep('welcome')
       }}
