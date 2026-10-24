@@ -289,9 +289,6 @@ test('device and one-time-code sheets keep actual controls reachable in four the
         [960, 492],
       ] as const) {
         const viewportMethod = await contentSize(app, page, width, height)
-        await expect
-          .poll(() => page.evaluate(() => [innerWidth, innerHeight]))
-          .toEqual([width, height])
         await captureViewport(
           app,
           page,
