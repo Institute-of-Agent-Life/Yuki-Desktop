@@ -5,8 +5,13 @@ import { expect, test } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { currentConnection, ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
-import type { OriginalRequest } from '../../src/shared/api'
+import {
+  currentConnection,
+  ledgerEvents,
+  pairUI,
+  waitForMainEnded,
+  yukiFixture,
+} from '../fixtures/backend'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
 
 test('real workspace handles long conversations, separate entries, work details and immutable long file names across themes', async () => {
@@ -40,25 +45,11 @@ test('real workspace handles long conversations, separate entries, work details 
         .filter((event) => event.event_id === plainRequest.eventId)
         .map((event) => event.content),
     ).toEqual([longPlainText])
-    const rejected = () =>
-      page.evaluate(
-        async ({ id, requestId }) => {
-          const result = await window.yuki.client.read<OriginalRequest>(id, {
-            kind: 'request',
-            requestId,
-          })
-          if (!result.ok) throw Error(result.code)
-          return result.value
-        },
-        { id: original.characterId, requestId: plainRequest.requestId },
-      )
-    await expect
-      .poll(async () => (await rejected()).turn)
-      .toMatchObject({
-        state: 'ended',
-        outcome: 'input_too_long',
-      })
-    const rejection = await rejected()
+    const rejection = await waitForMainEnded(page, original.characterId, plainRequest.requestId)
+    expect(rejection.turn).toMatchObject({
+      state: 'ended',
+      outcome: 'input_too_long',
+    })
     expect(rejection.turn).not.toHaveProperty('error_category')
     expect(rejection.event_id).toBe(plainRequest.eventId)
     expect(rejection.result_event_ids).toHaveLength(1)
@@ -108,20 +99,7 @@ test('real workspace handles long conversations, separate entries, work details 
       },
       { id: original.characterId, text: longText },
     )
-    const receipt = () =>
-      page.evaluate(
-        async ({ id, requestId }) => {
-          const result = await window.yuki.client.read<OriginalRequest>(id, {
-            kind: 'request',
-            requestId,
-          })
-          if (!result.ok) throw Error(result.code)
-          return result.value
-        },
-        { id: original.characterId, requestId: richRequest.requestId },
-      )
-    await expect.poll(async () => (await receipt()).turn?.state).toBe('ended')
-    const replied = await receipt()
+    const replied = await waitForMainEnded(page, original.characterId, richRequest.requestId)
     expect(replied.event_id).toBe(richRequest.eventId)
     expect(replied.turn).toMatchObject({ state: 'ended', outcome: 'chat' })
     expect(replied.turn).not.toHaveProperty('error_category')

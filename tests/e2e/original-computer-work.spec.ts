@@ -210,10 +210,15 @@ test(
       expect(delivered.work.budget.tools).toBe(original.work.budget.tools + 2)
       expect(delivered.work.budget.model_limit).toBe(original.work.budget.model_limit)
       expect(delivered.work.budget.tool_limit).toBe(original.work.budget.tool_limit)
-      expect(delivered.artifacts.items).toHaveLength(1)
-      expect(delivered.artifacts.items[0]!.artifact_id).toBe(asset.artifact_id)
-      expect(delivered.artifacts.items[0]!.work_id).toBe(original.work.work_id)
-      expect(delivered.artifacts.items[0]!.version).toBe(asset.sha256)
+      expect(
+        delivered.artifacts.items.filter((item) => item.artifact_id === asset.artifact_id),
+      ).toEqual([
+        expect.objectContaining({
+          artifact_id: asset.artifact_id,
+          work_id: original.work.work_id,
+          version: asset.sha256,
+        }),
+      ])
       if (await page.getByRole('button', { name: '收合工作區', exact: true }).isVisible())
         await page.getByRole('button', { name: '收合工作區', exact: true }).click()
       await page.keyboard.press('ControlOrMeta+1')

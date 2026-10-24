@@ -39,6 +39,54 @@ export async function currentEvents(page: Page): Promise<EventsPage> {
   })
 }
 
+/** Follow commit hints, while completion remains the original Main receipt. */
+export async function waitForMainEnded(
+  page: Page,
+  characterId: string,
+  requestId: string,
+): Promise<OriginalRequest> {
+  return page.evaluate(
+    ({ characterId, requestId }) =>
+      new Promise<OriginalRequest>((resolve, reject) => {
+        let reading = false
+        let changed = false
+        const unsubscribe = window.yuki.client.onHint((id, kind) => {
+          if (id === characterId && kind !== 'connection') void read()
+        })
+        async function read() {
+          if (reading) {
+            changed = true
+            return
+          }
+          reading = true
+          try {
+            do {
+              changed = false
+              const result = await window.yuki.client.read<OriginalRequest>(characterId, {
+                kind: 'request',
+                requestId,
+              })
+              if (!result.ok) throw Error(result.code)
+              if (!result.value.found) throw Error(`Original request not found: ${requestId}`)
+              if (result.value.turn?.state === 'ended') {
+                unsubscribe()
+                resolve(result.value)
+                return
+              }
+            } while (changed)
+          } catch (error) {
+            unsubscribe()
+            reject(error)
+          } finally {
+            reading = false
+          }
+        }
+        void read()
+      }),
+    { characterId, requestId },
+  )
+}
+
 type LedgerEvent = Pick<
   PublicEvent,
   | 'event_id'

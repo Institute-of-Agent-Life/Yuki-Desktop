@@ -39,14 +39,8 @@ test(
       await pairUI(pa, rig.base, await rig.code())
       await pairUI(pb, rig.base, await rig.code())
       const name = await characterName(pa)
-      await pa
-        .getByRole('button', { name: `${name} 的電腦`, exact: true })
-        .first()
-        .click()
-      await pb
-        .getByRole('button', { name: `${name} 的電腦`, exact: true })
-        .first()
-        .click()
+      await navigate(pa, `${name} 的電腦`)
+      await navigate(pb, `${name} 的電腦`)
       await expect(pa.getByRole('button', { name: '截圖存檔' })).toBeEnabled()
       await expect(pb.getByRole('button', { name: '截圖存檔' })).toBeEnabled()
       await expect.poll(async () => (await facts()).connections).toBe(2)

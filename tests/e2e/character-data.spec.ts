@@ -1,8 +1,14 @@
 import { navigate } from '../fixtures/navigation'
 import { expect, test } from '@playwright/test'
-import type { AutomationPage, MemoryPage, OriginalRequest, Profile } from '../../src/shared/api'
+import type { AutomationPage, MemoryPage, Profile } from '../../src/shared/api'
 import { expectContainedText } from '../fixtures/contained-text'
-import { recordBusinessState, currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
+import {
+  recordBusinessState,
+  currentConnection,
+  pairUI,
+  waitForMainEnded,
+  yukiFixture,
+} from '../fixtures/backend'
 
 test('real Electron edits original memory and arrangements, handles two-device conflicts and lost responses', async () => {
   test.setTimeout(150000)
@@ -40,31 +46,7 @@ test('real Electron edits original memory and arrangements, handles two-device c
       },
       { id: connection.characterId, text: sourceText },
     )
-    await expect
-      .poll(() =>
-        pa.evaluate(
-          async ({ id, requestId }) => {
-            const result = await window.yuki.client.read<OriginalRequest>(id, {
-              kind: 'request',
-              requestId,
-            })
-            return result.ok ? result.value.turn?.state : result.code
-          },
-          { id: connection.characterId, requestId: sent.requestId },
-        ),
-      )
-      .toBe('ended')
-    const receipt = await pa.evaluate(
-      async ({ id, requestId }) => {
-        const result = await window.yuki.client.read<OriginalRequest>(id, {
-          kind: 'request',
-          requestId,
-        })
-        if (!result.ok) throw Error(result.code)
-        return result.value
-      },
-      { id: connection.characterId, requestId: sent.requestId },
-    )
+    const receipt = await waitForMainEnded(pa, connection.characterId, sent.requestId)
     expect(receipt.event_id).toBe(sent.eventId)
     expect(receipt.result_event_ids).toHaveLength(1)
     await expect(

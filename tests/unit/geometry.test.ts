@@ -12,6 +12,14 @@ describe('moving windows across actual available work areas', () => {
     const saved = { x: 0, y: 0, width: 960, height: 640 }
     expect(windowGeometry({ x: 0, y: 0, width: 1920, height: 1040 }, saved).bounds).toEqual(saved)
   })
+  it('requests the exact lower-right position when a saved window extends past the display', () => {
+    expect(
+      windowGeometry(
+        { x: 0, y: 0, width: 1920, height: 1200 },
+        { x: 920, y: 540, width: 1100, height: 760 },
+      ).bounds,
+    ).toEqual({ x: 820, y: 440, width: 1100, height: 760 })
+  })
   it('allows work areas smaller than the normal minimum', () => {
     expect(windowGeometry({ x: 0, y: 0, width: 911, height: 464 }).bounds).toEqual({
       x: 0,

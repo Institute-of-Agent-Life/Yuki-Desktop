@@ -37,7 +37,7 @@ test('palette searches only actual loaded entries and exact-event verification n
     await page.keyboard.press('Escape')
     await navigate(page, /^QQ ·/)
     await expect(page.getByText('QQ 原入口的真實帳本內容', { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '回到桌面對話', exact: true }).click()
+    await navigate(page, '回到桌面對話')
     const composer = page.getByRole('textbox', {
       name: `和 ${await activeCharacterName(page)} 說點什麼`,
     })
@@ -65,14 +65,14 @@ test('palette searches only actual loaded entries and exact-event verification n
         .locator(`article[data-event-id="${source.event_id}"]`),
     ).toBeVisible()
     await page.keyboard.press('ControlOrMeta+Shift+e')
-    await page.getByRole('button', { name: '回到桌面對話', exact: true }).click()
+    await navigate(page, '回到桌面對話')
     const nextResponse = await fetch(`${rig.base}/__test/qq-entry`, { method: 'POST' })
     expect(nextResponse.status).toBe(200)
     const next = (await nextResponse.json()) as { event_id: number; conversation_id: string }
     expect(next.conversation_id).toBe(source.conversation_id)
     await navigate(page, /^QQ ·/)
     await expect(page.locator(`article[data-event-id="${next.event_id}"]`)).toBeVisible()
-    await page.getByRole('button', { name: '回到桌面對話', exact: true }).click()
+    await navigate(page, '回到桌面對話')
     palette = await open(page, 'QQ 原入口')
     const original = palette.dialog.locator(
       `[data-item-id="message/${source.conversation_id}/${source.event_id}"]`,
@@ -208,7 +208,19 @@ test('palette navigation preserves the original unsaved prompt guard', async () 
     await editor.click()
     await page.keyboard.press('ControlOrMeta+A')
     await page.keyboard.insertText('尚未儲存的原角色提示詞')
-    await open(page, '開啟設定')
+    const settings = await open(page, '開啟設定')
+    const selectedSettings = settings.dialog.getByRole('option', { selected: true })
+    await test.info().attach('settings-palette-option-aria', {
+      body: await selectedSettings.ariaSnapshot(),
+      contentType: 'text/plain',
+    })
+    await test.info().attach('settings-palette-option-dom', {
+      body: await selectedSettings.evaluate((element) => element.outerHTML),
+      contentType: 'text/html',
+    })
+    await expect(
+      settings.dialog.getByRole('option', { name: '開啟設定', exact: true }),
+    ).toHaveCount(1)
     await page.keyboard.press('Enter')
     const guard = page.getByRole('dialog', { name: '要儲存變更嗎？', exact: true })
     await expect(guard).toBeVisible()

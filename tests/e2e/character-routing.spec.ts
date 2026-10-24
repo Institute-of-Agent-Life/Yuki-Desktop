@@ -1,7 +1,12 @@
 import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test, type Page } from '@playwright/test'
-import { recordBusinessState, ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
-import type { OriginalRequest } from '../../src/shared/api'
+import {
+  recordBusinessState,
+  ledgerEvents,
+  pairUI,
+  waitForMainEnded,
+  yukiFixture,
+} from '../fixtures/backend'
 
 async function send(page: Page, text: string) {
   await page.keyboard.press('ControlOrMeta+N')
@@ -28,20 +33,7 @@ async function send(page: Page, text: string) {
     },
     { id, text },
   )
-  const receipt = () =>
-    page.evaluate(
-      async ({ id, requestId }) => {
-        const result = await window.yuki.client.read<OriginalRequest>(id, {
-          kind: 'request',
-          requestId,
-        })
-        if (!result.ok) throw Error(result.code)
-        return result.value
-      },
-      { id, requestId: sent.requestId },
-    )
-  await expect.poll(async () => (await receipt()).turn?.state).toBe('ended')
-  const replied = await receipt()
+  const replied = await waitForMainEnded(page, id, sent.requestId)
   expect(replied.event_id).toBe(sent.eventId)
   expect(replied.result_event_ids).toHaveLength(1)
   await expect(

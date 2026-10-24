@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test'
 import type { OriginalRequest, Profile } from '../../src/shared/api'
-import { currentConnection, ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
+import {
+  currentConnection,
+  ledgerEvents,
+  pairUI,
+  waitForMainEnded,
+  yukiFixture,
+} from '../fixtures/backend'
 
 test('the open desktop reconnects after a real backend process crash and keeps original events and receipts', async () => {
   test.setTimeout(120000)
@@ -42,8 +48,7 @@ test('the open desktop reconnects after a real backend process crash and keeps o
         },
         { id: connection.characterId, requestId: sent.requestId },
       )
-    await expect.poll(async () => (await receipt()).turn?.state).toBe('ended')
-    const original = await receipt()
+    const original = await waitForMainEnded(page, connection.characterId, sent.requestId)
     expect(original.event_id).toBe(sent.eventId)
     expect(original.result_event_ids).toHaveLength(1)
     await expect(

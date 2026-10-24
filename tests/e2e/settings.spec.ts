@@ -1,4 +1,5 @@
 import { activeCharacterName } from '../fixtures/active-character'
+import { sidebar as openSidebar } from '../fixtures/navigation'
 import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
@@ -229,6 +230,7 @@ test('settings use the original role workspace, preserve its inspector and resto
     await expect(page.getByRole('complementary', { name: '檢視器', exact: true })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+,')
     await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeVisible()
+    await openSidebar(page)
     await expect(sidebar).toBeVisible()
     await expect(sidebar.getByRole('button', { name: '設定', exact: true })).toHaveAttribute(
       'aria-current',
@@ -252,24 +254,29 @@ test('settings use the original role workspace, preserve its inspector and resto
     await page.screenshot({
       path: test.info().outputPath('settings-with-original-role-sidebar.png'),
     })
+    await page.keyboard.press('Escape')
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await expect(composer).toHaveValue(draft)
     await expect(page.getByRole('complementary', { name: '檢視器', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '展開工作區', exact: true }).click()
     await expect(page.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+,')
+    await openSidebar(page)
     await expect(sidebar).toBeVisible()
     await expect(page.getByRole('complementary', { name: '檢視器', exact: true })).toHaveCount(0)
+    await page.keyboard.press('Escape')
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await expect(page.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '收合工作區', exact: true }).click()
     await page.keyboard.press('ControlOrMeta+,')
+    await openSidebar(page)
     await sidebar.getByRole('button', { name: '工作', exact: true }).click()
     await expect(page.getByRole('tablist', { name: '設定分類', exact: true })).toHaveCount(0)
     await expect(page.getByRole('heading', { name: '工作', exact: true })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+1')
     await expect(composer).toHaveValue(draft)
     await page.keyboard.press('ControlOrMeta+,')
+    await openSidebar(page)
     await sidebar
       .getByRole('button', { name: `關於 ${await activeCharacterName(page)}`, exact: true })
       .click()

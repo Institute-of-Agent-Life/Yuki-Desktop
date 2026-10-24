@@ -1,4 +1,4 @@
-import { navigate } from '../fixtures/navigation'
+import { navigate, sidebar } from '../fixtures/navigation'
 import { expect, test } from '@playwright/test'
 import { currentConnection, currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
 
@@ -28,16 +28,20 @@ test('reads another actual personal ingress and quotes its exact original event 
       })
     await navigate(page, /^QQ ·/)
     await expect(page.getByText('QQ 原入口的真實帳本內容', { exact: true })).toBeVisible()
-    const navigation = page.getByRole('navigation', { name: '主要導覽' })
+    const navigation = await sidebar(page)
     await expect(navigation.locator('[aria-current=page]')).toHaveCount(1)
     await page.keyboard.press('ControlOrMeta+,')
+    await sidebar(page)
     await expect(navigation.locator('[aria-current=page]')).toHaveCount(1)
     await expect(navigation.getByRole('button', { name: '設定', exact: true })).toHaveAttribute(
       'aria-current',
       'page',
     )
+    await page.keyboard.press('Escape')
     await page.getByRole('button', { name: '返回', exact: true }).click()
+    await sidebar(page)
     await expect(navigation.locator('[aria-current=page]')).toHaveCount(1)
+    await page.keyboard.press('Escape')
     await expect(page.locator('textarea')).toHaveCount(0)
     await page.getByRole('button', { name: '在桌面對話中提到這段', exact: true }).click()
     const composer = page.getByRole('textbox', { name: `和 ${connection.name} 說點什麼` })
@@ -46,7 +50,7 @@ test('reads another actual personal ingress and quotes its exact original event 
     await page.getByRole('button').filter({ hasText: '引用：QQ 原入口的真實帳本內容' }).click()
     await expect(page.locator('article[aria-label="你的訊息"]')).toHaveClass(/selected/)
     await expect(page.locator('textarea')).toHaveCount(0)
-    await page.getByRole('button', { name: '回到桌面對話', exact: true }).click()
+    await navigate(page, '回到桌面對話')
     await composer.fill('請接續這個原入口的事情')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect

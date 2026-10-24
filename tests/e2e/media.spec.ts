@@ -154,6 +154,7 @@ test('device A uploads with a lost receipt; device B previews and saves verified
         throw error
       })
     await page.getByRole('button', { name: '關閉預覽', exact: true }).click()
+    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
     await page
       .locator(`article[data-event-id="${original.event_id}"]`)
       .getByRole('button', { name: /handoff\.txt/ })

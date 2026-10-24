@@ -138,10 +138,10 @@ export async function forwardProxy(target: string, prefix: string) {
       held.delete(path)
     },
     faults,
-    close: () =>
-      new Promise<void>((resolve) => {
-        server.closeAllConnections()
-        server.close(() => resolve())
-      }),
+    close: async () => {
+      const closed = new Promise<void>((resolve) => server.close(() => resolve()))
+      server.closeAllConnections()
+      await closed
+    },
   }
 }

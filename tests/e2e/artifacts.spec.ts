@@ -3,8 +3,14 @@ import { expect, test } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { recordBusinessState, currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
-import type { ArtifactPage, OriginalRequest, Profile } from '../../src/shared/api'
+import {
+  recordBusinessState,
+  currentConnection,
+  pairUI,
+  waitForMainEnded,
+  yukiFixture,
+} from '../fixtures/backend'
+import type { ArtifactPage, Profile } from '../../src/shared/api'
 
 test('reads real delivered artifacts, keeps same names separate, saves exact versions and removes revoked previews', async () => {
   test.setTimeout(120000)
@@ -34,20 +40,7 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
       if (!item?.eventId) throw Error('Original accepted request is missing')
       return { requestId: item.requestId, eventId: item.eventId }
     }, connection.characterId)
-    const receipt = () =>
-      page.evaluate(
-        async ({ id, requestId }) => {
-          const result = await window.yuki.client.read<OriginalRequest>(id, {
-            kind: 'request',
-            requestId,
-          })
-          if (!result.ok) throw Error(result.code)
-          return result.value
-        },
-        { id: connection.characterId, requestId: sent.requestId },
-      )
-    await expect.poll(async () => (await receipt()).turn?.state).toBe('ended')
-    const replied = await receipt()
+    const replied = await waitForMainEnded(page, connection.characterId, sent.requestId)
     expect(replied.event_id).toBe(sent.eventId)
     expect(replied.result_event_ids).toHaveLength(1)
     await expect(

@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test'
-import type { OriginalRequest, Profile } from '../../src/shared/api'
+import type { Profile } from '../../src/shared/api'
 import {
   recordBusinessState,
   currentConnection,
   ledgerEvents,
   pairUI,
+  waitForMainEnded,
   yukiFixture,
 } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
@@ -46,20 +47,7 @@ test('actual Yuki container: pairing, real ledger reply, lost response, cold rec
       if (!item?.eventId) throw Error('Original accepted request is missing')
       return { requestId: item.requestId, eventId: item.eventId }
     }, connection.characterId)
-    const receipt = async () =>
-      page.evaluate(
-        async ({ id, requestId }) => {
-          const result = await window.yuki.client.read<OriginalRequest>(id, {
-            kind: 'request',
-            requestId,
-          })
-          if (!result.ok) throw Error(result.code)
-          return result.value
-        },
-        { id: connection.characterId, requestId: sent.requestId },
-      )
-    await expect.poll(async () => (await receipt()).turn?.state).toBe('ended')
-    const original = await receipt()
+    const original = await waitForMainEnded(page, connection.characterId, sent.requestId)
     expect(original.event_id).toBe(sent.eventId)
     expect(original.result_event_ids).toHaveLength(1)
     await expect(

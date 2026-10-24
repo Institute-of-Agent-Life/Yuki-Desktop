@@ -1,4 +1,4 @@
-import { navigate } from '../fixtures/navigation'
+import { navigate, sidebar } from '../fixtures/navigation'
 import { activeCharacterName } from '../fixtures/active-character'
 import { contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
@@ -12,6 +12,7 @@ async function add(page: Page) {
   await expect(page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })).toBeVisible()
 }
 async function switchRole(page: Page, name: string) {
+  await sidebar(page)
   await page.getByRole('button', { name: '切換角色', exact: true }).click()
   await page.getByRole('menuitemradio', { name: new RegExp(name) }).click()
 }
