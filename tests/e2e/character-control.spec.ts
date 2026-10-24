@@ -82,6 +82,7 @@ test(
       await expect.poll(async () => (await facts(second.base)).control.holder).toBe('human')
       const mikaLease = (await facts(second.base)).control.lease_id
       await page.keyboard.press('ControlOrMeta+Shift+[')
+      await expect(page.locator(`[data-character-session="${original.characterId}"]`)).toBeVisible()
       await navigate(page, `${firstName} 的電腦`)
       await page.getByRole('button', { name: '接手', exact: true }).click()
       await expect.poll(async () => (await facts(first.base)).control.holder).toBe('human')

@@ -1,6 +1,6 @@
 import { navigate, sidebar } from '../fixtures/navigation'
 import { activeCharacterName } from '../fixtures/active-character'
-import { contentSize } from '../fixtures/visual'
+import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -176,7 +176,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await expect(page.getByRole('menuitemradio', { name: new RegExp(firstName) })).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('button', { name: '切換角色', exact: true })).toBeFocused()
-    await page.screenshot({ path: join(test.info().outputDir, 'mika-role-switch.png') })
+    await captureViewport(app, page, join(test.info().outputDir, 'mika-role-switch.png'))
     await app.close()
     app = await first.launch('multiple-roles')
     page = await app.firstWindow()
@@ -281,9 +281,11 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
             'background-color',
             mode === 'dark' ? 'rgb(229, 162, 188)' : 'rgb(176, 70, 107)',
           )
-          await page.screenshot({
-            path: test.info().outputPath(`S12-${mode}-${width}-${name}.png`),
-          })
+          await captureViewport(
+            app,
+            page,
+            test.info().outputPath(`S12-${mode}-${width}-${name}.png`),
+          )
           await page.keyboard.press('Escape')
           await page.keyboard.press('ControlOrMeta+Shift+BracketRight')
         }
