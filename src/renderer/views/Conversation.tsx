@@ -381,16 +381,17 @@ export function Conversation({
   useEffect(() => {
     if (!active || settings) setPalette(false)
   }, [active, settings])
-  const choose = (next: string) => {
-    needsEarlier.current = false
-    setAnchor(null)
-    setHistoryError('')
-    setNewMessages(false)
-    workspace.patch({ conversationId: next })
-    setSelection(undefined)
-    bottom.current = true
-    workspace.setView('chat')
-  }
+  const choose = (next: string) =>
+    requestNavigation(() => {
+      needsEarlier.current = false
+      setAnchor(null)
+      setHistoryError('')
+      setNewMessages(false)
+      workspace.patch({ conversationId: next })
+      setSelection(undefined)
+      bottom.current = true
+      workspace.setView('chat')
+    })
   const updateDraft = (value: string) => {
     currentDraft.current = value
     setDraft(value)
@@ -582,7 +583,10 @@ export function Conversation({
     ...(['chat', 'works', 'about'] as const).map((view, index) => ({
       id: `command/${view}`,
       title: ['開啟對話', '開啟工作', '開啟角色資料'][index]!,
-      run: () => paletteNavigate(() => workspace.setView(view)),
+      run: () =>
+        paletteNavigate(() =>
+          view === 'chat' ? choose(connection.conversationId) : workspace.setView(view),
+        ),
     })),
     {
       id: 'command/inspector',
@@ -620,6 +624,7 @@ export function Conversation({
       <Workspace
         scrolled={scrolled}
         mainConversation={isMain}
+        onChat={() => choose(connection.conversationId)}
         settings={settings}
         onView={settings ? onSettingsBack : undefined}
         toolbar={
@@ -665,17 +670,6 @@ export function Conversation({
                   {item.platform.toUpperCase()} · {item.display_name}
                 </button>
               ))}
-            {!isMain && (
-              <Button
-                variant="plain"
-                onClick={() => {
-                  choose(connection.conversationId)
-                  if (settings) onSettingsBack?.()
-                }}
-              >
-                回到桌面對話
-              </Button>
-            )}
           </>
         }
         inspector={
