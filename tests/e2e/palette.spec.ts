@@ -1,3 +1,4 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
@@ -35,10 +36,12 @@ test('palette searches only actual loaded entries and exact-event verification n
     await page.getByRole('button', { name: /^QQ ·/ }).click()
     await expect(page.getByText('QQ 原入口的真實帳本內容', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '回到桌面對話', exact: true }).click()
-    const composer = page.getByRole('textbox', { name: '和 Yuki 說點什麼' })
+    const composer = page.getByRole('textbox', {
+      name: `和 ${await activeCharacterName(page)} 說點什麼`,
+    })
     await composer.fill('新的桌面訊息不會移除已載入的 QQ 搜尋內容')
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(page.getByText('真實帳本回覆', { exact: true })).toBeVisible()
+    await expect(page.getByText('Desktop reference reply', { exact: true })).toBeVisible()
     await composer.focus()
     palette = await open(page, 'QQ 原入口')
     await expect(palette.dialog.getByRole('option')).toHaveCount(1)
@@ -101,82 +104,88 @@ test('palette searches only actual loaded entries and exact-event verification n
   }
 })
 
-test('real cached work and immutable artifacts open through Enter and the stage shortcut; wake uses the original command', async () => {
-  test.setTimeout(150000)
-  const rig = await yukiFixture({ computer: true }),
-    app = await rig.launch('palette-resources')
-  let success = false
-  try {
-    const page = await app.firstWindow()
-    await pairUI(page, rig.base, await rig.code())
-    await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('請建立原工作整合測試')
-    await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(page.getByText('需要你提供城市', { exact: true }).first()).toBeVisible()
-    await page.keyboard.press('ControlOrMeta+2')
-    await expect(page.getByRole('button', { name: /原工作整合測試/ }).first()).toBeVisible()
-    let palette = await open(page, '原工作整合測試')
-    const work = palette.dialog.locator('[role="option"][data-item-id^="work/"]')
-    await expect(work).toHaveCount(1)
-    await work.hover()
-    await page.keyboard.press('ControlOrMeta+Enter')
-    await expect(
-      page
-        .getByRole('complementary', { name: '檢視器' })
-        .getByText('需要你提供城市', { exact: true })
-        .first(),
-    ).toBeVisible()
-    await expect(page.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
-    await page.keyboard.press('ControlOrMeta+Shift+e')
-    await fetch(`${rig.base}/__test/artifacts`, { method: 'POST' })
-    await page.keyboard.press('ControlOrMeta+4')
-    await expect(page.getByRole('button', { name: /same.md/ }).first()).toBeVisible()
-    palette = await open(page, 'same.md')
-    let files = palette.dialog.locator('[role="option"][data-item-id^="file/"]')
-    await expect(files).toHaveCount(2)
-    const ids = await files.evaluateAll((rows) =>
-      rows.map((row) => row.getAttribute('data-item-id')),
-    )
-    expect(new Set(ids).size).toBe(2)
-    await files.first().hover()
-    await page.keyboard.press('Enter')
-    await expect(palette.dialog).not.toBeVisible()
-    await expect(
-      page.getByText(/Original immutable content|Different immutable content/).first(),
-    ).toBeVisible()
-    palette = await open(page, 'same.md')
-    files = palette.dialog.locator('[role="option"][data-item-id^="file/"]')
-    await files.first().hover()
-    await page.keyboard.press('ArrowDown')
-    await page.keyboard.press('ControlOrMeta+Enter')
-    await expect(page.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
-    await expect(
-      page
-        .getByRole('complementary', { name: '檢視器' })
-        .getByText(/Original immutable content|Different immutable content/)
-        .first(),
-    ).toBeVisible()
-    palette = await open(page, '喚醒')
-    await expect(palette.dialog.getByRole('option', { name: /喚醒 Yuki 的電腦/ })).toHaveCount(1)
-    await page.keyboard.press('Enter')
-    await expect(page.getByRole('button', { name: '接手', exact: true })).toBeVisible()
-    const commands = () =>
-      page.evaluate(async () => {
-        const c = await window.yuki.client.connections()
-        if (!c.ok) throw Error(c.code)
-        const r = await window.yuki.client.computerCommands(c.value[0]!.characterId)
-        if (!r.ok) throw Error(r.code)
-        return r.value
-      })
-    await expect
-      .poll(async () => (await commands()).filter((item) => item.command.action === 'wake'))
-      .toEqual([expect.objectContaining({ state: 'result', problem: null })])
-    success = true
-  } finally {
-    await app.close().catch(() => {})
-    await rig.close(success)
-  }
-})
+test(
+  'real cached work and immutable artifacts open through Enter and the stage shortcut; wake uses the original command',
+  { tag: '@unix-manager' },
+  async () => {
+    test.setTimeout(150000)
+    const rig = await yukiFixture({ computer: true }),
+      app = await rig.launch('palette-resources')
+    let success = false
+    try {
+      const page = await app.firstWindow()
+      await pairUI(page, rig.base, await rig.code())
+      await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
+      await page
+        .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` })
+        .fill('請建立原工作整合測試')
+      await page.getByRole('button', { name: '送出', exact: true }).click()
+      await expect(page.getByText('需要你提供城市', { exact: true }).first()).toBeVisible()
+      await page.keyboard.press('ControlOrMeta+2')
+      await expect(page.getByRole('button', { name: /原工作整合測試/ }).first()).toBeVisible()
+      let palette = await open(page, '原工作整合測試')
+      const work = palette.dialog.locator('[role="option"][data-item-id^="work/"]')
+      await expect(work).toHaveCount(1)
+      await work.hover()
+      await page.keyboard.press('ControlOrMeta+Enter')
+      await expect(
+        page
+          .getByRole('complementary', { name: '檢視器' })
+          .getByText('需要你提供城市', { exact: true })
+          .first(),
+      ).toBeVisible()
+      await expect(page.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
+      await page.keyboard.press('ControlOrMeta+Shift+e')
+      await fetch(`${rig.base}/__test/artifacts`, { method: 'POST' })
+      await page.keyboard.press('ControlOrMeta+4')
+      await expect(page.getByRole('button', { name: /same.md/ }).first()).toBeVisible()
+      palette = await open(page, 'same.md')
+      let files = palette.dialog.locator('[role="option"][data-item-id^="file/"]')
+      await expect(files).toHaveCount(2)
+      const ids = await files.evaluateAll((rows) =>
+        rows.map((row) => row.getAttribute('data-item-id')),
+      )
+      expect(new Set(ids).size).toBe(2)
+      await files.first().hover()
+      await page.keyboard.press('Enter')
+      await expect(palette.dialog).not.toBeVisible()
+      await expect(
+        page.getByText(/Original immutable content|Different immutable content/).first(),
+      ).toBeVisible()
+      palette = await open(page, 'same.md')
+      files = palette.dialog.locator('[role="option"][data-item-id^="file/"]')
+      await files.first().hover()
+      await page.keyboard.press('ArrowDown')
+      await page.keyboard.press('ControlOrMeta+Enter')
+      await expect(page.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
+      await expect(
+        page
+          .getByRole('complementary', { name: '檢視器' })
+          .getByText(/Original immutable content|Different immutable content/)
+          .first(),
+      ).toBeVisible()
+      palette = await open(page, '喚醒')
+      await expect(palette.dialog.getByRole('option', { name: /喚醒 Yuki 的電腦/ })).toHaveCount(1)
+      await page.keyboard.press('Enter')
+      await expect(page.getByRole('button', { name: '接手', exact: true })).toBeVisible()
+      const commands = () =>
+        page.evaluate(async () => {
+          const c = await window.yuki.client.connections()
+          if (!c.ok) throw Error(c.code)
+          const r = await window.yuki.client.computerCommands(c.value[0]!.characterId)
+          if (!r.ok) throw Error(r.code)
+          return r.value
+        })
+      await expect
+        .poll(async () => (await commands()).filter((item) => item.command.action === 'wake'))
+        .toEqual([expect.objectContaining({ state: 'result', problem: null })])
+      success = true
+    } finally {
+      await app.close().catch(() => {})
+      await rig.close(success)
+    }
+  },
+)
 
 test('palette navigation preserves the original unsaved prompt guard', async () => {
   const rig = await yukiFixture({ character: true, prompts: true }),
@@ -185,7 +194,9 @@ test('palette navigation preserves the original unsaved prompt guard', async () 
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
-    await page.getByRole('button', { name: '關於 Yuki', exact: true }).click()
+    await page
+      .getByRole('button', { name: `關於 ${await activeCharacterName(page)}`, exact: true })
+      .click()
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     const editor = page.getByRole('textbox', { name: 'SOUL.md 內容', exact: true })
     await expect(editor).toHaveAttribute('aria-readonly', 'false')
@@ -218,9 +229,11 @@ test('palette geometry, keyboard focus and footer remain usable across themes, s
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('可搜尋的真實訊息')
+    await page
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` })
+      .fill('可搜尋的真實訊息')
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(page.getByText('真實帳本回覆', { exact: true })).toBeVisible()
+    await expect(page.getByText('Desktop reference reply', { exact: true })).toBeVisible()
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
       await contentSize(app, page, 1440, 900)
       await page.keyboard.press('ControlOrMeta+,')
@@ -243,9 +256,10 @@ test('palette geometry, keyboard focus and footer remain usable across themes, s
         [960, 492],
       ] as const) {
         const viewportMethod = await contentSize(app, page, width, height)
-        await expect
-          .poll(() => page.evaluate(() => [innerWidth, innerHeight]))
-          .toEqual([width, height])
+        if (viewportMethod === 'electron-device-emulation')
+          await expect
+            .poll(() => page.evaluate(() => [innerWidth, innerHeight]))
+            .toEqual([width, height])
         const palette = await open(page)
         await expect(palette.dialog).toHaveCSS('width', '640px')
         await expect(palette.dialog).toHaveCSS('top', height < 600 ? '32px' : '120px')
@@ -261,7 +275,7 @@ test('palette geometry, keyboard focus and footer remain usable across themes, s
           test
             .info()
             .outputPath(
-              `darwin-2x-${mode}-palette-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
+              `${process.platform}-${mode}-palette-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
             ),
         )
         await page.keyboard.press('Escape')

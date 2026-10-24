@@ -1,6 +1,7 @@
 import { extractFile, listPackage, statFile, uncache } from '@electron/asar'
 import { readdirSync, lstatSync } from 'node:fs'
-import { join, resolve, normalize } from 'node:path'
+import { join, resolve, normalize, dirname } from 'node:path'
+import { checkProductResources } from './product-resources.mjs'
 import { createHash } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 
@@ -16,6 +17,7 @@ export function checkPackage(root) {
   walk(root)
   if (!archives.length) throw new Error('No packaged app.asar found')
   for (const archive of archives) {
+    checkProductResources(dirname(archive))
     uncache(archive)
     const entries = listPackage(archive).map((entry) => entry.replaceAll('\\', '/'))
     for (const file of [

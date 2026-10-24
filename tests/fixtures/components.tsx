@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AgentConnector } from '../../src/renderer/views/AgentConnector'
 import type { ConnectorState } from '../../src/shared/connector'
+import type { Connection } from '../../src/shared/api'
 import { defaultPreferences } from '../../src/shared/desktop'
 import {
   Avatar,
@@ -22,29 +23,107 @@ import '../../src/renderer/tokens.css'
 import '../../src/renderer/materials/materials.css'
 
 const connectorMode = new URLSearchParams(location.search).get('connector')
-let connectorState: ConnectorState = connectorMode
-  ? { available: true, paired: false, instances: [], service: { installed: false, running: false } }
-  : { available: false }
+const connectorConnection: Connection = {
+  characterId: '00000000-0000-4000-8000-000000000001',
+  personId: '00000000-0000-4000-8000-000000000002',
+  bindingId: '00000000-0000-4000-8000-000000000003',
+  conversationId: '00000000-0000-4000-8000-000000000004',
+  baseUrl: 'https://yuki.example',
+  name: 'Fixture Yuki',
+  persistentCredentials: false,
+}
+const connectorCalls: { method: string; input?: unknown }[] = []
+Object.assign(window, { __connectorCalls: connectorCalls })
+const preparedConnector = (): Extract<ConnectorState, { available: true }> => ({
+  available: true,
+  managed: true,
+  paired: false,
+  version: 'component-fixture',
+  protocol: 1,
+  runtime: '/fixture/connector/python',
+  dataDirectory: '/fixture/connector/data',
+  instances: [],
+  service: { installed: false, running: false },
+})
+let connectorState: ConnectorState =
+  connectorMode && connectorMode !== 'missing'
+    ? preparedConnector()
+    : { available: false, bundled: true }
 
 window.yuki = {
+  localBot: {
+    state: async () => ({
+      ok: true,
+      value: {
+        docker: false,
+        bundled: false,
+        installation: null,
+        configured: false,
+        running: false,
+      },
+    }),
+    chooseDirectory: async () => ({ ok: true, value: null }),
+    deploy: async () => ({ ok: false, code: 'fixture_only' }),
+    start: async () => ({ ok: false, code: 'fixture_only' }),
+    stop: async () => ({ ok: false, code: 'fixture_only' }),
+    connect: async () => ({ ok: false, code: 'fixture_only' }),
+    onProgress: () => () => {},
+  },
   connector: {
     state: async () => ({ ok: true, value: connectorState }),
-    pair: async () => {
+    install: async (separate) => {
+      connectorCalls.push({ method: 'install', input: separate })
+      connectorState = preparedConnector()
+      return { ok: true, value: connectorState }
+    },
+    adopt: async () => ({ ok: false, code: 'fixture_only' }),
+    useInstallation: async (input) => {
+      connectorCalls.push({ method: 'useInstallation', input })
       connectorState = {
-        available: true,
+        ...preparedConnector(),
+        managed: false,
+        runtime: input.executable,
+        dataDirectory: input.dataDirectory,
+      }
+      return { ok: true, value: connectorState }
+    },
+    discover: async () => ({ ok: true, value: [] }),
+    configure: async () => ({ ok: true, value: connectorState }),
+    diagnose: async (id) => ({ ok: true, value: { id, available: true } }),
+    chooseProject: async () => ({ ok: true, value: null }),
+    chooseExecutable: async () => ({ ok: true, value: null }),
+    sessions: async () => ({ ok: true, value: { sessions: [] } }),
+    operations: async () => ({ ok: true, value: { operations: [] } }),
+    operation: async () => ({ ok: false, code: 'not_found' }),
+    submit: async () => ({ ok: false, code: 'fixture_only' }),
+    pair: async (input) => {
+      connectorCalls.push({ method: 'pair', input })
+      if (!connectorState.available) throw Error('Connector runtime has not been prepared')
+      connectorState = {
+        ...connectorState,
         paired: true,
-        deviceId: 'paired-computer',
-        instances: [],
-        service: { installed: false, running: false },
+        deviceId: 'fixture-connector-device',
+        server: input.server,
+      }
+      return { ok: true, value: connectorState }
+    },
+    connect: async (input) => {
+      connectorCalls.push({ method: 'connect', input })
+      if (!connectorState.available) throw Error('Connector runtime has not been prepared')
+      connectorState = {
+        ...connectorState,
+        paired: true,
+        deviceId: 'fixture-connector-device',
+        server: connectorConnection.baseUrl,
+        admission: { matched: true, connected: false },
       }
       return { ok: true, value: connectorState }
     },
     service: async (action) => {
+      connectorCalls.push({ method: 'service', input: action })
+      if (!connectorState.available) throw Error('Connector runtime has not been prepared')
       connectorState = {
-        available: true,
-        paired: true,
-        deviceId: 'paired-computer',
-        instances: [],
+        ...connectorState,
         service: { installed: action !== 'uninstall', running: action === 'start' },
       }
       return { ok: true, value: connectorState }
@@ -60,6 +139,11 @@ window.yuki = {
     onChange: () => () => {},
   },
   client: {
+    pendingPairings: async () => ({ ok: true, value: [] }),
+    resumePairing: async () => ({ ok: false, code: 'fixture_only' }),
+    forgetPairing: async () => ({ ok: true, value: undefined }),
+    retiredHistory: async () => ({ ok: true, value: [] }),
+    exportRetiredHistory: async () => ({ ok: true, value: false }),
     executorState: async () => ({ ok: false, code: 'fixture_only' }),
     clearUnavailableExecutor: async () => ({ ok: false, code: 'fixture_only' }),
     enableExecutor: async () => ({ ok: false, code: 'fixture_only' }),
@@ -89,10 +173,7 @@ window.yuki = {
     avatarBytes: async () => ({ ok: false, code: 'fixture_only' }),
     previewAvatar: async () => ({ ok: true, value: null }),
     avatarCommand: async () => ({ ok: false, code: 'fixture_only' }),
-    avatarCommands: async () => ({ ok: true, value: [] }),
     avatarDraft: async () => ({ ok: true, value: null }),
-    acknowledgeAvatarCommand: async () => ({ ok: true, value: undefined }),
-    verifyAvatarCommand: async () => ({ ok: false, code: 'fixture_only' }),
     characterCommand: async () => ({ ok: false, code: 'fixture_only' }),
     characterCommands: async () => ({ ok: true, value: [] }),
     verifyCharacterCommand: async () => ({ ok: false, code: 'fixture_only' }),
@@ -326,7 +407,10 @@ createRoot(document.getElementById('root')!).render(
   connectorMode ? (
     <QueryClientProvider client={new QueryClient()}>
       <main style={{ maxWidth: 680, padding: 32 }}>
-        <AgentConnector server="https://yuki.example" deviceLabel="My computer" />
+        <AgentConnector
+          connection={connectorMode === 'disconnected' ? undefined : connectorConnection}
+          deviceLabel="My computer"
+        />
       </main>
     </QueryClientProvider>
   ) : (

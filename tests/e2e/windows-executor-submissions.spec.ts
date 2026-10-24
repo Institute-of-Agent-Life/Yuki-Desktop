@@ -5,19 +5,16 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Connection } from '../../src/shared/api'
+import type { ExecutorOperation } from '../../src/shared/executor'
 import { pairUI } from '../fixtures/backend'
 import { launchShell } from '../fixtures/shell-app'
+import { executorOperation } from '../fixtures/executor-operation'
 
 interface Facts {
   work_count: number
   operations: { op_id: string; state: string; tool_call_key: string; work_id: string | null }[]
 }
-interface Result {
-  op_id: string
-  state: string
-  level?: string | null
-  observation?: Record<string, unknown> | null
-}
+type Result = Pick<ExecutorOperation, 'op_id' | 'state'>
 
 test('Windows native open URL reports submitted and a real journal failure after the OS effect recovers unknown without reopening', async () => {
   test.skip(process.platform !== 'win32', 'Requires an actual Windows interactive desktop')
@@ -150,7 +147,7 @@ test('Windows native open URL reports submitted and a real journal failure after
     })
     await page.keyboard.press('Control+,')
     await page.getByRole('tab', { name: '本機連接', exact: true }).click()
-    await page.getByRole('button', { name: '允許 Yuki 使用這台電腦', exact: true }).click()
+    await page.getByRole('button', { name: `允許 ${owner.name} 使用這台電腦`, exact: true }).click()
     await expect.poll(async () => (await local()).state).toBe('online')
     const executorId = (await local()).installation!.executorId
     journalFile = await app.evaluate(({ app }, owner) => {
@@ -171,17 +168,17 @@ test('Windows native open URL reports submitted and a real journal failure after
       {
         name: 'local_device',
         arguments: {
-          action: 'invoke',
+          action: 'execute',
           executor_id: executorId,
           capability: 'open.url',
           params: { url: url('first') },
         },
       },
-      { name: 'send_message', arguments: { text: replyText } },
+      { name: 'send', arguments: { text: replyText } },
     ])
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await page
-      .getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+      .getByRole('textbox', { name: `和 ${owner.name} 說點什麼`, exact: true })
       .fill(`請開啟本機驗證頁 ${marker}`)
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(page.getByText(replyText, { exact: true })).toBeVisible({
@@ -232,7 +229,7 @@ test('Windows native open URL reports submitted and a real journal failure after
     await journal(observer, 'fail')
     faultInstalled = true
     const beforeSecond = await request<Facts>('state')
-    const pending = request<Result>('invoke', {
+    const pending = await request<Result>('invoke', {
       person_id: owner.personId,
       arguments: {
         executor_id: executorId,
@@ -240,6 +237,7 @@ test('Windows native open URL reports submitted and a real journal failure after
         params: { url: url('uncertain') },
       },
     })
+    expect(pending.state).toBe('dispatched')
     await expect
       .poll(() => hits.filter((hit) => hit.stage === 'uncertain').length, { timeout: 30000 })
       .toBe(1)
@@ -276,7 +274,11 @@ test('Windows native open URL reports submitted and a real journal failure after
     expect(await connection()).toEqual(owner)
     await expect.poll(async () => (await local()).state).toBe('online')
     expect((await local()).installation!.executorId).toBe(executorId)
-    const unknown = await pending
+    expect(pending.op_id).toBe(second[0]!.op_id)
+    await expect
+      .poll(async () => (await executorOperation(page, owner, executorId, pending.op_id))?.state)
+      .toBe('unknown')
+    const unknown = (await executorOperation(page, owner, executorId, pending.op_id))!
     expect(unknown).toMatchObject({
       op_id: second[0]!.op_id,
       state: 'unknown',
@@ -299,7 +301,7 @@ test('Windows native open URL reports submitted and a real journal failure after
     })
     await save()
     await expect(
-      page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true }),
+      page.getByRole('textbox', { name: `和 ${owner.name} 說點什麼`, exact: true }),
     ).toBeVisible()
     await page.screenshot({ path: test.info().outputPath('windows-cold-conversation-ready.png') })
     await page.keyboard.press('Control+,')

@@ -1,18 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Clipboard, Snowflake } from 'lucide-react'
-import type { Connection, Me, Meta } from '../../shared/api'
+import type { Connection, Meta, PendingPairing } from '../../shared/api'
 import { parsePairing } from '../../shared/pairing'
 import { Banner, Button, TextField } from '../components/Controls'
 import { PairingAvatar } from '../components/CharacterAvatar'
-import { ClientProblem, unwrap } from '../queries/client'
+import { ClientProblem, problemText, unwrap } from '../queries/client'
 import styles from '../App.module.css'
-
-const pairingSteps = [
-  ['welcome', '歡迎'],
-  ['server', '伺服器'],
-  ['code', '綁定碼'],
-  ['person', '認識你'],
-] as const
 
 export function Pairing({
   label,
@@ -24,249 +17,373 @@ export function Pairing({
   startAtServer = false,
   onCancel,
   onUpdate,
+  onDeploy,
+  onSkip,
+  onSettings,
+  onHelp,
+  active = true,
 }: {
   label: string
   initialLink: string | null
   initialServer?: string
   reconnect?: boolean
   startAtServer?: boolean
+  active?: boolean
   onCancel?(): void
   onUpdate(): void
-  onDone(connection: Connection): void
+  onDeploy?(): void
+  onSkip?(): void
+  onSettings?(): void
+  onHelp?(): void
+  onDone(connection: Connection, activate?: boolean): void
   onResumeLogout(characterId: string): Promise<void>
 }) {
-  const [step, setStep] = useState<'welcome' | 'server' | 'code' | 'person'>(
-    initialServer || startAtServer ? 'server' : 'welcome',
+  const [step, setStep] = useState<'welcome' | 'connect' | 'confirm'>(
+    initialServer || startAtServer ? 'connect' : 'welcome',
   )
-  const [server, setServer] = useState(initialServer),
-    [codeInput, setCodeInput] = useState(''),
+  const [input, setInput] = useState(''),
+    [server, setServer] = useState(initialServer),
     [device, setDevice] = useState(label)
-  const [meta, setMeta] = useState<Meta>(),
-    [me, setMe] = useState<Me>(),
-    [connection, setConnection] = useState<Connection>()
+  const [manual, setManual] = useState(!!initialServer)
+  const [confirmed, setConfirmed] = useState<{ server: string; meta: Meta }>()
+  const [pending, setPending] = useState<PendingPairing[]>([])
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('')
-  const [updateNeeded, setUpdateNeeded] = useState(false)
-  const [pendingLogout, setPendingLogout] = useState<string>()
-  const parsed = parsePairing(codeInput)
-  const prefill = (link: string) => {
-    const value = parsePairing(link)
-    if (!value?.server) return
-    setServer(value.server)
-    setCodeInput(value.code)
-    setMeta(undefined)
-    setStep('server')
-  }
+  const [updateNeeded, setUpdateNeeded] = useState(false),
+    [pendingLogout, setPendingLogout] = useState<string>()
+  const current = useRef<object | undefined>(undefined)
+  const form = useRef({ input, server, active })
+  form.current = { input, server, active }
   useEffect(() => {
-    if (initialLink) prefill(initialLink)
-    return window.yuki.onPairLink(prefill)
-  }, [initialLink])
-  const run = async (action: () => Promise<void>) => {
+    if (!active) {
+      current.current = undefined
+      setBusy(false)
+    }
+  }, [active])
+  const refreshPending = () => window.yuki.client.pendingPairings().then(unwrap).then(setPending)
+  const leave = () => {
+    current.current = undefined
+    setBusy(false)
+    setError('')
+    setConfirmed(undefined)
+  }
+  const run = async (action: (owner: object) => Promise<void>, pairing = false) => {
+    const owner = {}
+    current.current = owner
     setBusy(true)
     setError('')
     setUpdateNeeded(false)
     setPendingLogout(undefined)
     try {
-      await action()
-    } catch (error) {
-      setUpdateNeeded(error instanceof ClientProblem && error.code === 'client_upgrade_required')
-      setError(error instanceof Error ? error.message : '操作未完成。')
-      if (error instanceof ClientProblem && error.code === 'logout_pending' && meta)
-        setPendingLogout(meta.character.id)
+      await action(owner)
+    } catch (failure) {
+      if (current.current !== owner) return
+      const code = failure instanceof ClientProblem ? failure.code : ''
+      setError(
+        pairing && code === 'unauthenticated'
+          ? problemText('invalid_code')
+          : failure instanceof Error
+            ? failure.message
+            : '操作未完成。',
+      )
+      setUpdateNeeded(code === 'client_upgrade_required')
+      if (code === 'logout_pending' && confirmed) setPendingLogout(confirmed.meta.character.id)
+      await refreshPending()
     } finally {
-      setBusy(false)
+      if (current.current === owner) setBusy(false)
     }
   }
-  const check = async () =>
-    run(async () => {
-      const link = parsePairing(server)
-      const base = link?.server ?? server
-      if (link) setCodeInput(link.code)
-      const info = unwrap(await window.yuki.client.meta(base))
+  const inspect = (value: string = input, address: string = server) => {
+    const parsed = parsePairing(value),
+      base = parsed?.server ?? address
+    if (!base.trim()) {
+      setManual(true)
+      setError('這份配對資訊沒有伺服器位址，請向提供者取得，或選擇手動連接。')
+      return
+    }
+    void run(async (owner) => {
+      const meta = unwrap(await window.yuki.client.meta(base))
+      if (current.current !== owner || !form.current.active) return
       setServer(base)
-      setMeta(info)
-      setStep('code')
+      setConfirmed({ server: base, meta })
+      setStep('confirm')
     })
-  const pair = async () =>
-    run(async () => {
-      if (!parsed || !meta) return
-      const value = unwrap(await window.yuki.client.pair(server, parsed.code, device))
-      const person = unwrap(await window.yuki.client.read<Me>(value.characterId, { kind: 'me' }))
-      setConnection(value)
-      setMe(person)
-      setStep('person')
-    })
+  }
+  useEffect(() => {
+    void refreshPending()
+    return () => {
+      current.current = undefined
+    }
+  }, [])
+  useEffect(() => {
+    const prefill = (link: string) => {
+      const parsed = parsePairing(link)
+      if (!parsed) return
+      leave()
+      setInput(link)
+      setStep('connect')
+      if (parsed.server) {
+        setServer(parsed.server)
+        inspect(link, parsed.server)
+      }
+    }
+    if (initialLink) prefill(initialLink)
+    return window.yuki.onPairLink(prefill)
+    // The incoming link owns this check; subsequent form edits invalidate it.
+  }, [initialLink])
+  const parsed = parsePairing(input)
+  const awaiting =
+    confirmed && pending.find((item) => item.characterId === confirmed.meta.character.id)
+  const finish = async (
+    operation: Promise<import('../../shared/api').ApiReply<Connection>>,
+    owner: object,
+  ) => {
+    const value = unwrap(await operation)
+    const activate = current.current === owner && form.current.active
+    if (form.current.input === input && form.current.server === server) {
+      leave()
+      setInput('')
+      setStep('connect')
+      setServer(initialServer)
+      setManual(!!initialServer)
+    }
+    setPending((items) => items.filter((item) => item.deviceId !== value.deviceId))
+    onDone(value, activate)
+  }
+  const pair = () => {
+    if (!confirmed || !parsed) return
+    if (parsed.server && parsed.server !== confirmed.server) {
+      inspect(input, parsed.server)
+      return
+    }
+    void run(
+      (owner) => finish(window.yuki.client.pair(confirmed.server, parsed.code, device), owner),
+      true,
+    )
+  }
+  const cancel = () => {
+    leave()
+    setInput('')
+    if (onCancel) onCancel()
+    else setStep('welcome')
+  }
   return (
     <div className={styles.welcome}>
       <div data-glass="card" className={styles.welcomeInner}>
-        {meta && (
-          <PairingAvatar
-            server={server}
-            name={meta.character.display_name}
-            size={step === 'person' ? 80 : 36}
-            avatarUrl={meta.character.avatar_url}
-          />
-        )}
-        {step === 'welcome' && (
-          <Snowflake className={styles.welcomeMark} size={160} strokeWidth={1} />
+        {step === 'welcome' ? (
+          <Snowflake className={styles.welcomeMark} size={96} strokeWidth={1} />
+        ) : (
+          confirmed && (
+            <PairingAvatar
+              server={confirmed.server}
+              name={confirmed.meta.character.display_name}
+              size={56}
+              avatarUrl={confirmed.meta.character.avatar_url}
+            />
+          )
         )}
         <h1>
           {step === 'welcome'
             ? 'Yuki'
-            : step === 'person'
-              ? `你好，${me?.display_name ?? ''}`
-              : (meta?.character.display_name ?? '連接你的角色')}
+            : (confirmed?.meta.character.display_name ?? '連接已有 Yuki')}
         </h1>
         <p>
           {step === 'welcome'
-            ? '和她聊聊，一起把事情做好。無論從哪裡回來，都是同一個她。'
-            : step === 'server'
-              ? '輸入角色的伺服器位址，或貼上你收到的綁定連結。'
-              : step === 'code'
-                ? '確認這是你要連接的角色，再輸入綁定碼。'
-                : '你在其他入口的對話與工作，也能在這裡接續。'}
+            ? '和她聊聊，一起把事情做好。選擇你想從哪裡開始。'
+            : step === 'confirm'
+              ? '確認角色與伺服器，再允許這台裝置連接。'
+              : '貼上配對連結或收到的完整配對資訊。'}
         </p>
         {error && <Banner status="failed">{error}</Banner>}
         {updateNeeded && <Button onClick={onUpdate}>查看 App 更新</Button>}
         {pendingLogout && (
-          <Button loading={busy} onClick={() => void run(() => onResumeLogout(pendingLogout))}>
-            處理登出中的本機資料
+          <Button onClick={() => void run(async () => onResumeLogout(pendingLogout))}>
+            處理原連線的登出資料
           </Button>
         )}
-        {reconnect && (
-          <Banner>請重新配對以讀取原本的連線。本機草稿與未確認請求仍保留在原入口。</Banner>
-        )}
-        {step === 'welcome' && (
-          <Button variant="primary" large onClick={() => setStep('server')}>
-            開始
-          </Button>
-        )}
-        {step === 'server' && (
-          <form
-            className={styles.server}
-            onSubmit={(event) => {
-              event.preventDefault()
-              void check()
-            }}
-          >
-            <label htmlFor="server-url">伺服器位址</label>
-            <TextField
-              id="server-url"
-              autoFocus
-              autoComplete="url"
-              value={server}
-              onChange={(event) => setServer(event.target.value)}
-              placeholder="https://"
-            />
-            <small>可包含角色的路徑前綴。</small>
+        {reconnect && <Banner>重新連接原本人入口；草稿與未確認請求仍保留。</Banner>}
+        {pending.map((item) => (
+          <div key={item.deviceId} className={styles.server}>
+            <p>已領取 {item.name} 的裝置憑據，尚待確認本人資料。可以繼續，不必重新兌換配對碼。</p>
             <div className={styles.actions}>
               <Button
-                variant="plain"
-                onClick={() => (onCancel ? onCancel() : setStep('welcome'))}
-                type="button"
+                loading={busy}
+                onClick={() =>
+                  void run((owner) =>
+                    finish(
+                      window.yuki.client.resumePairing(item.characterId, item.deviceId),
+                      owner,
+                    ),
+                  )
+                }
               >
-                {onCancel ? '取消' : '返回'}
+                繼續連接 {item.name}
               </Button>
               <Button
-                variant="primary"
-                large
-                type="submit"
-                loading={busy}
-                disabled={!server.trim()}
+                variant="plain"
+                onClick={() =>
+                  void run(async () => {
+                    unwrap(await window.yuki.client.forgetPairing(item.characterId, item.deviceId))
+                    await refreshPending()
+                  })
+                }
               >
-                繼續
+                放棄本機待完成連接
               </Button>
             </div>
-          </form>
-        )}
-        {step === 'code' && (
+            {!item.persistentCredentials && (
+              <small>未啟用系統憑據保存，僅能在這次 App 執行中繼續。</small>
+            )}
+          </div>
+        ))}
+        {step === 'welcome' ? (
+          <>
+            <div className={styles.entryChoices}>
+              <Button variant="primary" large onClick={() => setStep('connect')}>
+                連接已有 Yuki
+              </Button>
+              {onDeploy && (
+                <Button large onClick={onDeploy}>
+                  在本機部署 Yuki
+                </Button>
+              )}
+              {onSkip && (
+                <Button variant="plain" onClick={onSkip}>
+                  先逛逛，稍後設定
+                </Button>
+              )}
+            </div>
+            <div className={styles.actions}>
+              {onSettings && (
+                <Button variant="plain" onClick={onSettings}>
+                  設定
+                </Button>
+              )}
+              {onHelp && (
+                <Button variant="plain" onClick={onHelp}>
+                  使用說明
+                </Button>
+              )}
+            </div>
+          </>
+        ) : (
           <form
             className={styles.server}
             onSubmit={(event) => {
               event.preventDefault()
-              void pair()
+              if (step === 'confirm') pair()
+              else inspect()
             }}
           >
-            <p>
-              在 QQ／Telegram 私聊角色傳送 /ai link，將整則回覆貼上。綁定碼區分大小寫，10 分鐘有效。
-            </p>
-            <label htmlFor="pair-code">綁定碼或完整回覆</label>
+            {confirmed && <small>伺服器：{confirmed.server}</small>}
+            <label htmlFor="pair-code">配對連結、綁定碼或完整回覆</label>
             <div className={styles.codeRow}>
               <TextField
                 id="pair-code"
                 autoFocus
                 autoComplete="off"
                 spellCheck={false}
-                className={styles.codeInput}
-                value={codeInput}
-                onChange={(event) => setCodeInput(event.target.value)}
+                value={input}
+                onChange={(event) => {
+                  const value = event.target.value,
+                    next = parsePairing(value)
+                  current.current = undefined
+                  setBusy(false)
+                  setInput(value)
+                  setError('')
+                  if (next?.server && next.server !== confirmed?.server) {
+                    setConfirmed(undefined)
+                    setStep('connect')
+                  }
+                }}
               />
               <Button
-                variant="secondary"
-                large
                 type="button"
                 onClick={() =>
                   void window.yuki.client
                     .paste()
                     .then(unwrap)
-                    .then(setCodeInput)
-                    .catch((error) => setError(error.message))
+                    .then((value) => {
+                      leave()
+                      setInput(value)
+                      setStep('connect')
+                      if (parsePairing(value)?.server) inspect(value)
+                    })
+                    .catch((failure) => setError(failure.message))
                 }
               >
                 <Clipboard size={14} aria-hidden="true" />
                 貼上
               </Button>
             </div>
-            <small role="status">
-              {parsed
-                ? `已辨識：${parsed.code.slice(0, 6)}…${parsed.code.slice(-4)}（32 字元）`
-                : '沒有找到 32 字元的綁定碼'}
+            <small>
+              從已連接的 Yuki 取得配對資訊；綁定碼只可使用一次。沒有連結時可手動輸入地址。
             </small>
-            <label htmlFor="device-name">裝置名稱</label>
-            <TextField
-              id="device-name"
-              maxLength={100}
-              value={device}
-              onChange={(event) => setDevice(event.target.value)}
-            />
+            {!manual && !confirmed && (
+              <Button variant="plain" type="button" onClick={() => setManual(true)}>
+                手動輸入伺服器位址
+              </Button>
+            )}
+            {manual && !confirmed && (
+              <>
+                <label htmlFor="server-url">伺服器位址</label>
+                <TextField
+                  id="server-url"
+                  autoComplete="url"
+                  value={server}
+                  placeholder="https://"
+                  onChange={(event) => {
+                    leave()
+                    setServer(event.target.value)
+                  }}
+                />
+              </>
+            )}
+            {step === 'confirm' && (
+              <>
+                <label htmlFor="device-name">這台裝置的名稱</label>
+                <TextField
+                  id="device-name"
+                  value={device}
+                  onChange={(event) => setDevice(event.target.value)}
+                />
+              </>
+            )}
             <div className={styles.actions}>
-              <Button type="button" variant="plain" onClick={() => setStep('server')}>
+              <Button
+                type="button"
+                variant="plain"
+                onClick={() => {
+                  if (step === 'confirm') {
+                    leave()
+                    setStep('connect')
+                  } else cancel()
+                }}
+              >
                 返回
               </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                large
-                loading={busy}
-                disabled={!parsed || !device.trim()}
-              >
-                配對
-              </Button>
+              {step === 'confirm' ? (
+                <Button
+                  type="submit"
+                  variant="primary"
+                  loading={busy}
+                  disabled={!parsed || !device.trim() || !!awaiting}
+                >
+                  確認並連接
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  variant="primary"
+                  loading={busy}
+                  disabled={!input.trim() && !server.trim()}
+                >
+                  繼續
+                </Button>
+              )}
             </div>
           </form>
         )}
-        {step === 'person' && (
-          <>
-            <ul>
-              {me?.bindings.map((item) => (
-                <li key={item.binding_id}>
-                  {item.platform.toUpperCase()} · {item.display_name}
-                </li>
-              ))}
-            </ul>
-            {connection && !connection.persistentCredentials && (
-              <Banner>尚未啟用系統金鑰圈，本次憑據只保留到 App 結束。</Banner>
-            )}
-            <Button variant="primary" large onClick={() => connection && onDone(connection)}>
-              進入
-            </Button>
-          </>
-        )}
-        <ol className={styles.pairingSteps} aria-label="配對進度">
-          {pairingSteps.map(([id, name]) => (
-            <li key={id} aria-label={name} aria-current={step === id ? 'step' : undefined} />
-          ))}
-        </ol>
       </div>
     </div>
   )

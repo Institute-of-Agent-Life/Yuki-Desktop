@@ -13,7 +13,7 @@ import type {
   Profile,
   PublicEvent,
 } from '../../src/shared/api'
-import type { ProductModels as components } from '../../src/shared/product-models'
+import type { components } from '../../src/shared/contract.gen'
 import { validateFixture } from '../fixtures/schema'
 
 const id = '00000000-0000-4000-8000-000000000001',
@@ -21,7 +21,7 @@ const id = '00000000-0000-4000-8000-000000000001',
   binding = '00000000-0000-4000-8000-000000000003',
   conversation = '00000000-0000-4000-8000-000000000004',
   workId = '00000000-0000-4000-8000-000000000005'
-type Work = components['schemas']['WorkView']
+type Work = components['schemas']['Work']
 const source = {
   binding_id: binding,
   conversation_id: conversation,
@@ -54,6 +54,13 @@ function event(event_id: number, origin: string): PublicEvent {
   return {
     attachments: [],
     author_kind: 'yuki',
+    id: event_id,
+    event_kind: 'message',
+    author_person_id: null,
+    content: 'original outbound',
+    asr: [],
+    observed_at: '2026-10-19T00:00:00Z',
+    occurred_at: '2026-10-19T00:00:00Z',
     binding_id: binding,
     conversation_id: conversation,
     created_at: '2026-10-19T00:00:00Z',
@@ -83,7 +90,7 @@ function setup(initial: Work[] = [work()]) {
     conversation_id: conversation,
     display_name: '這是本人而不是角色',
     generation: 1,
-    latest_event_id: null,
+    latest_event_id: 0,
     platform: 'app',
     revision: 1,
     status: 'active',
@@ -110,7 +117,7 @@ function setup(initial: Work[] = [work()]) {
     generation: 1,
     has_more: false,
     items: [],
-    latest_event_id: null,
+    latest_event_id: 0,
     next_after: 0,
     next_before: null,
     revision: 1,
@@ -126,7 +133,7 @@ function setup(initial: Work[] = [work()]) {
       if (failure) throw new ApiError(failure)
       const row = ended.get(route.workId)
       if (!row) throw new ApiError('not_found')
-      validateFixture('Envelope_WorkView_', { data: row })
+      validateFixture('Envelope_Work_', { data: row })
       return structuredClone(row) as T
     }
     const [schema, value] =
@@ -134,7 +141,7 @@ function setup(initial: Work[] = [work()]) {
         ? ['Envelope_Home_', home]
         : route.kind === 'character'
           ? ['Envelope_CharacterProfile_', profile]
-          : ['Envelope_EventsPage_', events]
+          : ['Envelope_Events_', events]
     validateFixture(schema as string, { data: value })
     return structuredClone(value) as T
   }

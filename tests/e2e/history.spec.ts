@@ -1,5 +1,6 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import { ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
 
 test('paginates real history without moving the visible message and jumps to the exact older reference', async () => {
   test.setTimeout(120000)
@@ -9,29 +10,58 @@ test('paginates real history without moving the visible message and jumps to the
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
-    const composer = page.getByRole('textbox', { name: '和 Yuki 說點什麼' })
+    const composer = page.getByRole('textbox', {
+      name: `和 ${await activeCharacterName(page)} 說點什麼`,
+    })
     await composer.fill('原始歷史錨點')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     const original = page
       .getByRole('article')
       .filter({ has: page.getByText('原始歷史錨點', { exact: true }) })
+    await expect(original).toHaveAttribute('data-event-id', /^\d+$/)
+    const originalId = Number(await original.getAttribute('data-event-id'))
     await original.getByRole('button', { name: '引用回覆' }).click()
     // Populate history through the product's normal API/outbox, never by setting UI state.
-    await page.evaluate(async () => {
+    const seeded = await page.evaluate(async () => {
       const connections = await window.yuki.client.connections()
       if (!connections.ok || !connections.value[0]) throw new Error('Missing paired connection')
-      for (let index = 0; index < 61; index++) {
-        const result = await window.yuki.client.send(
-          connections.value[0].characterId,
-          `歷史測試 ${String(index).padStart(2, '0')}\n${'真實帳本的一段較長文字。'.repeat(4)}`,
-        )
-        if (!result.ok) throw new Error(result.code)
-      }
+      const id = connections.value[0].characterId
+      const results = await Promise.all(
+        Array.from({ length: 61 }, (_, index) =>
+          window.yuki.client.send(
+            id,
+            `歷史測試 ${String(index).padStart(2, '0')}\n${'真實帳本的一段較長文字。'.repeat(4)}`,
+          ),
+        ),
+      )
+      for (const result of results) if (!result.ok) throw new Error(result.code)
+      return results.map((result) => {
+        if (!result.ok || !result.value.eventId) throw Error('Original accepted request is missing')
+        return {
+          requestId: result.value.requestId,
+          eventId: result.value.eventId,
+          text: result.value.body.text,
+        }
+      })
     })
     await composer.fill('引用很早以前的原事件')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(page.getByText('引用很早以前的原事件', { exact: true })).toBeVisible()
     await expect(composer).toHaveValue('')
+    const latest = page
+      .getByRole('article')
+      .filter({ has: page.getByText('引用很早以前的原事件', { exact: true }) })
+    await expect(latest).toHaveAttribute('data-event-id', /^\d+$/)
+    const latestId = Number(await latest.getAttribute('data-event-id'))
+    expect(new Set(seeded.map((item) => item.requestId)).size).toBe(61)
+    expect(new Set(seeded.map((item) => item.eventId)).size).toBe(61)
+    const ledger = await ledgerEvents(rig.base)
+    for (const item of seeded) {
+      expect(item.eventId).toBeGreaterThan(originalId)
+      expect(item.eventId).toBeLessThan(latestId)
+      expect(ledger.filter((event) => event.event_id === item.eventId).map((event) => event.content))
+        .toEqual([item.text])
+    }
     // Reload clears renderer history; only the latest API page is initially requested.
     await page.reload()
     const log = page.getByRole('log', { name: '對話訊息' })

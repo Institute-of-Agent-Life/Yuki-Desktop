@@ -82,7 +82,10 @@ export function RoleSwitcher({
   }, [active])
   useEffect(() => {
     if (!open || !active) return
-    root.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus()
+    const focusTarget =
+      root.current?.querySelector<HTMLElement>('[aria-checked="true"]') ??
+      root.current?.querySelector<HTMLElement>('[role="menuitemradio"]')
+    focusTarget?.focus()
     const outside = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) setOpen(false)
     }

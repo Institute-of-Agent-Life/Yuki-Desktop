@@ -1,3 +1,4 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -63,7 +64,7 @@ test('native work list and inspector preserve step layout, keyboard focus and or
     await pairUI(page, base, ((await code.json()) as { code: string }).code, '工作版面驗證', 20000)
     expect((await fetch(base + '/__test/work-scenario', { method: 'POST' })).ok).toBe(true)
     await page
-      .getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼`, exact: true })
       .fill('請沿同一份工作確認版面與回覆接續。')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     const card = page

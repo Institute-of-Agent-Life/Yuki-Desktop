@@ -3,9 +3,11 @@ import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Connection } from '../../src/shared/api'
+import type { ExecutorOperation } from '../../src/shared/executor'
 import { pairUI } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
 import { launchShell } from '../fixtures/shell-app'
+import { executorOperation } from '../fixtures/executor-operation'
 import { completeWindowsFileDialog, windowsFileDialogOwner } from '../fixtures/windows-file-dialog'
 
 interface JournalRow {
@@ -15,12 +17,7 @@ interface JournalRow {
 interface Facts {
   operations: { op_id: string; state: string }[]
 }
-interface Result {
-  op_id: string
-  state: string
-  level?: string
-  observation?: { exists: boolean; matches_intended?: boolean }
-}
+type Result = Pick<ExecutorOperation, 'op_id' | 'state'>
 
 async function journal(app: ElectronApplication, owner: Connection, executorId: string) {
   return app.evaluate(
@@ -132,7 +129,7 @@ test('Windows executor cold recovery distinguishes finished, accepted ack and un
     })
     await page.keyboard.press('Control+,')
     await page.getByRole('tab', { name: '本機連接', exact: true }).click()
-    await page.getByRole('button', { name: '允許 Yuki 使用這台電腦', exact: true }).click()
+    await page.getByRole('button', { name: `允許 ${owner.name} 使用這台電腦`, exact: true }).click()
     await expect.poll(async () => (await local()).state).toBe('online')
     const executorId = (await local()).installation!.executorId
     expect((await local()).installation!.persistent).toBe(true)
@@ -224,7 +221,8 @@ test('Windows executor cold recovery distinguishes finished, accepted ack and un
     }
     // A finished journal survives process death; a later human edit must not be overwritten.
     proxy.faults.rejectPostSuffixes.add('/result')
-    const first = invoke('once.txt')
+    const first = await invoke('once.txt')
+    expect(first.state).toBe('dispatched')
     const op1 = await newOperation(initial)
     await expect
       .poll(() => readFile(join(folder, 'once.txt'), 'utf8').catch(() => ''))
@@ -245,7 +243,10 @@ test('Windows executor cold recovery distinguishes finished, accepted ack and un
     })
     await saveProof()
     await crashAndReopen(() => proxy.faults.rejectPostSuffixes.clear())
-    expect(await first).toMatchObject({ op_id: op1.op_id, state: 'succeeded', level: 'confirmed' })
+    expect(first.op_id).toBe(op1.op_id)
+    await expect
+      .poll(() => executorOperation(page, owner, executorId, first.op_id))
+      .toMatchObject({ op_id: op1.op_id, state: 'succeeded', level: 'confirmed' })
     expect(await readFile(join(folder, 'once.txt'), 'utf8')).toBe('later edit must survive')
     expect((await stat(join(folder, 'once.txt'), { bigint: true })).mtimeNs).toBe(edited.mtimeNs)
     await expect
@@ -263,7 +264,8 @@ test('Windows executor cold recovery distinguishes finished, accepted ack and un
     // Ack committed at the server but its response is withheld before the native effect.
     proxy.faults.holdResponseSuffixes.add('/ack')
     const beforeSecond = await request<Facts>('state')
-    const second = invoke('never-started.txt')
+    const second = await invoke('never-started.txt')
+    expect(second.state).toBe('dispatched')
     const op2 = await newOperation(beforeSecond)
     await expect
       .poll(
@@ -288,7 +290,11 @@ test('Windows executor cold recovery distinguishes finished, accepted ack and un
     await crashAndReopen(() => {
       proxy.faults.holdResponseSuffixes.clear()
     })
-    const unknown = await second
+    expect(second.op_id).toBe(op2.op_id)
+    await expect
+      .poll(async () => (await executorOperation(page, owner, executorId, second.op_id))?.state)
+      .toBe('unknown')
+    const unknown = (await executorOperation(page, owner, executorId, second.op_id))!
     expect(unknown).toMatchObject({
       op_id: op2.op_id,
       state: 'unknown',
@@ -306,7 +312,8 @@ test('Windows executor cold recovery distinguishes finished, accepted ack and un
     // Before acceptance, the same dispatched ID can acknowledge and execute after restart.
     proxy.faults.rejectPostSuffixes.add('/ack')
     const beforeThird = await request<Facts>('state')
-    const third = invoke('before-ack.txt')
+    const third = await invoke('before-ack.txt')
+    expect(third.state).toBe('dispatched')
     const op3 = await newOperation(beforeThird)
     await expect.poll(async () => (await local()).problem).toBe('unavailable')
     expect(
@@ -323,7 +330,10 @@ test('Windows executor cold recovery distinguishes finished, accepted ack and un
     })
     await saveProof()
     await crashAndReopen(() => proxy.faults.rejectPostSuffixes.clear())
-    expect(await third).toMatchObject({ op_id: op3.op_id, state: 'succeeded', level: 'confirmed' })
+    expect(third.op_id).toBe(op3.op_id)
+    await expect
+      .poll(() => executorOperation(page, owner, executorId, third.op_id))
+      .toMatchObject({ op_id: op3.op_id, state: 'succeeded', level: 'confirmed' })
     expect(await readFile(join(folder, 'before-ack.txt'), 'utf8')).toBe('original bytes')
     const final = await request<Facts>('state')
     expect(
@@ -349,7 +359,7 @@ test('Windows executor cold recovery distinguishes finished, accepted ack and un
     })
     phaseProofs.push({
       stage: 'unaccepted-ack-resumed-original-id',
-      result: await third,
+      result: await executorOperation(page, owner, executorId, third.op_id),
       nativePid: mainPid,
       finalStates: final.operations.filter((item) =>
         [op1.op_id, op2.op_id, op3.op_id].includes(item.op_id),

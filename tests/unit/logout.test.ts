@@ -51,7 +51,7 @@ const me: Me = {
   request_scope: connection.personId,
   request_conversation_id: null,
   platform: 'app',
-  presence_id: null,
+  presence_id: '00000000-0000-4000-8000-000000000099',
   thread_id: null,
   binding_id: connection.bindingId,
   display_name: '本人',
@@ -373,4 +373,112 @@ it('logout waits for an already-started re-pair and revokes the credential that 
   expect(summary.connection.deviceId).toBe(next)
   expect(targets).toEqual([`http://localhost/role/client/v1/devices/${next}`])
   await client.finishLogout(connection.characterId, next, 'keep')
+})
+it('a pending resume still checking public identity cannot enter a logout already revoking its device', async () => {
+  const { client, store } = setup(),
+    next = '00000000-0000-4000-8000-000000000006'
+  store.set('pending-pairings', [
+    {
+      characterId: connection.characterId,
+      baseUrl: connection.baseUrl,
+      name: connection.name,
+      deviceId: next,
+      persistentCredentials: false,
+    },
+  ])
+  client.credentials.set(`pending-device/${connection.characterId}/${next}`, 'pending-test-token')
+  let releaseMeta!: () => void,
+    metaEntered!: () => void,
+    releaseRevoke!: () => void,
+    revokeEntered!: () => void,
+    first = true
+  const metaGate = new Promise<void>((resolve) => {
+      releaseMeta = resolve
+    }),
+    checking = new Promise<void>((resolve) => {
+      metaEntered = resolve
+    }),
+    revokeGate = new Promise<void>((resolve) => {
+      releaseRevoke = resolve
+    }),
+    revoking = new Promise<void>((resolve) => {
+      revokeEntered = resolve
+    }),
+    targets: string[] = []
+  vi.stubGlobal('fetch', async (input: string, init: RequestInit) => {
+    if (input.endsWith('/meta')) {
+      if (first) {
+        first = false
+        metaEntered()
+        await metaGate
+      }
+      return data(meta)
+    }
+    expect(init.headers).toHaveProperty('Authorization', 'Bearer original-test-token')
+    if (input.endsWith('/me')) return data(me)
+    if (input.includes('/requests/')) return data({ found: false })
+    targets.push(input)
+    revokeEntered()
+    await revokeGate
+    return data({ device_id: connection.deviceId, revoked: true, replay: false })
+  })
+  const resume = client.resumePairing(connection.characterId, next),
+    rejected = expect(resume).rejects.toHaveProperty('code', 'logout_pending')
+  await checking
+  const logout = client.prepareLogout(connection.characterId)
+  await revoking
+  releaseMeta()
+  await rejected
+  expect(client.connection(connection.characterId).deviceId).toBe(connection.deviceId)
+  expect(client.credentials.get(`device/${connection.characterId}/${connection.personId}`)).toBe(
+    'original-test-token',
+  )
+  releaseRevoke()
+  expect((await logout).connection.deviceId).toBe(connection.deviceId)
+  expect(targets).toEqual([`http://localhost/role/client/v1/devices/${connection.deviceId}`])
+  await client.finishLogout(connection.characterId, connection.deviceId!, 'keep')
+})
+it('logout does not admit a re-pair already invalidated by update suspension', async () => {
+  const { client } = setup(),
+    next = '00000000-0000-4000-8000-000000000006'
+  let release!: () => void,
+    reading!: () => void,
+    first = true
+  const gate = new Promise<void>((resolve) => {
+      release = resolve
+    }),
+    entered = new Promise<void>((resolve) => {
+      reading = resolve
+    }),
+    targets: string[] = []
+  vi.stubGlobal('fetch', async (input: string, init: RequestInit) => {
+    if (input.endsWith('/meta')) return data(meta)
+    if (input.endsWith('/pair')) return data({ device_id: next, token: 'pending-test-token' })
+    if (input.endsWith('/me')) {
+      if (first) {
+        first = false
+        reading()
+        await gate
+      }
+      return data(me)
+    }
+    if (input.includes('/requests/')) return data({ found: false })
+    expect(init.headers).toHaveProperty('Authorization', 'Bearer original-test-token')
+    targets.push(input)
+    return data({ device_id: connection.deviceId, revoked: true, replay: false })
+  })
+  const pairing = client.pair(connection.baseUrl, 'a'.repeat(32), 'updated device'),
+    rejected = expect(pairing).rejects.toHaveProperty('code', 'precondition_failed')
+  await entered
+  const suspension = client.suspendForUpdate(),
+    logout = client.prepareLogout(connection.characterId)
+  release()
+  await rejected
+  await suspension.settled
+  expect((await logout).connection.deviceId).toBe(connection.deviceId)
+  expect(targets).toEqual([`http://localhost/role/client/v1/devices/${connection.deviceId}`])
+  expect(client.credentials.get(`device/${connection.characterId}/${connection.personId}`)).toBe(
+    'original-test-token',
+  )
+  await client.finishLogout(connection.characterId, connection.deviceId!, 'keep')
 })

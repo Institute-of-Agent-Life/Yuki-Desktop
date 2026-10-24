@@ -56,13 +56,14 @@ test('missing desktop metadata stays before pairing and retries the actual compa
       }
     })
     expect(native).toEqual({ packaged: true, sandboxed: true, noSandbox: false })
-    await page.getByRole('button', { name: '開始', exact: true }).click()
+    await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
+    await page.getByRole('button', { name: '手動輸入伺服器位址', exact: true }).click()
     await page.getByLabel('伺服器位址', { exact: true }).fill(base)
     await page.getByRole('button', { name: '繼續', exact: true }).press('Enter')
     await expect(page.getByRole('status')).toHaveText(
       '此位址未提供桌面連線介面，請確認位址或更新 Yuki。',
     )
-    await expect(page.getByLabel('綁定碼或完整回覆', { exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '確認並連接', exact: true })).toHaveCount(0)
     await expect(page.getByLabel('伺服器位址', { exact: true })).toHaveValue(base)
     expect(await page.evaluate(() => window.yuki.client.connections())).toEqual({
       ok: true,
@@ -74,11 +75,11 @@ test('missing desktop metadata stays before pairing and retries the actual compa
     await expect(
       page.getByRole('heading', { name: meta.character.display_name, exact: true }),
     ).toBeVisible()
-    await expect(page.getByLabel('綁定碼或完整回覆', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })).toHaveValue('')
     await expect(
       page.getByText('此位址未提供桌面連線介面，請確認位址或更新 Yuki。', { exact: true }),
     ).toHaveCount(0)
-    await expect(page.getByRole('status')).toHaveText('沒有找到 32 字元的綁定碼')
+    await expect(page.getByRole('button', { name: '確認並連接', exact: true })).toBeDisabled()
     expect(requests).toEqual([
       { method: 'GET', path: '/client/v1/meta', authorized: false },
       { method: 'GET', path: '/client/v1/meta', authorized: false },

@@ -1,10 +1,11 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test, type Page } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Connection, Home, OriginalRequest, Work } from '../../src/shared/api'
-import { pairUI } from '../fixtures/backend'
+import { currentEvents, pairUI } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
 import { launchShell } from '../fixtures/shell-app'
 
@@ -100,7 +101,9 @@ test('Windows original work survives draft and receipt crashes while the server 
     const trigger = `Windows 原工作與回執恢復 ${marker}`
     const answerText = `台北\n請沿原工作接續 ${marker}`
     const supplementText = `暫未送出的補充\n保留獨立內容 ${marker}`
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true }).fill(trigger)
+    await page
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼`, exact: true })
+      .fill(trigger)
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(card(page).getByText('等你回覆', { exact: true })).toBeVisible({ timeout: 20000 })
     const original = await page.evaluate(async (id) => {
@@ -248,14 +251,14 @@ test('Windows original work survives draft and receipt crashes while the server 
     )
     const drafts = await persistedDrafts()
     expect(drafts).toEqual({ supplement: supplementText, answer: '' })
-    const raw = await fetch(`${base}/__test/events`)
-    expect(raw.ok).toBe(true)
-    const events = (await raw.json()) as { id: number; text: string; direction: string }[]
-    expect(events.filter((event) => event.text === trigger)).toHaveLength(1)
-    expect(events.filter((event) => event.text === answerText)).toHaveLength(1)
-    expect(events.filter((event) => event.text === supplementText)).toHaveLength(0)
+    const events = (await currentEvents(page)).items
+    expect(events.filter((event) => event.content === trigger)).toHaveLength(1)
+    expect(events.filter((event) => event.content === answerText)).toHaveLength(1)
+    expect(events.filter((event) => event.content === supplementText)).toHaveLength(0)
     expect(
-      events.filter((event) => event.direction === 'outbound' && event.text === '已依原工作完成'),
+      events.filter(
+        (event) => event.direction === 'outbound' && event.content === '已依原工作完成',
+      ),
     ).toHaveLength(1)
     await card(page).getByRole('button', { name: '查看詳情', exact: true }).click()
     const supplement = detail(page).getByRole('textbox', {

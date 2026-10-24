@@ -77,6 +77,7 @@ export interface BootInfo {
 }
 
 export interface DesktopBridge {
+  localBot: import('./local-bot').LocalBotBridge
   connector: import('./connector').ConnectorBridge
   client: ConversationBridge
   updates: {

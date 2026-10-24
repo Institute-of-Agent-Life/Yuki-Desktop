@@ -43,7 +43,7 @@ const states: Record<Work['state'], [Status, string]> = {
   failed: ['failed', '失敗'],
   cancelled: ['offline', '已取消'],
 }
-export const workState = (work: Work) => states[work.state]
+export const workState = (work: Work): [Status, string] => states[work.state]!
 const time = formatDateTime
 const source = (work: Work) =>
   work.source.platform === 'app'
@@ -137,7 +137,7 @@ export function WorkList({
         }}
       >
         <span className={styles.state}>
-          <StatusPill status={states[work.state][0]}>{states[work.state][1]}</StatusPill>
+          <StatusPill status={workState(work)[0]}>{workState(work)[1]}</StatusPill>
         </span>
         <span className={styles.goal} title={work.goal}>
           {work.goal}
@@ -266,6 +266,9 @@ export function WorkDetail({
       read<WorkSteps>(id, { kind: 'steps', workId, ...(pageParam ? { after: pageParam } : {}) }),
     getNextPageParam: (page) => page.next_after ?? undefined,
   })
+  useEffect(() => {
+    void query.invalidateQueries({ queryKey: [id, 'steps', workId] }, { cancelRefetch: false })
+  }, [id, workId, query, work.data?.steps_token])
   const commands = useQuery({
     queryKey: [id, 'commands'],
     queryFn: () => window.yuki.client.workCommands(id).then(unwrap),
@@ -292,10 +295,14 @@ export function WorkDetail({
           (kind === 'sync' && needsSync) ||
           (['work', 'work_steps'].includes(kind) && original.work_id === workId) ||
           kind === 'commands' ||
-          kind === 'computer'
+          kind === 'computer' ||
+          kind === 'refresh'
         ) {
-          void query.invalidateQueries({ queryKey: [id, 'work', workId] })
-          void query.invalidateQueries({ queryKey: [id, 'steps', workId] })
+          void query.invalidateQueries({ queryKey: [id, 'work', workId] }, { cancelRefetch: false })
+          void query.invalidateQueries(
+            { queryKey: [id, 'steps', workId] },
+            { cancelRefetch: false },
+          )
         }
         if (kind === 'commands') {
           void query.invalidateQueries({ queryKey: [id, 'commands'] })
@@ -324,7 +331,7 @@ export function WorkDetail({
       )}
       {data && (
         <>
-          <StatusPill status={states[data.state][0]}>{states[data.state][1]}</StatusPill>
+          <StatusPill status={workState(data)[0]}>{workState(data)[1]}</StatusPill>
           <h2>{data.goal}</h2>
           <p className={styles.secondary}>
             {source(data)} · 結果會傳到：
@@ -393,7 +400,7 @@ export function WorkDetail({
               <h3>子工作</h3>
               {latest.children.map((child) => (
                 <Button key={child.work_id} variant="plain" onClick={() => open(child.work_id)}>
-                  {child.goal} · {states[child.state as Work['state']]?.[1] ?? child.state}
+                  {child.goal} · {states[child.state]![1]}
                 </Button>
               ))}
             </section>
@@ -782,7 +789,7 @@ export function ConversationWork({
   })
   if (hidesPrivateData(detail.error) || !detail.data) return null
   const data = detail.data,
-    [status, label] = states[data.state]
+    [status, label] = workState(data)
   return (
     <>
       <WorkCard
@@ -831,6 +838,7 @@ function CancelWorkSheet({ id, work, close }: { id: string; work: Work | null; c
       close()
       void query.invalidateQueries({ queryKey: [id, 'work', work.work_id] })
       void query.invalidateQueries({ queryKey: [id, 'works'] })
+      void query.invalidateQueries({ queryKey: [id, 'home'] })
     } catch (error) {
       setProblem(error instanceof Error ? error.message : '取消未完成。')
     } finally {

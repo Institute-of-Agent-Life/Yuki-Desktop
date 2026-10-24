@@ -1,5 +1,5 @@
 import { ApiClient, ApiError } from './api/client'
-import type { ProductModels as components } from '../shared/product-models'
+import type { components } from '../shared/contract.gen'
 
 export class ComputerTickets {
   private urls = new Map<string, number>()

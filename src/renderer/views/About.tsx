@@ -1,7 +1,6 @@
 import { useTabMotion } from '../motion/tab'
-import { useGlass } from '../materials/glass'
 import { usePress } from '../motion/hooks'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronRight, Pencil, RefreshCw } from 'lucide-react'
 import type {
@@ -30,10 +29,11 @@ import { ClientProblem, hidesPrivateData, problemText, unwrap } from '../queries
 import styles from './About.module.css'
 import { CharacterAvatar } from '../components/CharacterAvatar'
 import { AvatarEditor, AvatarPending } from './AvatarEditor'
+import { AvatarStatus } from './AvatarStatus'
 import { useDisplayTime } from '../state/time'
 
-const kinds = { fact: '記錄', preference: '偏好', episode: '經歷' }
-const states = {
+const kinds: Record<string, string> = { fact: '記錄', preference: '偏好', episode: '經歷' }
+const states: Record<string, string> = {
   active: '已安排',
   paused: '已暫停',
   completed: '已完成',
@@ -46,16 +46,24 @@ const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[
 
 export function About({
   id,
+  server,
   profile,
   jump,
   editSoul,
 }: {
   id: string
+  server: string
   profile: Profile
   jump: (source: MessageReference) => Promise<boolean>
   editSoul(): void
 }) {
   const query = useQueryClient()
+  const info = useQuery({
+    queryKey: [id, 'server-info', server],
+    queryFn: () => window.yuki.client.serverInfo(id).then(unwrap),
+  })
+  const avatarSupported =
+    info.status === 'success' && info.data.capabilities.includes('character_avatar')
   const [tab, setTab] = useState<'me' | 'self' | 'arrangements' | 'capabilities'>('me')
   const panelMotion = useTabMotion<HTMLDivElement>(tab, [
     'me',
@@ -63,17 +71,10 @@ export function About({
     'arrangements',
     'capabilities',
   ])
-  const toastGlass = useGlass<HTMLDivElement>('toast')
   const [editing, setEditing] = useState(false)
   const avatarPress = usePress<HTMLButtonElement>()
   const [avatarEditing, setAvatarEditing] = useState(false)
   const [avatarRestore, setAvatarRestore] = useState<AvatarCommandItem>()
-  const [notice, setNotice] = useState('')
-  useEffect(() => {
-    if (!notice) return
-    const timer = setTimeout(() => setNotice(''), 4000)
-    return () => clearTimeout(timer)
-  }, [notice])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const commands = useQuery({
@@ -113,12 +114,12 @@ export function About({
         <header className={styles.hero}>
           <div className={styles.portrait}>
             <CharacterAvatar size={200} />
-            {profile.viewer.is_owner && (
+            {profile.viewer.is_owner && avatarSupported && (
               <button
                 ref={avatarPress}
                 data-press="icon"
                 className={styles.avatarEdit}
-                aria-label="編輯頭像"
+                aria-label="更換角色頭像"
                 onClick={() => {
                   setAvatarRestore(undefined)
                   setAvatarEditing(true)
@@ -150,17 +151,15 @@ export function About({
               />
             ) : (
               <>
-                <p>{profile.bio}</p>
+                <h2 className={styles.sectionTitle}>角色資料</h2>
+                <p>{profile.bio || '尚未設定角色簡介。'}</p>
+                <p className={styles.description}>
+                  {profile.viewer.is_owner
+                    ? '你是這個角色的擁有者，可以修改名稱、簡介與提示詞。'
+                    : '你目前可以查看角色資料。名稱、簡介與提示詞由角色擁有者管理。'}
+                </p>
                 {profile.viewer.is_owner && (
                   <div className={styles.heroActions}>
-                    <Button
-                      onClick={() => {
-                        setAvatarRestore(undefined)
-                        setAvatarEditing(true)
-                      }}
-                    >
-                      更換頭像
-                    </Button>
                     <Button onClick={editSoul}>編輯提示詞</Button>
                   </div>
                 )}
@@ -168,6 +167,16 @@ export function About({
             )}
           </div>
         </header>
+        <AvatarStatus
+          profile={profile}
+          status={info.status}
+          supported={avatarSupported}
+          edit={() => {
+            setAvatarRestore(undefined)
+            setAvatarEditing(true)
+          }}
+          retry={() => void info.refetch()}
+        />
         <AvatarPending
           id={id}
           owner={profile.viewer.is_owner}
@@ -176,18 +185,13 @@ export function About({
             setAvatarEditing(true)
           }}
         />
-        <AvatarEditor
-          id={id}
-          profile={profile}
-          open={avatarEditing}
-          restore={avatarRestore}
-          close={() => setAvatarEditing(false)}
-          done={() => setNotice('已更新頭像')}
-        />
-        {notice && (
-          <div ref={toastGlass.ref} data-glass="toast" className={styles.toast} role="status">
-            {notice}
-          </div>
+        {avatarEditing && avatarSupported && profile.viewer.is_owner && (
+          <AvatarEditor
+            id={id}
+            profile={profile}
+            restore={avatarRestore}
+            close={() => setAvatarEditing(false)}
+          />
         )}
         <Segmented
           label="角色資料"
@@ -421,7 +425,7 @@ function Memories({
           >
             <span className={styles.factContent}>{fact.text}</span>
             <span className={styles.meta}>
-              <span className={styles.tag}>{kinds[fact.kind]}</span>
+              <span className={styles.tag}>{kinds[fact.kind] ?? fact.kind}</span>
               <time dateTime={fact.updated_at}>{date(fact.updated_at)}</time>
               <span>{fact.evidence_count} 則依據</span>
               {expanded === fact.fact_id ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -457,7 +461,7 @@ function Memories({
                     : ''}
                 </small>
               )}
-              {about === 'me' && (
+              {fact.writable && (
                 <div className={styles.actions}>
                   <Button
                     variant="plain"
@@ -633,7 +637,7 @@ function Arrangements({
                   {item.next_run_at ? `下次執行 ${date(item.next_run_at)}` : '目前沒有下次執行時間'}
                 </small>
               </div>
-              <span className={styles.tag}>{states[item.state]}</span>
+              <span className={styles.tag}>{states[item.state] ?? item.state}</span>
             </div>
             {scope === 'mine' && !['completed', 'cancelled'].includes(item.state) && (
               <div className={styles.actions}>

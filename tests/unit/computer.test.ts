@@ -23,7 +23,7 @@ const me: Me = {
   request_scope: owner.personId,
   request_conversation_id: null,
   platform: 'app',
-  presence_id: null,
+  presence_id: '00000000-0000-4000-8000-000000000099',
   thread_id: null,
   binding_id: owner.bindingId,
   conversation_id: owner.conversationId,

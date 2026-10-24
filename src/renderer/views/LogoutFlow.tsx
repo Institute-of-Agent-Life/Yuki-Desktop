@@ -97,7 +97,7 @@ export function LogoutFlow({
         actions={
           <>
             <Button disabled={busy} onClick={() => setConfirm(false)}>
-            返回
+              返回
             </Button>
             <Button loading={busy} onClick={() => void prepare()}>
               撤銷憑據並繼續

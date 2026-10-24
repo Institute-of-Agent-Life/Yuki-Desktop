@@ -255,7 +255,7 @@ export function Files({
                 </p>
                 <p>
                   <span>發布路徑</span>{' '}
-                  {item ? (item.published_path ?? '—（附件或無發布回執）') : '尚未讀取發布資訊'}
+                  {item ? (item.published_path ?? '未提供') : '尚未讀取發布資訊'}
                 </p>
                 <div className={styles.actions}>
                   <Button
@@ -296,40 +296,44 @@ export function Files({
                     ))}
                   </details>
                 )}
-                {item?.published_path &&
-                  items.some(
-                    (other) =>
-                      other.artifact_id !== item.artifact_id &&
-                      other.published_path === item.published_path,
-                  ) && (
-                    <details>
-                      <summary>同一路徑的先後發布</summary>
-                      <p>不以檔名判斷。</p>
-                      {items
-                        .filter(
-                          (other) =>
-                            other.published_path === item.published_path &&
-                            other.artifact_id !== item.artifact_id,
-                        )
-                        .map((other) => (
-                          <div className={styles.version} key={other.artifact_id}>
-                            <span>
-                              {date(other.created_at)} · {other.artifact_id} ·{' '}
-                              {shortVersion(other.version)}
-                            </span>
-                            <Button variant="plain" onClick={() => setComparison(source(other))}>
-                              比較此版本
-                            </Button>
-                          </div>
-                        ))}
-                    </details>
+                <details>
+                  <summary>選擇另一項成果比較</summary>
+                  <p>選擇可讀的原版本，依成果 ID 與內容版本比較。</p>
+                  {items
+                    .filter(
+                      (other) =>
+                        other.artifact_id !== selected.artifactId ||
+                        other.version !== selected.version,
+                    )
+                    .map((other) => (
+                      <div className={styles.version} key={`${other.artifact_id}/${other.version}`}>
+                        <span>
+                          {other.name} · {date(other.created_at)} · {other.artifact_id} ·{' '}
+                          {shortVersion(other.version)}
+                        </span>
+                        <Button variant="plain" onClick={() => setComparison(source(other))}>
+                          比較此版本
+                        </Button>
+                      </div>
+                    ))}
+                  {page.hasNextPage && (
+                    <Button
+                      variant="plain"
+                      loading={page.isFetchingNextPage}
+                      onClick={() => void page.fetchNextPage()}
+                    >
+                      載入更早成果
+                    </Button>
                   )}
+                </details>
               </section>
               <div className={styles.preview}>
                 {comparison && (
                   <header className={styles.actions}>
                     <strong>並排比較原版本</strong>
-                    <code>{comparison.artifactId}</code>
+                    <code>
+                      {comparison.artifactId}@{shortVersion(comparison.version)}
+                    </code>
                     <IconButton label="結束比較" onClick={() => setComparison(undefined)}>
                       <X size={15} />
                     </IconButton>

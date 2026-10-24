@@ -1,3 +1,5 @@
+import { activeCharacterName } from '../fixtures/active-character'
+import { contentSize } from '../fixtures/visual'
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import type { AppUpdater, UpdateCheckResult } from 'electron-updater'
 import type { CancellationToken } from 'builder-util-runtime'
@@ -165,11 +167,16 @@ test('actual update buttons wait for a started native operation, recover a rejec
       return value.value[0]!
     })
     await page
-      .getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼`, exact: true })
       .fill('更新前要保留的草稿')
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '本機連接', exact: true }).click()
-    await page.getByRole('button', { name: '允許 Yuki 使用這台電腦', exact: true }).click()
+    await page
+      .getByRole('button', {
+        name: `允許 ${await activeCharacterName(page)} 使用這台電腦`,
+        exact: true,
+      })
+      .click()
     await page.getByRole('switch', { name: '允許開啟網址', exact: true }).click()
     await expect(page.getByRole('switch', { name: '允許開啟網址', exact: true })).toBeChecked()
     const local = await page.evaluate(async (id) => {
@@ -221,9 +228,12 @@ test('actual update buttons wait for a started native operation, recover a rejec
       .toBe('online')
     await expect(page.getByRole('switch', { name: '允許開啟網址', exact: true })).toBeChecked()
     await page.getByRole('button', { name: '返回', exact: true }).click()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })).toHaveValue(
-      '更新前要保留的草稿',
-    )
+    await expect(
+      page.getByRole('textbox', {
+        name: `和 ${await activeCharacterName(page)} 說點什麼`,
+        exact: true,
+      }),
+    ).toHaveValue('更新前要保留的草稿')
     expect((await snapshot(app)).physical).toBe(1)
     await app.evaluate(() => {
       ;(globalThis as unknown as { __updateFixture: FixtureState }).__updateFixture.rejectInstall =
@@ -239,9 +249,12 @@ test('actual update buttons wait for a started native operation, recover a rejec
     })
     app = await rig.launch('update-boundary')
     page = await app.firstWindow()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })).toHaveValue(
-      '更新前要保留的草稿',
-    )
+    await expect(
+      page.getByRole('textbox', {
+        name: `和 ${await activeCharacterName(page)} 說點什麼`,
+        exact: true,
+      }),
+    ).toHaveValue('更新前要保留的草稿')
     const current = await page.evaluate(async (id) => {
       const value = await window.yuki.client.executorState(id)
       return value.ok ? value.value.installation?.executorId : undefined
@@ -269,7 +282,8 @@ test('minimum client rejection precedes credentials and opens App updates for ne
   try {
     let page = await app.firstWindow()
     proxy.faults.minDesktop = '999.0.0'
-    await page.getByRole('button', { name: '開始', exact: true }).click()
+    await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
+    await page.getByRole('button', { name: '手動輸入伺服器位址', exact: true }).click()
     await page.getByLabel('伺服器位址', { exact: true }).fill(proxy.base)
     await page.getByRole('button', { name: '繼續', exact: true }).click()
     await expect(
@@ -287,7 +301,7 @@ test('minimum client rejection precedes credentials and opens App updates for ne
     page = await app.firstWindow()
     await pairUI(page, proxy.base, await rig.code())
     await page
-      .getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼`, exact: true })
       .fill('最低版本檢查仍保留原草稿')
     await app.close()
     proxy.calls.length = 0
@@ -306,9 +320,12 @@ test('minimum client rejection precedes credentials and opens App updates for ne
     await app.close()
     app = await rig.launch('minimum-returning')
     page = await app.firstWindow()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })).toHaveValue(
-      '最低版本檢查仍保留原草稿',
-    )
+    await expect(
+      page.getByRole('textbox', {
+        name: `和 ${await activeCharacterName(page)} 說點什麼`,
+        exact: true,
+      }),
+    ).toHaveValue('最低版本檢查仍保留原草稿')
     success = true
   } finally {
     if (!success) app.process().kill('SIGKILL')
@@ -376,14 +393,11 @@ test('update controls cancel an active download, reject corrupt content, retain 
         [1280, 800],
         [960, 640],
       ] as const) {
-        await app.evaluate(
-          ({ BrowserWindow }, size) =>
-            BrowserWindow.getAllWindows()[0]!.setContentSize(size.width, size.height),
-          { width, height },
-        )
-        await expect
-          .poll(() => page.evaluate(() => [window.innerWidth, window.innerHeight]))
-          .toEqual([width, height])
+        const viewportMethod = await contentSize(app, page, width, height)
+        if (viewportMethod === 'electron-device-emulation')
+          await expect
+            .poll(() => page.evaluate(() => [window.innerWidth, window.innerHeight]))
+            .toEqual([width, height])
         const ready = page.getByRole('button', { name: '重新啟動以更新', exact: true })
         await expect(async () => {
           await ready.scrollIntoViewIfNeeded()
@@ -402,7 +416,12 @@ test('update controls cancel an active download, reject corrupt content, retain 
     await app.close()
     app = await rig.launch('update-controls')
     page = await app.firstWindow()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })).toBeVisible()
+    await expect(
+      page.getByRole('textbox', {
+        name: `和 ${await activeCharacterName(page)} 說點什麼`,
+        exact: true,
+      }),
+    ).toBeVisible()
     await page.keyboard.press('ControlOrMeta+,')
     await expect(page.getByRole('tab', { name: '測試版本', exact: true })).toHaveAttribute(
       'aria-selected',

@@ -5,8 +5,10 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import type { Profile } from '../../src/shared/api'
 import { pairUI } from '../fixtures/backend'
+import { navigate } from '../fixtures/navigation'
 import { launchShell } from '../fixtures/shell-app'
 import { completeWindowsFileDialog, windowsFileDialogOwner } from '../fixtures/windows-file-dialog'
+import { avatarVariants } from '../fixtures/avatar-assets'
 
 async function profile(page: Page, id: string) {
   return page.evaluate(async (id) => {
@@ -75,14 +77,17 @@ test('Windows native avatar selection preserves EXIF, crop, second-device conver
     })
     expect(runtime).toMatchObject({
       platform: 'win32',
-      arch: 'x64',
+      arch: process.env.YUKI_NATIVE_EXPECT_ARCH ?? process.arch,
       packaged: true,
       sandboxed: true,
       noSandbox: false,
     })
-    await pa.getByRole('button', { name: '關於 Yuki', exact: true }).click()
+    await navigate(pa, `關於 ${original.display_name}`)
     await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
-    const sheet = pa.getByRole('dialog', { name: '更換 Yuki 的頭像', exact: true })
+    const sheet = pa.getByRole('dialog', {
+      name: `更換 ${original.display_name} 的頭像`,
+      exact: true,
+    })
     const owner = await windowsFileDialogOwner(a)
     await sheet.getByRole('button', { name: '選擇圖片…', exact: true }).click()
     const receipt = await completeWindowsFileDialog(owner, input!, 'open')
@@ -146,23 +151,20 @@ test('Windows native avatar selection preserves EXIF, crop, second-device conver
     const second = await profile(pb, connection.characterId)
     expect(second.avatar?.sha256).toBe(updated.avatar!.sha256)
     expect(second.avatar_revision).toBe(updated.avatar_revision)
-    const filesResponse = await fetch(`${base}/__test/avatar-files`)
-    expect(filesResponse.ok).toBe(true)
-    const files = (await filesResponse.json()) as {
-      files: { sha256: string; size: string; dimensions: number[]; metadata: string[] }[]
-    }
-    const variants = files.files.filter((file) => file.sha256 === updated.avatar!.sha256)
+    const variants = await avatarVariants(pa, connection.characterId, updated.avatar!.sha256)
     expect(variants.map((file) => file.size).sort()).toEqual(['1024', '128', '256', '512', '64'])
     for (const variant of variants) {
       const pixels = Number(variant.size)
       expect(variant.dimensions).toEqual([pixels, pixels])
-      expect(variant.metadata).not.toContain('exif')
+      expect(variant.metadata).not.toContain('eXIf')
     }
     await a.close()
     a = await launch()
     pa = await a.firstWindow()
     await pa.waitForLoadState('domcontentloaded')
-    await expect(pa.getByRole('button', { name: '關於 Yuki', exact: true })).toBeVisible()
+    await expect(
+      pa.getByRole('button', { name: `關於 ${original.display_name}`, exact: true }),
+    ).toBeVisible()
     await expect(pa.locator('[data-region="sidebar"] img')).toBeVisible()
     await expect.poll(() => sidebarImage(pa)).toBe(rendered)
     const reopenedConnections = await pa.evaluate(() => window.yuki.client.connections())

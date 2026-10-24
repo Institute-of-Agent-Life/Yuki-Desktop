@@ -5,12 +5,12 @@ import { dirname, join, basename, extname } from 'node:path'
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { OriginalRequest, UploadDraft } from '../../shared/api'
-import type { ProductModels as components } from '../../shared/product-models'
+import type { components } from '../../shared/contract.gen'
 import type { Outbox } from '../outbox'
 import { payloadHash } from '../outbox/fingerprint'
 import { ApiClient, ApiError } from '../api/client'
 
-type UploadResult = components['schemas']['UploadResult']
+type UploadResult = components['schemas']['UploadReceipt']
 export class Uploads {
   private readonly pending = new Map<string, Promise<UploadDraft>>()
   constructor(

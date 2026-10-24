@@ -1,5 +1,44 @@
 import type { Outbox } from './index'
 
+const retiredTables = ['avatar_commands', 'avatar_command_acknowledgements'] as const
+
+function retiredTablesPresent(box: Outbox) {
+  return retiredTables.flatMap((table) => {
+    if (!box.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table))
+      return []
+    return [{ table, condition: '' }]
+  })
+}
+
+export function retiredSummary(box: Outbox) {
+  return retiredTablesPresent(box)
+    .map(({ table, condition }) => ({
+      table,
+      count: (
+        box.db.prepare(`SELECT count(*) AS n FROM ${table}${condition}`).get() as { n: number }
+      ).n,
+    }))
+    .filter(({ count }) => count > 0)
+}
+
+export function exportRetired(box: Outbox) {
+  return (
+    JSON.stringify(
+      {
+        owner: box.owner,
+        tables: Object.fromEntries(
+          retiredTablesPresent(box).map(({ table, condition }) => [
+            table,
+            box.db.prepare(`SELECT * FROM ${table}${condition}`).all(),
+          ]),
+        ),
+      },
+      null,
+      2,
+    ) + '\n'
+  )
+}
+
 export function localSummary(box: Outbox) {
   const exists = (table: string) =>
     !!box.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table)
@@ -33,16 +72,11 @@ export function localSummary(box: Outbox) {
       )
         drafts++
     }
-  drafts += count(
-    'avatar_commands',
-    "state='result' AND problem IS NOT NULL AND NOT EXISTS(SELECT 1 FROM avatar_command_acknowledgements ack WHERE ack.request_id=avatar_commands.request_id)",
-  )
   const pending = [
     'requests',
     'work_commands',
     'computer_commands',
     'character_commands',
-    'avatar_commands',
     'soul_commands',
     'link_code_commands',
     'executor_commands',

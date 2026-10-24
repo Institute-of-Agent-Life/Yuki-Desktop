@@ -8,6 +8,7 @@ import type { ExecutorView } from '../../src/shared/executor'
 import { pairUI } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
 import { launchShell } from '../fixtures/shell-app'
+import { executorOperation } from '../fixtures/executor-operation'
 import { completeWindowsFileDialog, windowsFileDialogOwner } from '../fixtures/windows-file-dialog'
 
 function expectNonSecret(value: unknown) {
@@ -120,7 +121,7 @@ test('Windows executor enrollment recovers lost creation and revocation then rej
     }
     await settings(page)
     proxy.faults.loseNextSuffix = '/executors'
-    await page.getByRole('button', { name: '允許 Yuki 使用這台電腦', exact: true }).click()
+    await page.getByRole('button', { name: `允許 ${owner.name} 使用這台電腦`, exact: true }).click()
     await expect.poll(() => proxy.lostStatuses.length).toBe(1)
     expect(proxy.lostStatuses).toEqual([200])
     await expect(page.getByText('未完成設定的電腦', { exact: true })).toBeVisible()
@@ -273,8 +274,12 @@ test('Windows executor enrollment recovers lost creation and revocation then rej
     await expect(readFile(join(folder, 'explicit.txt'))).rejects.toMatchObject({ code: 'ENOENT' })
     const explicit = await invoke()
     expect(explicit.ok).toBe(true)
-    const result = (await explicit.json()) as { op_id: string; state: string; level: string }
-    expect(result).toMatchObject({ state: 'succeeded', level: 'confirmed' })
+    const admitted = (await explicit.json()) as { op_id: string; state: string }
+    expect(admitted.state).toBe('dispatched')
+    await expect
+      .poll(() => executorOperation(page, owner, executorId, admitted.op_id))
+      .toMatchObject({ state: 'succeeded', level: 'confirmed' })
+    const result = (await executorOperation(page, owner, executorId, admitted.op_id))!
     expect((await currentIds()).filter((id) => !beforeOffline.includes(id))).toEqual([result.op_id])
     expect(await readFile(join(folder, 'explicit.txt'), 'utf8')).toBe(
       'explicit request after reconnect',
@@ -290,7 +295,7 @@ test('Windows executor enrollment recovers lost creation and revocation then rej
     ).toBeVisible({ timeout: 15000 })
     await page.getByRole('button', { name: '清除此電腦的失效設定', exact: true }).click()
     await expect(
-      page.getByRole('button', { name: '允許 Yuki 使用這台電腦', exact: true }),
+      page.getByRole('button', { name: `允許 ${owner.name} 使用這台電腦`, exact: true }),
     ).toBeVisible()
     expect((await local()).installation).toBeNull()
     expect(await listed(otherPage, other)).toEqual(before)

@@ -1,3 +1,4 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -181,7 +182,9 @@ test('native material remains exposed only beneath the sidebar and follows actua
     await app.close()
     app = await launchShell(data)
     page = await app.firstWindow()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
+    await expect(
+      page.getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` }),
+    ).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('data-material', 'none')
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '外觀', exact: true }).click()

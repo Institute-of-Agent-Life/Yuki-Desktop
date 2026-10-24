@@ -1,3 +1,4 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 import { mkdtemp, writeFile } from 'node:fs/promises'
@@ -64,7 +65,9 @@ test('native conversation wheel scrolling applies toolbar material and preserves
         (_, i) => `${i + 1}. 原對話中的長段文字，用於捲動與工具列檢查。`,
       ).join('\n')
     ).slice(0, 5000)
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill(text)
+    await page
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` })
+      .fill(text)
     await page.getByRole('button', { name: '送出', exact: true }).click()
     const original = page
       .getByRole('article', { name: '你的訊息', exact: true })
@@ -132,7 +135,9 @@ test('native conversation wheel scrolling applies toolbar material and preserves
       expect((await style()).edgeFilter).toBe(opaque ? 'none' : 'blur(6px)')
       if (opaque) expect((await style()).edgeShadow).not.toBe('none')
       await expect(original).toHaveAttribute('data-event-id', eventId!)
-      await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
+      await expect(
+        page.getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` }),
+      ).toBeVisible()
       expect(
         await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getBounds()),
       ).toEqual(native.bounds)
@@ -186,11 +191,11 @@ test('native conversation wheel scrolling applies toolbar material and preserves
       .getByRole('article')
       .filter({ hasText: '消息过长，请控制在 4000 个字符以内。' })
       .count()
-    const replies = log.getByText('真實帳本回覆', { exact: true })
+    const replies = log.getByText('Desktop reference reply', { exact: true })
     const beforeReply = await replies.count()
     const recoveryMarker = randomUUID()
     await page
-      .getByRole('textbox', { name: '和 Yuki 說點什麼' })
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` })
       .fill(recoveryMarker + ' 確認原對話仍可接續。')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     const recovery = log

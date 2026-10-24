@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
-import type { AutomationPage, Connection, MemoryPage } from '../../src/shared/api'
+import type { AutomationPage, MemoryPage, OriginalRequest, Profile } from '../../src/shared/api'
 import { expectContainedText } from '../fixtures/contained-text'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
 
 test('real Electron edits original memory and arrangements, handles two-device conflicts and lost responses', async () => {
   test.setTimeout(150000)
@@ -18,18 +18,64 @@ test('real Electron edits original memory and arrangements, handles two-device c
     pa.on('pageerror', (error) => errors.push(error.message))
     pb.on('pageerror', (error) => errors.push(error.message))
     await pairUI(pa, rig.base, await rig.code())
-    await pa.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('這是記憶的原始依據。')
+    const connection = await currentConnection(pa)
+    const original = await pa.evaluate(async (id) => {
+      const result = await window.yuki.client.read<Profile>(id, { kind: 'character' })
+      if (!result.ok) throw Error(result.code)
+      return result.value
+    }, connection.characterId)
+    const composer = pa.getByRole('textbox', { name: `和 ${original.display_name} 說點什麼` })
+    const sourceText = '這是記憶的原始依據。'
+    await composer.fill(sourceText)
     await pa.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(pa.getByText('真實帳本回覆', { exact: true })).toBeVisible()
+    await expect(composer).toHaveValue('')
+    const sent = await pa.evaluate(
+      async ({ id, text }) => {
+        const result = await window.yuki.client.outbox(id)
+        if (!result.ok) throw Error(result.code)
+        const item = result.value.find((item) => item.body.text === text)
+        if (!item?.eventId) throw Error('Original accepted request is missing')
+        return { requestId: item.requestId, eventId: item.eventId }
+      },
+      { id: connection.characterId, text: sourceText },
+    )
+    await expect
+      .poll(() =>
+        pa.evaluate(
+          async ({ id, requestId }) => {
+            const result = await window.yuki.client.read<OriginalRequest>(id, {
+              kind: 'request',
+              requestId,
+            })
+            return result.ok ? result.value.turn?.state : result.code
+          },
+          { id: connection.characterId, requestId: sent.requestId },
+        ),
+      )
+      .toBe('ended')
+    const receipt = await pa.evaluate(
+      async ({ id, requestId }) => {
+        const result = await window.yuki.client.read<OriginalRequest>(id, {
+          kind: 'request',
+          requestId,
+        })
+        if (!result.ok) throw Error(result.code)
+        return result.value
+      },
+      { id: connection.characterId, requestId: sent.requestId },
+    )
+    expect(receipt.event_id).toBe(sent.eventId)
+    expect(receipt.result_event_ids).toHaveLength(1)
+    await expect(
+      pa
+        .locator(`article[data-event-id="${receipt.result_event_ids![0]}"]`)
+        .getByText('Desktop reference reply', { exact: true }),
+    ).toBeVisible()
     const seed = await fetch(`${rig.base}/__test/character-data`, { method: 'POST' })
     const seeded = await seed.json()
     expect(seed.status, JSON.stringify(seeded)).toBe(200)
-    const connection = (await pa.evaluate(async () => {
-      const result = await window.yuki.client.connections()
-      if (!result.ok) throw Error(result.code)
-      return result.value[0]
-    })) as Connection
-    await pa.getByRole('button', { name: '關於 Yuki', exact: true }).click()
+    expect(seeded.source_event_id).toBe(sent.eventId)
+    await pa.getByRole('button', { name: `關於 ${original.display_name}`, exact: true }).click()
     await expect(pa.getByRole('button', { name: '已核對的記錄 52', exact: false })).toBeVisible()
     await expect(pa.getByRole('button', { name: /^已核對的記錄 / })).toHaveCount(50)
     await pa.screenshot({
@@ -40,13 +86,15 @@ test('real Electron edits original memory and arrangements, handles two-device c
     await expect(pa.getByRole('button', { name: /^已核對的記錄 / })).toHaveCount(52)
     await pa.getByRole('button', { name: '已核對的記錄 52', exact: false }).click()
     await pa.getByRole('button', { name: '這是記憶的原始依據。', exact: true }).click()
-    await expect(pa.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
+    await expect(
+      pa.getByRole('textbox', { name: `和 ${original.display_name} 說點什麼` }),
+    ).toBeVisible()
     await expect(pa.locator(`article[data-event-id="${seeded.source_event_id}"]`)).toContainText(
       '這是記憶的原始依據。',
     )
-    await pa.getByRole('button', { name: '關於 Yuki', exact: true }).click()
+    await pa.getByRole('button', { name: `關於 ${original.display_name}`, exact: true }).click()
     await pairUI(pb, rig.base, await rig.code())
-    await pb.getByRole('button', { name: '關於 Yuki', exact: true }).click()
+    await pb.getByRole('button', { name: `關於 ${original.display_name}`, exact: true }).click()
     for (const page of [pa, pb]) {
       await page.getByRole('button', { name: '已核對的記錄 52', exact: false }).click()
       await page.getByRole('button', { name: '更正', exact: true }).click()
@@ -86,7 +134,7 @@ test('real Electron edits original memory and arrangements, handles two-device c
     a = await rig.launch('character-a')
     pa = await a.firstWindow()
     pa.on('pageerror', (error) => errors.push(error.message))
-    await pa.getByRole('button', { name: '關於 Yuki', exact: true }).click()
+    await pa.getByRole('button', { name: `關於 ${original.display_name}`, exact: true }).click()
     await expect(pa.getByRole('button', { name: /^回應遺失後保留同一次修正/ })).toBeVisible()
     await expect
       .poll(() =>

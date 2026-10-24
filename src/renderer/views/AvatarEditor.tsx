@@ -2,7 +2,12 @@ import { capturePointer } from '../motion/hooks'
 import { useCallback, useContext, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ImagePlus, RotateCcw } from 'lucide-react'
-import type { AvatarCommandItem, AvatarInput, Profile } from '../../shared/api'
+import type {
+  AvatarCommandItem,
+  AvatarInput,
+  CharacterCommandItem,
+  Profile,
+} from '../../shared/api'
 import { formatBytes } from '../../shared/media'
 import { Avatar, Banner, Button, Slider, Sheet, Spinner } from '../components/Controls'
 import { CharacterAvatar, CharacterVisuals, usePixelRatio } from '../components/CharacterAvatar'
@@ -15,8 +20,20 @@ import {
   type AvatarImage,
   type Pan,
 } from '../images/avatar'
-import { problemText, unwrap } from '../queries/client'
+import { ClientProblem, problemText, unwrap } from '../queries/client'
 import styles from './AvatarEditor.module.css'
+
+function avatarItem(item: CharacterCommandItem): AvatarCommandItem {
+  if (item.command.kind !== 'avatar') throw new Error('原請求不是頭像更新。')
+  return {
+    requestId: item.requestId,
+    action: item.command.action,
+    expectedRevision: item.command.expectedRevision,
+    state: item.state,
+    problem: item.problem,
+    current: (item.details?.current as Profile | undefined) ?? null,
+  }
+}
 
 export function AvatarPending({
   id,
@@ -29,65 +46,42 @@ export function AvatarPending({
 }) {
   const query = useQueryClient()
   const commands = useQuery({
-    queryKey: [id, 'avatar-commands'],
-    queryFn: () => window.yuki.client.avatarCommands(id).then(unwrap),
+    queryKey: [id, 'character-commands'],
+    queryFn: () => window.yuki.client.characterCommands(id).then(unwrap),
   })
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('')
   return (
     <>
       {commands.data
-        ?.filter((item) => item.state === 'submitted' || (item.problem && !item.acknowledged))
+        ?.filter((item) => item.command.kind === 'avatar' && item.state === 'submitted')
         .map((item) => (
           <div className={styles.pending} key={item.requestId} role="status">
-            <span>
-              {item.state === 'submitted'
-                ? '頭像更新：結果尚未確認'
-                : `頭像更新未套用：${problemText(item.problem!)}`}
-            </span>
-            {item.state === 'submitted' ? (
-              <Button
-                loading={busy}
-                onClick={async () => {
-                  setBusy(true)
-                  try {
-                    const result = unwrap(
-                      await window.yuki.client.verifyAvatarCommand(id, item.requestId),
-                    )
-                    setError(result.problem ? problemText(result.problem) : '')
-                    await query.invalidateQueries({ queryKey: [id, 'avatar-commands'] })
-                    await query.invalidateQueries({ queryKey: [id, 'character'] })
-                  } catch (error) {
-                    setError(error instanceof Error ? error.message : '無法查證原請求。')
-                  } finally {
-                    setBusy(false)
-                  }
-                }}
-              >
-                查證頭像更新
+            <span>頭像更新：結果尚未確認</span>
+            <Button
+              loading={busy}
+              onClick={async () => {
+                setBusy(true)
+                try {
+                  const result = unwrap(
+                    await window.yuki.client.verifyCharacterCommand(id, item.requestId),
+                  )
+                  setError(result.problem ? problemText(result.problem) : '')
+                  await query.invalidateQueries({ queryKey: [id, 'character-commands'] })
+                  await query.invalidateQueries({ queryKey: [id, 'character'] })
+                } catch (error) {
+                  setError(error instanceof Error ? error.message : '無法查證原請求。')
+                } finally {
+                  setBusy(false)
+                }
+              }}
+            >
+              查證頭像更新
+            </Button>
+            {owner && (
+              <Button disabled={busy} onClick={() => open(avatarItem(item))}>
+                查看這次更新
               </Button>
-            ) : (
-              <>
-                <Button hidden={!owner} disabled={busy} onClick={() => open(item)}>
-                  查看這次更新
-                </Button>
-                <Button
-                  disabled={busy}
-                  onClick={async () => {
-                    setBusy(true)
-                    try {
-                      unwrap(await window.yuki.client.acknowledgeAvatarCommand(id, item.requestId))
-                      await query.invalidateQueries({ queryKey: [id, 'avatar-commands'] })
-                    } catch (error) {
-                      setError(error instanceof Error ? error.message : '無法保存本機狀態。')
-                    } finally {
-                      setBusy(false)
-                    }
-                  }}
-                >
-                  放棄這次更新
-                </Button>
-              </>
             )}
           </div>
         ))}
@@ -99,16 +93,12 @@ export function AvatarPending({
 export function AvatarEditor({
   id,
   profile,
-  open,
   close,
-  done,
   restore,
 }: {
   id: string
   profile: Profile
-  open: boolean
   close: () => void
-  done: () => void
   restore?: AvatarCommandItem
 }) {
   const query = useQueryClient()
@@ -116,6 +106,7 @@ export function AvatarEditor({
   const pixels = Math.round(280 * usePixelRatio())
   const [image, setImage] = useState<AvatarImage>()
   const imageRef = useRef<AvatarImage | undefined>(undefined)
+  const opener = useRef(document.activeElement)
   const submitting = useRef(false)
   const generation = useRef(0)
   const [transform, setTransform] = useState<{ zoom: number; pan: Pan }>({
@@ -123,24 +114,24 @@ export function AvatarEditor({
     pan: { x: 0, y: 0 },
   })
   const [preview, setPreview] = useState<string>()
-  const [baseline, setBaseline] = useState(profile.avatar_revision)
+  const [baseline, setBaseline] = useState(restore?.expectedRevision ?? profile.avatar_revision)
   const [busy, setBusy] = useState(false),
-    [error, setError] = useState('')
+    [error, setError] = useState(restore?.problem ? problemText(restore.problem) : '')
   const [fromCurrent, setFromCurrent] = useState(false)
   const [conflict, setConflict] = useState<{
     current: Profile
     action: 'set' | 'reset'
-    requestId: string
   }>()
-  const [confirmReset, setConfirmReset] = useState(false)
-  const [unknown, setUnknown] = useState<AvatarCommandItem>()
+  const [unknown, setUnknown] = useState<AvatarCommandItem | undefined>(
+    restore?.state === 'submitted' ? restore : undefined,
+  )
   const crop = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const cancelDrag = useRef<(() => void) | undefined>(undefined)
   useEffect(() => {
-    if (!open || busy || unknown) cancelDrag.current?.()
+    if (busy || unknown) cancelDrag.current?.()
     return () => cancelDrag.current?.()
-  }, [open, busy, unknown])
+  }, [busy, unknown])
   const load = useCallback(async (input: Promise<AvatarInput | null>, current = false) => {
     const turn = ++generation.current
     setBusy(true)
@@ -161,62 +152,40 @@ export function AvatarEditor({
       setTransform({ zoom: 1, pan: { x: 0, y: 0 } })
       setConflict(undefined)
       return true
-    } catch {
-      if (turn === generation.current) setError('無法讀取這張圖片，請改用 PNG、JPEG 或 WebP。')
+    } catch (error) {
+      if (turn === generation.current)
+        setError(
+          error instanceof ClientProblem
+            ? error.message
+            : '無法讀取這張圖片，請改用 PNG、JPEG 或 WebP。',
+        )
       return false
     } finally {
       if (turn === generation.current) setBusy(false)
     }
   }, [])
   useEffect(() => {
-    if (open) {
-      setBaseline(restore?.expectedRevision ?? profile.avatar_revision)
-      setConflict(undefined)
-      setUnknown(undefined)
-      setError('')
-      setFromCurrent(false)
-      if (restore) {
-        setError(restore.problem ? problemText(restore.problem) : '')
-        if (restore.state === 'submitted') setUnknown(restore)
-        if (restore.problem === 'version_conflict')
-          setConflict({ current: profile, action: restore.action, requestId: restore.requestId })
-        if (restore.action === 'set')
-          void load(window.yuki.client.avatarDraft(id, restore.requestId).then(unwrap), true).then(
-            (loaded) => {
-              if (loaded && restore.problem === 'version_conflict') {
-                setConflict({
-                  current: profile,
-                  action: restore.action,
-                  requestId: restore.requestId,
-                })
-                setError('頭像剛被另一台裝置更新。')
-              }
-            },
-          )
-      } else if (profile.avatar)
-        void load(
-          window.yuki.client
-            .avatarBytes(id, profile.avatar.sha256, 1024)
-            .then(unwrap)
-            .then((bytes) => ({ filename: '目前頭像.png', bytes })),
-          true,
-        )
-    }
+    if (restore?.action === 'set')
+      void load(window.yuki.client.avatarDraft(id, restore.requestId).then(unwrap), true)
+    else if (!restore && profile.avatar)
+      void load(
+        window.yuki.client
+          .avatarBytes(id, profile.avatar.sha256, 1024)
+          .then(unwrap)
+          .then((bytes) => ({ filename: '目前頭像.png', bytes })),
+        true,
+      )
     return () => {
       generation.current++
       imageRef.current?.bitmap.close()
       imageRef.current = undefined
-      setImage(undefined)
-      setPreview(undefined)
-      setBusy(false)
-      setConfirmReset(false)
-      submitting.current = false
+      if (opener.current instanceof HTMLElement) opener.current.focus()
     }
     // An open editor retains the avatar revision it began with.
-  }, [open, id, load, restore?.requestId])
+  }, [id, load, restore?.requestId])
   useEffect(() => {
-    if (open && !profile.viewer.is_owner) close()
-  }, [open, profile.viewer.is_owner, close])
+    if (!profile.viewer.is_owner) close()
+  }, [profile.viewer.is_owner, close])
   useEffect(() => {
     if (!image) return
     const output = cropCanvas(image, transform.zoom, transform.pan, pixels)
@@ -248,7 +217,7 @@ export function AvatarEditor({
     setTransform((previous) => ({ ...previous, pan: { x: position.x, y: position.y } }))
   }
   const refreshed = async (item: AvatarCommandItem, session: number) => {
-    await query.invalidateQueries({ queryKey: [id, 'avatar-commands'] })
+    await query.invalidateQueries({ queryKey: [id, 'character-commands'] })
     await query.invalidateQueries({ queryKey: [id, 'character'] })
     if (session !== generation.current) return
     if (item.state === 'submitted') {
@@ -260,11 +229,10 @@ export function AvatarEditor({
     if (item.problem === 'version_conflict') {
       const current =
         item.current ?? unwrap(await window.yuki.client.read<Profile>(id, { kind: 'character' }))
-      setConflict({ current, action: item.action, requestId: item.requestId })
+      setConflict({ current, action: item.action })
       setError('頭像剛被另一台裝置更新。')
     } else if (item.problem) setError(problemText(item.problem))
     else {
-      done()
       close()
     }
   }
@@ -280,9 +248,7 @@ export function AvatarEditor({
           : undefined
       if (action === 'set' && !bytes) return
       const item = unwrap(await window.yuki.client.avatarCommand(id, revision, bytes))
-      if (conflict && conflict.requestId !== item.requestId)
-        await window.yuki.client.acknowledgeAvatarCommand(id, conflict.requestId)
-      await refreshed(item, session)
+      await refreshed(avatarItem(item), session)
     } catch (error) {
       if (session === generation.current)
         setError(error instanceof Error ? error.message : '頭像更新未完成。')
@@ -326,7 +292,7 @@ export function AvatarEditor({
             void load(window.yuki.client.pasteAvatar().then(unwrap))
           }
         }}
-        open={open}
+        open
         onClose={() => {
           if (!submitting.current) close()
         }}
@@ -339,7 +305,7 @@ export function AvatarEditor({
               <Button
                 variant="plain"
                 disabled={busy || !!unknown}
-                onClick={() => setConfirmReset(true)}
+                onClick={() => void save('reset')}
               >
                 還原預設
               </Button>
@@ -506,7 +472,9 @@ export function AvatarEditor({
               setBusy(true)
               try {
                 await refreshed(
-                  unwrap(await window.yuki.client.verifyAvatarCommand(id, unknown.requestId)),
+                  avatarItem(
+                    unwrap(await window.yuki.client.verifyCharacterCommand(id, unknown.requestId)),
+                  ),
                   session,
                 )
               } catch (error) {
@@ -535,14 +503,7 @@ export function AvatarEditor({
               )}
             </div>
             <div className={styles.conflictActions}>
-              <Button
-                disabled={busy}
-                onClick={async () => {
-                  await window.yuki.client.acknowledgeAvatarCommand(id, conflict.requestId)
-                  void query.invalidateQueries({ queryKey: [id, 'avatar-commands'] })
-                  close()
-                }}
-              >
+              <Button disabled={busy} onClick={close}>
                 保留目前的
               </Button>
               <Button
@@ -559,33 +520,6 @@ export function AvatarEditor({
             </div>
           </div>
         )}
-      </Sheet>
-      <Sheet
-        title={profile.default_avatar ? '還原為預設頭像' : '還原為字母頭像'}
-        open={confirmReset}
-        onClose={() => setConfirmReset(false)}
-        actions={
-          <>
-            <Button onClick={() => setConfirmReset(false)}>取消</Button>
-            <Button
-              variant="primary"
-              onClick={() => {
-                setConfirmReset(false)
-                void save('reset')
-              }}
-            >
-              確認還原
-            </Button>
-          </>
-        }
-      >
-        <div className={styles.reset}>
-          <CharacterAvatar size={120} avatar={profile.default_avatar} />
-          <p>
-            將還原為
-            {profile.default_avatar ? '這個角色的預設頭像' : '以名稱首字與角色色組成的字母頭像'}。
-          </p>
-        </div>
       </Sheet>
     </>
   )

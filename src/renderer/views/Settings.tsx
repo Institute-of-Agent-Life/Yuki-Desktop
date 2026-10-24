@@ -67,6 +67,7 @@ export function Settings({
   serverRequest = false,
   folderRequest = false,
   onAddCharacter,
+  onDeployLocal,
 }: {
   boot: BootInfo
   embedded?: boolean
@@ -80,6 +81,7 @@ export function Settings({
   folderRequest?: boolean
   serverRequest?: boolean
   onAddCharacter(): void
+  onDeployLocal(): void
 }) {
   const [category, setCategory] = useState<Category>(
       connection?.logout
@@ -106,6 +108,11 @@ export function Settings({
     queryKey: ['desktop', 'login-item'],
     queryFn: () => window.yuki.loginItem().then(unwrap),
     retry: false,
+  })
+  const history = useQuery({
+    queryKey: [connection?.characterId, 'retired-history'],
+    queryFn: () => window.yuki.client.retiredHistory(connection!.characterId).then(unwrap),
+    enabled: category === 'advanced' && !!connection,
   })
   const change = async (patch: Partial<Preferences>) => {
     setError('')
@@ -336,7 +343,7 @@ export function Settings({
               <p className={styles.notice}>配對角色後可設定本機連接。</p>
             )
           ) : category === 'agents' ? (
-            <AgentConnector server={connection?.baseUrl} deviceLabel={boot.deviceLabel} />
+            <AgentConnector connection={connection} deviceLabel={boot.deviceLabel} />
           ) : category === 'security' ? (
             connection ? (
               <DeviceSecurity
@@ -349,17 +356,29 @@ export function Settings({
               <p className={styles.notice}>配對角色後可管理本人的裝置。</p>
             )
           ) : category === 'server' ? (
-            connection ? (
-              <ServerSettings
-                key={connection.characterId}
-                connection={connection}
-                onConnection={onConnection}
-                about={about}
-                onAddCharacter={onAddCharacter}
-              />
-            ) : (
-              <p className={styles.notice}>配對角色後可查看伺服器與主動訊息設定。</p>
-            )
+            <>
+              <div className={styles.group}>
+                {!connection && (
+                  <Row title="連接 Yuki">
+                    <Button onClick={onAddCharacter}>連接已有 Yuki</Button>
+                  </Row>
+                )}
+                <Row title="本機 Yuki" description="在這台電腦部署 Yuki，或管理已有的本機部署。">
+                  <Button onClick={onDeployLocal}>本機部署與管理</Button>
+                </Row>
+              </div>
+              {connection ? (
+                <ServerSettings
+                  key={connection.characterId}
+                  connection={connection}
+                  onConnection={onConnection}
+                  about={about}
+                  onAddCharacter={onAddCharacter}
+                />
+              ) : (
+                <p className={styles.notice}>連接角色後，這裡會顯示伺服器與角色設定。</p>
+              )}
+            </>
           ) : (
             <>
               <div className={styles.group}>
@@ -388,6 +407,30 @@ export function Settings({
                 </Row>
               </div>
               <p className={styles.version}>Yuki Desktop {boot.version}</p>
+              {!!history.data?.length && (
+                <Row
+                  title="舊版頭像操作記錄"
+                  description="舊版頭像更新的原始識別碼、未決操作與回執保留供查閱，不會重新執行。匯出檔案含原始頭像操作資料，請自行保管。"
+                >
+                  <Button
+                    onClick={async () => {
+                      setError('')
+                      try {
+                        if (
+                          unwrap(
+                            await window.yuki.client.exportRetiredHistory(connection!.characterId),
+                          )
+                        )
+                          setNotice('舊版頭像操作記錄已匯出。')
+                      } catch {
+                        setError('舊版頭像操作記錄未能匯出。')
+                      }
+                    }}
+                  >
+                    匯出 {history.data.reduce((sum, item) => sum + item.count, 0)} 筆記錄…
+                  </Button>
+                </Row>
+              )}
             </>
           )}
         </div>

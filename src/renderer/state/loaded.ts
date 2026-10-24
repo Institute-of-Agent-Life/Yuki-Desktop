@@ -8,7 +8,7 @@ import type {
   Work,
   WorkPage,
 } from '../../shared/api'
-import type { ProductModels as components } from '../../shared/product-models'
+import type { SyncHint } from '../../shared/sync'
 import { parseMessage } from '../../shared/message'
 import { hidesPrivateData } from '../queries/client'
 
@@ -41,7 +41,7 @@ export function loadedItems(client: QueryClient, character: string): LoadedItem[
       for (const entry of [home.main, ...home.entries]) entries.set(entry.conversation_id, entry)
     }
   }
-  const sync = client.getQueryData<components['schemas']['SyncHint']>([character, 'sync'])
+  const sync = client.getQueryData<SyncHint>([character, 'sync'])
   if (sync) {
     const previous = new Map(entries)
     entries.clear()
@@ -62,6 +62,29 @@ export function loadedItems(client: QueryClient, character: string): LoadedItem[
   const messages = new Map<string, LoadedItem>(),
     works = new Map<string, Work>(),
     files = new Map<string, LoadedItem>()
+  const addFile = (
+    item: {
+      artifact_id?: string | null
+      version?: string | null
+      filename?: string | null
+      name?: string | null
+    },
+    at: number | string,
+  ) => {
+    if (!item.artifact_id || !item.version) return
+    const id = `file/${item.artifact_id}/${item.version}`
+    files.set(
+      id,
+      files.get(id) ?? {
+        kind: 'file',
+        id,
+        title: item.filename ?? item.name ?? item.artifact_id,
+        detail: item.artifact_id,
+        at: timestamp(at),
+        source: { artifactId: item.artifact_id, version: item.version },
+      },
+    )
+  }
   const denied = new Set(
     queries
       .filter((query) => query.queryKey[1] === 'work' && hidesPrivateData(query.state.error))
@@ -75,11 +98,12 @@ export function loadedItems(client: QueryClient, character: string): LoadedItem[
       works.set(work.work_id, work)
   }
   const addMessage = (conversationId: string, event: PublicEvent) => {
+    for (const attachment of event.attachments) addFile(attachment, event.created_at)
     const id = `message/${conversationId}/${event.event_id}`
     messages.set(id, {
       kind: 'message',
       id,
-      title: parseMessage(event.display_text ?? event.text).text || '附件訊息',
+      title: parseMessage(event.content).text || '附件訊息',
       detail:
         entries.get(conversationId)?.display_name ||
         (event.platform === 'app' ? '桌面對話' : event.platform.toUpperCase()),
@@ -125,6 +149,9 @@ export function loadedItems(client: QueryClient, character: string): LoadedItem[
     const cached = works.get(hint.work_id)
     if (cached && cached.revision < hint.revision) works.delete(hint.work_id)
   }
+  for (const work of works.values())
+    for (const result of work.results)
+      for (const artifact of result.artifacts) addFile(artifact, work.updated_at)
   return [
     ...messages.values(),
     ...[...works.values()].map((work) => ({

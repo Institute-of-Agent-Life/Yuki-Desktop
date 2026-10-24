@@ -105,7 +105,9 @@ test('Windows native attachments recover a lost upload receipt and save identica
     // The first HTTP response was lost after commit; receipt lookup must avoid another upload.
     expect(calls.sort()).toEqual(staged.value.map((item) => item.requestId).sort())
     const body = `請讀取這兩份原生附件 ${randomUUID()}`
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true }).fill(body)
+    await page
+      .getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true })
+      .fill(body)
     await page.getByRole('button', { name: '送出', exact: true }).click()
     const sent = page.getByRole('article').filter({ has: page.getByText(body, { exact: true }) })
     await expect(sent).toHaveAttribute('data-event-id', /^\d+$/)
@@ -122,13 +124,10 @@ test('Windows native attachments recover a lost upload receipt and save identica
       { ...connection, eventId },
     )
     expect(events?.attachments).toHaveLength(2)
-    for (const [filename, content] of [
-      [basename(source), bytes],
-      [basename(imageSource), imageBytes],
-    ] as const)
+    for (const filename of [basename(source), basename(imageSource)])
       expect(events!.attachments.find((item) => item.filename === filename)).toMatchObject({
-        size: content.byteLength,
-        availability: 'available',
+        media_id: staged.value.find((item) => item.filename === filename)!.mediaId,
+        filename,
       })
     await app.close()
     // These are only the two inputs created by this test, never user-selected files.
@@ -190,8 +189,45 @@ test('Windows native attachments recover a lost upload receipt and save identica
       (await fetch(`${base}/__test/expire-attachments/${eventId}`, { method: 'POST' })).ok,
     ).toBe(true)
     expect((await fetch(`${base}/__test/disconnect`, { method: 'POST' })).ok).toBe(true)
-    await expect(originalEvent.getByText('已過期', { exact: true })).toHaveCount(2)
+    const preview = page.getByRole('complementary', { name: '檢視器', exact: true })
+    await expect(
+      preview.getByText('無法讀取或查證原項目，原文仍保留。', { exact: true }),
+    ).toBeVisible()
     await expect(page.getByRole('button', { name: '存成檔案', exact: true })).toHaveCount(0)
+    for (const attachment of events!.attachments) {
+      expect(
+        await page.evaluate(
+          async ({ id, source }) => {
+            const result = await window.yuki.client.content(id, source)
+            return result.ok ? { ok: true } : result
+          },
+          {
+            id: connection.characterId,
+            source: {
+              conversationId: connection.conversationId,
+              eventId,
+              index: attachment.attachment_index,
+            },
+          },
+        ),
+      ).toMatchObject({ ok: false, code: 'not_found' })
+      const uploaded = staged.value.find((item) => item.mediaId === attachment.media_id)!
+      await expect(
+        readFile(
+          join(
+            data,
+            'profile-b',
+            'connections',
+            connection.characterId,
+            'cache',
+            connection.personId,
+            uploaded.sha256 + '.blob',
+          ),
+        ),
+      ).rejects.toMatchObject({ code: 'ENOENT' })
+    }
+    expect(await readFile(join(data, '另存文字.txt'))).toEqual(bytes)
+    expect(await readFile(join(data, '另存圖片.png'))).toEqual(imageBytes)
     await page.screenshot({
       path: test.info().outputPath('windows-native-expired-media.png'),
       animations: 'disabled',

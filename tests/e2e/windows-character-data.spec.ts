@@ -1,3 +1,4 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test, type Page } from '@playwright/test'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -87,9 +88,11 @@ test('Windows native character data keeps original memory receipts across crashe
     pa.on('pageerror', (error) => errors.push(error.message))
     pb.on('pageerror', (error) => errors.push(error.message))
     await pairUI(pa, base!, await code(), 'Windows 記憶主裝置', 20000)
-    await pa.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill(sourceText)
+    await pa
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(pa)} 說點什麼` })
+      .fill(sourceText)
     await pa.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(pa.getByText('真實帳本回覆', { exact: true })).toBeVisible()
+    await expect(pa.getByText('Desktop reference reply', { exact: true })).toBeVisible()
     const seed = await post('character-data')
     const seeded = await seed.json()
     expect(seed.status, JSON.stringify(seeded)).toBe(200)
@@ -98,7 +101,9 @@ test('Windows native character data keeps original memory receipts across crashe
     proof.owner = owner
     proof.seeded = seeded
     await save()
-    await pa.getByRole('button', { name: '關於 Yuki', exact: true }).click()
+    await pa
+      .getByRole('button', { name: `關於 ${await activeCharacterName(pa)}`, exact: true })
+      .click()
     await expect(pa.getByRole('button', { name: '已核對的記錄 52', exact: false })).toBeVisible()
     await expect(pa.getByRole('button', { name: /^已核對的記錄 / })).toHaveCount(50)
     await pa.screenshot({
@@ -109,11 +114,15 @@ test('Windows native character data keeps original memory receipts across crashe
     await expect(pa.getByRole('button', { name: /^已核對的記錄 / })).toHaveCount(52)
     await pa.getByRole('button', { name: '已核對的記錄 52', exact: false }).click()
     await pa.getByRole('button', { name: sourceText, exact: true }).click()
-    await expect(pa.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
+    await expect(
+      pa.getByRole('textbox', { name: `和 ${await activeCharacterName(pa)} 說點什麼` }),
+    ).toBeVisible()
     await expect(pa.locator(`article[data-event-id="${seeded.source_event_id}"]`)).toContainText(
       sourceText,
     )
-    await pa.getByRole('button', { name: '關於 Yuki', exact: true }).click()
+    await pa
+      .getByRole('button', { name: `關於 ${await activeCharacterName(pa)}`, exact: true })
+      .click()
     await pairUI(pb, base!, await code(), 'Windows 記憶觀察裝置', 20000)
     const otherOwner = await connection(pb)
     expect(otherOwner.deviceId).not.toBe(owner.deviceId)
@@ -121,7 +130,9 @@ test('Windows native character data keeps original memory receipts across crashe
     expect(otherOwner.bindingId).toBe(owner.bindingId)
     expect(otherOwner.conversationId).toBe(owner.conversationId)
     proof.otherOwner = otherOwner
-    await pb.getByRole('button', { name: '關於 Yuki', exact: true }).click()
+    await pb
+      .getByRole('button', { name: `關於 ${await activeCharacterName(pb)}`, exact: true })
+      .click()
     for (const page of [pa, pb]) {
       await page.getByRole('button', { name: '已核對的記錄 52', exact: false }).click()
       await page.getByRole('button', { name: '更正', exact: true }).click()
@@ -167,10 +178,17 @@ test('Windows native character data keeps original memory receipts across crashe
     a = await launchShell(join(data, 'character-a'))
     mainA = await a.evaluate(() => process.pid)
     pa = await a.firstWindow()
-    await expect(pa.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })).toBeVisible()
+    await expect(
+      pa.getByRole('textbox', {
+        name: `和 ${await activeCharacterName(pa)} 說點什麼`,
+        exact: true,
+      }),
+    ).toBeVisible()
     expect(await connection(pa)).toEqual(owner)
     pa.on('pageerror', (error) => errors.push(error.message))
-    await pa.getByRole('button', { name: '關於 Yuki', exact: true }).click()
+    await pa
+      .getByRole('button', { name: `關於 ${await activeCharacterName(pa)}`, exact: true })
+      .click()
     await expect(pa.getByRole('button', { name: new RegExp(`^${recoveredText}`) })).toBeVisible()
     await expect
       .poll(() =>

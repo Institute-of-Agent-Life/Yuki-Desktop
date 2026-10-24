@@ -2,8 +2,8 @@ import { expect, test } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { pairUI, yukiFixture } from '../fixtures/backend'
-import type { ArtifactPage } from '../../src/shared/api'
+import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
+import type { ArtifactPage, OriginalRequest, Profile } from '../../src/shared/api'
 
 test('reads real delivered artifacts, keeps same names separate, saves exact versions and removes revoked previews', async () => {
   test.setTimeout(120000)
@@ -13,9 +13,47 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('請把成果交給我')
+    const connection = await currentConnection(page)
+    const profile = await page.evaluate(async (id) => {
+      const result = await window.yuki.client.read<Profile>(id, { kind: 'character' })
+      if (!result.ok) throw Error(result.code)
+      return result.value
+    }, connection.characterId)
+    const composer = page.getByRole('textbox', {
+      name: `和 ${profile.display_name} 說點什麼`,
+      exact: true,
+    })
+    await composer.fill('請把成果交給我')
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(page.getByText('真實帳本回覆', { exact: true })).toBeVisible()
+    await expect(composer).toHaveValue('')
+    const sent = await page.evaluate(async (id) => {
+      const result = await window.yuki.client.outbox(id)
+      if (!result.ok) throw Error(result.code)
+      const item = result.value.find((item) => item.body.text === '請把成果交給我')
+      if (!item?.eventId) throw Error('Original accepted request is missing')
+      return { requestId: item.requestId, eventId: item.eventId }
+    }, connection.characterId)
+    const receipt = () =>
+      page.evaluate(
+        async ({ id, requestId }) => {
+          const result = await window.yuki.client.read<OriginalRequest>(id, {
+            kind: 'request',
+            requestId,
+          })
+          if (!result.ok) throw Error(result.code)
+          return result.value
+        },
+        { id: connection.characterId, requestId: sent.requestId },
+      )
+    await expect.poll(async () => (await receipt()).turn?.state).toBe('ended')
+    const replied = await receipt()
+    expect(replied.event_id).toBe(sent.eventId)
+    expect(replied.result_event_ids).toHaveLength(1)
+    await expect(
+      page
+        .locator(`article[data-event-id="${replied.result_event_ids![0]}"]`)
+        .getByText('Desktop reference reply', { exact: true }),
+    ).toBeVisible()
     const response = await fetch(`${rig.base}/__test/artifacts`, { method: 'POST' })
     expect(response.status).toBe(200)
     const delivered = (await response.json()) as {
@@ -46,6 +84,25 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
     const rows = page.getByRole('button').filter({ hasText: 'same.md' })
     await expect(rows).toHaveCount(2)
     await expect(page.getByText('同一路徑的先後發布', { exact: true })).toHaveCount(0)
+    await stage.getByText('選擇另一項成果比較', { exact: true }).click()
+    const choice = stage
+      .locator('details')
+      .filter({
+        has: page.getByText('選擇另一項成果比較', { exact: true }),
+      })
+      .locator('div')
+      .filter({ hasText: delivered[1]!.artifact_id })
+    await choice.getByRole('button', { name: '比較此版本', exact: true }).click()
+    const left = stage.getByRole('region', { name: '目前成果原版本', exact: true })
+    const right = stage.getByRole('region', { name: '比較的原版本', exact: true })
+    await expect(left.locator('pre').filter({ hasText: /^# First artifact$/ })).toBeVisible()
+    await expect(right.locator('pre').filter({ hasText: /^# Another artifact$/ })).toBeVisible()
+    await expect(stage.getByText(first.artifact_id, { exact: true })).toBeVisible()
+    await expect(stage.locator('code').filter({ hasText: delivered[1]!.artifact_id })).toBeVisible()
+    await page.screenshot({ path: test.info().outputPath('actual-immutable-comparison.png') })
+    await stage.getByRole('button', { name: '結束比較', exact: true }).click()
+    await expect(left).toHaveCount(0)
+    await stage.getByText('選擇另一項成果比較', { exact: true }).click()
     await stage.getByText('傳送過的訊息', { exact: true }).click()
     await expect(
       stage
@@ -113,8 +170,13 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
       .click()
     await expect(page.locator(`article[data-event-id="${facts.refs[0]}"]`)).toHaveClass(/selected/)
     await page.getByRole('button', { name: '檔案與成果', exact: true }).click()
-    for (const event of facts.refs)
-      await fetch(`${rig.base}/__test/events/${event}?lose_hint=true`, { method: 'DELETE' })
+    for (const event of facts.refs) {
+      const deletion = await fetch(`${rig.base}/__test/events/${event}?lose_hint=true`, {
+        method: 'DELETE',
+      })
+      expect(deletion.ok).toBe(true)
+      expect(await deletion.json()).toMatchObject({ deleted: event, lost_hint: true })
+    }
     await expect(rows).toHaveCount(1)
     await expect(stage.getByRole('heading', { name: 'First artifact', exact: true })).toHaveCount(0)
     const cached = join(

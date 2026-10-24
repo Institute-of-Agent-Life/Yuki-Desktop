@@ -1,3 +1,4 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -54,9 +55,11 @@ test('Windows artifact actions use a real Save picker, Explorer selection and na
     const code = await fetch(base + '/__test/link-code', { method: 'POST' })
     expect(code.ok).toBe(true)
     await pairUI(page, base!, ((await code.json()) as { code: string }).code, '原生成果動作', 20000)
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('請交付這份原成果。')
+    await page
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` })
+      .fill('請交付這份原成果。')
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(page.getByText('真實帳本回覆', { exact: true })).toBeVisible()
+    await expect(page.getByText('Desktop reference reply', { exact: true })).toBeVisible()
     const response = await fetch(base + '/__test/artifacts?long_names=true', { method: 'POST' })
     expect(response.ok).toBe(true)
     const delivered = (await response.json()) as {

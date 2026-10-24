@@ -7,6 +7,7 @@ import type {
   AttachmentSource,
   ArtifactSource,
   Connection,
+  PendingPairing,
   ComputerCommand,
   CharacterCommand,
   EventsPage,
@@ -30,10 +31,9 @@ import { Outbox } from './outbox'
 import { WorkCommands } from './outbox/work-commands'
 import { ComputerCommands } from './outbox/computer-commands'
 import { CharacterCommands } from './outbox/character-commands'
-import { AvatarCommands } from './outbox/avatar-commands'
 import { Soul } from './outbox/soul'
 import { LinkCodes } from './outbox/link-codes'
-import { localSummary } from './outbox/local-summary'
+import { localSummary, retiredSummary, exportRetired } from './outbox/local-summary'
 import { ComputerTickets } from './computer-tickets'
 import type { LocalStore } from './store'
 import { Uploads } from './media/uploads'
@@ -95,7 +95,6 @@ export class Connections {
   private readonly commandStores = new Map<Outbox, WorkCommands>()
   private readonly computerStores = new Map<Outbox, ComputerCommands>()
   private readonly characterStores = new Map<Outbox, CharacterCommands>()
-  private readonly avatarStores = new Map<Outbox, AvatarCommands>()
   private readonly avatarReads = new Map<string, Promise<Uint8Array>>()
   private readonly soulStores = new Map<Outbox, Soul>()
   private readonly linkCodeStores = new Map<Outbox, LinkCodes>()
@@ -164,7 +163,6 @@ export class Connections {
       this.commandStores.get(box)?.settle(),
       this.characterStores.get(box)?.settle(),
       this.computerStores.get(box)?.settled(),
-      this.avatarStores.get(box)?.settle(),
       this.soulStores.get(box)?.settled(),
       this.linkCodeStores.get(box)?.settled(),
       this.executorStores.get(box)?.commands.settled(),
@@ -286,7 +284,6 @@ export class Connections {
       this.commandStores.delete(box)
       this.computerStores.delete(box)
       this.characterStores.delete(box)
-      this.avatarStores.delete(box)
       this.soulStores.delete(box)
       this.linkCodeStores.delete(box)
     }
@@ -439,15 +436,6 @@ export class Connections {
     }
     return commands
   }
-  avatarCommands(id: string) {
-    const box = this.box(id)
-    let commands = this.avatarStores.get(box)
-    if (!commands) {
-      commands = new AvatarCommands(box)
-      this.avatarStores.set(box, commands)
-    }
-    return commands
-  }
   soul(id: string) {
     const box = this.box(id)
     let soul = this.soulStores.get(box)
@@ -507,7 +495,6 @@ export class Connections {
     return this.executors(id).commands.list()
   }
   async enableExecutor(id: string, label: string) {
-    await this.requireFeature(id, 'executors')
     await this.credentials.preparePersistence()
     const context = this.executors(id)
     await context.setup.enable(this.client(id), label, process.platform)
@@ -623,16 +610,10 @@ export class Connections {
   }
   async avatarCommand(id: string, expectedRevision: number, bytes?: Uint8Array) {
     await this.identify(id)
-    const commands = this.avatarCommands(id),
-      item = commands.prepare(expectedRevision, bytes)
-    const result = await commands.run(this.client(id), item.requestId)
-    this.emit(id, 'avatar-command', {})
-    return result
-  }
-  async verifyAvatarCommand(id: string, requestId: string) {
-    await this.identify(id)
-    const result = await this.avatarCommands(id).run(this.client(id), uuid(requestId))
-    this.emit(id, 'avatar-command', {})
+    const commands = this.characterCommands(id)
+    const item = commands.prepareAvatar(expectedRevision, bytes)
+    const result = await commands.run(this.client(id), item.requestId, true)
+    this.emit(id, 'character-command', {})
     return result
   }
   avatarBytes(id: string, sha: string, size: number) {
@@ -710,10 +691,10 @@ export class Connections {
     }
     return store
   }
-  async issueLinkCode(id: string) {
+  async issueLinkCode(id: string, purpose: 'chat' | 'connector' = 'chat') {
     await this.identify(id)
     const codes = this.linkCodes(id),
-      item = codes.prepare()
+      item = codes.prepare(purpose)
     return this.verifyLinkCode(id, item.requestId)
   }
   async verifyLinkCode(id: string, requestId: string) {
@@ -729,7 +710,6 @@ export class Connections {
     return result
   }
   async computerCommand(id: string, command: ComputerCommand) {
-    await this.requireFeature(id, 'computer')
     const client = this.client(id)
     await this.box(id).verifyOwner(client)
     const commands = this.computerCommands(id)
@@ -745,12 +725,10 @@ export class Connections {
     return result
   }
   async computerTicket(id: string) {
-    await this.requireFeature(id, 'computer')
     await this.box(id).verifyOwner(this.client(id))
     return this.computerTickets.issue(this.client(id))
   }
   async computerFile(id: string, path: string) {
-    await this.requireFeature(id, 'computer')
     await this.box(id).verifyOwner(this.client(id))
     const cache = new ContentCache(join(this.contentCache(id).root, 'computer'))
     const item = await cache.download(
@@ -922,13 +900,6 @@ export class Connections {
       throw new ApiError('not_found')
     }
     if (attachment.artifact_id) throw new ApiError('validation_error')
-    if (attachment.availability !== 'available') {
-      if (previous) await cache.remove(previous)
-      throw new ApiError(
-        'media_unavailable',
-        attachment.availability === 'expired' ? 'expired' : 'source_unavailable',
-      )
-    }
     let downloaded: Awaited<ReturnType<ContentCache['download']>>
     try {
       downloaded = await cache.download(
@@ -1006,10 +977,6 @@ export class Connections {
     }
     return pending
   }
-  private async requireFeature(id: string, feature: string) {
-    const meta = await this.identify(id)
-    if (!meta.capabilities.includes(feature)) throw new ApiError('feature_unavailable')
-  }
   async pair(server: string, code: string, label: string) {
     const epochs = new Map(this.epochs),
       baseUrl = normalizeServer(server),
@@ -1021,89 +988,35 @@ export class Connections {
     )
       throw new ApiError('logout_pending')
     return this.trackActivity(meta.character.id, () =>
-      this.pairVerified(baseUrl, meta, code, label),
+      this.pairVerified(baseUrl, meta, code, label, epochs.get(meta.character.id) ?? 0),
     )
   }
-  private async pairVerified(baseUrl: string, meta: Meta, code: string, label: string) {
+  private async pairVerified(
+    baseUrl: string,
+    meta: Meta,
+    code: string,
+    label: string,
+    epoch: number,
+  ) {
     await this.credentials.preparePersistence()
     const paired = await new ApiClient(baseUrl, undefined, undefined, this.version).post<{
       device_id: string
       token: string
     }>('pair', { code, device_label: label })
-    let me = await new ApiClient(baseUrl, paired.token, undefined, this.version).get<Me>('me')
-    const characterId = uuid(meta.character.id)
-    const existing = this.list().find((item) => item.characterId === characterId)
-    if (existing) {
-      try {
-        // A merged Person's new token may default to another App binding. Prove
-        // access to the original owner namespace before touching its local data.
-        me = await new ApiClient(baseUrl, paired.token, existing.bindingId, this.version).get<Me>(
-          'me',
-        )
-        const binding = me.bindings.find(
-          (item) => item.binding_id === existing.bindingId && item.platform === 'app',
-        )
-        if (
-          !binding ||
-          binding.source_person_id !== existing.personId ||
-          me.request_person_id !== existing.personId ||
-          me.conversation_id !== existing.conversationId
-        )
-          throw new ApiError('different_person')
-      } catch (error) {
-        await new ApiClient(baseUrl, paired.token, undefined, this.version).response(
-          `devices/${uuid(paired.device_id)}`,
-          { method: 'DELETE' },
-        )
-        if (
-          error instanceof ApiError &&
-          ['not_found', 'different_person', 'outbox_owner_mismatch'].includes(error.code)
-        )
-          throw new ApiError('different_person')
-        throw error
-      }
-    }
-    const persistentCredentials = this.credentials.set(
-      `device/${characterId}/${me.request_person_id}`,
-      paired.token,
-    )
-    const connection: Connection = {
-      characterId,
+    const pending: PendingPairing = {
+      characterId: uuid(meta.character.id),
       baseUrl,
       name: meta.character.display_name,
-      personId: uuid(me.request_person_id),
-      bindingId: uuid(me.binding_id),
-      conversationId: uuid(me.conversation_id),
-      persistentCredentials,
       deviceId: uuid(paired.device_id),
+      persistentCredentials: this.credentials.set(
+        `pending-device/${meta.character.id}/${paired.device_id}`,
+        paired.token,
+      ),
     }
-    this.store.set('connections', [
-      ...this.list().filter((item) => item.characterId !== characterId),
-      connection,
-    ])
-    this.onIdentity?.(characterId, meta.character.display_name)
-    this.start(characterId)
-    return connection
+    this.store.set('pending-pairings', [...this.pendingPairings(), pending])
+    return this.completePairing(pending, meta, epoch)
   }
   async read<T>(id: string, route: ApiRead, offlineCache = true): Promise<T> {
-    const feature = (
-      {
-        'character-status': 'character_status',
-        computer: 'computer',
-        'computer-files': 'computer',
-        executors: 'executors',
-        'executor-operations': 'executors',
-        memory: 'memory',
-        'memory-fact': 'memory',
-        automations: 'automations',
-        capabilities: 'capabilities',
-        'proactive-route': 'proactive_route',
-        works: 'work_catalog',
-        steps: 'work_steps',
-        artifacts: 'artifact_catalog',
-      } as Partial<Record<ApiRead['kind'], string>>
-    )[route.kind]
-    if (feature) await this.requireFeature(id, feature)
     if (route.kind === 'executors' || route.kind === 'executor-operations') offlineCache = false
     let path: string
     if (
@@ -1200,10 +1113,15 @@ export class Connections {
       throw error
     }
   }
-  async send(id: string, text: string, uploadIds: string[] = []): Promise<OutboxItem> {
+  async send(
+    id: string,
+    text: string,
+    uploadIds: string[] = [],
+    agentTarget?: OutboxItem['body']['agent_target'],
+  ): Promise<OutboxItem> {
     const box = this.box(id),
       client = this.client(id),
-      draftSnapshot = box.draft()
+      draftSnapshot = agentTarget ? null : box.draft()
     let offline = false
     try {
       await this.identify(id)
@@ -1221,6 +1139,7 @@ export class Connections {
       draftSnapshot,
       attachments,
       () => uploadIds.forEach((item) => uploads.remove(item)),
+      agentTarget,
     )
     const result = offline ? item : await box.send(client, item.requestId)
     this.emit(id, 'outbox', {})
@@ -1259,11 +1178,13 @@ export class Connections {
     this.streams.set(id, controller)
     void this.stream(id, controller)
     clearTimeout(this.retries.get(id))
-    this.retry(id, 1000)
+    this.retry(id, 1000, controller)
   }
-  private retry(id: string, delay: number) {
+  private retry(id: string, delay: number, controller: AbortController) {
     if (
       this.closed ||
+      controller.signal.aborted ||
+      this.streams.get(id) !== controller ||
       this.frozen.has(id) ||
       !this.list().some((item) => item.characterId === id && !item.logout)
     )
@@ -1271,6 +1192,7 @@ export class Connections {
     this.retries.set(
       id,
       setTimeout(() => {
+        if (controller.signal.aborted || this.streams.get(id) !== controller || this.closed) return
         for (const item of this.uploads(id)
           .list()
           .filter((item) => item.state !== 'ready' && item.state !== 'failed'))
@@ -1298,8 +1220,11 @@ export class Connections {
             .filter((item) => item.state !== 'result')
             .map((item) => this.verifyExecutorCommand(id, item.requestId).catch(() => {})),
         ])
-          .then(() => this.startExecutor(id).catch(() => {}))
-          .finally(() => this.retry(id, Math.min(delay * 2, 60000)))
+          .then(() => {
+            if (!controller.signal.aborted && this.streams.get(id) === controller && !this.closed)
+              return this.startExecutor(id).catch(() => {})
+          })
+          .finally(() => this.retry(id, Math.min(delay * 2, 60000), controller))
       }, delay),
     )
   }
@@ -1312,49 +1237,50 @@ export class Connections {
       try {
         await this.identify(id)
         const client = this.client(id)
-        await readStream(client, controller.signal, (kind, data) => {
-          if (controller.signal.aborted || this.streams.get(id) !== controller) return
-          if (kind === 'sync') {
-            delay = 1000
-            this.emit(id, 'connection', { state: 'online' })
-            void this.startExecutor(id).catch((error) => {
-              this.emit(id, 'executor-local', {
-                problem: error instanceof ApiError ? error.code : 'unknown',
+        await readStream(
+          client,
+          controller.signal,
+          (kind, data) => {
+            if (controller.signal.aborted || this.streams.get(id) !== controller) return
+            if (kind === 'sync') {
+              delay = 1000
+              this.emit(id, 'connection', { state: 'online' })
+              void this.startExecutor(id).catch((error) => {
+                this.emit(id, 'executor-local', {
+                  problem: error instanceof ApiError ? error.code : 'unknown',
+                })
               })
-            })
-          }
-          if (['sync', 'conversation', 'work'].includes(kind)) {
-            for (const item of this.linkCodes(id)
-              .list()
-              .filter((item) => item.state !== 'result'))
-              void this.verifyLinkCode(id, item.requestId).catch(() => {})
-            for (const item of this.soul(id)
-              .list()
-              .filter((item) => item.state !== 'result'))
-              void this.verifySoulCommand(id, item.requestId).catch(() => {})
-            for (const item of this.avatarCommands(id)
-              .list()
-              .filter((item) => item.state !== 'result'))
-              void this.verifyAvatarCommand(id, item.requestId).catch(() => {})
-            for (const item of this.characterCommands(id)
-              .list()
-              .filter((item) => item.state !== 'result'))
-              void this.verifyCharacterCommand(id, item.requestId).catch(() => {})
-            for (const item of this.computerCommands(id)
-              .list()
-              .filter((item) => item.state !== 'result'))
-              void this.verifyComputerCommand(id, item.requestId).catch(() => {})
-            for (const item of this.commands(id)
-              .list()
-              .filter((item) => item.state !== 'result'))
-              void this.verifyWorkCommand(id, item.requestId).catch(() => {})
-            for (const item of this.box(id)
-              .list()
-              .filter((item) => item.state !== 'result'))
-              void this.verify(id, item.requestId).catch(() => {})
-          }
-          this.emit(id, kind, data)
-        })
+            }
+            if (['sync', 'conversation', 'work'].includes(kind)) {
+              for (const item of this.linkCodes(id)
+                .list()
+                .filter((item) => item.state !== 'result'))
+                void this.verifyLinkCode(id, item.requestId).catch(() => {})
+              for (const item of this.soul(id)
+                .list()
+                .filter((item) => item.state !== 'result'))
+                void this.verifySoulCommand(id, item.requestId).catch(() => {})
+              for (const item of this.characterCommands(id)
+                .list()
+                .filter((item) => item.state !== 'result'))
+                void this.verifyCharacterCommand(id, item.requestId).catch(() => {})
+              for (const item of this.computerCommands(id)
+                .list()
+                .filter((item) => item.state !== 'result'))
+                void this.verifyComputerCommand(id, item.requestId).catch(() => {})
+              for (const item of this.commands(id)
+                .list()
+                .filter((item) => item.state !== 'result'))
+                void this.verifyWorkCommand(id, item.requestId).catch(() => {})
+              for (const item of this.box(id)
+                .list()
+                .filter((item) => item.state !== 'result'))
+                void this.verify(id, item.requestId).catch(() => {})
+            }
+            this.emit(id, kind, data)
+          },
+          'stream?works=active',
+        )
         if (!controller.signal.aborted) this.emit(id, 'connection', { state: 'offline' })
       } catch (error) {
         this.identified.delete(id)
@@ -1423,7 +1349,6 @@ export class Connections {
       ...[...this.commandStores.values()].map((commands) => commands.settle()),
       ...[...this.computerStores.values()].map((commands) => commands.settled()),
       ...[...this.characterStores.values()].map((commands) => commands.settle()),
-      ...[...this.avatarStores.values()].map((commands) => commands.settle()),
       ...[...this.soulStores.values()].map((soul) => soul.settled()),
       ...[...this.linkCodeStores.values()].map((codes) => codes.settled()),
       ...[...this.executorStores.values()].map((context) => context.commands.settled()),
@@ -1434,5 +1359,177 @@ export class Connections {
         if (box.db.open && !this.executorStores.get(box)?.runtime.hasWork) box.db.close()
       }),
     )
+  }
+
+  async connectorAdmission(id: string, server: string, deviceId: string) {
+    if (normalizeServer(server) !== this.connection(id).baseUrl)
+      return { matched: false, connected: false, problem: 'connector_other_server' }
+    const catalog = await this.agentRead<{
+      devices: { id: string; online: boolean }[]
+      instances: {
+        id: string
+        device_id: string
+        label: string
+        driver: string
+        local_id?: string
+      }[]
+    }>(id, 'devices')
+    const device = catalog.devices.find((item) => item.id === deviceId)
+    return {
+      matched: !!device,
+      connected: device?.online ?? false,
+      ...(!device ? { problem: 'connector_other_person' } : {}),
+      instances: catalog.instances
+        .filter((item) => item.device_id === deviceId)
+        .map((item) => ({
+          id: item.id,
+          label: item.label,
+          driver: item.driver,
+          localId: item.local_id,
+        })),
+    }
+  }
+
+  async agentRead<T>(id: string, path: string): Promise<T> {
+    await this.identify(id)
+    const client = this.client(id)
+    await this.box(id).verifyOwner(client)
+    const agents = new ApiClient(
+      client.base,
+      client.token,
+      undefined,
+      this.version,
+      fetch,
+      'agents/v1',
+    )
+    const response = await agents.response(path)
+    return (await response.json()) as T
+  }
+
+  async authorizeConnector(id: string) {
+    const result = await this.issueLinkCode(id, 'connector')
+    if (!result.code) throw new ApiError('connector_authorization_unconfirmed')
+    return { server: this.connection(id).baseUrl, code: result.code }
+  }
+
+  private async completePairing(pending: PendingPairing, meta: Meta, epoch: number) {
+    const baseUrl = pending.baseUrl,
+      pendingKey = `pending-device/${pending.characterId}/${pending.deviceId}`,
+      token = this.credentials.get(pendingKey)
+    if (!token) throw new ApiError('credentials_unavailable')
+    let me = await new ApiClient(baseUrl, token, undefined, this.version).get<Me>('me')
+    const characterId = uuid(meta.character.id)
+    const existing = this.list().find((item) => item.characterId === characterId)
+    if (existing) {
+      try {
+        // A merged Person's new token may default to another App binding. Prove
+        // access to the original owner namespace before touching its local data.
+        me = await new ApiClient(baseUrl, token, existing.bindingId, this.version).get<Me>('me')
+        const binding = me.bindings.find(
+          (item) => item.binding_id === existing.bindingId && item.platform === 'app',
+        )
+        if (
+          !binding ||
+          binding.source_person_id !== existing.personId ||
+          me.request_person_id !== existing.personId ||
+          me.conversation_id !== existing.conversationId
+        )
+          throw new ApiError('different_person')
+      } catch (error) {
+        if (
+          error instanceof ApiError &&
+          ['not_found', 'different_person', 'outbox_owner_mismatch'].includes(error.code)
+        ) {
+          await new ApiClient(baseUrl, token, undefined, this.version).response(
+            `devices/${pending.deviceId}`,
+            { method: 'DELETE' },
+          )
+          this.forgetPairing(pending.characterId, pending.deviceId)
+          throw new ApiError('different_person')
+        }
+        throw error
+      }
+    }
+    // Logout drains admitted pairings, then revokes the device that actually became current.
+    const currentEpoch = this.epochs.get(characterId) ?? 0,
+      drainingLogout = this.logouts.has(characterId) && currentEpoch === epoch + 1
+    if (
+      this.closed ||
+      (!drainingLogout && (this.frozen.has(characterId) || currentEpoch !== epoch)) ||
+      !this.pendingPairings().some(
+        (item) =>
+          item.characterId === characterId &&
+          item.deviceId === pending.deviceId &&
+          item.baseUrl === baseUrl,
+      ) ||
+      this.credentials.get(pendingKey) !== token
+    )
+      throw new ApiError('precondition_failed')
+    const persistentCredentials = this.credentials.set(
+      `device/${characterId}/${me.request_person_id}`,
+      token,
+    )
+    const connection: Connection = {
+      characterId,
+      baseUrl,
+      name: meta.character.display_name,
+      personId: uuid(me.request_person_id),
+      bindingId: uuid(me.binding_id),
+      conversationId: uuid(me.conversation_id),
+      persistentCredentials,
+      deviceId: pending.deviceId,
+    }
+    this.store.set('connections', [
+      ...this.list().filter((item) => item.characterId !== characterId),
+      connection,
+    ])
+    this.forgetPairing(pending.characterId, pending.deviceId)
+    this.onIdentity?.(characterId, meta.character.display_name)
+    this.start(characterId)
+    return connection
+  }
+
+  exportRetiredHistory(id: string) {
+    return exportRetired(this.box(id))
+  }
+
+  retiredHistory(id: string) {
+    return retiredSummary(this.box(id))
+  }
+
+  async resumePairing(characterId: string, deviceId: string) {
+    const pending = this.pendingPairings().find(
+      (item) => item.characterId === characterId && item.deviceId === deviceId,
+    )
+    if (!pending) throw new ApiError('not_found')
+    if (
+      this.frozen.has(characterId) ||
+      this.list().some((item) => item.characterId === characterId && item.logout)
+    )
+      throw new ApiError('logout_pending')
+    const epoch = this.epochs.get(characterId) ?? 0,
+      meta = await this.meta(pending.baseUrl)
+    if (meta.character.id !== characterId) throw new ApiError('different_character')
+    if (
+      (this.epochs.get(characterId) ?? 0) !== epoch ||
+      this.frozen.has(characterId) ||
+      this.list().some((item) => item.characterId === characterId && item.logout)
+    )
+      throw new ApiError('logout_pending')
+    return this.trackActivity(characterId, () => this.completePairing(pending, meta, epoch))
+  }
+
+  forgetPairing(characterId: string, deviceId: string) {
+    this.credentials.remove(`pending-device/${characterId}/${deviceId}`)
+    this.store.set(
+      'pending-pairings',
+      this.pendingPairings().filter(
+        (item) => item.characterId !== characterId || item.deviceId !== deviceId,
+      ),
+    )
+  }
+
+  pendingPairings() {
+    return this.store.get<PendingPairing[]>('pending-pairings') ?? []
   }
 }

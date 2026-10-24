@@ -1,3 +1,4 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { mkdtemp, writeFile } from 'node:fs/promises'
@@ -23,7 +24,10 @@ test('Windows native onboarding keeps artwork and pairing controls reachable and
   const app = await launchShell(data)
   try {
     const page = await app.firstWindow()
-    await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
+    await expect
+      .poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible()))
+      .toBe(true)
     const facts = await app.evaluate(({ app, BrowserWindow, screen }) => {
       const window = BrowserWindow.getAllWindows()[0]!
       return {
@@ -40,6 +44,7 @@ test('Windows native onboarding keeps artwork and pairing controls reachable and
           .getAppMetrics()
           .find((item) => item.pid === window.webContents.getOSProcessId())?.sandboxed,
         noSandbox: app.commandLine.hasSwitch('no-sandbox'),
+        visible: window.isVisible(),
       }
     })
     const session = JSON.parse(
@@ -77,14 +82,14 @@ test('Windows native onboarding keeps artwork and pairing controls reachable and
         2,
       ),
     )
-    expect(facts.minimum).toEqual([720, 560])
-    // Windows returns integer DIP after rounding both physical frame edges.
-    const dipRounding = Math.ceil(1 / facts.scaleFactor)
-    expect(Math.abs(facts.bounds.width - 720)).toBeLessThanOrEqual(dipRounding)
-    expect(Math.abs(facts.bounds.height - 560)).toBeLessThanOrEqual(dipRounding)
-    const artwork = page.locator('svg.lucide-snowflake')
+    expect(facts.minimum).toEqual([0, 0])
+    expect(facts.visible).toBe(true)
+    expect([facts.bounds.width, facts.bounds.height]).toEqual([720, 560])
+    const artwork = page
+      .getByRole('region', { name: '你的 Yuki 工作區', exact: true })
+      .locator('svg.lucide-message-circle')
     await expect(artwork).toBeInViewport({ ratio: 1 })
-    await expect(artwork).toHaveCSS('height', '160px')
+    await expect(artwork).toHaveCSS('height', '40px')
     const appearance = await page.evaluate(() => ({
       dpr: devicePixelRatio,
       theme: document.documentElement.dataset.theme,
@@ -102,36 +107,36 @@ test('Windows native onboarding keeps artwork and pairing controls reachable and
             `state-onboarding-welcome-native-${facts.contentBounds.width}x${facts.contentBounds.height}.png`,
         ),
     })
-    await page.getByRole('button', { name: '開始', exact: true }).press('Enter')
+    await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).press('Enter')
+    await page.getByRole('button', { name: '手動輸入伺服器位址', exact: true }).click()
     await page.getByLabel('伺服器位址', { exact: true }).fill(base!)
     const next = page.getByRole('button', { name: '繼續', exact: true })
-    await expect(next).toHaveCSS('height', '36px')
+    await expect(next).toHaveCSS('height', '28px')
     await next.press('Enter')
     await expect(
       page.getByRole('heading', { name: meta.character.display_name, exact: true }),
     ).toBeVisible()
-    const input = page.getByLabel('綁定碼或完整回覆', { exact: true })
+    const input = page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })
     await input.fill('A'.repeat(64))
-    const pair = page.getByRole('button', { name: '配對', exact: true })
+    const pair = page.getByRole('button', { name: '確認並連接', exact: true })
     await expect(pair).toBeDisabled()
     await input.fill(`綁定碼：${code}（10 分鐘內有效）`)
     await expect(pair).toBeEnabled()
     await expect(input).toHaveCSS('height', '36px')
     await expect(input).toHaveCSS('font-size', '14px')
     const paste = page.getByRole('button', { name: '貼上', exact: true })
-    await expect(paste).toHaveCSS('height', '36px')
+    await expect(paste).toHaveCSS('height', '28px')
     await input.press('Tab')
     await expect(paste).toBeFocused()
     await page.keyboard.press('Tab')
-    await expect(page.getByLabel('裝置名稱')).toBeFocused()
+    await expect(page.getByLabel('這台裝置的名稱')).toBeFocused()
     await page.keyboard.press('Tab')
     await expect(page.getByRole('button', { name: '返回', exact: true })).toBeFocused()
     await page.keyboard.press('Tab')
     await expect(pair).toBeFocused()
     await expect(pair).toBeInViewport({ ratio: 1 })
-    await expect(pair).toHaveCSS('height', '36px')
-    const progress = page.getByRole('list', { name: '配對進度', exact: true })
-    await expect(progress.locator('[aria-current="step"]')).toHaveAttribute('aria-label', '綁定碼')
+    await expect(pair).toHaveCSS('height', '28px')
+    await expect(page.getByText(`伺服器：${base}`, { exact: true })).toBeVisible()
     await page.screenshot({
       path: test
         .info()
@@ -141,12 +146,12 @@ test('Windows native onboarding keeps artwork and pairing controls reachable and
         ),
     })
     await pair.press('Enter')
-    const enter = page.getByRole('button', { name: '進入', exact: true })
-    await expect(enter).toBeVisible({ timeout: 20000 })
-    await expect(enter).toHaveCSS('height', '36px')
-    await expect(progress.locator('[aria-current="step"]')).toHaveAttribute('aria-label', '認識你')
-    await enter.press('Enter')
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })).toBeVisible()
+    await expect(
+      page.getByRole('textbox', {
+        name: `和 ${await activeCharacterName(page)} 說點什麼`,
+        exact: true,
+      }),
+    ).toBeVisible()
     const connection = await page.evaluate(() => window.yuki.client.connections())
     expect(connection.ok && connection.value[0]?.characterId).toBe(meta.character.id)
     expect(connection.ok && connection.value[0]?.persistentCredentials).toBe(true)

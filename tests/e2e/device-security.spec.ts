@@ -1,3 +1,4 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
 import { execFile } from 'node:child_process'
@@ -7,6 +8,8 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
+import type { Me } from '../../src/shared/api'
+import type { components } from '../../src/shared/contract.gen'
 async function security(page: Page) {
   await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: '裝置與安全', exact: true }).click()
@@ -34,6 +37,70 @@ async function assertNotOnDisk(root: string, secret: string) {
         file.name,
       ).toBe(false)
 }
+
+test(
+  'an already-open device panel converges after another actual device revokes a third device',
+  { tag: '@settings-refresh' },
+  async () => {
+    test.setTimeout(120000)
+    const rig = await yukiFixture(),
+      proxy = await forwardProxy(rig.base, '/device-observer'),
+      a = await rig.launch('device-observer'),
+      b = await rig.launch('device-controller')
+    let success = false
+    try {
+      const pa = await a.firstWindow(),
+        pb = await b.firstWindow()
+      await pairUI(pa, proxy.base, await rig.code(), 'Observer')
+      await pairUI(pb, rig.base, await rig.code(), 'Controller')
+      const controller = await selected(pb)
+      const paired = await fetch(`${rig.base}/client/v1/pair`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: await rig.code(), device_label: 'Refresh victim' }),
+      })
+      expect(paired.ok).toBe(true)
+      const victim = ((await paired.json()) as { data: components['schemas']['PairReceipt'] }).data
+      await security(pa)
+      const revoke = pa.getByRole('button', { name: '撤銷 Refresh victim', exact: true })
+      await expect(revoke).toBeVisible()
+      const reads = proxy.calls.filter((call) => call.path.endsWith('/client/v1/me')).length
+      const revoked = await pb.evaluate(
+        async ({ id, device }) => {
+          const value = await window.yuki.client.characterCommand(id, {
+            kind: 'device-revoke',
+            deviceId: device,
+          })
+          if (!value.ok) throw Error(value.code)
+          return value.value
+        },
+        { id: controller.characterId, device: victim.device_id },
+      )
+      expect(revoked).toMatchObject({ state: 'result', problem: null })
+      await expect(revoke).toHaveCount(0)
+      await expect(pa.getByText('已撤銷', { exact: true })).toBeVisible()
+      expect(
+        proxy.calls.filter((call) => call.path.endsWith('/client/v1/me')).length,
+      ).toBeGreaterThan(reads)
+      const current = await pb.evaluate(async (id) => {
+        const value = await window.yuki.client.read<Me>(id, { kind: 'me' })
+        if (!value.ok) throw Error(value.code)
+        return value.value
+      }, controller.characterId)
+      expect(
+        current.devices.find((device) => device.device_id === victim.device_id)?.revoked_at,
+      ).toBeTruthy()
+      expect(
+        proxy.calls.filter((call) => call.method === 'DELETE' && call.path.includes('/devices/')),
+      ).toHaveLength(0)
+      success = true
+    } finally {
+      await Promise.all([a.close().catch(() => {}), b.close().catch(() => {})])
+      await proxy.close()
+      await rig.close(success)
+    }
+  },
+)
 
 test('real QR pixels pair a second device once; original device revocation survives a lost response and cold restart', async () => {
   test.setTimeout(180000)
@@ -143,7 +210,9 @@ test('real QR pixels pair a second device once; original device revocation survi
     proxy.faults.holdReceipts = false
     a = await rig.launch('security-a')
     pa = await a.firstWindow()
-    await expect(pa.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
+    await expect(
+      pa.getByRole('textbox', { name: `和 ${await activeCharacterName(pa)} 說點什麼` }),
+    ).toBeVisible()
     await security(pa)
     await expect
       .poll(() =>
@@ -160,8 +229,10 @@ test('real QR pixels pair a second device once; original device revocation survi
     expect(writes()).toHaveLength(1)
     await expect(pa.getByRole('button', { name: '撤銷 Mac B', exact: true })).toHaveCount(0)
     await expect(pa.getByText('已撤銷', { exact: true })).toBeVisible()
+    await pa.screenshot({ path: test.info().outputPath(`${process.platform}-device-security.png`) })
+    await a.close()
+    await b.close()
     await assertNotOnDisk(join(rig.root, 'security-a'), code!)
-    await pa.screenshot({ path: test.info().outputPath('darwin-2x-device-security.png') })
     success = true
   } finally {
     await a.close().catch(() => {})
@@ -287,16 +358,17 @@ test('device and one-time-code sheets keep actual controls reachable in four the
         [960, 492],
       ] as const) {
         const viewportMethod = await contentSize(app, page, width, height)
-        await expect
-          .poll(() => page.evaluate(() => [innerWidth, innerHeight]))
-          .toEqual([width, height])
+        if (viewportMethod === 'electron-device-emulation')
+          await expect
+            .poll(() => page.evaluate(() => [innerWidth, innerHeight]))
+            .toEqual([width, height])
         await captureViewport(
           app,
           page,
           test
             .info()
             .outputPath(
-              `darwin-2x-${mode}-devices-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
+              `${process.platform}-${mode}-devices-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
             ),
         )
         await page.getByRole('button', { name: '產生綁定碼', exact: true }).click()
@@ -322,7 +394,7 @@ test('device and one-time-code sheets keep actual controls reachable in four the
           test
             .info()
             .outputPath(
-              `darwin-2x-${mode}-pair-code-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
+              `${process.platform}-${mode}-pair-code-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
             ),
         )
         await sheet.getByRole('button', { name: '完成', exact: true }).press('Enter')

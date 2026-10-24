@@ -54,7 +54,8 @@ export function ServerSettings({
   useEffect(
     () =>
       window.yuki.client.onHint((character, kind) => {
-        if (character === id && ['sync', 'character-command'].includes(kind)) void refresh()
+        if (character === id && ['sync', 'refresh', 'character-command'].includes(kind))
+          void refresh()
       }),
     [id, query],
   )

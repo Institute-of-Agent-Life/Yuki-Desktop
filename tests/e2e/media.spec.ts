@@ -2,9 +2,8 @@ import { expect, test } from '@playwright/test'
 import { writeFile, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
-import { yukiFixture, pairUI } from '../fixtures/backend'
+import type { Profile } from '../../src/shared/api'
+import { currentConnection, ledgerEvents, yukiFixture, pairUI } from '../fixtures/backend'
 
 test('device A uploads with a lost receipt; device B previews and saves verified bytes without the original file', async () => {
   test.setTimeout(120000)
@@ -18,27 +17,53 @@ test('device A uploads with a lost receipt; device B previews and saves verified
   try {
     let page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
-    await fetch(`${rig.base}/__test/lose-next-upload-response`, { method: 'POST' })
+    const connection = await currentConnection(page)
+    const profile = await page.evaluate(async (id) => {
+      const result = await window.yuki.client.read<Profile>(id, { kind: 'character' })
+      if (!result.ok) throw Error(result.code)
+      return result.value
+    }, connection.characterId)
+    expect(
+      (await fetch(`${rig.base}/__test/lose-next-upload-response`, { method: 'POST' })).ok,
+    ).toBe(true)
     await app.evaluate(({ dialog }, source) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [source] })
     }, source)
     await page.getByRole('button', { name: '附加檔案', exact: true }).click()
     await expect(page.getByLabel('待送出附件')).toContainText('handoff.txt')
     await expect(page.getByLabel('待送出附件')).toContainText('可送出', { timeout: 15000 })
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('請看這份附件')
+    const upload = await page.evaluate(async (id) => {
+      const result = await window.yuki.client.uploads(id)
+      if (!result.ok) throw Error(result.code)
+      const item = result.value.find((item) => item.filename === 'handoff.txt')
+      if (!item?.mediaId || item.state !== 'ready') throw Error('Original ready upload is missing')
+      return item
+    }, connection.characterId)
+    expect(upload.sha256).toBe(createHash('sha256').update(bytes).digest('hex'))
+    await page
+      .getByRole('textbox', { name: `和 ${profile.display_name} 說點什麼`, exact: true })
+      .fill('請看這份附件')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect
       .poll(async () => {
-        const events = (await (await fetch(`${rig.base}/__test/events`)).json()) as {
-          text: string
-        }[]
-        return events.some((item) => item.text.includes('[file附件0：handoff.txt]'))
+        const events = await ledgerEvents(rig.base)
+        return events.filter((item) =>
+          item.attachments.some((attachment) => attachment.media_id === upload.mediaId),
+        ).length
       })
-      .toBe(true)
+      .toBe(1)
+    const original = (await ledgerEvents(rig.base)).find((item) =>
+      item.attachments.some((attachment) => attachment.media_id === upload.mediaId),
+    )!
+    expect(original.author_person_id).toBe(connection.personId)
+    expect(original.conversation_id).toBe(connection.conversationId)
+    expect(original.attachments).toMatchObject([
+      { attachment_index: 0, kind: 'file', filename: 'handoff.txt', media_id: upload.mediaId },
+    ])
     const posted = (await (await fetch(`${rig.base}/__test/uploads`)).json()) as {
       requests: string[]
     }
-    expect(posted.requests).toHaveLength(1)
+    expect(posted.requests).toEqual([upload.requestId])
     const imagePath = join(rig.root, 'dropped.png')
     await writeFile(
       imagePath,
@@ -60,19 +85,30 @@ test('device A uploads with a lost receipt; device B previews and saves verified
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(page.getByRole('img', { name: 'dropped.png', exact: true })).toBeVisible()
     const videoPath = join(rig.root, 'clip.webm')
-    await promisify(execFile)('ffmpeg', [
-      '-v',
-      'error',
-      '-f',
-      'lavfi',
-      '-i',
-      'color=c=blue:s=32x32:r=5',
-      '-t',
-      '0.4',
-      '-c:v',
-      'libvpx-vp9',
-      videoPath,
-    ])
+    const videoBytes = await page.evaluate(async () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = canvas.height = 32
+      const context = canvas.getContext('2d')!
+      context.fillStyle = 'blue'
+      context.fillRect(0, 0, 32, 32)
+      const stream = canvas.captureStream(10)
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' })
+      const chunks: Blob[] = []
+      const recorded = new Promise<Blob>((resolve, reject) => {
+        recorder.ondataavailable = (event) => chunks.push(event.data)
+        recorder.onerror = () => reject(Error('Actual video fixture encoding failed'))
+        recorder.onstop = () => resolve(new Blob(chunks, { type: 'video/webm' }))
+        recorder.start()
+        // Generate the same 0.4-second real video without a host ffmpeg installation.
+        setTimeout(() => recorder.stop(), 400)
+      })
+      try {
+        return Array.from(new Uint8Array(await (await recorded).arrayBuffer()))
+      } finally {
+        stream.getTracks().forEach((track) => track.stop())
+      }
+    })
+    await writeFile(videoPath, Uint8Array.from(videoBytes))
     await app.evaluate(({ dialog }, path) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
     }, videoPath)
@@ -82,10 +118,12 @@ test('device A uploads with a lost receipt; device B previews and saves verified
     await expect(page.locator('article').getByRole('button', { name: /clip\.webm/ })).toBeVisible()
     await expect
       .poll(async () => {
-        const events = (await (await fetch(`${rig.base}/__test/events`)).json()) as {
-          text: string
-        }[]
-        return events.some((item) => item.text.includes('[video附件0：clip.webm]'))
+        const events = await ledgerEvents(rig.base)
+        return events.some((item) =>
+          item.attachments.some(
+            (attachment) => attachment.kind === 'video' && attachment.filename === 'clip.webm',
+          ),
+        )
       })
       .toBe(true)
     await app.close()
@@ -132,17 +170,53 @@ test('device A uploads with a lost receipt; device B previews and saves verified
         }
       })
       .toBe(createHash('sha256').update(bytes).digest('hex'))
-    const facts = (await (await fetch(`${rig.base}/__test/events`)).json()) as {
-        id: number
-        text: string
-      }[],
-      event = facts.find((item) => item.text.includes('[file附件0：handoff.txt]'))!
+    const originalAfterTransfer = (await ledgerEvents(rig.base)).filter(
+      (item) => item.event_id === original.event_id,
+    )
+    expect(originalAfterTransfer).toEqual([original])
     expect(
-      (await fetch(`${rig.base}/__test/expire-attachments/${event.id}`, { method: 'POST' })).status,
+      (
+        await fetch(`${rig.base}/__test/expire-attachments/${original.event_id}`, {
+          method: 'POST',
+        })
+      ).status,
     ).toBe(200)
-    await fetch(`${rig.base}/__test/disconnect`, { method: 'POST' })
-    await expect(page.getByText('已過期', { exact: true }).first()).toBeVisible()
-    await expect(page.getByRole('button', { name: '存成檔案', exact: true })).toHaveCount(0)
+    expect((await fetch(`${rig.base}/__test/disconnect`, { method: 'POST' })).ok).toBe(true)
+    const preview = page.getByRole('complementary', { name: '檢視器', exact: true })
+    await expect(
+      preview.getByText('無法讀取或查證原項目，原文仍保留。', { exact: true }),
+    ).toBeVisible()
+    await expect(preview.getByRole('button', { name: '存成檔案', exact: true })).toHaveCount(0)
+    expect(
+      await page.evaluate(
+        async ({ id, source }) => {
+          const result = await window.yuki.client.content(id, source)
+          return result.ok ? { ok: true } : result
+        },
+        {
+          id: connection.characterId,
+          source: {
+            conversationId: original.conversation_id,
+            eventId: original.event_id,
+            index: 0,
+          },
+        },
+      ),
+    ).toMatchObject({ ok: false, code: 'not_found' })
+    await expect(
+      readFile(
+        join(
+          rig.root,
+          'device-B',
+          'connections',
+          connection.characterId,
+          'cache',
+          connection.personId,
+          upload.sha256 + '.blob',
+        ),
+      ),
+    ).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await readFile(destination)).toEqual(bytes)
     await page.screenshot({
       path: test.info().outputPath('second-device-expired-attachment.png'),
       animations: 'disabled',

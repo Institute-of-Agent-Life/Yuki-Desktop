@@ -31,7 +31,13 @@ export default defineConfig({
     'windows-artifact-actions.spec.ts',
     'windows-application-menu.spec.ts',
   ],
-  outputDir: join(tmpdir(), 'yuki-desktop-e2e'),
+  outputDir: process.env.YUKI_E2E_OUTPUT ?? join(tmpdir(), 'yuki-desktop-e2e'),
+  grepInvert:
+    process.platform === 'win32'
+      ? /@unix-manager|@linux-supervisor/
+      : process.platform === 'darwin'
+        ? /@linux-supervisor/
+        : undefined,
   workers: 1,
   webServer: {
     command: 'npm exec vite -- --config tests/fixtures/vite.config.ts',

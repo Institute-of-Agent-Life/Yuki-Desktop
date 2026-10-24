@@ -1,3 +1,4 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -66,10 +67,14 @@ test('native About follows compact role layout and preserves memory evidence int
     expect(code.ok).toBe(true)
     await pairUI(page, base, ((await code.json()) as { code: string }).code, '角色版面驗證', 20000)
     const source = '記憶版面的原始依據 ' + randomUUID()
-    const replies = await page.getByText('真實帳本回覆', { exact: true }).count()
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill(source)
+    const replies = await page.getByText('Desktop reference reply', { exact: true }).count()
+    await page
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` })
+      .fill(source)
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(page.getByText('真實帳本回覆', { exact: true })).toHaveCount(replies + 1)
+    await expect(page.getByText('Desktop reference reply', { exact: true })).toHaveCount(
+      replies + 1,
+    )
     const response = await fetch(base + '/__test/character-data', { method: 'POST' })
     expect(response.ok).toBe(true)
     const seeded = (await response.json()) as { source_event_id: number }
@@ -211,7 +216,9 @@ test('native About follows compact role layout and preserves memory evidence int
     const evidence = page.getByRole('button', { name: source, exact: true })
     await expect(evidence).toBeVisible()
     await evidence.click()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
+    await expect(
+      page.getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` }),
+    ).toBeVisible()
     const original = page
       .getByRole('article', { name: '你的訊息', exact: true })
       .filter({ hasText: source })

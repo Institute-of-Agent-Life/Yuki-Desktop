@@ -1,11 +1,11 @@
 import type { EventsPage, Home, Profile } from '../shared/api'
-import type { ProductModels as components } from '../shared/product-models'
+import type { components } from '../shared/contract.gen'
 import type { NavigationTarget } from '../shared/desktop'
 import type { Connections } from './connections'
 import type { LocalStore } from './store'
 import { ApiError } from './api/client'
 
-type Work = components['schemas']['WorkView']
+type Work = components['schemas']['Work']
 interface Snapshot {
   latest: number
   works: Record<
@@ -82,7 +82,7 @@ export class ClientNotifications {
         next.works[work.work_id] = {
           state: work.state,
           revision: work.revision,
-          help: work.help_requested,
+          help: work.help_requested === true,
           question: work.waiting_question?.event_id ?? null,
         }
       if (previous) {

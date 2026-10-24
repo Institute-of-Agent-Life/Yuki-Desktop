@@ -1,17 +1,18 @@
-import { expect, test, type Locator } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import type { Profile } from '../../src/shared/api'
+import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
+import { navigate } from '../fixtures/navigation'
 import { captureViewport, contentSize } from '../fixtures/visual'
+import { colorBoundary } from '../fixtures/avatar-crop'
+import { avatarVariants } from '../fixtures/avatar-assets'
 
-async function colorBoundary(crop: Locator) {
-  return crop.locator('canvas').evaluate((canvas: HTMLCanvasElement) => {
-    const pixels = canvas.getContext('2d')!.getImageData(0, canvas.height / 4, canvas.width, 1)
-    for (let x = 0; x < canvas.width; x++) {
-      if (pixels.data[x * 4]! > 200 && pixels.data[x * 4 + 2]! < 80)
-        return (x / canvas.width) * canvas.getBoundingClientRect().width
-    }
-    throw Error('Expected the decoded EXIF image to retain its blue/red boundary')
-  })
+async function profile(page: Page, id: string) {
+  return page.evaluate(async (id) => {
+    const result = await window.yuki.client.read<Profile>(id, { kind: 'character' })
+    if (!result.ok) throw Error(result.code)
+    return result.value
+  }, id)
 }
 
 test('short avatar sheet preserves crop scale, real pointer and keyboard movement, and saves through the actual API', async () => {
@@ -22,12 +23,17 @@ test('short avatar sheet preserves crop scale, real pointer and keyboard movemen
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
+    const connection = await currentConnection(page)
+    const original = await profile(page, connection.characterId)
     const inputResponse = await fetch(`${rig.base}/__test/avatar-inputs`, { method: 'POST' })
     expect(inputResponse.ok).toBe(true)
     const inputs = (await inputResponse.json()) as { rotated: string }
-    await page.getByRole('button', { name: '關於 Yuki', exact: true }).click()
+    await navigate(page, `關於 ${original.display_name}`)
     await page.getByRole('button', { name: '更換頭像', exact: true }).click()
-    const sheet = page.getByRole('dialog', { name: '更換 Yuki 的頭像', exact: true })
+    const sheet = page.getByRole('dialog', {
+      name: `更換 ${original.display_name} 的頭像`,
+      exact: true,
+    })
     await app.evaluate(({ dialog }, selected) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] })
     }, inputs.rotated)
@@ -86,26 +92,12 @@ test('short avatar sheet preserves crop scale, real pointer and keyboard movemen
     await expect(save).toBeFocused()
     await save.press('Enter')
     await expect(sheet).not.toBeVisible()
-    const connections = await page.evaluate(() => window.yuki.client.connections())
-    if (!connections.ok) throw Error(connections.code)
-    const id = connections.value[0]!.characterId
-    const profile = await page.evaluate(
-      (id) =>
-        window.yuki.client.read<{ avatar_revision: number; avatar: { sha256: string } | null }>(
-          id,
-          { kind: 'character' },
-        ),
-      id,
-    )
-    expect(profile.ok && profile.value.avatar_revision).toBe(1)
-    expect(profile.ok && profile.value.avatar).toBeTruthy()
-    const filesResponse = await fetch(`${rig.base}/__test/avatar-files`)
-    expect(filesResponse.ok).toBe(true)
-    const files = (await filesResponse.json()) as {
-      files: { sha256: string; size: string; dimensions: number[] }[]
-    }
-    const sha = profile.ok && profile.value.avatar!.sha256
-    const variants = files.files.filter((file) => file.sha256 === sha)
+    const updated = await profile(page, connection.characterId)
+    expect(updated.id).toBe(original.id)
+    expect(updated.avatar_revision).toBe(original.avatar_revision + 1)
+    expect(updated.avatar).toBeTruthy()
+    const sha = updated.avatar!.sha256
+    const variants = await avatarVariants(page, connection.characterId, sha)
     expect(variants.map((file) => file.size).sort()).toEqual(['1024', '128', '256', '512', '64'])
     expect(variants.find((file) => file.size === '1024')?.dimensions).toEqual([1024, 1024])
     await writeFile(

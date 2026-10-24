@@ -9,7 +9,7 @@ import type {
   ComputerCommandItem,
   ComputerFiles,
   Connection,
-  Work,
+  WorkPage,
 } from '../../shared/api'
 import { Banner, Button, EmptyState, IconButton, Sheet, Spinner } from '../components/Controls'
 import { unwrap, problemText, ClientProblem } from '../queries/client'
@@ -596,7 +596,7 @@ export function ComputerInspector({
     queryKey: [id, 'works', 'computer-titles'],
     queryFn: () =>
       window.yuki.client
-        .read<{ items: Work[] }>(id, { kind: 'works', group: 'active', origin: 'all' })
+        .read<WorkPage>(id, { kind: 'works', group: 'active', origin: 'all' })
         .then(unwrap),
   })
   return (
@@ -614,7 +614,7 @@ export function ComputerInspector({
             <small>{tab.url_host}</small>
             {tab.work_id ? (
               <Button variant="plain" onClick={() => work(tab.work_id!)}>
-                {workTitle.data?.items.find((item) => item.work_id === tab.work_id)?.goal ??
+                {workTitle.data?.works.find((item) => item.work_id === tab.work_id)?.goal ??
                   '查看所屬工作'}
               </Button>
             ) : (

@@ -3,9 +3,38 @@ import type { BootInfo, Command, DesktopBridge } from '../shared/desktop'
 
 const bridge: DesktopBridge = {
   connector: {
-    state: () => ipcRenderer.invoke('yuki:connector-state'),
+    state: (id) => ipcRenderer.invoke('yuki:connector-state', id),
+    install: (separate) => ipcRenderer.invoke('yuki:connector-install', separate),
+    adopt: () => ipcRenderer.invoke('yuki:connector-adopt'),
+    useInstallation: (input) => ipcRenderer.invoke('yuki:connector-use-installation', input),
+    connect: (input) => ipcRenderer.invoke('yuki:connector-connect', input),
     pair: (input) => ipcRenderer.invoke('yuki:connector-pair', input),
     service: (action) => ipcRenderer.invoke('yuki:connector-service', action),
+    discover: () => ipcRenderer.invoke('yuki:connector-discover'),
+    configure: (input) => ipcRenderer.invoke('yuki:connector-configure', input),
+    diagnose: (id) => ipcRenderer.invoke('yuki:connector-diagnose', id),
+    chooseProject: () => ipcRenderer.invoke('yuki:connector-choose-project'),
+    chooseExecutable: () => ipcRenderer.invoke('yuki:connector-choose-executable'),
+    sessions: (id, instance, cursor) =>
+      ipcRenderer.invoke('yuki:connector-sessions', id, instance, cursor),
+    operations: (id, work, cursor) =>
+      ipcRenderer.invoke('yuki:connector-operations', id, work, cursor),
+    operation: (id, operation, cursor) =>
+      ipcRenderer.invoke('yuki:connector-operation', id, operation, cursor),
+    submit: (id, input) => ipcRenderer.invoke('yuki:connector-submit', id, input),
+  },
+  localBot: {
+    state: () => ipcRenderer.invoke('yuki:local-bot-state'),
+    chooseDirectory: () => ipcRenderer.invoke('yuki:local-bot-directory'),
+    deploy: (input) => ipcRenderer.invoke('yuki:local-bot-deploy', input),
+    start: () => ipcRenderer.invoke('yuki:local-bot-start'),
+    stop: () => ipcRenderer.invoke('yuki:local-bot-stop'),
+    connect: () => ipcRenderer.invoke('yuki:local-bot-connect'),
+    onProgress(callback) {
+      const listener = (_event: Electron.IpcRendererEvent, message: string) => callback(message)
+      ipcRenderer.on('yuki:local-bot-progress', listener)
+      return () => ipcRenderer.removeListener('yuki:local-bot-progress', listener)
+    },
   },
   client: {
     executorState: (id) => ipcRenderer.invoke('yuki:executor-state', id),
@@ -18,8 +47,14 @@ const bridge: DesktopBridge = {
     pickExecutorFolder: (id, alias) => ipcRenderer.invoke('yuki:pick-executor-folder', id, alias),
     removeExecutorFolder: (id, digest) =>
       ipcRenderer.invoke('yuki:remove-executor-folder', id, digest),
+
+    pendingPairings: () => ipcRenderer.invoke('yuki:pending-pairings'),
+    resumePairing: (id, device) => ipcRenderer.invoke('yuki:resume-pairing', id, device),
+    forgetPairing: (id, device) => ipcRenderer.invoke('yuki:forget-pairing', id, device),
     prepareLogout: (id) => ipcRenderer.invoke('yuki:prepare-logout', id),
     logoutSummary: (id) => ipcRenderer.invoke('yuki:logout-summary', id),
+    retiredHistory: (id) => ipcRenderer.invoke('yuki:retired-history', id),
+    exportRetiredHistory: (id) => ipcRenderer.invoke('yuki:export-retired-history', id),
     finishLogout: (id, device, choice) =>
       ipcRenderer.invoke('yuki:finish-logout', id, device, choice),
     issueLinkCode: (id) => ipcRenderer.invoke('yuki:issue-link-code', id),
@@ -35,23 +70,25 @@ const bridge: DesktopBridge = {
     verifySoulCommand: (id, request) => ipcRenderer.invoke('yuki:verify-soul-command', id, request),
     letterDecoration: (id, revision, avatarRevision, bytes) =>
       ipcRenderer.invoke('yuki:letter-decoration', id, revision, avatarRevision, bytes),
+    avatarBytes: (id, sha, size) => ipcRenderer.invoke('yuki:avatar-bytes', id, sha, size),
+    previewAvatar: (server) => ipcRenderer.invoke('yuki:preview-avatar', server),
     pickAvatar: () => ipcRenderer.invoke('yuki:pick-avatar'),
     dropAvatar: (file) => ipcRenderer.invoke('yuki:drop-avatar', webUtils.getPathForFile(file)),
     pasteAvatar: () => ipcRenderer.invoke('yuki:paste-avatar'),
-    avatarBytes: (id, sha, size) => ipcRenderer.invoke('yuki:avatar-bytes', id, sha, size),
-    previewAvatar: (server) => ipcRenderer.invoke('yuki:preview-avatar', server),
     avatarCommand: (id, revision, bytes) =>
       ipcRenderer.invoke('yuki:avatar-command', id, revision, bytes),
-    avatarCommands: (id) => ipcRenderer.invoke('yuki:avatar-commands', id),
     avatarDraft: (id, request) => ipcRenderer.invoke('yuki:avatar-draft', id, request),
-    acknowledgeAvatarCommand: (id, request) =>
-      ipcRenderer.invoke('yuki:acknowledge-avatar-command', id, request),
-    verifyAvatarCommand: (id, request) =>
-      ipcRenderer.invoke('yuki:verify-avatar-command', id, request),
     characterCommand: (id, command) => ipcRenderer.invoke('yuki:character-command', id, command),
     characterCommands: (id) => ipcRenderer.invoke('yuki:character-commands', id),
     verifyCharacterCommand: (id, request) =>
       ipcRenderer.invoke('yuki:verify-character-command', id, request),
+    reconnect: () => ipcRenderer.invoke('yuki:reconnect'),
+    external: (url) => ipcRenderer.invoke('yuki:external', url),
+    copy: (text) => ipcRenderer.invoke('yuki:copy', text),
+    paste: () => ipcRenderer.invoke('yuki:paste'),
+    selected: (id) => ipcRenderer.invoke('yuki:selected', id),
+    acknowledgeTarget: (target) => ipcRenderer.invoke('yuki:acknowledge-target', target),
+    contextMenu: (options) => ipcRenderer.invoke('yuki:context-menu', options),
     computerTicket: (id) => ipcRenderer.invoke('yuki:computer-ticket', id),
     saveComputerFile: (id, path) => ipcRenderer.invoke('yuki:save-computer-file', id, path),
     computerCommand: (id, command) => ipcRenderer.invoke('yuki:computer-command', id, command),
@@ -60,13 +97,6 @@ const bridge: DesktopBridge = {
       ipcRenderer.invoke('yuki:verify-computer-command', id, request),
     keyboardCapture: (captured) => ipcRenderer.invoke('yuki:keyboard-capture', captured),
     saveScreenshot: (id, bytes) => ipcRenderer.invoke('yuki:save-screenshot', id, bytes),
-    reconnect: () => ipcRenderer.invoke('yuki:reconnect'),
-    external: (url) => ipcRenderer.invoke('yuki:external', url),
-    copy: (text) => ipcRenderer.invoke('yuki:copy', text),
-    paste: () => ipcRenderer.invoke('yuki:paste'),
-    selected: (id) => ipcRenderer.invoke('yuki:selected', id),
-    acknowledgeTarget: (target) => ipcRenderer.invoke('yuki:acknowledge-target', target),
-    contextMenu: (options) => ipcRenderer.invoke('yuki:context-menu', options),
     connections: () => ipcRenderer.invoke('yuki:connections'),
     meta: (server) => ipcRenderer.invoke('yuki:meta', server),
     pair: (server, code, label) => ipcRenderer.invoke('yuki:pair', server, code, label),

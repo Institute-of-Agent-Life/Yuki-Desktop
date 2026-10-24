@@ -1,6 +1,7 @@
 .about {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  height: 100%;
 }
 .inner {
   max-width: 760px;
@@ -10,7 +11,7 @@
 }
 .hero {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 28px;
   margin-bottom: 28px;
 }
@@ -75,6 +76,7 @@
 .name {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .name h1 {
@@ -89,6 +91,7 @@
   color: var(--text-secondary);
   line-height: 22px;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .panel {
   margin-top: 12px;

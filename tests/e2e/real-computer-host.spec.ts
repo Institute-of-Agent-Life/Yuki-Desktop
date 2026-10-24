@@ -1,3 +1,4 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
 import { createHash, randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
@@ -56,7 +57,10 @@ test('isolated real computer accepts desktop input and resumes its original work
       expect(setup.ok).toBe(true)
       expect(await setup.json()).toBeNull()
       await page
-        .getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+        .getByRole('textbox', {
+          name: `和 ${await activeCharacterName(page)} 說點什麼`,
+          exact: true,
+        })
         .fill('請在真電腦處理原工作')
       await page.getByRole('button', { name: '送出', exact: true }).click()
     }
@@ -101,7 +105,9 @@ test('isolated real computer accepts desktop input and resumes its original work
     })
     await page.screenshot({ path: test.info().outputPath('real-tigervnc-viewing.png') })
     await page.getByRole('status').getByRole('button', { name: '接手', exact: true }).click()
-    await expect(page.getByRole('button', { name: '交回給 Yuki', exact: true })).toBeEnabled()
+    await expect(
+      page.getByRole('button', { name: `交回給 ${await activeCharacterName(page)}`, exact: true }),
+    ).toBeEnabled()
     const canvas = page
       .getByRole('application', { name: '遠端電腦畫面', exact: true })
       .locator('canvas')
@@ -115,14 +121,20 @@ test('isolated real computer accepts desktop input and resumes its original work
     await page.keyboard.type(marker)
     await expect
       .poll(
-        async () => (await facts()).manager_jobs.find((run) => run.run_id === initial.run_id)?.output,
+        async () =>
+          (await facts()).manager_jobs.find((run) => run.run_id === initial.run_id)?.output,
         { timeout: 20000 },
       )
       .toContain(`observed-input:${marker}`)
     await page.keyboard.press('Control+Alt')
     await page.screenshot({ path: test.info().outputPath('real-tigervnc-human-input.png') })
-    await page.getByRole('button', { name: '交回給 Yuki', exact: true }).click()
-    const sheet = page.getByRole('dialog', { name: '交回給 Yuki', exact: true })
+    await page
+      .getByRole('button', { name: `交回給 ${await activeCharacterName(page)}`, exact: true })
+      .click()
+    const sheet = page.getByRole('dialog', {
+      name: `交回給 ${await activeCharacterName(page)}`,
+      exact: true,
+    })
     const note = '畫面處理完成，請沿原工作接續。'
     await sheet.getByRole('textbox', { name: '說明', exact: true }).fill(note)
     await sheet.getByRole('button', { name: '交回', exact: true }).click()

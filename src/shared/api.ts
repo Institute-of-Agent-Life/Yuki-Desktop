@@ -1,5 +1,5 @@
 import type { components as ServerComponents } from './contract.gen'
-import type { ProductModels as components } from './product-models'
+import type { components } from './contract.gen'
 import type { NavigationTarget } from './desktop'
 import type { ExecutorAction, ExecutorCommandItem, LocalExecutorState } from './executor'
 import type { MessageReference } from './message'
@@ -10,6 +10,7 @@ export type Meta = ServerComponents['schemas']['Meta']
 export type Me = components['schemas']['Me']
 export type ProactiveRoute = components['schemas']['ProactiveRoute']
 export interface LinkCodeRequest {
+  purpose: 'chat' | 'connector'
   requestId: string
   payloadHash: string
   state: 'submitted' | 'result'
@@ -52,14 +53,9 @@ export interface AvatarCommandItem {
   requestId: string
   action: 'set' | 'reset'
   expectedRevision: number
-  sha256: string | null
-  size: number | null
-  payloadHash: string
   state: 'submitted' | 'result'
   problem: string | null
-  result: Profile | null
   current: Profile | null
-  acknowledged: boolean
 }
 export type MemoryFact = components['schemas']['MemoryFactView']
 export type MemoryDetail = components['schemas']['MemoryDetail']
@@ -90,6 +86,13 @@ export type CharacterCommand =
       expectedRevision: string
       action: 'pause' | 'resume' | 'delete'
     }
+  | {
+      kind: 'avatar'
+      action: 'set' | 'reset'
+      expectedRevision: number
+      sha256: string | null
+      size: number | null
+    }
 export interface CharacterCommandItem {
   requestId: string
   command: CharacterCommand
@@ -100,11 +103,11 @@ export interface CharacterCommandItem {
   details: Record<string, components['schemas']['JsonValue']> | null
 }
 export type Activity = components['schemas']['Activity']
-export type EventsPage = components['schemas']['EventsPage']
-export type PublicEvent = components['schemas']['PublicEvent']
-export type OriginalRequest = components['schemas']['OriginalRequest']
-export type MessageResult = components['schemas']['MessageResult']
-export type Work = components['schemas']['WorkView']
+export type EventsPage = components['schemas']['Events']
+export type PublicEvent = components['schemas']['Event']
+export type OriginalRequest = components['schemas']['RequestReceipt']
+export type MessageResult = components['schemas']['MessageReceipt']
+export type Work = components['schemas']['Work']
 export type WorkSteps = components['schemas']['WorkSteps']
 export type WorkPage = components['schemas']['WorkPage']
 export type ArtifactPage = components['schemas']['ArtifactPage']
@@ -125,7 +128,12 @@ export interface ComputerCommandItem {
   result: ComputerResult | null
 }
 export type WorkCommand =
-  | { kind: 'input'; workId: string; text: string }
+  | {
+      kind: 'input'
+      workId: string
+      text: string
+      agentTarget?: components['schemas']['AgentTarget']
+    }
   | { kind: 'cancel'; workId: string; expectedRevision: number }
 export type WorkDraftQuestion = MessageReference
 export interface WorkQuestionDraft {
@@ -235,26 +243,13 @@ export type ApiRead =
   | { kind: 'activity'; conversationId: string }
 
 export interface ConversationBridge {
-  executorState(characterId: string): Promise<ApiReply<LocalExecutorState>>
-  clearUnavailableExecutor(characterId: string): Promise<ApiReply<LocalExecutorState>>
-  enableExecutor(characterId: string): Promise<ApiReply<LocalExecutorState>>
-  executorAction(
-    characterId: string,
-    action: ExecutorAction,
-  ): Promise<ApiReply<ExecutorCommandItem>>
-  executorCommands(characterId: string): Promise<ApiReply<ExecutorCommandItem[]>>
-  verifyExecutorCommand(
-    characterId: string,
-    requestId: string,
-  ): Promise<ApiReply<ExecutorCommandItem>>
-  pickExecutorFolder(
-    characterId: string,
-    alias: string,
-  ): Promise<ApiReply<{ alias: string; digest: string } | null>>
-  removeExecutorFolder(characterId: string, digest: string): Promise<ApiReply<LocalExecutorState>>
-
+  pendingPairings(): Promise<ApiReply<PendingPairing[]>>
+  resumePairing(characterId: string, deviceId: string): Promise<ApiReply<Connection>>
+  forgetPairing(characterId: string, deviceId: string): Promise<ApiReply<void>>
   prepareLogout(characterId: string): Promise<ApiReply<LogoutSummary>>
   logoutSummary(characterId: string): Promise<ApiReply<LogoutSummary>>
+  retiredHistory(characterId: string): Promise<ApiReply<{ table: string; count: number }[]>>
+  exportRetiredHistory(characterId: string): Promise<ApiReply<boolean>>
   finishLogout(
     characterId: string,
     deviceId: string,
@@ -279,20 +274,17 @@ export interface ConversationBridge {
     avatarRevision: number,
     bytes: Uint8Array,
   ): Promise<ApiReply<void>>
+  avatarBytes(characterId: string, sha256: string, size: number): Promise<ApiReply<Uint8Array>>
+  previewAvatar(server: string): Promise<ApiReply<Uint8Array | null>>
   pickAvatar(): Promise<ApiReply<AvatarInput | null>>
   dropAvatar(file: File): Promise<ApiReply<AvatarInput>>
   pasteAvatar(): Promise<ApiReply<AvatarInput>>
-  avatarBytes(characterId: string, sha256: string, size: number): Promise<ApiReply<Uint8Array>>
-  previewAvatar(server: string): Promise<ApiReply<Uint8Array | null>>
   avatarCommand(
     characterId: string,
     expectedRevision: number,
     bytes?: Uint8Array,
-  ): Promise<ApiReply<AvatarCommandItem>>
-  avatarCommands(characterId: string): Promise<ApiReply<AvatarCommandItem[]>>
+  ): Promise<ApiReply<CharacterCommandItem>>
   avatarDraft(characterId: string, requestId: string): Promise<ApiReply<AvatarInput | null>>
-  acknowledgeAvatarCommand(characterId: string, requestId: string): Promise<ApiReply<void>>
-  verifyAvatarCommand(characterId: string, requestId: string): Promise<ApiReply<AvatarCommandItem>>
   characterCommand(
     characterId: string,
     command: CharacterCommand,
@@ -302,19 +294,6 @@ export interface ConversationBridge {
     characterId: string,
     requestId: string,
   ): Promise<ApiReply<CharacterCommandItem>>
-  computerTicket(characterId: string): Promise<ApiReply<string>>
-  saveComputerFile(characterId: string, path: string): Promise<ApiReply<boolean>>
-  computerCommand(
-    characterId: string,
-    command: ComputerCommand,
-  ): Promise<ApiReply<ComputerCommandItem>>
-  computerCommands(characterId: string): Promise<ApiReply<ComputerCommandItem[]>>
-  verifyComputerCommand(
-    characterId: string,
-    requestId: string,
-  ): Promise<ApiReply<ComputerCommandItem>>
-  keyboardCapture(captured: boolean): Promise<ApiReply<void>>
-  saveScreenshot(characterId: string, bytes: Uint8Array): Promise<ApiReply<boolean>>
   connections(): Promise<ApiReply<Connection[]>>
   meta(server: string): Promise<ApiReply<Meta>>
   pair(server: string, code: string, label: string): Promise<ApiReply<Connection>>
@@ -363,4 +342,42 @@ export interface ConversationBridge {
     link?: string
     save?: boolean
   }): Promise<ApiReply<'save' | null>>
+  executorState(characterId: string): Promise<ApiReply<LocalExecutorState>>
+  clearUnavailableExecutor(characterId: string): Promise<ApiReply<LocalExecutorState>>
+  enableExecutor(characterId: string): Promise<ApiReply<LocalExecutorState>>
+  executorAction(
+    characterId: string,
+    action: ExecutorAction,
+  ): Promise<ApiReply<ExecutorCommandItem>>
+  executorCommands(characterId: string): Promise<ApiReply<ExecutorCommandItem[]>>
+  verifyExecutorCommand(
+    characterId: string,
+    requestId: string,
+  ): Promise<ApiReply<ExecutorCommandItem>>
+  pickExecutorFolder(
+    characterId: string,
+    alias: string,
+  ): Promise<ApiReply<{ alias: string; digest: string } | null>>
+  removeExecutorFolder(characterId: string, digest: string): Promise<ApiReply<LocalExecutorState>>
+  computerTicket(characterId: string): Promise<ApiReply<string>>
+  saveComputerFile(characterId: string, path: string): Promise<ApiReply<boolean>>
+  computerCommand(
+    characterId: string,
+    command: ComputerCommand,
+  ): Promise<ApiReply<ComputerCommandItem>>
+  computerCommands(characterId: string): Promise<ApiReply<ComputerCommandItem[]>>
+  verifyComputerCommand(
+    characterId: string,
+    requestId: string,
+  ): Promise<ApiReply<ComputerCommandItem>>
+  keyboardCapture(captured: boolean): Promise<ApiReply<void>>
+  saveScreenshot(characterId: string, bytes: Uint8Array): Promise<ApiReply<boolean>>
+}
+
+export interface PendingPairing {
+  characterId: string
+  baseUrl: string
+  name: string
+  deviceId: string
+  persistentCredentials: boolean
 }

@@ -143,7 +143,11 @@ it('exclusive publication never overwrites a competing writer or leaves a partia
 it('rejects traversal, outside symlinks, changed roots and the root directory as a file', async () => {
   const env = await setup()
   await writeFile(join(env.outside, 'secret.txt'), 'private')
-  await symlink(env.outside, join(env.scope, 'escape'), 'dir')
+  await symlink(
+    env.outside,
+    join(env.scope, 'escape'),
+    process.platform === 'win32' ? 'junction' : 'dir',
+  )
   for (const path of [
     '收件匣/../private/secret.txt',
     '收件匣/escape/secret.txt',
@@ -157,7 +161,11 @@ it('rejects traversal, outside symlinks, changed roots and the root directory as
   expect((await env.effects.execute(write('收件匣', 'replace root'))).state).toBe('failed')
   expect(await readFile(join(env.outside, 'secret.txt'), 'utf8')).toBe('private')
   expect((await readdir(env.root)).sort()).toEqual(['granted', 'private'])
-  await symlink(env.scope, join(env.root, 'root-link'), 'dir')
+  await symlink(
+    env.scope,
+    join(env.root, 'root-link'),
+    process.platform === 'win32' ? 'junction' : 'dir',
+  )
   env.authority.scopes[0]!.realpath = join(env.root, 'root-link')
   env.authority.scopes[0]!.digest = scopeDigest(
     env.authority.executorId,

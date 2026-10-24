@@ -1,3 +1,4 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test, type Page } from '@playwright/test'
 import { createHash, randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
@@ -65,7 +66,7 @@ test('real wait-control follows three leases and survives each Manager restart b
       expect(setup.ok).toBe(true)
       expect(await setup.json()).toBeNull()
       await pa
-        .getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+        .getByRole('textbox', { name: `和 ${await activeCharacterName(pa)} 說點什麼`, exact: true })
         .fill('請沿原工作處理電腦步驟')
       await pa.getByRole('button', { name: '送出', exact: true }).click()
     }
@@ -84,14 +85,19 @@ test('real wait-control follows three leases and survives each Manager restart b
     await contentSize(a, pa, 1440, 900)
     await contentSize(b, pb, 1440, 900)
     for (const page of [pa, pb]) {
-      await page.getByRole('button', { name: 'Yuki 的電腦', exact: true }).click()
+      await page
+        .getByRole('button', { name: `${await activeCharacterName(page)} 的電腦`, exact: true })
+        .click()
       await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled({
         timeout: 20000,
       })
     }
     if (!rig.resumed) await controls(pa).getByRole('button', { name: '接手', exact: true }).click()
     await expect(
-      controls(pa).getByRole('button', { name: '交回給 Yuki', exact: true }),
+      controls(pa).getByRole('button', {
+        name: `交回給 ${await activeCharacterName(pa)}`,
+        exact: true,
+      }),
     ).toBeEnabled({ timeout: 20000 })
     await expect
       .poll(async () => (await facts()).waits.find((wait) => wait.run_id === started.run_id)?.kind)
@@ -120,7 +126,9 @@ test('real wait-control follows three leases and survives each Manager restart b
         })
         .getByText(/等待電腦交回/),
     ).toBeVisible({ timeout: 20000 })
-    await pa.getByRole('button', { name: 'Yuki 的電腦', exact: true }).click()
+    await pa
+      .getByRole('button', { name: `${await activeCharacterName(pa)} 的電腦`, exact: true })
+      .click()
     const stages: Facts[] = []
     for (const [index, page] of [pa, pb, pa].entries()) {
       if (index > 0) {
@@ -182,7 +190,10 @@ test('real wait-control follows three leases and survives each Manager restart b
       expect(after.artifact).toBeNull()
       await expect(page.getByText(/Yuki 需要你幫忙/)).toHaveCount(0)
       await expect(
-        controls(page).getByRole('button', { name: '交回給 Yuki', exact: true }),
+        controls(page).getByRole('button', {
+          name: `交回給 ${await activeCharacterName(page)}`,
+          exact: true,
+        }),
       ).toBeEnabled({ timeout: 20000 })
       await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled({
         timeout: 20000,
@@ -210,8 +221,13 @@ test('real wait-control follows three leases and survives each Manager restart b
       .toContain(`observed-input:${marker}`)
     await pa.keyboard.press('Control+Alt')
     await pa.screenshot({ path: test.info().outputPath('real-three-leases.png') })
-    await controls(pa).getByRole('button', { name: '交回給 Yuki', exact: true }).click()
-    const sheet = pa.getByRole('dialog', { name: '交回給 Yuki', exact: true })
+    await controls(pa)
+      .getByRole('button', { name: `交回給 ${await activeCharacterName(pa)}`, exact: true })
+      .click()
+    const sheet = pa.getByRole('dialog', {
+      name: `交回給 ${await activeCharacterName(pa)}`,
+      exact: true,
+    })
     const note = '畫面處理完成，請沿原工作接續。'
     await sheet.getByRole('textbox', { name: '說明', exact: true }).fill(note)
     await sheet.getByRole('button', { name: '交回', exact: true }).click()

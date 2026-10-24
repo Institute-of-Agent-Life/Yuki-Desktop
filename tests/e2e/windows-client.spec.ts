@@ -1,10 +1,11 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { pairUI } from '../fixtures/backend'
+import { ledgerEvents, pairUI } from '../fixtures/backend'
 import { launchShell } from '../fixtures/shell-app'
 
 test('Windows packaged client pairs with the real API and recovers the original message, owner and draft after process death', async () => {
@@ -20,9 +21,7 @@ test('Windows packaged client pairs with the real API and recovers the original 
     return response
   }
   const events = async () => {
-    const response = await fetch(`${base}/__test/events`)
-    expect(response.ok).toBe(true)
-    return (await response.json()) as { id: number; text: string; direction: string }[]
+    return ledgerEvents(base!)
   }
   const code = ((await (await post('link-code')).json()) as { code: string }).code
   const data = await mkdtemp(join(tmpdir(), 'yuki-windows-client-'))
@@ -102,7 +101,10 @@ test('Windows packaged client pairs with the real API and recovers the original 
         persistentCredentials: connection.persistentCredentials,
       }
     })
-    let composer = page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+    let composer = page.getByRole('textbox', {
+      name: `和 ${await activeCharacterName(page)} 說點什麼`,
+      exact: true,
+    })
     await post('pause-next-me')
     await composer.fill(first)
     await page.getByRole('button', { name: '送出', exact: true }).click()
@@ -117,11 +119,11 @@ test('Windows packaged client pairs with the real API and recovers the original 
     await post('resume-me')
     await expect(composer).toHaveValue(draft)
     await expect
-      .poll(async () => (await events()).filter((item) => item.text === first).length, {
+      .poll(async () => (await events()).filter((item) => item.content === first).length, {
         timeout: 20000,
       })
       .toBe(1)
-    await expect(page.getByText('真實帳本回覆', { exact: true }).first()).toBeVisible({
+    await expect(page.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible({
       timeout: 20000,
     })
     await post('lose-next-response')
@@ -138,7 +140,7 @@ test('Windows packaged client pairs with the real API and recovers the original 
       )
       .toBe(draft)
     await expect
-      .poll(async () => (await events()).filter((item) => item.text === lost).length, {
+      .poll(async () => (await events()).filter((item) => item.content === lost).length, {
         timeout: 20000,
       })
       .toBe(1)
@@ -171,7 +173,10 @@ test('Windows packaged client pairs with the real API and recovers the original 
     await app.close()
     app = await launchShell(data)
     page = await app.firstWindow()
-    composer = page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+    composer = page.getByRole('textbox', {
+      name: `和 ${await activeCharacterName(page)} 說點什麼`,
+      exact: true,
+    })
     const storageAfter = await storageFacts()
     expect(storageAfter.userData).toBe(data)
     expect(storageAfter.keyOnDisk).toBe(true)
@@ -182,7 +187,7 @@ test('Windows packaged client pairs with the real API and recovers the original 
     )
     // Windows must recover its real DPAPI credentials. Re-pairing would hide a storage failure.
     await expect(composer).toHaveValue(draft, { timeout: 20000 })
-    await expect(page.getByRole('button', { name: '配對', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '確認並連接', exact: true })).toHaveCount(0)
     const recovered = await page.evaluate(
       async ({ characterId, requestId }) => {
         const connections = await window.yuki.client.connections()
@@ -205,19 +210,19 @@ test('Windows packaged client pairs with the real API and recovers the original 
     })
     await expect(page.getByText(lost, { exact: true })).toHaveCount(1)
     await expect
-      .poll(async () => (await events()).filter((item) => item.text === lost).length)
+      .poll(async () => (await events()).filter((item) => item.content === lost).length)
       .toBe(1)
     await composer.press('Enter')
     await expect(composer).toHaveValue('')
     await expect
-      .poll(async () => (await events()).filter((item) => item.text === draft).length, {
+      .poll(async () => (await events()).filter((item) => item.content === draft).length, {
         timeout: 20000,
       })
       .toBe(1)
     const ledger = await events()
-    const source = ledger.find((item) => item.text === first)!
+    const source = ledger.find((item) => item.content === first)!
     await page
-      .locator(`article[data-event-id="${source.id}"]`)
+      .locator(`article[data-event-id="${source.event_id}"]`)
       .getByRole('button', { name: '引用回覆' })
       .click()
     const quotedText = `Windows 原事件引用 ${marker}`
@@ -226,21 +231,24 @@ test('Windows packaged client pairs with the real API and recovers the original 
     await expect
       .poll(
         async () => {
-          const quoted = (await events()).find((item) => item.text.endsWith('\n' + quotedText))
-          return quoted?.text.includes(` event=${source.id}]]`) ?? false
+          const quoted = (await events()).find((item) => item.content.endsWith('\n' + quotedText))
+          return quoted?.content.includes(` event=${source.event_id}]]`) ?? false
         },
         { timeout: 20000 },
       )
       .toBe(true)
     expect(
-      (await fetch(`${base}/__test/events/${source.id}?lose_hint=true`, { method: 'DELETE' })).ok,
+      (await fetch(`${base}/__test/events/${source.event_id}?lose_hint=true`, { method: 'DELETE' }))
+        .ok,
     ).toBe(true)
     await expect(page.getByText(first, { exact: true })).toHaveCount(0)
     const originalQuote = page.getByRole('article').filter({
       has: page.getByText(quotedText, { exact: true }),
     })
     await expect(originalQuote.getByText('引用的訊息無法讀取', { exact: true })).toBeVisible()
-    await expect(originalQuote.getByText('引用：真實帳本回覆', { exact: true })).toHaveCount(0)
+    await expect(
+      originalQuote.getByText('引用：Desktop reference reply', { exact: true }),
+    ).toHaveCount(0)
     await page.screenshot({ path: test.info().outputPath('windows-client-cold-recovery.png') })
     await writeFile(
       test.info().outputPath('windows-client-facts.json'),
@@ -251,10 +259,10 @@ test('Windows packaged client pairs with the real API and recovers the original 
           owner,
           original,
           recovered,
-          sourceEventId: source.id,
-          originalEventId: ledger.find((item) => item.text === lost)!.id,
-          uniqueOriginalMessages: ledger.filter((item) => item.text === lost).length,
-          draftSubmittedOnce: ledger.filter((item) => item.text === draft).length,
+          sourceEventId: source.event_id,
+          originalEventId: ledger.find((item) => item.content === lost)!.event_id,
+          uniqueOriginalMessages: ledger.filter((item) => item.content === lost).length,
+          draftSubmittedOnce: ledger.filter((item) => item.content === draft).length,
         },
         null,
         2,

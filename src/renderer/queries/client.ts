@@ -34,6 +34,21 @@ export function hidesPrivateData(error: unknown) {
   )
 }
 const messages: Record<string, string> = {
+  docker_unavailable: '找不到 Docker 或引擎尚未啟動。請安裝或開啟 Docker，再重新檢測。',
+  docker_linux_required: '請將 Docker 切換為 Linux 容器，再繼續部署。',
+  local_port_in_use: '這個本機連接埠已被使用。請選另一個連接埠，不需要關閉其他服務。',
+  local_image_unavailable: 'Yuki 映像尚未下載完成，請檢查網路與 Docker 的映像來源後重試。',
+  local_deployment_failed:
+    '這次本機設定或啟動未完成。已保留原目錄，請檢查 Docker 與模型設定後繼續。',
+  local_existing_deployment:
+    '這個目錄已有部署或資料。請連接原服務，或為新部署選另一個目錄；原資料未改動。',
+  local_installation_exists:
+    '目前正管理另一個本機部署。請先返回原部署；連接其他服務可使用「連接已有 Yuki」。',
+  local_bot_not_bundled: '這份建置未包含配套部署資源，請使用完整桌面測試包。',
+  local_bot_not_configured: '尚未選擇本機部署，請先完成設定。',
+  local_pairing_code_unavailable: '原配對碼已簽發，明文無法取回。請明確重新取得配對，再繼續連接。',
+  connector_authorization_unconfirmed:
+    '電腦授權碼的結果尚未確認。請先查原授權狀態，需要新碼時重新授權。',
   feature_unavailable: '目前連線的後端尚未提供這項功能。',
   logout_pending: '請先完成這個角色的登出與本機資料選擇。',
   unsupported_image: '無法讀取這張圖片，請選擇 PNG、JPEG 或 WebP 圖片。',

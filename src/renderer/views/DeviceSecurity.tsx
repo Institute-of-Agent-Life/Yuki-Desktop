@@ -89,7 +89,7 @@ export function DeviceSecurity({
         }
         if (
           character === id &&
-          (['sync', 'character-command', 'link-code'].includes(kind) ||
+          (['sync', 'refresh', 'character-command', 'link-code'].includes(kind) ||
             (kind === 'connection' && (hint as { code?: string })?.code === 'unauthenticated'))
         )
           void refresh()

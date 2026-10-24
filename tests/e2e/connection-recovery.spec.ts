@@ -1,7 +1,8 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import type { Home, Work } from '../../src/shared/api'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import { ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
 import { transportGate } from '../fixtures/transport'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
 
@@ -17,7 +18,10 @@ test('a real thirty second transport outage preserves the draft and converges an
     const pb = await b.firstWindow()
     await pairUI(pa, gate.base, await rig.code())
     await pairUI(pb, rig.base, await rig.code())
-    const composer = pa.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+    const composer = pa.getByRole('textbox', {
+      name: `和 ${await activeCharacterName(pa)} 說點什麼`,
+      exact: true,
+    })
     await composer.fill('斷線之前的原訊息')
     await pa.getByRole('button', { name: '送出', exact: true }).click()
     await expect(pb.getByText('斷線之前的原訊息', { exact: true })).toBeVisible()
@@ -31,17 +35,17 @@ test('a real thirty second transport outage preserves the draft and converges an
       .first()
     await expect(offline).toBeVisible()
     const missed = '另一台裝置在斷線期間送出的原事件'
-    await pb.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true }).fill(missed)
+    await pb
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(pb)} 說點什麼`, exact: true })
+      .fill(missed)
     await pb.getByRole('button', { name: '送出', exact: true }).click()
     await expect
       .poll(async () => {
-        const events = (await (await fetch(`${rig.base}/__test/events`)).json()) as {
-          text: string
-        }[]
-        return events.filter((item) => item.text === missed).length
+        const events = await ledgerEvents(rig.base)
+        return events.filter((item) => item.content === missed).length
       })
       .toBe(1)
-    await expect(pb.getByText('真實帳本回覆', { exact: true }).first()).toBeVisible({
+    await expect(pb.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible({
       timeout: 20000,
     })
     await captureWorkspace(
@@ -78,15 +82,12 @@ test('a real thirty second transport outage preserves the draft and converges an
     await pa.getByRole('button', { name: '送出', exact: true }).click()
     await expect(composer).toHaveValue('')
     await expect(pb.getByText(draft, { exact: true })).toBeVisible()
-    const facts = (await (await fetch(`${rig.base}/__test/events`)).json()) as {
-      id: number
-      text: string
-    }[]
+    const facts = await ledgerEvents(rig.base)
     for (const text of ['斷線之前的原訊息', missed, draft]) {
-      const events = facts.filter((item) => item.text === text)
+      const events = facts.filter((item) => item.content === text)
       expect(events).toHaveLength(1)
       for (const page of [pa, pb])
-        await expect(page.locator(`article[data-event-id="${events[0]!.id}"]`)).toHaveCount(1)
+        await expect(page.locator(`article[data-event-id="${events[0]!.event_id}"]`)).toHaveCount(1)
     }
     const report = test.info().outputPath('transport-outage.json')
     await writeFile(
@@ -120,7 +121,7 @@ test('two actual devices submit different answers to one work and recover their 
     await pairUI(pb, rig.base, await rig.code())
     await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
     await pa
-      .getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(pa)} 說點什麼`, exact: true })
       .fill('兩台裝置共同補充原工作')
     await pa.getByRole('button', { name: '送出', exact: true }).click()
     for (const page of [pa, pb])
@@ -205,17 +206,14 @@ test('two actual devices submit different answers to one work and recover their 
     })
     expect(new Set(receipts.map((item) => item.eventId)).size).toBe(2)
     expect(new Set(receipts.map((item) => item.inputId)).size).toBe(2)
-    const events = (await (await fetch(`${rig.base}/__test/events`)).json()) as {
-      id: number
-      text: string
-    }[]
+    const events = await ledgerEvents(rig.base)
     for (const [index, page] of [pa, pb].entries()) {
       await contentSize(index === 0 ? a : b, page, 1440, 900)
       await page.keyboard.press('ControlOrMeta+1')
       for (const answer of answers) {
-        const rows = events.filter((item) => item.text === answer)
+        const rows = events.filter((item) => item.content === answer)
         expect(rows).toHaveLength(1)
-        await expect(page.locator(`article[data-event-id="${rows[0]!.id}"]`)).toHaveCount(1)
+        await expect(page.locator(`article[data-event-id="${rows[0]!.event_id}"]`)).toHaveCount(1)
       }
       const dpr = await page.evaluate(() => devicePixelRatio)
       const theme = await page.locator('html').getAttribute('data-theme')

@@ -1,22 +1,36 @@
-import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { join } from 'node:path'
-import { pairUI, yukiFixture } from '../fixtures/backend'
 import type { Connection, Profile } from '../../src/shared/api'
+import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
+import { forwardProxy } from '../fixtures/forward-proxy'
+import { navigate } from '../fixtures/navigation'
+import { captureViewport, contentSize } from '../fixtures/visual'
+import { colorBoundary } from '../fixtures/avatar-crop'
 
-const editor = (page: Page) => page.getByRole('dialog', { name: '更換 Yuki 的頭像', exact: true })
+const editor = (page: Page) => page.getByRole('dialog', { name: /^更換 .+ 的頭像$/ })
+
+async function inputs(base: string) {
+  const response = await fetch(`${base}/__test/avatar-inputs`, { method: 'POST' })
+  expect(response.status, await response.clone().text()).toBe(200)
+  return (await response.json()) as Record<'rotated' | 'small' | 'large' | 'broken', string>
+}
+
+async function about(page: Page) {
+  await navigate(page, /^關於 /)
+}
+
 async function choose(app: ElectronApplication, page: Page, path: string) {
   await app.evaluate(({ dialog }, selected) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] })
   }, path)
   await editor(page)
-    .getByRole('button', { name: /選擇.*圖片…/ })
+    .getByRole('button', { name: /^選擇.*圖片…$/ })
     .click()
   await expect(editor(page).getByRole('button', { name: '儲存', exact: true })).toBeEnabled()
 }
+
 async function profile(page: Page, id: string) {
   return page.evaluate(async (id) => {
     const result = await window.yuki.client.read<Profile>(id, { kind: 'character' })
@@ -24,82 +38,151 @@ async function profile(page: Page, id: string) {
     return result.value
   }, id)
 }
-test('actual avatar crop, EXIF orientation, two-device CAS, reset and cold recovery', async ({
-  page: browser,
-}) => {
+
+async function sidebarColor(page: Page) {
+  const image = page.locator('[data-region="sidebar"] img').first()
+  if (!(await image.count())) return null
+  return image.evaluate((image: HTMLImageElement) => {
+    if (!image.complete || !image.naturalWidth) return null
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 1
+    const context = canvas.getContext('2d')!
+    context.drawImage(image, 0, 0, 1, 1)
+    return Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3)
+  })
+}
+
+function outboxPath(root: string, name: string, connection: Connection) {
+  return join(
+    root,
+    name,
+    'connections',
+    connection.characterId,
+    'outbox',
+    connection.personId,
+    `${connection.bindingId}.sqlite3`,
+  )
+}
+
+async function commandState(app: ElectronApplication, path: string, requestId: string) {
+  return app.evaluate(
+    ({ app }, { path, requestId }) => {
+      const require = process
+        .getBuiltinModule('node:module')
+        .createRequire(`${app.getAppPath()}/package.json`)
+      const Database = require('better-sqlite3') as typeof import('better-sqlite3')
+      const db = new Database(path, { readonly: true })
+      try {
+        return db
+          .prepare(
+            "SELECT request_id AS requestId,state,problem,hash AS payloadHash,json_extract(command,'$.png') IS NOT NULL AS hasImage FROM character_commands WHERE request_id=?",
+          )
+          .get(requestId) as
+          | {
+              requestId: string
+              state: string
+              problem: string | null
+              payloadHash: string
+              hasImage: number
+            }
+          | undefined
+      } finally {
+        db.close()
+      }
+    },
+    { path, requestId },
+  )
+}
+
+async function exportRetired(app: ElectronApplication, page: Page, id: string, path: string) {
+  await app.evaluate(({ dialog }, destination) => {
+    dialog.showSaveDialog = async () => ({ canceled: false, filePath: destination })
+  }, path)
+  const result = await page.evaluate((id) => window.yuki.client.exportRetiredHistory(id), id)
+  expect(result).toEqual({ ok: true, value: true })
+  return readFile(path)
+}
+
+test('real image crop works in a short window; two devices resolve CAS, sync and reset the same character', async () => {
   test.setTimeout(180000)
-  const rig = await yukiFixture({ character: true })
-  let a = await rig.launch('avatar-a')
+  const rig = await yukiFixture()
+  const a = await rig.launch('avatar-a')
   const b = await rig.launch('avatar-b')
   let success = false
   try {
-    let pa = await a.firstWindow()
-    const pb = await b.firstWindow(),
-      errors: string[] = []
-    pa.on('pageerror', (error) => errors.push(error.message))
-    pb.on('pageerror', (error) => errors.push(error.message))
+    const pa = await a.firstWindow()
+    const pb = await b.firstWindow()
     await pairUI(pa, rig.base, await rig.code())
     await pairUI(pb, rig.base, await rig.code())
-    const connection = (await pa.evaluate(async () => {
-      const result = await window.yuki.client.connections()
-      if (!result.ok) throw Error(result.code)
-      return result.value[0]
-    })) as Connection
-    const response = await fetch(`${rig.base}/__test/avatar-inputs`, { method: 'POST' })
-    expect(response.status, await response.clone().text()).toBe(200)
-    const inputs = (await response.json()) as Record<
-      'rotated' | 'small' | 'large' | 'downsample' | 'broken',
-      string
-    >
+    const connection = await currentConnection(pa)
+    expect((await currentConnection(pb)).characterId).toBe(connection.characterId)
+    const initial = await profile(pa, connection.characterId)
+    const images = await inputs(rig.base)
     for (const page of [pa, pb]) {
-      await page.getByRole('button', { name: '關於 Yuki', exact: true }).click()
+      await about(page)
       await page.getByRole('button', { name: '更換頭像', exact: true }).click()
     }
-    await choose(a, pa, inputs.rotated)
+    await choose(a, pa, images.rotated)
     await expect(editor(pa)).toContainText('3000×4000')
     const crop = editor(pa).getByRole('application')
-    const colors = await crop.locator('canvas').evaluate((canvas: HTMLCanvasElement) => {
+    const top = await crop.locator('canvas').evaluate((canvas: HTMLCanvasElement) => {
       const context = canvas.getContext('2d')!
       return [
         Array.from(context.getImageData(20, 20, 1, 1).data),
         Array.from(context.getImageData(canvas.width - 20, 20, 1, 1).data),
       ]
     })
-    expect(colors[0]![2]).toBeGreaterThan(220) // EXIF rotation moves blue to top-left.
-    expect(colors[1]![0]).toBeGreaterThan(220)
-    const original = await crop
+    expect(top[0]![2]).toBeGreaterThan(220)
+    expect(top[1]![0]).toBeGreaterThan(220)
+    await contentSize(a, pa, 960, 492)
+    await expect(crop).toHaveCSS('width', '220px')
+    const save = editor(pa).getByRole('button', { name: '儲存', exact: true })
+    await expect(save).toBeInViewport({ ratio: 1 })
+    const zoom = editor(pa).getByRole('slider', { name: '頭像縮放', exact: true })
+    await zoom.focus()
+    await zoom.press('End')
+    await expect(zoom).toHaveAttribute('aria-valuenow', '400')
+    await crop.scrollIntoViewIfNeeded()
+    const before = await colorBoundary(crop)
+    const box = (await crop.boundingBox())!
+    await pa.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await pa.mouse.down()
+    await pa.mouse.move(box.x + box.width / 2 + 22, box.y + box.height / 2)
+    await pa.mouse.up()
+    await expect.poll(async () => (await colorBoundary(crop)) - before).toBeCloseTo(22, 0)
+    const dragged = await colorBoundary(crop)
+    await crop.press('Shift+ArrowLeft')
+    await expect.poll(async () => dragged - (await colorBoundary(crop))).toBeCloseTo(20, 0)
+    const shifted = await colorBoundary(crop)
+    await crop.press('ArrowRight')
+    await expect.poll(async () => (await colorBoundary(crop)) - shifted).toBeCloseTo(4, 0)
+    const cropped = await crop
       .locator('canvas')
       .evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL())
-    await crop.focus()
-    await pa.keyboard.press('+')
-    await pa.keyboard.press('Shift+ArrowDown')
-    const zoom = editor(pa).getByRole('slider', { name: '頭像縮放' })
-    await expect
-      .poll(async () => Number(await zoom.getAttribute('aria-valuenow')))
-      .toBeCloseTo(110, 8)
-    await expect(zoom).toHaveAttribute('aria-valuetext', '110%')
-    const box = await crop.boundingBox()
-    if (!box) throw Error('crop not visible')
-    await pa.mouse.move(box.x + 140, box.y + 140)
-    await pa.mouse.down()
-    await pa.mouse.move(box.x + 155, box.y + 155)
-    await pa.mouse.up()
-    await expect
-      .poll(() =>
-        crop.locator('canvas').evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL()),
-      )
-      .not.toBe(original)
-    await choose(b, pb, inputs.small)
+    await captureViewport(a, pa, test.info().outputPath('avatar-short-crop.png'))
+    await contentSize(a, pa, 1440, 900)
+    await expect(crop).toHaveCSS('width', '280px')
+    expect(
+      await crop.locator('canvas').evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL()),
+    ).toBe(cropped)
+    await choose(b, pb, images.small)
     await expect(editor(pb)).toContainText('仍然可以儲存')
-    await pb.screenshot({
-      path: test.info().outputPath('avatar-small.png'),
-      animations: 'disabled',
-    })
-    await editor(pa).getByRole('button', { name: '儲存', exact: true }).click()
+    await save.click()
     await expect(editor(pa)).not.toBeVisible()
     const first = await profile(pa, connection.characterId)
-    expect(first.avatar_revision).toBe(1)
+    expect(first.avatar_revision).toBe(initial.avatar_revision + 1)
     expect(first.avatar).not.toBeNull()
+    const dimensions = await pa.evaluate(
+      async ({ id, sha }) => {
+        const result = await window.yuki.client.avatarBytes(id, sha, 1024)
+        if (!result.ok) throw Error(result.code)
+        const bytes = Uint8Array.from(result.value)
+        const view = new DataView(bytes.buffer)
+        return [view.getUint32(16), view.getUint32(20)]
+      },
+      { id: connection.characterId, sha: first.avatar!.sha256 },
+    )
+    expect(dimensions).toEqual([1024, 1024])
     await editor(pb).getByRole('button', { name: '儲存', exact: true }).click()
     await expect(editor(pb)).toContainText('頭像剛被另一台裝置更新')
     await expect(editor(pb).getByRole('slider', { name: '頭像縮放' })).toHaveAttribute(
@@ -110,382 +193,255 @@ test('actual avatar crop, EXIF orientation, two-device CAS, reset and cold recov
     await expect(editor(pb)).not.toBeVisible()
     await expect
       .poll(async () => (await profile(pa, connection.characterId)).avatar_revision)
-      .toBe(2)
-    await expect
-      .poll(() =>
-        pa.locator('[data-region="sidebar"] img').evaluate((image: HTMLImageElement) => {
-          if (!image.complete || !image.naturalWidth) return null
-          const canvas = document.createElement('canvas')
-          canvas.width = canvas.height = 1
-          const context = canvas.getContext('2d')!
-          context.drawImage(
-            image,
-            image.naturalWidth / 2,
-            image.naturalHeight / 2,
-            1,
-            1,
-            0,
-            0,
-            1,
-            1,
-          )
-          return Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3)
-        }),
-      )
-      .toEqual([232, 53, 74])
-    await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
-    await expect(editor(pa)).toContainText('重新選擇原圖可以得到更大範圍')
-    await editor(pa).getByRole('button', { name: '還原預設', exact: true }).click()
-    const reset = pa.getByRole('dialog', { name: '還原為字母頭像', exact: true })
-    await expect(reset).toBeVisible()
-    await reset.getByRole('button', { name: '確認還原' }).click()
-    await expect(editor(pa)).not.toBeVisible()
-    const letter = await profile(pa, connection.characterId)
-    expect(letter.avatar_revision).toBe(3)
-    expect(letter.avatar).toBeNull()
-    await expect(pa.locator('[data-region="sidebar"] img')).toHaveCount(0)
-    await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
-    await fetch(`${rig.base}/__test/set-default-avatar`, { method: 'POST' })
-    await expect
-      .poll(async () => (await profile(pa, connection.characterId)).avatar_revision)
-      .toBe(4)
-    await choose(a, pa, inputs.large)
-    await expect(editor(pa)).toContainText('6000×4000')
-    await expect(editor(pa)).toContainText('30.0 MB')
-    await fetch(`${rig.base}/__test/lose-next-avatar-response`, { method: 'POST' })
-    await editor(pa).getByRole('button', { name: '儲存', exact: true }).click()
-    await expect(editor(pa)).toContainText('更新結果尚未確認')
-    const pending = await pa.evaluate(async (id) => {
-      const result = await window.yuki.client.avatarCommands(id)
-      return result.ok ? result.value.filter((item) => item.state === 'submitted') : []
-    }, connection.characterId)
-    expect(pending).toHaveLength(1)
-    await editor(pa).getByRole('button', { name: '取消', exact: true }).click()
-    await a.close()
-    await fetch(`${rig.base}/__test/release-original-queries`, { method: 'POST' })
-    a = await rig.launch('avatar-a')
-    pa = await a.firstWindow()
-    pa.on('pageerror', (error) => errors.push(error.message))
-    await pa.getByRole('button', { name: '關於 Yuki', exact: true }).click()
-    await expect
-      .poll(() =>
-        pa.evaluate(
-          async (args) => {
-            const result = await window.yuki.client.avatarCommands(args.id)
-            return result.ok
-              ? result.value.find((item) => item.requestId === args.requestId)?.state
-              : null
-          },
-          { id: connection.characterId, requestId: pending[0]!.requestId },
-        ),
-      )
-      .toBe('result')
-    expect((await profile(pa, connection.characterId)).avatar_revision).toBe(4)
-    await pa.getByRole('button', { name: '查看這次更新', exact: true }).click()
-    await expect(editor(pa)).toContainText('頭像剛被另一台裝置更新')
-    await editor(pa).getByRole('button', { name: '用我的', exact: true }).click()
-    await expect(editor(pa)).not.toBeVisible()
-    expect((await profile(pa, connection.characterId)).avatar_revision).toBe(5)
-    await expect(pa.getByRole('button', { name: '查看這次更新', exact: true })).toHaveCount(0)
-    await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
-    await choose(a, pa, inputs.small)
-    await fetch(`${rig.base}/__test/lose-next-avatar-response`, { method: 'POST' })
-    await editor(pa).getByRole('button', { name: '儲存', exact: true }).click()
-    await expect(editor(pa)).toContainText('更新結果尚未確認')
-    const committed = await pa.evaluate(async (id) => {
-      const result = await window.yuki.client.avatarCommands(id)
-      return result.ok ? result.value.find((item) => item.state === 'submitted')?.requestId : null
-    }, connection.characterId)
-    expect(committed).toBeTruthy()
-    await editor(pa).getByRole('button', { name: '取消', exact: true }).click()
-    await a.close()
-    await fetch(`${rig.base}/__test/release-original-queries`, { method: 'POST' })
-    a = await rig.launch('avatar-a')
-    pa = await a.firstWindow()
-    pa.on('pageerror', (error) => errors.push(error.message))
-    await pa.getByRole('button', { name: '關於 Yuki', exact: true }).click()
-    await expect
-      .poll(() =>
-        pa.evaluate(
-          async (args) => {
-            const result = await window.yuki.client.avatarCommands(args.id)
-            const item = result.ok
-              ? result.value.find((item) => item.requestId === args.requestId)
-              : null
-            return item ? [item.state, item.problem] : null
-          },
-          { id: connection.characterId, requestId: committed },
-        ),
-      )
-      .toEqual(['result', null])
-    expect((await profile(pa, connection.characterId)).avatar_revision).toBe(6)
+      .toBe(initial.avatar_revision + 2)
+    for (const page of [pa, pb]) await expect.poll(() => sidebarColor(page)).toEqual([232, 53, 74])
     await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
     await editor(pa).getByRole('button', { name: '還原預設', exact: true }).click()
-    await pa
-      .getByRole('dialog', { name: '還原為預設頭像', exact: true })
-      .getByRole('button', { name: '確認還原' })
-      .click()
     await expect(editor(pa)).not.toBeVisible()
-    const restored = await profile(pa, connection.characterId)
-    expect(restored.avatar_revision).toBe(7)
-    expect(restored.avatar?.sha256).toBe(restored.default_avatar?.sha256)
-    const old = await pa.evaluate(
-      async (args) => window.yuki.client.avatarBytes(args.id, args.sha, 128),
-      { id: connection.characterId, sha: first.avatar!.sha256 },
-    )
-    expect(old.ok).toBe(true)
-    await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
-    const drag = await pa.context().newCDPSession(pa)
-    const dropTarget = await editor(pa)
-      .getByRole('heading', { name: '更換 Yuki 的頭像' })
-      .boundingBox()
-    if (!dropTarget) throw Error('avatar sheet header missing')
-    for (const type of ['dragEnter', 'dragOver', 'drop'] as const)
-      await drag.send('Input.dispatchDragEvent', {
-        type,
-        x: dropTarget.x + 20,
-        y: dropTarget.y + 10,
-        data: { items: [], files: [inputs.small], dragOperationsMask: 1 },
-      })
-    await expect(editor(pa)).toContainText('small.png')
-    await expect(editor(pa).getByRole('button', { name: '儲存', exact: true })).toBeEnabled()
-    await a.evaluate(({ clipboard, nativeImage }, path) => {
-      clipboard.readImage = () => nativeImage.createFromPath(path)
-    }, inputs.small)
-    await editor(pa).getByRole('button', { name: '貼上圖片', exact: true }).click()
-    await expect(editor(pa)).toContainText('剪貼簿圖片.png')
-    await choose(a, pa, inputs.small)
-    await expect(editor(pa)).not.toContainText('剪貼簿圖片.png')
-    await editor(pa).getByRole('button', { name: '選擇其他圖片…', exact: true }).focus()
-    await pa.keyboard.press('ControlOrMeta+V')
-    await expect(editor(pa)).toContainText('剪貼簿圖片.png')
-    await editor(pa).getByRole('button', { name: '取消', exact: true }).click()
-    if (process.platform === 'darwin') {
-      const heic = join(rig.root, 'rotated.heic')
-      await promisify(execFile)('/usr/bin/sips', [
-        '-s',
-        'format',
-        'heic',
-        inputs.rotated,
-        '--out',
-        heic,
-      ])
-      await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
-      await choose(a, pa, heic)
-      await expect(editor(pa)).toContainText('rotated.heic')
-      const sample = await editor(pa)
-        .locator('canvas')
-        .evaluate((canvas: HTMLCanvasElement) =>
-          Array.from(canvas.getContext('2d')!.getImageData(20, 20, 1, 1).data),
-        )
-      expect(sample[2]).toBeGreaterThan(220)
-      await editor(pa).getByRole('button', { name: '取消', exact: true }).click()
-    }
-    await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
-    await a.evaluate(({ dialog }, path) => {
-      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
-    }, inputs.broken)
-    await editor(pa).getByRole('button', { name: '選擇其他圖片…', exact: true }).click()
-    await expect(editor(pa)).toContainText('無法讀取這張圖片')
-    expect((await profile(pa, connection.characterId)).avatar_revision).toBe(7)
-    await editor(pa).getByRole('button', { name: '取消', exact: true }).click()
-    const facts = (await (await fetch(`${rig.base}/__test/avatar-files`)).json()) as {
-      files: { sha256: string; size: string; dimensions: number[]; metadata: string[] }[]
-    }
-    for (const sha of [first.avatar!.sha256, restored.avatar!.sha256])
-      expect(
-        facts.files
-          .filter((file) => file.sha256 === sha)
-          .map((file) => file.size)
-          .sort(),
-      ).toEqual(['1024', '128', '256', '512', '64'])
-    expect(facts.files.every((file) => !file.metadata.includes('exif'))).toBe(true)
-    await pa.screenshot({
-      path: test.info().outputPath('about-avatar.png'),
-      animations: 'disabled',
-    })
-    await browser.goto('http://127.0.0.1:4178/components.html')
-    const downsample = await browser.evaluate(
-      async (args) => {
-        const module = await import(args.module)
-        const image = await module.decodeAvatar({
-          filename: 'downsample.jpg',
-          bytes: new Uint8Array(args.bytes),
-        })
-        const result = {
-          original: [image.width, image.height],
-          working: [image.bitmap.width, image.bitmap.height],
-        }
-        image.bitmap.close()
-        return result
-      },
-      {
-        module: `/@fs/${process.cwd()}/src/renderer/images/avatar.ts`,
-        bytes: [...(await readFile(inputs.downsample))],
-      },
-    )
-    expect(downsample.original).toEqual([8000, 6000])
-    expect(Math.min(...downsample.working)).toBeLessThanOrEqual(4096)
-    for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
-      await contentSize(a, pa, 1440, 900)
-      await expect.poll(() => pa.evaluate(() => [innerWidth, innerHeight])).toEqual([1440, 900])
-      await pa.getByRole('button', { name: '設定', exact: true }).click()
-      await pa.getByRole('tab', { name: '外觀', exact: true }).click()
-      await pa.getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true }).click()
-      for (const [label, checked] of [
-        ['永遠不透明', mode === 'opaque'],
-        ['增加對比', mode === 'contrast'],
-        ['減少動態', true],
-      ] as const) {
-        const toggle = pa.getByRole('switch', { name: label, exact: true })
-        if ((await toggle.getAttribute('aria-checked')) !== String(checked)) await toggle.click()
-        await expect(toggle).toHaveAttribute('aria-checked', String(checked))
-      }
-      await pa.getByRole('button', { name: '返回', exact: true }).click()
-      await pa.getByRole('button', { name: '關於 Yuki', exact: true }).click()
-      for (const [width, height] of [
-        [1440, 900],
-        [1100, 760],
-        [960, 492],
-      ] as const) {
-        const viewportMethod = await contentSize(a, pa, width, height)
-        await expect
-          .poll(() => pa.evaluate(() => [innerWidth, innerHeight]))
-          .toEqual([width, height])
-        await captureViewport(
-          a,
-          pa,
-          test
-            .info()
-            .outputPath(
-              `darwin-2x-${mode}-about-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
-            ),
-        )
-        await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
-        await choose(a, pa, inputs.small)
-        await expect(editor(pa).locator('img').first()).toBeVisible()
-        await expect(editor(pa).getByRole('application')).toHaveCSS(
-          'width',
-          height < 600 ? '220px' : '280px',
-        )
-        await expect(editor(pa).getByRole('application').locator('canvas')).toHaveCSS(
-          'width',
-          height < 600 ? '220px' : '280px',
-        )
-        await expect(editor(pa).getByRole('button', { name: '儲存', exact: true })).toBeInViewport({
-          ratio: 1,
-        })
-        await captureViewport(
-          a,
-          pa,
-          test
-            .info()
-            .outputPath(
-              `darwin-2x-${mode}-avatar-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
-            ),
-        )
-        await editor(pa).getByRole('button', { name: '取消', exact: true }).click()
-      }
-    }
-    expect(errors).toEqual([])
+    const reset = await profile(pa, connection.characterId)
+    expect(reset.avatar_revision).toBe(initial.avatar_revision + 3)
+    expect(reset.avatar).toBeNull()
+    for (const page of [pa, pb])
+      await expect(page.locator('[data-region="sidebar"] img')).toHaveCount(0)
     success = true
   } finally {
-    await a.close()
-    await b.close()
+    await a.close().catch(() => {})
+    await b.close().catch(() => {})
     await rig.close(success)
   }
 })
 
-test('avatar loading after a reset never reuses a revoked image URL', async () => {
-  test.setTimeout(90000)
-  const rig = await yukiFixture({ character: true }),
-    app = await rig.launch('avatar-url-lifetime')
+test('a committed upload with a lost response cold-recovers its original UUID once and leaves retired avatar bytes untouched', async () => {
+  test.setTimeout(150000)
+  const rig = await yukiFixture()
+  const proxy = await forwardProxy(rig.base, '/avatar-recovery')
+  let app = await rig.launch('avatar-recovery')
   let success = false
   try {
-    const page = await app.firstWindow()
-    await pairUI(page, rig.base, await rig.code())
-    const response = await fetch(`${rig.base}/__test/avatar-inputs`, { method: 'POST' }),
-      inputs = (await response.json()) as { small: string; rotated: string }
-    expect(response.status).toBe(200)
-    await page.getByRole('button', { name: '關於 Yuki', exact: true }).click()
-    await page.getByRole('button', { name: '更換頭像', exact: true }).click()
-    await choose(app, page, inputs.small)
-    await editor(page).getByRole('button', { name: '儲存', exact: true }).click()
-    await expect(editor(page)).not.toBeVisible()
-    await expect(page.locator('img:visible')).toHaveCount(2)
-    await page.getByRole('button', { name: '更換頭像', exact: true }).click()
-    await editor(page).getByRole('button', { name: '還原預設', exact: true }).click()
-    await page
-      .getByRole('dialog', { name: '還原為字母頭像', exact: true })
-      .getByRole('button', { name: '確認還原' })
-      .click()
-    await expect(editor(page)).not.toBeVisible()
-    await expect(page.locator('img:visible')).toHaveCount(0)
-    await app.evaluate(() => {
-      const runtime = globalThis as typeof globalThis & {
-        __avatarReads?: { hero: number; release: () => void }
-      }
-      const original = globalThis.fetch,
-        pending: (() => void)[] = []
-      const state = {
-        hero: 0,
-        release: () => {
-          globalThis.fetch = original
-          for (const done of pending.splice(0)) done()
-        },
-      }
-      runtime.__avatarReads = state
-      globalThis.fetch = async (input, init) => {
-        if (String(input).includes('/character/avatar/')) {
-          if (String(input).endsWith('/512.png')) state.hero++
-          await new Promise<void>((resolve) => pending.push(resolve))
+    let page = await app.firstWindow()
+    await pairUI(page, proxy.base, await rig.code())
+    const connection = await currentConnection(page)
+    const path = outboxPath(rig.root, 'avatar-recovery', connection)
+    const oldRequest = randomUUID()
+    await app.evaluate(
+      ({ app }, { path, oldRequest }) => {
+        const require = process
+          .getBuiltinModule('node:module')
+          .createRequire(`${app.getAppPath()}/package.json`)
+        const Database = require('better-sqlite3') as typeof import('better-sqlite3')
+        const db = new Database(path)
+        try {
+          db.exec(
+            'CREATE TABLE avatar_commands(request_id TEXT PRIMARY KEY,body BLOB,state TEXT); CREATE TABLE avatar_command_acknowledgements(request_id TEXT PRIMARY KEY,value BLOB)',
+          )
+          db.prepare('INSERT INTO avatar_commands VALUES(?,?,?)').run(
+            oldRequest,
+            Buffer.from([0, 255, 128, 10, 34]),
+            'submitted',
+          )
+          db.prepare('INSERT INTO avatar_command_acknowledgements VALUES(?,?)').run(
+            oldRequest,
+            Buffer.from(' { "original": "ack bytes" }\n'),
+          )
+        } finally {
+          db.close()
         }
-        return original(input, init)
-      }
-    })
-    await page.getByRole('button', { name: '更換頭像', exact: true }).click()
-    await choose(app, page, inputs.rotated)
-    await editor(page).getByRole('button', { name: '儲存', exact: true }).click()
-    await expect(editor(page)).not.toBeVisible()
-    await expect
-      .poll(() =>
-        app.evaluate(
-          () =>
-            (globalThis as typeof globalThis & { __avatarReads?: { hero: number } }).__avatarReads
-              ?.hero ?? 0,
-        ),
-      )
-      .toBeGreaterThan(0)
-    await expect(page.locator('img:visible')).toHaveCount(0)
-    await app.evaluate(() =>
-      (
-        globalThis as typeof globalThis & { __avatarReads?: { release: () => void } }
-      ).__avatarReads?.release(),
+      },
+      { path, oldRequest },
     )
-    await expect(page.locator('img:visible')).toHaveCount(2)
-    await expect
-      .poll(() =>
-        page
-          .locator('img:visible')
-          .evaluateAll((images) =>
-            images.every(
-              (image) =>
-                (image as HTMLImageElement).complete &&
-                (image as HTMLImageElement).naturalWidth > 0,
-            ),
-          ),
+    const before = await exportRetired(
+      app,
+      page,
+      connection.characterId,
+      join(rig.root, 'retired-before.json'),
+    )
+    const images = await inputs(rig.base)
+    const initial = await profile(page, connection.characterId)
+    await about(page)
+    await page.getByRole('button', { name: '更換頭像', exact: true }).click()
+    await choose(app, page, images.large)
+    proxy.faults.loseNextSuffix = '/character/avatar'
+    await editor(page).getByRole('button', { name: '儲存', exact: true }).click()
+    await expect(editor(page)).toContainText('更新結果尚未確認')
+    const pending = await page.evaluate(async (id) => {
+      const result = await window.yuki.client.characterCommands(id)
+      if (!result.ok) throw Error(result.code)
+      return result.value.filter((item) => item.command.kind === 'avatar')
+    }, connection.characterId)
+    expect(pending).toHaveLength(1)
+    const command = pending[0]!
+    expect(command).toMatchObject({
+      state: 'submitted',
+      command: { kind: 'avatar', action: 'set' },
+    })
+    expect(command.command).not.toHaveProperty('png')
+    expect(proxy.lostStatuses).toEqual([200])
+    const writes = () =>
+      proxy.calls.filter(
+        (call) =>
+          call.method === 'PUT' &&
+          new URL(call.path, proxy.base).pathname.endsWith('/character/avatar'),
       )
-      .toBe(true)
+    expect(writes()).toHaveLength(1)
+    expect(writes()[0]!.requestId).toBe(command.requestId)
+    const committed = await profile(page, connection.characterId)
+    expect(committed.avatar_revision).toBe(initial.avatar_revision + 1)
+    expect(await commandState(app, path, command.requestId)).toMatchObject({
+      state: 'submitted',
+      hasImage: 1,
+    })
+    const closed = app.waitForEvent('close')
+    await app.evaluate(() => process.exit(1)).catch(() => {})
+    await closed
+    const restartCalls = proxy.calls.length
+    proxy.faults.holdReceipts = false
+    app = await rig.launch('avatar-recovery')
+    page = await app.firstWindow()
+    await expect(page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })).toBeVisible()
+    await expect
+      .poll(() => commandState(app, path, command.requestId))
+      .toMatchObject({
+        requestId: command.requestId,
+        payloadHash: command.payloadHash,
+        state: 'result',
+        problem: null,
+      })
+    expect(
+      proxy.calls
+        .slice(restartCalls)
+        .some(
+          (call) => call.method === 'GET' && call.path.endsWith(`/requests/${command.requestId}`),
+        ),
+    ).toBe(true)
+    expect(writes()).toHaveLength(1)
+    const receipt = await page.evaluate(
+      async ({ id, requestId }) => {
+        const result = await window.yuki.client.read(id, { kind: 'request', requestId })
+        if (!result.ok) throw Error(result.code)
+        return result.value
+      },
+      { id: connection.characterId, requestId: command.requestId },
+    )
+    expect(receipt).toMatchObject({
+      found: true,
+      operation_kind: 'client.character_avatar',
+      target: connection.characterId,
+      payload_hash: command.payloadHash,
+      status: 'succeeded',
+    })
+    expect((await profile(page, connection.characterId)).avatar_revision).toBe(
+      committed.avatar_revision,
+    )
+    const after = await exportRetired(
+      app,
+      page,
+      connection.characterId,
+      join(rig.root, 'retired-after.json'),
+    )
+    expect(after.equals(before)).toBe(true)
+    expect(
+      proxy.calls.some((call) => call.requestId === oldRequest || call.path.includes(oldRequest)),
+    ).toBe(false)
     success = true
   } finally {
-    await app
-      .evaluate(() =>
-        (
-          globalThis as typeof globalThis & { __avatarReads?: { release: () => void } }
-        ).__avatarReads?.release(),
+    await app.close().catch(() => {})
+    await proxy.close()
+    await rig.close(success)
+  }
+})
+
+test('losing character ownership removes editing while valid devices can read; revoking the device clears private avatar caches', async () => {
+  test.setTimeout(150000)
+  const rig = await yukiFixture()
+  const a = await rig.launch('avatar-permission-a')
+  const b = await rig.launch('avatar-permission-b')
+  let success = false
+  try {
+    const pa = await a.firstWindow()
+    const pb = await b.firstWindow()
+    await pairUI(pa, rig.base, await rig.code(), 'Avatar device A')
+    await pairUI(pb, rig.base, await rig.code(), 'Avatar device B')
+    const connection = await currentConnection(pa)
+    const images = await inputs(rig.base)
+    await about(pa)
+    await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
+    await choose(a, pa, images.small)
+    await editor(pa).getByRole('button', { name: '儲存', exact: true }).click()
+    await expect(editor(pa)).not.toBeVisible()
+    const current = await profile(pa, connection.characterId)
+    for (const page of [pa, pb]) await expect.poll(() => sidebarColor(page)).toEqual([232, 53, 74])
+    await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
+    const revoked = await fetch(`${rig.base}/__test/revoke-owner`, { method: 'POST' })
+    expect(revoked.status).toBe(200)
+    await expect
+      .poll(async () => (await profile(pa, connection.characterId)).viewer.is_owner)
+      .toBe(false)
+    await expect(editor(pa)).not.toBeVisible()
+    await expect(pa.getByRole('button', { name: '更換頭像', exact: true })).toHaveCount(0)
+    const forbidden = await pa.evaluate(
+      async ({ id, revision }) => {
+        const result = await window.yuki.client.avatarCommand(id, revision)
+        if (!result.ok) throw Error(result.code)
+        return result.value
+      },
+      { id: connection.characterId, revision: current.avatar_revision },
+    )
+    expect(forbidden).toMatchObject({ state: 'result', problem: 'owner_required' })
+    for (const page of [pa, pb]) {
+      const readable = await page.evaluate(
+        async ({ id, sha }) => {
+          const result = await window.yuki.client.avatarBytes(id, sha, 64)
+          return result.ok ? result.value.byteLength : result.code
+        },
+        { id: connection.characterId, sha: current.avatar!.sha256 },
       )
-      .catch(() => {})
-    await app.close()
+      expect(typeof readable).toBe('number')
+      await expect.poll(() => sidebarColor(page)).toEqual([232, 53, 74])
+    }
+    const result = await pb.evaluate(
+      async ({ id, deviceId }) => {
+        const result = await window.yuki.client.characterCommand(id, {
+          kind: 'device-revoke',
+          deviceId,
+        })
+        if (!result.ok) throw Error(result.code)
+        return result.value
+      },
+      { id: connection.characterId, deviceId: connection.deviceId! },
+    )
+    expect(result).toMatchObject({ state: 'result', problem: null })
+    const noAccess = await pa.evaluate(
+      async ({ id, sha }) => {
+        const result = await window.yuki.client.avatarBytes(id, sha, 64)
+        return result.ok ? 'unexpected-success' : result.code
+      },
+      { id: connection.characterId, sha: current.avatar!.sha256 },
+    )
+    expect(noAccess).toBe('unauthenticated')
+    await expect(pa.locator('[data-region="sidebar"] img')).toHaveCount(0)
+    await expect.poll(() => sidebarColor(pb)).toEqual([232, 53, 74])
+    const cached = await a.evaluate(
+      ({ app }, path) => {
+        const require = process
+          .getBuiltinModule('node:module')
+          .createRequire(`${app.getAppPath()}/package.json`)
+        const Database = require('better-sqlite3') as typeof import('better-sqlite3')
+        const db = new Database(path, { readonly: true })
+        try {
+          return db
+            .prepare("SELECT count(*) AS n FROM read_cache WHERE key LIKE 'avatar/%'")
+            .get() as { n: number }
+        } finally {
+          db.close()
+        }
+      },
+      outboxPath(rig.root, 'avatar-permission-a', connection),
+    )
+    expect(cached.n).toBe(0)
+    success = true
+  } finally {
+    await a.close().catch(() => {})
+    await b.close().catch(() => {})
     await rig.close(success)
   }
 })

@@ -6,6 +6,7 @@ import { pairUI, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
 import type { Connection } from '../../src/shared/api'
 import type { ExecutorView } from '../../src/shared/executor'
+import { executorOperation as operation } from '../fixtures/executor-operation'
 
 async function settings(page: Page) {
   await page.keyboard.press('ControlOrMeta+,')
@@ -74,7 +75,7 @@ test('S10 real buttons grant exact folders, pause, write an original Main artifa
     await pairUI(page, rig.base, await rig.code())
     const owner = await connection(page)
     await settings(page)
-    await page.getByRole('button', { name: '允許 Yuki 使用這台電腦', exact: true }).click()
+    await page.getByRole('button', { name: `允許 ${owner.name} 使用這台電腦`, exact: true }).click()
     await expect.poll(async () => (await local(page, owner)).state).toBe('online')
     expect((await local(page, owner)).installation?.persistent).toBe(true)
     await choose(app, page, folder)
@@ -85,7 +86,7 @@ test('S10 real buttons grant exact folders, pause, write an original Main artifa
     const executor = (await local(page, owner)).installation!.executorId
     expect(JSON.stringify(await local(page, owner))).not.toContain(folder)
     expect(JSON.stringify(await listed(page, owner))).not.toContain(folder)
-    const read = await request<{ state: string; result: { content_base64: string } }>('invoke', {
+    const admitted = await request<{ state: string; op_id: string }>('invoke', {
       person_id: owner.personId,
       arguments: {
         executor_id: executor,
@@ -93,8 +94,15 @@ test('S10 real buttons grant exact folders, pause, write an original Main artifa
         params: { mode: 'read', path: '收件匣/hello.txt' },
       },
     })
-    expect(read.state).toBe('succeeded')
-    expect(Buffer.from(read.result.content_base64, 'base64').toString()).toBe('真實本機內容')
+    expect(admitted.state).toBe('dispatched')
+    await expect
+      .poll(async () => (await operation(page, owner, executor, admitted.op_id))?.state)
+      .toBe('succeeded')
+    const read = (await operation(page, owner, executor, admitted.op_id))!
+    expect(typeof read.result.content_base64).toBe('string')
+    expect(Buffer.from(read.result.content_base64 as string, 'base64').toString()).toBe(
+      '真實本機內容',
+    )
     await page.getByRole('switch', { name: '暫停本機連接', exact: true }).click()
     await expect.poll(async () => (await listed(page, owner))[0]?.paused).toBe(true)
     const before = await request<{ operations: unknown[] }>('state')
@@ -124,16 +132,16 @@ test('S10 real buttons grant exact folders, pause, write an original Main artifa
       {
         name: 'local_device',
         arguments: {
-          action: 'invoke',
+          action: 'execute',
           executor_id: executor,
           capability: 'folder.write',
           params: { path: '收件匣/report.txt', ...artifact, if_absent: true },
         },
       },
-      { name: 'send_message', arguments: { text: '原成果已寫入本機收件匣' } },
+      { name: 'send', arguments: { text: '原成果已寫入本機收件匣' } },
     ])
     await page.getByRole('button', { name: '返回', exact: true }).click()
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('請寫入原成果')
+    await page.getByRole('textbox', { name: `和 ${owner.name} 說點什麼` }).fill('請寫入原成果')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(page.getByText('原成果已寫入本機收件匣', { exact: true })).toBeVisible({
       timeout: 30000,
@@ -149,7 +157,7 @@ test('S10 real buttons grant exact folders, pause, write an original Main artifa
     await page.getByRole('button', { name: '移除此電腦…', exact: true }).click()
     await page.getByRole('dialog').getByRole('button', { name: '移除', exact: true }).click()
     await expect(
-      page.getByRole('button', { name: '允許 Yuki 使用這台電腦', exact: true }),
+      page.getByRole('button', { name: `允許 ${owner.name} 使用這台電腦`, exact: true }),
     ).toBeVisible()
     expect(await listed(page, owner)).toEqual([])
     success = true
@@ -173,7 +181,7 @@ test('actual Electron SIGKILL recovers a finished result without rewriting and r
     await pairUI(page, proxy.base, await rig.code())
     const owner = await connection(page)
     await settings(page)
-    await page.getByRole('button', { name: '允許 Yuki 使用這台電腦', exact: true }).click()
+    await page.getByRole('button', { name: `允許 ${owner.name} 使用這台電腦`, exact: true }).click()
     await expect.poll(async () => (await local(page, owner)).state).toBe('online')
     await choose(app, page, folder)
     await page.getByRole('switch', { name: '寫入檔案：收件匣', exact: true }).click()
@@ -181,7 +189,7 @@ test('actual Electron SIGKILL recovers a finished result without rewriting and r
     const executor = (await local(page, owner)).installation!.executorId
     proxy.faults.rejectPostSuffixes.add('/result')
     const invoke = (name: string) =>
-      request<{ state: string; observation?: { matches_intended: boolean } }>('invoke', {
+      request<{ state: string; op_id: string }>('invoke', {
         person_id: owner.personId,
         arguments: {
           executor_id: executor,
@@ -193,7 +201,8 @@ test('actual Electron SIGKILL recovers a finished result without rewriting and r
           },
         },
       })
-    const first = invoke('once.txt')
+    const first = await invoke('once.txt')
+    expect(first.state).toBe('dispatched')
     await expect
       .poll(async () => {
         try {
@@ -210,11 +219,14 @@ test('actual Electron SIGKILL recovers a finished result without rewriting and r
     proxy.faults.rejectPostSuffixes.clear()
     app = await rig.launch('executor-crash')
     page = await app.firstWindow()
-    expect((await first).state).toBe('succeeded')
+    await expect
+      .poll(async () => (await operation(page, owner, executor, first.op_id))?.state)
+      .toBe('succeeded')
     expect(await readFile(join(folder, 'once.txt'), 'utf8')).toBe('later edit must survive')
     await expect.poll(async () => (await local(page, owner)).state).toBe('online')
     proxy.faults.holdResponseSuffixes.add('/ack')
-    const second = invoke('never-started.txt')
+    const second = await invoke('never-started.txt')
+    expect(second.state).toBe('dispatched')
     await expect
       .poll(
         async () =>
@@ -231,7 +243,9 @@ test('actual Electron SIGKILL recovers a finished result without rewriting and r
     proxy.faults.holdResponseSuffixes.clear()
     app = await rig.launch('executor-crash')
     page = await app.firstWindow()
-    expect((await second).state).toBe('unknown')
+    await expect
+      .poll(async () => (await operation(page, owner, executor, second.op_id))?.state)
+      .toBe('unknown')
     await expect(readFile(join(folder, 'never-started.txt'))).rejects.toMatchObject({
       code: 'ENOENT',
     })
@@ -262,7 +276,7 @@ test('lost create and revoke replies recover across actual cold starts, then a n
     const owner = await connection(page)
     await settings(page)
     proxy.faults.loseNextSuffix = '/executors'
-    await page.getByRole('button', { name: '允許 Yuki 使用這台電腦', exact: true }).click()
+    await page.getByRole('button', { name: `允許 ${owner.name} 使用這台電腦`, exact: true }).click()
     await expect.poll(() => proxy.lostStatuses.length).toBe(1)
     expect(proxy.lostStatuses).toEqual([200])
     await expect(page.getByText('未完成設定的電腦', { exact: true })).toBeVisible()
@@ -312,7 +326,7 @@ test('lost create and revoke replies recover across actual cold starts, then a n
     await settings(page)
     await page.getByRole('switch', { name: '允許顯示通知', exact: true }).click()
     await expect(page.getByRole('switch', { name: '允許顯示通知', exact: true })).toBeChecked()
-    const submitted = await request<{ state: string; level: string }>('invoke', {
+    const dispatched = await request<{ state: string; op_id: string }>('invoke', {
       person_id: owner.personId,
       arguments: {
         executor_id: rows[0]!.executor_id,
@@ -320,7 +334,10 @@ test('lost create and revoke replies recover across actual cold starts, then a n
         params: { title: 'Yuki 本機驗證', body: '這筆回執僅表示已交給系統。' },
       },
     })
-    expect(submitted).toMatchObject({ state: 'succeeded', level: 'submitted' })
+    expect(dispatched.state).toBe('dispatched')
+    await expect
+      .poll(() => operation(page, owner, rows[0]!.executor_id, dispatched.op_id))
+      .toMatchObject({ state: 'succeeded', level: 'submitted' })
     await page.getByRole('button', { name: '操作紀錄', exact: true }).click()
     await expect(page.getByRole('dialog').getByText('已交給系統', { exact: true })).toBeVisible()
     await expect(page.getByRole('dialog').getByText('已確認', { exact: true })).toHaveCount(0)
@@ -340,7 +357,7 @@ test('lost create and revoke replies recover across actual cold starts, then a n
     ).toBeVisible({ timeout: 15000 })
     await page.getByRole('button', { name: '清除此電腦的失效設定', exact: true }).click()
     await expect(
-      page.getByRole('button', { name: '允許 Yuki 使用這台電腦', exact: true }),
+      page.getByRole('button', { name: `允許 ${owner.name} 使用這台電腦`, exact: true }),
     ).toBeVisible()
     expect(await listed(page, owner)).toEqual([])
     success = true
@@ -362,13 +379,14 @@ test('S10 and folder command use the real settings flow in four themes and small
     await mkdir(folder)
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
+    const owner = await connection(page)
     await page.keyboard.press('ControlOrMeta+k')
     await page
       .getByRole('combobox', { name: '搜尋已載入的對話、工作與檔案' })
       .fill('授權本機資料夾')
     await page.keyboard.press('Enter')
     await expect(page.getByRole('heading', { name: '本機連接', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '允許 Yuki 使用這台電腦', exact: true }).click()
+    await page.getByRole('button', { name: `允許 ${owner.name} 使用這台電腦`, exact: true }).click()
     // The command opens the same confirmation sheet once this computer is enabled.
     await expect(page.getByRole('dialog', { name: '新增資料夾授權', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '取消', exact: true }).click()
@@ -395,9 +413,11 @@ test('S10 and folder command use the real settings flow in four themes and small
         [960, 492],
       ] as const) {
         const viewportMethod = await contentSize(app, page, width, height)
-        await expect
-          .poll(() => page.evaluate(() => [innerWidth, innerHeight]))
-          .toEqual([width, height])
+        const dpr = await page.evaluate(() => devicePixelRatio)
+        if (viewportMethod === 'electron-device-emulation')
+          await expect
+            .poll(() => page.evaluate(() => [innerWidth, innerHeight]))
+            .toEqual([width, height])
         await page.getByRole('heading', { name: '本機連接', exact: true }).scrollIntoViewIfNeeded()
         await captureViewport(
           app,
@@ -405,7 +425,7 @@ test('S10 and folder command use the real settings flow in four themes and small
           test
             .info()
             .outputPath(
-              `darwin-2x-${mode}-executor-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
+              `${process.platform}-${dpr}x-${mode}-executor-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
             ),
         )
         await page.getByRole('button', { name: '新增資料夾…', exact: true }).click()
@@ -425,7 +445,7 @@ test('S10 and folder command use the real settings flow in four themes and small
           test
             .info()
             .outputPath(
-              `darwin-2x-${mode}-executor-sheet-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
+              `${process.platform}-${dpr}x-${mode}-executor-sheet-${width}x${height}${viewportMethod === 'electron-device-emulation' ? '-emulated' : ''}.png`,
             ),
         )
         await page.keyboard.press('Escape')

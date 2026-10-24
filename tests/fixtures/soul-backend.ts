@@ -1,13 +1,16 @@
-import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
+import { expect, test, type ElectronApplication } from '@playwright/test'
 import { spawn } from 'node:child_process'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { copyFile, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { closeSync, openSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
+import { isolatedDesktop } from './isolated-desktop'
 
 export async function soulBackend() {
   const backend = process.env.YUKI_BACKEND_TEST_ROOT,
     python = process.env.YUKI_BACKEND_TEST_PYTHON
+  if (process.env.CI && (!backend || !python))
+    throw Error('CI must select YUKI_BACKEND_TEST_ROOT and YUKI_BACKEND_TEST_PYTHON')
   test.skip(
     !backend || !python,
     'Requires the explicitly selected SOUL backend checkout and Python',
@@ -27,7 +30,11 @@ export async function soulBackend() {
       '--port',
       '0',
     ],
-    { cwd: backend, stdio: ['ignore', log, log] },
+    {
+      cwd: backend,
+      env: { ...process.env, PYTHONPATH: [join(backend!, 'src'), backend!].join(delimiter) },
+      stdio: ['ignore', 'ignore', log],
+    },
   )
   let state:
     { base_url: string; owner_pairing_code: string; nonowner_pairing_code: string } | undefined
@@ -48,18 +55,16 @@ export async function soulBackend() {
   } catch (error) {
     server.kill('SIGTERM')
     closeSync(log)
+    await copyFile(join(root, 'server.log'), test.info().outputPath('backend-server.log'))
     throw new Error(`SOUL backend failed; evidence: ${root}`, { cause: error })
   }
+  const desktop = await isolatedDesktop(root)
   return {
     root,
     base: state!.base_url,
     ownerCode: state!.owner_pairing_code,
     nonownerCode: state!.nonowner_pairing_code,
-    launch: (profile: string) =>
-      electron.launch({
-        args: ['.'],
-        env: { ...process.env, YUKI_DESKTOP_DATA: join(root, profile) },
-      }),
+    ...desktop,
     async code() {
       return (await (await fetch(state!.base_url + '/__test/link-code', { method: 'POST' })).json())
         .code as string
@@ -72,16 +77,16 @@ export async function soulBackend() {
       })
       closeSync(log)
       if (success) await rm(root, { recursive: true, force: true })
-      else console.error(`SOUL evidence retained: ${root}`)
+      else {
+        await copyFile(join(root, 'server.log'), test.info().outputPath('backend-server.log'))
+        console.error(`SOUL evidence retained: ${root}`)
+      }
     },
   }
 }
 
 export async function crashSoulApp(app: ElectronApplication) {
-  const pid = await app.evaluate(() => process.pid),
-    launcher = app.process(),
-    exited = new Promise<void>((resolve) => launcher.once('exit', () => resolve()))
-  expect(process.kill(pid, 'SIGKILL')).toBe(true)
+  const exited = app.waitForEvent('close')
+  await app.evaluate(() => process.exit(17)).catch(() => {})
   await exited
-  await app.close()
 }

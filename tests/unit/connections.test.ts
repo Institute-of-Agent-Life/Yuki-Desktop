@@ -38,7 +38,7 @@ const me: Me = {
   request_conversation_id: null,
   request_scope: original.personId,
   platform: 'app',
-  presence_id: null,
+  presence_id: '00000000-0000-4000-8000-000000000099',
   thread_id: null,
   binding_id: original.bindingId,
   display_name: 'Original',
@@ -76,7 +76,7 @@ function data(schema: string, value: unknown) {
   validateFixture(schema, { data: value })
   return Response.json({ data: value })
 }
-it('reports unavailable product capabilities without calling missing routes, while me remains usable', async () => {
+it('uses the actual product route without a metadata capability gate and preserves server authorization', async () => {
   const connections = setup(),
     calls: string[] = []
   connections.credentials.set(`device/${original.characterId}/${original.personId}`, 'fixture-only')
@@ -85,14 +85,16 @@ it('reports unavailable product capabilities without calling missing routes, whi
     if (input.endsWith('/meta'))
       return data('Envelope_Meta_', { ...meta, min_client: { desktop: null, android: null } })
     if (input.endsWith('/me')) return data('Envelope_Me_', me)
-    throw Error('Unexpected missing product service call')
+    if (input.endsWith('/computer'))
+      return Response.json({ problem: { code: 'owner_required' } }, { status: 403 })
+    throw Error('Unexpected route')
   })
   await expect(connections.read(original.characterId, { kind: 'computer' })).rejects.toHaveProperty(
     'code',
-    'feature_unavailable',
+    'owner_required',
   )
   expect(await connections.read(original.characterId, { kind: 'me' })).toEqual(me)
-  expect(calls.some((path) => path.endsWith('/computer'))).toBe(false)
+  expect(calls.some((path) => path.endsWith('/computer'))).toBe(true)
 })
 it('keeps verified avatar bytes offline, rejects a damaged cache and clears it after known revocation', async () => {
   const connections = setup()
@@ -148,7 +150,7 @@ it('re-pairing after a Person merge proves access to the old binding and keeps i
     const path = new URL(raw).pathname
     if (path.endsWith('/meta')) return data('Envelope_Meta_', meta)
     if (path.endsWith('/pair'))
-      return data('Envelope_PairResult_', {
+      return data('Envelope_PairReceipt_', {
         token: 'test-new-device',
         device_id: '00000000-0000-4000-8000-000000000006',
       })
@@ -194,7 +196,7 @@ it('a different Person cannot acquire the previous owner outbox, and only the ne
     const path = new URL(raw).pathname
     if (path.endsWith('/meta')) return data('Envelope_Meta_', meta)
     if (path.endsWith('/pair'))
-      return data('Envelope_PairResult_', {
+      return data('Envelope_PairReceipt_', {
         token: 'different-person-device',
         device_id: '00000000-0000-4000-8000-000000000006',
       })
@@ -265,7 +267,7 @@ it('uses the durable owner cache only for transport failure and clears private f
     generation: 1,
     revision: 4,
     has_more: false,
-    latest_event_id: null,
+    latest_event_id: 0,
     next_after: 0,
     next_before: null,
   }
@@ -274,7 +276,7 @@ it('uses the durable owner cache only for transport failure and clears private f
     if (raw.endsWith('/meta')) return data('Envelope_Meta_', meta)
     if (failure === 'transport') throw new Error('disconnected')
     if (failure) return Response.json({ problem: { code: failure } }, { status: 404 })
-    return data('Envelope_EventsPage_', page)
+    return data('Envelope_Events_', page)
   })
   const route = { kind: 'events', conversationId: original.conversationId } as const
   expect(await connections.read(original.characterId, route)).toEqual(page)
@@ -359,10 +361,10 @@ it('a verified new address preserves the same request UUID and body when its ori
     expect(init.headers).toHaveProperty('X-Yuki-Entry', original.bindingId)
     if (input.endsWith('/me')) return data('Envelope_Me_', me)
     if (input.endsWith(`/requests/${item.requestId}`))
-      return data('Envelope_OriginalRequest_', { found: false, request_id: item.requestId })
+      return data('Envelope_RequestReceipt_', { found: false, request_id: item.requestId })
     expect(input).toBe('https://new.test/role/client/v1/messages')
     expect(JSON.parse(init.body as string)).toEqual(item.body)
-    return data('Envelope_MessageResult_', {
+    return data('Envelope_MessageReceipt_', {
       request_id: item.requestId,
       event_id: 1,
       state: 'accepted',

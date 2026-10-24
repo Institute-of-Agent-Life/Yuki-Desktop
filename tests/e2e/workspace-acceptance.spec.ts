@@ -1,24 +1,38 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import { currentConnection, ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
+import type { OriginalRequest } from '../../src/shared/api'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
 
 test('real workspace handles long conversations, separate entries, work details and immutable long file names across themes', async () => {
   test.setTimeout(240000)
-  const rig = await yukiFixture({ longText: true }),
+  const rig = await yukiFixture(),
     app = await rig.launch('workspace-content')
   let success = false
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
-    const composer = page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
-    await composer.fill('長'.repeat(6001))
+    const composer = page.getByRole('textbox', {
+      name: `和 ${await activeCharacterName(page)} 說點什麼`,
+      exact: true,
+    })
+    const original = await currentConnection(page)
+    const longPlainText = '長'.repeat(6001)
+    await composer.fill(longPlainText)
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(
-      page.getByText('消息过长，请控制在 6000 个字符以内。', { exact: true }),
-    ).toBeVisible()
+    await expect(composer).toHaveValue('')
+    const plainRequest = await page.evaluate(async ({ id, text }) => {
+      const result = await window.yuki.client.outbox(id)
+      if (!result.ok) throw Error(result.code)
+      return result.value.find((item) => item.body.text === text)!
+    }, { id: original.characterId, text: longPlainText })
+    expect(plainRequest.eventId).toBeGreaterThan(0)
+    expect((await ledgerEvents(rig.base))
+      .filter((event) => event.event_id === plainRequest.eventId)
+      .map((event) => event.content)).toEqual([longPlainText])
     const longText =
       '# 長文字與中英混排\n\n' +
       '中英混排內容 Mixed writing retains its real source. '.repeat(150).slice(0, 5000) +
@@ -26,7 +40,23 @@ test('real workspace handles long conversations, separate entries, work details 
     expect(longText.length).toBeGreaterThan(5000)
     await composer.fill(longText)
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(page.getByText('真實帳本回覆', { exact: true })).toBeVisible()
+    await expect(composer).toHaveValue('')
+    const richRequest = await page.evaluate(async ({ id, text }) => {
+      const result = await window.yuki.client.outbox(id)
+      if (!result.ok) throw Error(result.code)
+      return result.value.find((item) => item.body.text === text)!
+    }, { id: original.characterId, text: longText })
+    const receipt = () => page.evaluate(async ({ id, requestId }) => {
+      const result = await window.yuki.client.read<OriginalRequest>(id, { kind: 'request', requestId })
+      if (!result.ok) throw Error(result.code)
+      return result.value
+    }, { id: original.characterId, requestId: richRequest.requestId })
+    await expect.poll(async () => (await receipt()).turn?.state).toBe('ended')
+    const replied = await receipt()
+    expect(replied.event_id).toBe(richRequest.eventId)
+    expect(replied.result_event_ids).toHaveLength(1)
+    await expect(page.locator(`article[data-event-id="${replied.result_event_ids![0]}"]`)
+      .getByText('Desktop reference reply', { exact: true })).toBeVisible()
     await composer.fill('視覺核對的未送出草稿')
     await captureWorkspace(
       app,
@@ -189,65 +219,94 @@ test('real workspace handles long conversations, separate entries, work details 
   }
 })
 
-test('real noVNC shell keeps control and return actions visible across themes and short workspaces', async () => {
-  test.setTimeout(180000)
-  const rig = await yukiFixture({ computer: true }),
-    app = await rig.launch('workspace-computer')
-  let success = false
-  try {
-    const page = await app.firstWindow()
-    await pairUI(page, rig.base, await rig.code())
-    const computer = async () => {
-      await page.keyboard.press('ControlOrMeta+3')
-      await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled()
-    }
-    await captureWorkspace(app, page, 'state-computer-viewing', computer)
-    await contentSize(app, page, 1440, 900)
-    await page.getByRole('button', { name: '接手', exact: true }).click()
-    await expect(page.getByRole('button', { name: '交回給 Yuki', exact: true })).toBeEnabled()
-    await captureWorkspace(app, page, 'flow-04-computer-human', async () => {
-      await computer()
-      await expect(page.getByRole('button', { name: '交回給 Yuki', exact: true })).toBeInViewport({
-        ratio: 1,
-      })
-    })
-    await captureWorkspace(
-      app,
-      page,
-      'flow-05-return-sheet',
-      async () => {
+test(
+  'real noVNC shell keeps control and return actions visible across themes and short workspaces',
+  { tag: '@unix-manager' },
+  async () => {
+    test.setTimeout(180000)
+    const rig = await yukiFixture({ computer: true }),
+      app = await rig.launch('workspace-computer')
+    let success = false
+    try {
+      const page = await app.firstWindow()
+      await pairUI(page, rig.base, await rig.code())
+      const computer = async () => {
+        await page.keyboard.press('ControlOrMeta+3')
+        await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled()
+      }
+      await captureWorkspace(app, page, 'state-computer-viewing', computer)
+      await contentSize(app, page, 1440, 900)
+      await page.getByRole('button', { name: '接手', exact: true }).click()
+      await expect(
+        page.getByRole('button', {
+          name: `交回給 ${await activeCharacterName(page)}`,
+          exact: true,
+        }),
+      ).toBeEnabled()
+      await captureWorkspace(app, page, 'flow-04-computer-human', async () => {
         await computer()
-        await page.getByRole('button', { name: '交回給 Yuki', exact: true }).click()
-        await expect(page.getByRole('dialog', { name: '交回給 Yuki', exact: true })).toBeVisible()
-      },
-      {
-        cleanup: async () => {
+        await expect(
+          page.getByRole('button', {
+            name: `交回給 ${await activeCharacterName(page)}`,
+            exact: true,
+          }),
+        ).toBeInViewport({
+          ratio: 1,
+        })
+      })
+      await captureWorkspace(
+        app,
+        page,
+        'flow-05-return-sheet',
+        async () => {
+          await computer()
           await page
-            .getByRole('dialog', { name: '交回給 Yuki', exact: true })
-            .getByRole('button', { name: '取消', exact: true })
+            .getByRole('button', { name: `交回給 ${await activeCharacterName(page)}`, exact: true })
             .click()
+          await expect(
+            page.getByRole('dialog', {
+              name: `交回給 ${await activeCharacterName(page)}`,
+              exact: true,
+            }),
+          ).toBeVisible()
         },
-        verify: async () => {
-          const sheet = page.getByRole('dialog', { name: '交回給 Yuki', exact: true })
-          await expect(sheet.getByRole('button', { name: '交回', exact: true })).toBeInViewport({
-            ratio: 1,
-          })
-          await expect(sheet.getByRole('button', { name: '取消', exact: true })).toBeInViewport({
-            ratio: 1,
-          })
+        {
+          cleanup: async () => {
+            await page
+              .getByRole('dialog', {
+                name: `交回給 ${await activeCharacterName(page)}`,
+                exact: true,
+              })
+              .getByRole('button', { name: '取消', exact: true })
+              .click()
+          },
+          verify: async () => {
+            const sheet = page.getByRole('dialog', {
+              name: `交回給 ${await activeCharacterName(page)}`,
+              exact: true,
+            })
+            await expect(sheet.getByRole('button', { name: '交回', exact: true })).toBeInViewport({
+              ratio: 1,
+            })
+            await expect(sheet.getByRole('button', { name: '取消', exact: true })).toBeInViewport({
+              ratio: 1,
+            })
+          },
         },
-      },
-    )
-    await page.getByRole('button', { name: '交回給 Yuki', exact: true }).click()
-    await page
-      .getByRole('dialog', { name: '交回給 Yuki', exact: true })
-      .getByRole('button', { name: '交回', exact: true })
-      .click()
-    await expect(page.getByRole('button', { name: '接手', exact: true })).toBeVisible()
-    success = true
-  } finally {
-    if (!success) app.process().kill('SIGKILL')
-    await app.close().catch(() => {})
-    await rig.close(success)
-  }
-})
+      )
+      await page
+        .getByRole('button', { name: `交回給 ${await activeCharacterName(page)}`, exact: true })
+        .click()
+      await page
+        .getByRole('dialog', { name: `交回給 ${await activeCharacterName(page)}`, exact: true })
+        .getByRole('button', { name: '交回', exact: true })
+        .click()
+      await expect(page.getByRole('button', { name: '接手', exact: true })).toBeVisible()
+      success = true
+    } finally {
+      if (!success) app.process().kill('SIGKILL')
+      await app.close().catch(() => {})
+      await rig.close(success)
+    }
+  },
+)

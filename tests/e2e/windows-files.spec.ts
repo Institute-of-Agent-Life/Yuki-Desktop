@@ -1,3 +1,4 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
@@ -22,12 +23,15 @@ test('Windows native diagnostics export uses the real file dialog and excludes p
   try {
     const page = await app.firstWindow()
     await pairUI(page, base!, code, '原生檔案驗證', 20000)
-    const composer = page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+    const composer = page.getByRole('textbox', {
+      name: `和 ${await activeCharacterName(page)} 說點什麼`,
+      exact: true,
+    })
     const message = `診斷應省略的訊息-${randomUUID()}`
     const draft = `診斷應省略的草稿-${randomUUID()}`
     await composer.fill(message)
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(page.getByText('真實帳本回覆', { exact: true })).toBeVisible()
+    await expect(page.getByText('Desktop reference reply', { exact: true })).toBeVisible()
     await composer.fill(draft)
     const connections = await page.evaluate(() => window.yuki.client.connections())
     if (!connections.ok) throw Error(connections.code)

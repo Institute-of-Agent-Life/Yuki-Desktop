@@ -121,11 +121,6 @@
   display: grid;
   place-items: center;
 }
-.reset {
-  display: grid;
-  justify-items: center;
-  gap: 16px;
-}
 .conflict {
   display: flex;
   align-items: center;

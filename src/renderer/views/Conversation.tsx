@@ -1,5 +1,5 @@
 import { useFloatingInsets } from '../materials/floating'
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   Connection,
@@ -15,9 +15,9 @@ import type {
   CharacterStatus,
 } from '../../shared/api'
 import type { Preferences } from '../../shared/desktop'
-import type { ProductModels as components } from '../../shared/product-models'
+import type { SyncHint } from '../../shared/sync'
 import { Composer } from '../components/Composer'
-import { Banner, Button, EmptyState, IconButton } from '../components/Controls'
+import { Avatar, Banner, Button, EmptyState, IconButton } from '../components/Controls'
 import { CharacterAvatar, CharacterVisuals } from '../components/CharacterAvatar'
 import { characterPresence } from '../../shared/presence'
 import { SoulEditor } from './SoulEditor'
@@ -107,6 +107,7 @@ export function Conversation({
   const [search, setSearch] = useState<string | null>(null)
   const [palette, setPalette] = useState(false)
   const alive = useRef(true)
+  const invalidatedReads = useRef(new Set<Promise<unknown>>())
   useEffect(() => {
     alive.current = true
     return () => {
@@ -128,6 +129,7 @@ export function Conversation({
   const earlierBusy = useRef(false)
   const needsEarlier = useRef(false)
   const activeRange = useRef('')
+  const prepend = useRef<{ range: string; eventId: string; top: number } | null>(null)
   activeRange.current = `${conversation}/${anchor}`
   const latestSeen = useRef<{ range: string; event: number }>({ range: '', event: 0 })
   const home = useQuery({ queryKey: [id, 'home'], queryFn: () => read<Home>(id, { kind: 'home' }) })
@@ -188,6 +190,20 @@ export function Conversation({
     queryFn: () => read<Activity>(id, { kind: 'activity', conversationId: conversation }),
   })
   const events = useHistory(id, conversation, anchor)
+  useLayoutEffect(() => {
+    const snapshot = prepend.current
+    prepend.current = null
+    if (snapshot?.range === activeRange.current) {
+      const element = list.current,
+        article = element?.querySelector<HTMLElement>(
+          `article[data-event-id="${snapshot.eventId}"]`,
+        )
+      if (element && article)
+        element.scrollTo({
+          top: element.scrollTop + article.getBoundingClientRect().top - snapshot.top,
+        })
+    }
+  })
   useEffect(() => {
     if (view === 'files') {
       workspace.patch({ preview: undefined, inspector: false })
@@ -218,38 +234,49 @@ export function Conversation({
     homeData = accessLost || hidesPrivateData(home.error) ? undefined : home.data,
     profileData = accessLost || hidesPrivateData(profile.error) ? undefined : profile.data
   const refresh = useCallback(() => {
-    void query.invalidateQueries({ queryKey: [id, 'home'] })
-    void query.invalidateQueries({ queryKey: [id, 'character'] })
-    void query.invalidateQueries({ queryKey: [id, 'character-status'] })
-    void query.invalidateQueries({ queryKey: [id, 'events'] })
-    void query.invalidateQueries({ queryKey: [id, 'reference'] })
-    void query.invalidateQueries({ queryKey: [id, 'outbox'] })
-    void query.invalidateQueries({ queryKey: [id, 'uploads'] })
-    void query.invalidateQueries({ queryKey: [id, 'content'] })
-    void query.invalidateQueries({ queryKey: [id, 'activity'] })
-    void query.invalidateQueries({ queryKey: [id, 'work'] })
     for (const key of [
+      'home',
+      'character',
+      'events',
+      'reference',
+      'outbox',
+      'uploads',
+      'content',
+      'activity',
+      'work',
+      'steps',
+      'character-commands',
+      'character-status',
       'memory',
       'automations',
       'capabilities',
-      'character-commands',
-      'avatar-commands',
-    ])
-      void query.invalidateQueries({ queryKey: [id, key] })
+    ]) {
+      const filter = { queryKey: [id, key] }
+      for (const entry of query.getQueryCache().findAll({
+        ...filter,
+        type: 'active',
+        fetchStatus: 'fetching',
+      })) {
+        const pending = entry.promise
+        if (!pending || invalidatedReads.current.has(pending)) continue
+        invalidatedReads.current.add(pending)
+        // Initial fetches reuse their old response even when invalidated. Deliver it,
+        // then honour the real change once without cancelling reads under frequent hints.
+        void pending.then(
+          () => {
+            invalidatedReads.current.delete(pending)
+            if (alive.current)
+              void query.invalidateQueries(
+                { queryKey: entry.queryKey, exact: true },
+                { cancelRefetch: false },
+              )
+          },
+          () => invalidatedReads.current.delete(pending),
+        )
+      }
+      void query.invalidateQueries(filter, { cancelRefetch: false })
+    }
   }, [id, query])
-  useEffect(() => {
-    const deadlines = (eventData?.items ?? [])
-      .flatMap((event) =>
-        event.attachments.map((item) => (item.expires_at ? Date.parse(item.expires_at) : NaN)),
-      )
-      .filter((time) => time > Date.now())
-    if (!deadlines.length) return
-    const timer = setTimeout(
-      refresh,
-      Math.min(Math.max(1, Math.min(...deadlines) - Date.now()), 2147483647),
-    )
-    return () => clearTimeout(timer)
-  }, [eventData, refresh])
   const finishVoice = useCallback(() => {
     setRecording(false)
     refresh()
@@ -302,10 +329,10 @@ export function Conversation({
         if (character !== id) return
         if (kind === 'sync') query.setQueryData([id, 'sync'], data)
         if (kind === 'conversation' || kind === 'work') {
-          query.setQueryData<components['schemas']['SyncHint']>([id, 'sync'], (current) => {
+          query.setQueryData<SyncHint>([id, 'sync'], (current) => {
             if (!current) return current
             if (kind === 'conversation') {
-              const entry = data as components['schemas']['Entry']
+              const entry = data as Home['main']
               return {
                 ...current,
                 conversations: [
@@ -316,7 +343,7 @@ export function Conversation({
                 ],
               }
             }
-            const work = data as components['schemas']['WorkHint']
+            const work = data as SyncHint['works'][number]
             return {
               ...current,
               works: [...current.works.filter((item) => item.work_id !== work.work_id), work],
@@ -412,16 +439,17 @@ export function Conversation({
   useEffect(() => {
     if (!active || settings) setPalette(false)
   }, [active, settings])
-  const choose = (next: string) => {
-    needsEarlier.current = false
-    setAnchor(null)
-    setHistoryError('')
-    setNewMessages(false)
-    workspace.patch({ conversationId: next })
-    setSelection(undefined)
-    bottom.current = true
-    workspace.setView('chat')
-  }
+  const choose = (next: string) =>
+    requestNavigation(() => {
+      needsEarlier.current = false
+      setAnchor(null)
+      setHistoryError('')
+      setNewMessages(false)
+      workspace.patch({ conversationId: next })
+      setSelection(undefined)
+      bottom.current = true
+      workspace.setView('chat')
+    })
   const updateDraft = (value: string) => {
     currentDraft.current = value
     setDraft(value)
@@ -467,18 +495,27 @@ export function Conversation({
   const more = async () => {
     if (earlierBusy.current || !eventData?.has_more || events.isFetching) return
     needsEarlier.current = false
-    const element = list.current,
-      height = element?.scrollHeight ?? 0,
-      top = element?.scrollTop ?? 0,
-      range = activeRange.current
+    const range = activeRange.current,
+      article = list.current?.querySelector<HTMLElement>('article[data-event-id]'),
+      snapshot = article
+        ? {
+            range,
+            eventId: article.dataset.eventId!,
+            top: article.getBoundingClientRect().top,
+          }
+        : null
     earlierBusy.current = true
     setLoadingEarlier(true)
     setHistoryError('')
     try {
       const page = await events.earlier(eventData)
-      query.setQueryData(events.key, page)
-      if (activeRange.current === range)
-        requestAnimationFrame(() => element?.scrollTo({ top: top + element.scrollHeight - height }))
+      const entry = query.getQueryCache().find<EventsPage>({ queryKey: events.key, exact: true })!
+      if (entry.state.fetchStatus !== 'idle' || entry.state.data !== eventData) {
+        // Settle older Query delivery before reading the expanded range.
+        await entry.cancel({ revert: true })
+        await entry.fetch(undefined, { cancelRefetch: false })
+      } else query.setQueryData(events.key, page)
+      if (activeRange.current === range) prepend.current = snapshot
     } catch (error) {
       if (activeRange.current === range)
         setHistoryError(error instanceof Error ? error.message : '無法載入更早訊息。')
@@ -594,7 +631,8 @@ export function Conversation({
       )
     : []
   const visible = (eventData?.items ?? []).filter(
-    (item) => search === null || item.text.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
+    (item) =>
+      search === null || item.content.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
   )
   const presence = characterPresence(
     online,
@@ -630,7 +668,10 @@ export function Conversation({
     ...(['chat', 'works', 'files', 'about'] as const).map((view, index) => ({
       id: `command/${view}`,
       title: ['開啟對話', '開啟工作', '開啟檔案與成果', '開啟角色資料'][index]!,
-      run: () => paletteNavigate(() => workspace.setView(view)),
+      run: () =>
+        paletteNavigate(() =>
+          view === 'chat' ? choose(connection.conversationId) : workspace.setView(view),
+        ),
     })),
     {
       id: 'command/inspector',
@@ -697,11 +738,13 @@ export function Conversation({
         ]
       : []),
   ]
+  const displayedWorks = new Set<string>()
   return (
     <CharacterVisuals.Provider value={{ id, name, profile: profileData, presence }}>
       <Workspace
         scrolled={scrolled}
         mainConversation={isMain}
+        onChat={() => choose(connection.conversationId)}
         settings={settings}
         onView={settings ? onSettingsBack : undefined}
         toolbar={
@@ -746,10 +789,12 @@ export function Conversation({
                       ? 'page'
                       : undefined
                   }
-                  onClick={() => {
-                    choose(item.conversation_id)
-                    if (settings) onSettingsBack?.()
-                  }}
+                  onClick={() =>
+                    requestNavigation(() => {
+                      choose(item.conversation_id)
+                      if (settings) onSettingsBack?.()
+                    })
+                  }
                 >
                   {item.platform.toUpperCase()} · {item.display_name}
                 </button>
@@ -803,6 +848,7 @@ export function Conversation({
               render={(event) => (
                 <Message
                   characterId={id}
+                  viewerPersonId={connection.personId}
                   event={event}
                   name={name}
                   selected={false}
@@ -941,6 +987,7 @@ export function Conversation({
               <About
                 key={id}
                 id={id}
+                server={connection.baseUrl}
                 profile={profileData}
                 jump={jumpTo}
                 editSoul={() => setSoulEditing(true)}
@@ -1066,10 +1113,15 @@ export function Conversation({
                     consecutive={
                       index > 0 &&
                       event.direction === visible[index - 1]!.direction &&
+                      event.author_kind === visible[index - 1]!.author_kind &&
+                      (event.author_kind === 'yuki' ||
+                        (event.author_person_id !== null &&
+                          event.author_person_id === visible[index - 1]!.author_person_id)) &&
                       dayKey(event.created_at) === dayKey(visible[index - 1]!.created_at)
                     }
                     onJump={(reference) => void jumpTo(reference)}
                     characterId={id}
+                    viewerPersonId={connection.personId}
                     receipt={(outbox.data ?? []).find((item) => item.eventId === event.event_id)}
                     verify={async (requestId) => {
                       unwrap(await window.yuki.client.verify(id, requestId))
@@ -1086,16 +1138,22 @@ export function Conversation({
                     onArtifact={openArtifact}
                   />
                   {!accessLost &&
-                    (event.work_ids ?? []).map((workId) => (
-                      <ConversationWork
-                        key={workId}
-                        id={id}
-                        work={workId}
-                        open={openWork}
-                        reply={answerWork}
-                        artifact={openArtifact}
-                      />
-                    ))}
+                    (event.work_ids ?? [])
+                      .filter((workId) => {
+                        if (displayedWorks.has(workId)) return false
+                        displayedWorks.add(workId)
+                        return true
+                      })
+                      .map((workId) => (
+                        <ConversationWork
+                          key={workId}
+                          id={id}
+                          work={workId}
+                          open={openWork}
+                          reply={answerWork}
+                          artifact={openArtifact}
+                        />
+                      ))}
                 </Fragment>
               ))}
               {pending.map((item) => (
@@ -1306,8 +1364,9 @@ function Pending({ item, verify }: { item: OutboxItem; verify(): Promise<void> }
   )
 }
 
-function Message({
+export function Message({
   characterId,
+  viewerPersonId,
   receipt,
   verify,
   event,
@@ -1321,6 +1380,7 @@ function Message({
   consecutive,
 }: {
   characterId: string
+  viewerPersonId: string
   receipt?: OutboxItem
   verify(requestId: string): Promise<void>
   event: PublicEvent
@@ -1333,9 +1393,11 @@ function Message({
   onJump(reference: MessageReference): void
   consecutive: boolean
 }) {
-  const own = event.direction === 'inbound'
+  const own = event.direction === 'inbound' && event.author_person_id === viewerPersonId
+  const yuki = event.author_kind === 'yuki'
+  const author = own ? '你' : yuki ? name : (event.sender_display_name ?? '參與者')
   const { timeLabel } = useDisplayTime()
-  const html = useMarkdown(parseMessage(event.display_text ?? event.text).text)
+  const html = useMarkdown(parseMessage(event.content).text)
   const [error, setError] = useState('')
   const action = (work: Promise<unknown>) =>
     void work.catch((error) => setError(error instanceof Error ? error.message : '操作未完成。'))
@@ -1343,7 +1405,7 @@ function Message({
     <article
       data-event-id={event.event_id}
       tabIndex={0}
-      aria-label={`${own ? '你' : name}的訊息`}
+      aria-label={`${author}的訊息`}
       className={`${styles.message} ${own ? styles.ownMessage : ''} ${selected ? styles.selected : ''} ${consecutive ? styles.consecutive : ''}`}
       onClick={onSelect}
       onContextMenu={(click) => {
@@ -1352,7 +1414,7 @@ function Message({
         action(
           window.yuki.client
             .contextMenu({
-              text: event.text,
+              text: event.content,
               ...(link ? { link: link.href } : {}),
             })
             .then(unwrap),
@@ -1360,13 +1422,19 @@ function Message({
       }}
     >
       {!own &&
-        (!consecutive ? <CharacterAvatar size={28} /> : <span className={styles.avatarSpace} />)}
+        (consecutive ? (
+          <span className={styles.avatarSpace} />
+        ) : yuki ? (
+          <CharacterAvatar size={28} />
+        ) : (
+          <Avatar name={author} size={28} />
+        ))}
       <div className={styles.messageBody}>
         <header>
-          <strong>{own ? '你' : name}</strong>
+          <strong>{author}</strong>
           <time dateTime={event.created_at}>{timeLabel(event.created_at)}</time>
         </header>
-        <References characterId={characterId} text={event.text} onJump={onJump} />
+        <References characterId={characterId} text={event.content} onJump={onJump} />
         <div
           className={styles.markdown}
           onClick={(event) => {
@@ -1401,12 +1469,17 @@ function Message({
             artifact={onArtifact}
           />
         ))}
+        {event.asr.map((transcript) => (
+          <p key={transcript.segment_index} data-transcript-segment={transcript.segment_index}>
+            {transcript.text}
+          </p>
+        ))}
         <div className={styles.messageActions}>
           <IconButton
             label="複製訊息"
             onClick={(click) => {
               click.stopPropagation()
-              action(window.yuki.client.copy(event.text).then(unwrap))
+              action(window.yuki.client.copy(event.content).then(unwrap))
             }}
           >
             <Copy size={15} />
@@ -1492,7 +1565,7 @@ function Reference({
         {event.isPending
           ? '正在讀取引用…'
           : !event.error && event.data
-            ? `引用：${parseMessage(event.data.display_text ?? event.data.text).text.slice(0, 120)}`
+            ? `引用：${parseMessage(event.data.content).text.slice(0, 120)}`
             : '引用的訊息無法讀取'}
       </span>
     </button>

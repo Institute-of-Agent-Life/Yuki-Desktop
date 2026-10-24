@@ -1,3 +1,4 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test, type ElectronApplication } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, stat, unlink, writeFile } from 'node:fs/promises'
@@ -58,9 +59,11 @@ test('native artifact bridge stages authorized original bytes and restores actua
     }))
     expect(proof.native).toMatchObject({ packaged: true, sandboxed: true, noSandbox: false })
     await pairUI(page, rig.base, await rig.code())
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('這些是原成果的來源。')
+    await page
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` })
+      .fill('這些是原成果的來源。')
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(page.getByText('真實帳本回覆', { exact: true })).toBeVisible()
+    await expect(page.getByText('Desktop reference reply', { exact: true })).toBeVisible()
     const response = await fetch(rig.base + '/__test/artifacts', { method: 'POST' })
     expect(response.ok).toBe(true)
     const delivered = (await response.json()) as {

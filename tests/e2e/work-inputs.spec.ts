@@ -2,7 +2,7 @@ import { expect, test, type ElectronApplication, type Page } from '@playwright/t
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import type { Connection, Home, Work } from '../../src/shared/api'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import { currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
 
 const detail = (page: Page) => page.getByRole('complementary', { name: '檢視器', exact: true })
@@ -19,20 +19,25 @@ async function open(page: Page, id?: string) {
 }
 async function create(page: Page, base: string) {
   expect((await fetch(`${base}/__test/work-scenario`, { method: 'POST' })).ok).toBe(true)
-  await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('請建立原工作整合測試')
-  await page.getByRole('button', { name: '送出', exact: true }).click()
-  await expect(card(page).getByText('等你回覆', { exact: true })).toBeVisible({ timeout: 20000 })
-  return page.evaluate(async (base) => {
+  const connection = await page.evaluate(async (base) => {
     const list = await window.yuki.client.connections()
     if (!list.ok) throw Error(list.code)
     const connection = list.value.find(
       (item) => item.baseUrl.replace(/\/+$/, '') === base.replace(/\/+$/, ''),
     )
     if (!connection) throw Error('Paired role missing')
+    return connection
+  }, base)
+  await page
+    .getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true })
+    .fill('請建立原工作整合測試')
+  await page.getByRole('button', { name: '送出', exact: true }).click()
+  await expect(card(page).getByText('等你回覆', { exact: true })).toBeVisible({ timeout: 20000 })
+  return page.evaluate(async (connection) => {
     const home = await window.yuki.client.read<Home>(connection.characterId, { kind: 'home' })
     if (!home.ok || !home.value.works[0]) throw Error('Original work missing')
     return { connection, work: home.value.works[0] }
-  }, base)
+  }, connection)
 }
 async function readWork(page: Page, connection: Connection, work: Work) {
   return page.evaluate(
@@ -200,9 +205,9 @@ test('inline answers and supplements retain distinct multiline drafts, survive a
         },
       },
     )
-    const events = (await (await fetch(`${rig.base}/__test/events`)).json()) as { text: string }[]
-    expect(events.filter((event) => event.text === answerText)).toHaveLength(1)
-    expect(events.filter((event) => event.text === supplementText)).toHaveLength(0)
+    const events = (await currentEvents(page)).items
+    expect(events.filter((event) => event.content === answerText)).toHaveLength(1)
+    expect(events.filter((event) => event.content === supplementText)).toHaveLength(0)
     success = true
   } finally {
     await app.close().catch(() => {})
@@ -261,8 +266,8 @@ test('another real device can finish the work without discarding this device’s
         text: unsent,
       },
     ])
-    const events = (await (await fetch(`${rig.base}/__test/events`)).json()) as { text: string }[]
-    expect(events.filter((event) => event.text === unsent)).toHaveLength(0)
+    const events = (await currentEvents(pa)).items
+    expect(events.filter((event) => event.content === unsent)).toHaveLength(0)
     await pa.screenshot({ path: test.info().outputPath('retained-original-answer.png') })
     success = true
   } finally {

@@ -1,3 +1,4 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test, type ElectronApplication } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -24,7 +25,27 @@ async function savedBounds(app: ElectronApplication) {
   })
 }
 
-test('native move events persist before an App crash and clamp an offscreen titlebar after movement settles', async () => {
+async function nativeWindow(app: ElectronApplication) {
+  await expect
+    .poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible()))
+    .toBe(true)
+  return app.evaluate(({ BrowserWindow, screen }) => {
+    const window = BrowserWindow.getAllWindows()[0]!
+    const display = screen.getDisplayMatching(window.getBounds())
+    return {
+      bounds: window.getBounds(),
+      contentBounds: window.getContentBounds(),
+      contentSize: window.getContentSize(),
+      minimum: window.getMinimumSize(),
+      displayId: display.id,
+      scaleFactor: display.scaleFactor,
+      workArea: display.workArea,
+      visible: window.isVisible(),
+    }
+  })
+}
+
+test('native moves persist before an App crash and an offscreen window clamps on cold reopening', async () => {
   test.setTimeout(90000)
   const rig = await yukiFixture()
   let app = await launchShell(
@@ -43,10 +64,11 @@ test('native move events persist before an App crash and clamp an offscreen titl
       }
     })
     expect(security).toEqual({ sandboxed: true, noSandbox: false })
-    const area = await app.evaluate(
-      ({ BrowserWindow, screen }) =>
-        screen.getDisplayMatching(BrowserWindow.getAllWindows()[0]!.getBounds()).workArea,
-    )
+    const display = await app.evaluate(({ BrowserWindow, screen }) => {
+      const display = screen.getDisplayMatching(BrowserWindow.getAllWindows()[0]!.getBounds())
+      return { id: display.id, workArea: display.workArea }
+    })
+    const area = display.workArea
     await writeFile(
       test.info().outputPath('native-work-area.json'),
       JSON.stringify({ area, method: 'native-window-programmatic-move' }, null, 2),
@@ -61,9 +83,8 @@ test('native move events persist before an App crash and clamp an offscreen titl
       ({ BrowserWindow }, point) => BrowserWindow.getAllWindows()[0]!.setPosition(point.x, point.y),
       point,
     )
-    const before = await app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0]!.getBounds(),
-    )
+    const beforeState = await nativeWindow(app)
+    const before = beforeState.bounds
     expect(before).toMatchObject(point)
     // Observe the actual persisted receipt before SIGKILL; no close event can save it for us.
     await expect.poll(() => savedBounds(app)).toEqual(before)
@@ -74,36 +95,74 @@ test('native move events persist before an App crash and clamp an offscreen titl
       process.env.YUKI_DESKTOP_EXECUTABLE,
     )
     page = await app.firstWindow()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
-    expect(
-      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getBounds()),
-    ).toEqual(before)
-    await app.evaluate(
-      ({ BrowserWindow }, area) =>
-        BrowserWindow.getAllWindows()[0]!.setPosition(
-          area.x + area.width - 100,
-          area.y + area.height - 100,
-        ),
-      area,
-    )
-    const expected = {
-      ...before,
-      x: area.x + area.width - before.width,
-      y: area.y + area.height - before.height,
+    await expect(
+      page.getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` }),
+    ).toBeVisible()
+    const restored = await nativeWindow(app)
+    await writeFile(test.info().outputPath('native-cold-geometry.json'), JSON.stringify({ before: beforeState, restored }, null, 2))
+    expect(restored.bounds).toEqual(before)
+    expect(restored.contentBounds).toEqual(beforeState.contentBounds)
+    expect(restored.contentSize).toEqual(beforeState.contentSize)
+    // This programmatic move can itself project the size through Electron's
+    // SetPosition -> SetBounds. Its returned native rectangle is the receipt.
+    const outside = {
+      x: area.x + area.width - before.width + 100,
+      y: area.y + area.height - before.height + 100,
     }
-    await expect
-      .poll(() =>
-        app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getBounds()),
-      )
-      .toEqual(expected)
-    await expect.poll(() => savedBounds(app)).toEqual(expected)
-    const toolbar = (await page.locator('[data-region="toolbar"]').boundingBox())!
-    expect(toolbar.y).toBe(0)
-    expect(toolbar.height).toBe(52)
+    await app.evaluate(
+      ({ BrowserWindow }, point) => BrowserWindow.getAllWindows()[0]!.setPosition(point.x, point.y),
+      outside,
+    )
+    const offscreen = await nativeWindow(app)
+    expect(offscreen.displayId).toBe(display.id)
+    expect(offscreen.bounds).toMatchObject(outside)
+    expect(offscreen.bounds.x + offscreen.bounds.width).toBeGreaterThan(area.x + area.width)
+    expect(offscreen.bounds.y + offscreen.bounds.height).toBeGreaterThan(area.y + area.height)
+    await expect.poll(() => savedBounds(app)).toEqual(offscreen.bounds)
+    const persistedOffscreen = await nativeWindow(app)
+    expect(persistedOffscreen.bounds).toEqual(offscreen.bounds)
+    expect(persistedOffscreen.contentBounds).toEqual(offscreen.contentBounds)
+    expect(persistedOffscreen.contentSize).toEqual(offscreen.contentSize)
+    await writeFile(
+      test.info().outputPath('native-offscreen-before-crash.json'),
+      JSON.stringify({ requested: outside, offscreen, persistedOffscreen, saved: await savedBounds(app) }, null, 2),
+    )
+    app.process().kill('SIGKILL')
+    await app.close().catch(() => {})
+    app = await launchShell(
+      join(rig.root, 'native-window-moves'),
+      process.env.YUKI_DESKTOP_EXECUTABLE,
+    )
+    page = await app.firstWindow()
+    await expect(
+      page.getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` }),
+    ).toBeVisible()
+    const clamped = await nativeWindow(app)
+    const expected = {
+      ...offscreen.bounds,
+      x: area.x + area.width - offscreen.bounds.width,
+      y: area.y + area.height - offscreen.bounds.height,
+    }
     await writeFile(
       test.info().outputPath('native-window-restoration.json'),
-      JSON.stringify({ before, restored: before, after: expected, area }, null, 2),
+      JSON.stringify({ before: beforeState, restored, offscreen, persistedOffscreen, clamped, expected, area }, null, 2),
     )
+    expect(clamped.displayId).toBe(display.id)
+    expect(clamped.bounds).toEqual(expected)
+    expect(clamped.contentBounds).toEqual({
+      ...offscreen.contentBounds,
+      x: offscreen.contentBounds.x + expected.x - offscreen.bounds.x,
+      y: offscreen.contentBounds.y + expected.y - offscreen.bounds.y,
+    })
+    expect(clamped.contentSize).toEqual(offscreen.contentSize)
+    await expect.poll(() => savedBounds(app)).toEqual(expected)
+    const titlebar = page.locator('[data-region="toolbar"]')
+    await expect(titlebar).toBeInViewport({ ratio: 1 })
+    const toolbar = (await titlebar.boundingBox())!
+    expect(toolbar.y).toBe(0)
+    expect(toolbar.height).toBe(52)
+    expect(clamped.contentBounds.y + toolbar.y).toBeGreaterThanOrEqual(area.y)
+    expect(clamped.contentBounds.y + toolbar.y + toolbar.height).toBeLessThanOrEqual(area.y + area.height)
     await page.screenshot({ path: test.info().outputPath('native-clamped-titlebar.png') })
     success = true
   } finally {

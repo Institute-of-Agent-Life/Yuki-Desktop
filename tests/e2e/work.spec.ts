@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import { currentConnection, currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
 import type { Home, Work } from '../../src/shared/api'
 
 test('continues the original work through an actual reply and confirms cancellation with lost command responses', async () => {
@@ -11,8 +11,11 @@ test('continues the original work through an actual reply and confirms cancellat
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
+    const name = (await currentConnection(page)).name
     await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('請建立原工作整合測試')
+    await page
+      .getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true })
+      .fill('請建立原工作整合測試')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     const card = page
       .getByRole('article')
@@ -47,8 +50,8 @@ test('continues the original work through an actual reply and confirms cancellat
     expect(finished.generation).toBe(original.work.generation)
     expect(finished.budget.root_id).toBe(original.work.budget.root_id)
     expect(finished.budget.models).toBeGreaterThanOrEqual(original.work.budget.models)
-    const facts = (await (await fetch(`${rig.base}/__test/events`)).json()) as { text: string }[]
-    expect(facts.filter((item) => item.text === '台北，請接續原工作')).toHaveLength(1)
+    const facts = (await currentEvents(page)).items
+    expect(facts.filter((item) => item.content === '台北，請接續原工作')).toHaveLength(1)
     await page.getByRole('button', { name: '取消回覆工作', exact: true }).click()
     await page.reload()
     await expect(card.getByText('已完成', { exact: true })).toBeVisible()
@@ -58,7 +61,9 @@ test('continues the original work through an actual reply and confirms cancellat
     }, original.characterId)
     expect(afterReload).toEqual([])
     await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('再建立一項可取消的工作')
+    await page
+      .getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true })
+      .fill('再建立一項可取消的工作')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await page.getByRole('button', { name: '工作', exact: true }).click()
     const row = page.getByRole('button', { name: /等你回覆.*原工作整合測試/ })
@@ -90,7 +95,9 @@ test('continues the original work through an actual reply and confirms cancellat
     })
     await page.getByRole('button', { name: '對話', exact: true }).click()
     await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('兩台裝置同時處理的工作')
+    await page
+      .getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true })
+      .fill('兩台裝置同時處理的工作')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await page.getByRole('button', { name: '工作', exact: true }).click()
     await expect(row).toBeVisible({ timeout: 20000 })

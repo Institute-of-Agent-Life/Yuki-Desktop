@@ -4,6 +4,8 @@ node_modules/
 dist/
 out/
 resources/icons/
+resources/local-bot/
+.cache/
 coverage/
 .env
 .env.*

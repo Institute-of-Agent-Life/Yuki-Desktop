@@ -1,91 +1,65 @@
-import { _electron as electron, expect, test } from '@playwright/test'
-import { spawn } from 'node:child_process'
-import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
-import { openSync, closeSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { createServer } from 'node:net'
-import { pairUI } from '../fixtures/backend'
+import { expect, test } from '@playwright/test'
+import type { OriginalRequest, Profile } from '../../src/shared/api'
+import { currentConnection, ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
+import { forwardProxy } from '../fixtures/forward-proxy'
 
 test('actual Yuki container: pairing, real ledger reply, lost response, cold recovery and draft', async () => {
-  const backend = process.env.YUKI_BACKEND_TEST_ROOT,
-    python = process.env.YUKI_BACKEND_TEST_PYTHON
-  test.skip(
-    !backend || !python,
-    'Requires the explicitly selected Yuki backend test checkout and Python environment.',
-  )
   test.setTimeout(120000)
-  const root = await realpath(await mkdtemp(join(tmpdir(), 'yd-real-api-'))),
-    data = join(root, 'desktop')
-  const port = await new Promise<number>((resolve) => {
-    const socket = createServer()
-    socket.listen(0, '127.0.0.1', () => {
-      const address = socket.address()
-      const port = typeof address === 'object' && address ? address.port : 0
-      socket.close(() => resolve(port))
-    })
-  })
-  const log = openSync(join(root, 'server.log'), 'w', 0o600)
-  const server = spawn(
-    python!,
-    ['-m', 'tests.support.desktop_reference_server', root, String(port)],
-    { cwd: backend, stdio: ['ignore', log, log] },
-  )
-  const base = `http://127.0.0.1:${port}/role/yuki`
-  const launch = () =>
-    electron.launch({ args: ['.'], env: { ...process.env, YUKI_DESKTOP_DATA: data } })
-  let app: Awaited<ReturnType<typeof launch>> | undefined
-  let completed = false
+  const rig = await yukiFixture(),
+    base = rig.base,
+    proxy = await forwardProxy(base, '/backend-test'),
+    launch = () => rig.launch('backend-device')
+  let app = await launch(),
+    completed = false
   try {
-    await expect
-      .poll(
-        async () => {
-          try {
-            return (await fetch(`${base}/healthz`)).status
-          } catch {
-            return 0
-          }
-        },
-        { timeout: 30000 },
-      )
-      .toBe(200)
-    const ready = JSON.parse(await readFile(join(root, 'ready.json'), 'utf8')) as { code: string }
-    app = await launch()
     let page = await app.firstWindow()
-    await page.getByRole('button', { name: '開始', exact: true }).click()
-    await page.getByLabel('伺服器位址').fill(base)
-    await page.getByRole('button', { name: '繼續', exact: true }).click()
-    await expect(page.getByLabel('綁定碼或完整回覆')).toBeVisible()
-    await page.getByLabel('綁定碼或完整回覆').fill(`綁定碼：${ready.code}（10 分鐘內有效）`)
-    await page.getByRole('button', { name: '配對', exact: true }).click()
-    await expect(page.getByRole('button', { name: '進入', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '進入', exact: true }).click()
-    await expect(page.getByText('已連線', { exact: true })).toBeVisible()
-    let composer = page.getByRole('textbox', { name: '和 Yuki 說點什麼' })
-    await fetch(`${base}/__test/pause-next-me`, { method: 'POST' })
+    await pairUI(page, proxy.base, `綁定碼：${await rig.code()}（10 分鐘內有效）`)
+    const connection = await currentConnection(page)
+    const profile = await page.evaluate(async (id) => {
+      const result = await window.yuki.client.read<Profile>(id, { kind: 'character' })
+      if (!result.ok) throw Error(result.code)
+      return result.value
+    }, connection.characterId)
+    const composerName = `和 ${profile.display_name} 說點什麼`
+    let composer = page.getByRole('textbox', { name: composerName, exact: true })
+    const me = '/client/v1/me'
+    proxy.faults.holdResponseSuffixes.add(me)
     await composer.fill('第一則原始訊息')
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect
-      .poll(
-        async () =>
-          ((await (await fetch(`${base}/__test/me-blocked`)).json()) as { blocked: boolean })
-            .blocked,
-      )
-      .toBe(true)
+    await expect.poll(() => [...proxy.held.keys()].some((path) => path.endsWith(me))).toBe(true)
     await composer.fill('等待送出期間的新草稿')
-    await fetch(`${base}/__test/resume-me`, { method: 'POST' })
+    proxy.faults.holdResponseSuffixes.delete(me)
+    for (const path of proxy.held.keys()) if (path.endsWith(me)) proxy.releaseResponses(path)
     await expect(page.getByRole('button', { name: '送出', exact: true })).toBeEnabled()
     await expect(composer).toHaveValue('等待送出期間的新草稿')
-    await expect
-      .poll(
-        async () => {
-          const events = (await (await fetch(`${base}/__test/events`)).json()) as { text: string }[]
-          return events.filter((item) => item.text === '真實帳本回覆').length
+    const sent = await page.evaluate(async (id) => {
+      const result = await window.yuki.client.outbox(id)
+      if (!result.ok) throw Error(result.code)
+      const item = result.value.find((item) => item.body.text === '第一則原始訊息')
+      if (!item?.eventId) throw Error('Original accepted request is missing')
+      return { requestId: item.requestId, eventId: item.eventId }
+    }, connection.characterId)
+    const receipt = async () =>
+      page.evaluate(
+        async ({ id, requestId }) => {
+          const result = await window.yuki.client.read<OriginalRequest>(id, {
+            kind: 'request',
+            requestId,
+          })
+          if (!result.ok) throw Error(result.code)
+          return result.value
         },
-        { timeout: 20000 },
+        { id: connection.characterId, requestId: sent.requestId },
       )
-      .toBe(1)
-    await expect(page.getByText('真實帳本回覆', { exact: true })).toBeVisible({ timeout: 20000 })
+    await expect.poll(async () => (await receipt()).turn?.state).toBe('ended')
+    const original = await receipt()
+    expect(original.event_id).toBe(sent.eventId)
+    expect(original.result_event_ids).toHaveLength(1)
+    await expect(
+      page
+        .locator(`article[data-event-id="${original.result_event_ids![0]}"]`)
+        .getByText('Desktop reference reply', { exact: true }),
+    ).toBeVisible()
     await page
       .getByRole('article')
       .filter({ has: page.getByText('第一則原始訊息', { exact: true }) })
@@ -99,28 +73,31 @@ test('actual Yuki container: pairing, real ledger reply, lost response, cold rec
     await expect(page.getByText('繼續原引用', { exact: true })).toBeVisible()
     await expect
       .poll(async () => {
-        const events = (await (await fetch(`${base}/__test/events`)).json()) as { text: string }[]
-        return events.some((item) => item.text.endsWith('\n繼續原引用'))
+        const events = await ledgerEvents(base)
+        return events.some((item) => item.content.endsWith('\n繼續原引用'))
       })
       .toBe(true)
-    const facts = (await (await fetch(`${base}/__test/events`)).json()) as {
-      id: number
-      text: string
-    }[]
-    const source = facts.find((item) => item.text === '第一則原始訊息')!
-    const quoted = facts.find((item) => item.text.endsWith('\n繼續原引用'))!
-    expect(quoted.text).toContain(` event=${source.id}]]`)
-    expect(
-      (await fetch(`${base}/__test/events/${source.id}?lose_hint=true`, { method: 'DELETE' }))
-        .status,
-    ).toBe(200)
+    const facts = await ledgerEvents(base)
+    const source = facts.find((item) => item.event_id === sent.eventId)!
+    const quoted = facts.find((item) => item.content.endsWith('\n繼續原引用'))!
+    expect(quoted.content).toContain(` event=${source.event_id}]]`)
+    expect(source.content).toBe('第一則原始訊息')
+    expect(quoted.author_person_id).toBe(connection.personId)
+    expect(quoted.conversation_id).toBe(connection.conversationId)
+    const deletion = await fetch(`${base}/__test/events/${source.event_id}?lose_hint=true`, {
+      method: 'DELETE',
+    })
+    expect(deletion.status).toBe(200)
+    expect(await deletion.json()).toMatchObject({ deleted: source.event_id, lost_hint: true })
     await expect(page.getByText('第一則原始訊息', { exact: true })).toHaveCount(0)
     await expect(page.getByText('引用的訊息無法讀取', { exact: true })).toBeVisible()
-    await expect(page.getByText('引用：真實帳本回覆', { exact: true })).toHaveCount(0)
-    await fetch(`${base}/__test/lose-next-response`, { method: 'POST' })
+    await expect(page.getByText('引用：Desktop reference reply', { exact: true })).toHaveCount(0)
+    proxy.faults.loseNextSuffix = '/messages'
     await composer.fill('原回應遺失的訊息')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(composer).toHaveValue('')
+    await expect.poll(() => proxy.lostStatuses.length).toBe(1)
+    expect(proxy.lostStatuses[0]).toBe(200)
     await composer.fill('尚未送出的草稿')
     await expect
       .poll(() =>
@@ -132,47 +109,58 @@ test('actual Yuki container: pairing, real ledger reply, lost response, cold rec
         }),
       )
       .toBe('尚未送出的草稿')
+    const unknown = await page.evaluate(async (id) => {
+      const result = await window.yuki.client.outbox(id)
+      if (!result.ok) throw Error(result.code)
+      const item = result.value.find((item) => item.body.text === '原回應遺失的訊息')
+      if (!item) throw Error('Original pending request is missing')
+      return { requestId: item.requestId, state: item.state }
+    }, connection.characterId)
+    expect(unknown.state).toBe('submitted')
     const process = app.process()
     const stopped = new Promise<void>((resolve) => process.once('exit', () => resolve()))
     process.kill('SIGKILL')
     await stopped
-    app = undefined
+    await app.close().catch(() => {})
+    proxy.faults.holdReceipts = false
     app = await launch()
     page = await app.firstWindow()
-    composer = page.getByRole('textbox', { name: '和 Yuki 說點什麼' })
-    await expect(composer.or(page.getByLabel('伺服器位址'))).toBeVisible()
-    if (await page.getByLabel('伺服器位址').isVisible()) {
-      const code = (await (await fetch(`${base}/__test/link-code`, { method: 'POST' })).json()) as {
-        code: string
-      }
-      await pairUI(page, base, code.code)
-    }
+    composer = page.getByRole('textbox', { name: composerName, exact: true })
     await expect(composer).toHaveValue('尚未送出的草稿')
     await expect(page.getByText('原回應遺失的訊息', { exact: true })).toBeVisible()
     await expect
-      .poll(async () => {
-        const events = (await (await fetch(`${base}/__test/events`)).json()) as { text: string }[]
-        return events.filter((item) => item.text === '原回應遺失的訊息').length
-      })
-      .toBe(1)
+      .poll(() =>
+        page.evaluate(
+          async ({ id, requestId }) => {
+            const result = await window.yuki.client.outbox(id)
+            return result.ok ? result.value.find((item) => item.requestId === requestId)?.state : ''
+          },
+          { id: connection.characterId, requestId: unknown.requestId },
+        ),
+      )
+      .toBe('result')
+    const recovered = (await ledgerEvents(base)).filter(
+      (item) => item.content === '原回應遺失的訊息',
+    )
+    expect(recovered).toHaveLength(1)
+    expect(recovered[0]!.author_person_id).toBe(connection.personId)
+    expect(recovered[0]!.conversation_id).toBe(connection.conversationId)
+    expect(
+      proxy.calls.filter(
+        (call) =>
+          call.method === 'POST' &&
+          call.path.endsWith('/messages') &&
+          call.requestId === unknown.requestId,
+      ),
+    ).toHaveLength(1)
     await page.screenshot({
       animations: 'disabled',
       path: test.info().outputPath('real-backend-conversation.png'),
     })
     completed = true
   } finally {
-    await fetch(`${base}/__test/resume-me`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(3000),
-    }).catch(() => {})
-    await app?.close()
-    server.kill('SIGTERM')
-    await new Promise<void>((resolve) => {
-      if (server.exitCode !== null) resolve()
-      else server.once('exit', () => resolve())
-    })
-    closeSync(log)
-    if (completed) await rm(root, { recursive: true, force: true })
-    else console.error(`Isolated backend evidence retained at ${root}`)
+    await app.close().catch(() => {})
+    await proxy.close()
+    await rig.close(completed)
   }
 })

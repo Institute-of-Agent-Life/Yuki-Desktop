@@ -1,7 +1,8 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test, type Page } from '@playwright/test'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import { ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
-import type { Connection, Me, Home, ProactiveRoute } from '../../src/shared/api'
+import type { Connection, Me, EventsPage, ProactiveRoute, OriginalRequest } from '../../src/shared/api'
 async function settings(page: Page) {
   await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
@@ -21,6 +22,73 @@ async function route(page: Page, value: Connection) {
     return result.value
   }, value.characterId)
 }
+
+test(
+  'an already-open server panel converges after another actual device changes the proactive route',
+  { tag: '@settings-refresh' },
+  async () => {
+    test.setTimeout(120000)
+    const rig = await yukiFixture(),
+      proxy = await forwardProxy(rig.base, '/route-observer'),
+      a = await rig.launch('route-observer'),
+      b = await rig.launch('route-controller')
+    let success = false
+    try {
+      const pa = await a.firstWindow(),
+        pb = await b.firstWindow()
+      await pairUI(pa, proxy.base, await rig.code())
+      await pairUI(pb, rig.base, await rig.code())
+      expect((await fetch(`${rig.base}/__test/qq-entry`, { method: 'POST' })).ok).toBe(true)
+      const observed = await connection(pa),
+        controller = await connection(pb),
+        before = await route(pb, controller)
+      const me = await pb.evaluate(async (id) => {
+        const value = await window.yuki.client.read<Me>(id, { kind: 'me' })
+        if (!value.ok) throw Error(value.code)
+        return value.value
+      }, controller.characterId)
+      const qq = me.bindings.find((item) => item.platform === 'qq' && item.status === 'active')!
+      expect(qq).toBeDefined()
+      const destination = before.binding_id === qq.binding_id ? controller.bindingId : qq.binding_id
+      await settings(pa)
+      const selector = pa.getByRole('combobox', { name: '主動訊息接收入口', exact: true })
+      await expect(selector).toHaveValue(before.binding_id ?? '')
+      const reads = proxy.calls.filter((call) => call.path.endsWith('/me/proactive-route')).length
+      const updated = await pb.evaluate(
+        async ({ id, revision, binding }) => {
+          const value = await window.yuki.client.characterCommand(id, {
+            kind: 'proactive-route',
+            expectedRevision: revision,
+            bindingId: binding,
+          })
+          if (!value.ok) throw Error(value.code)
+          return value.value
+        },
+        { id: controller.characterId, revision: before.revision, binding: destination },
+      )
+      expect(updated).toMatchObject({ state: 'result', problem: null })
+      await expect(selector).toHaveValue(destination)
+      expect(await route(pb, controller)).toMatchObject({
+        binding_id: destination,
+        revision: before.revision + 1,
+      })
+      expect(
+        proxy.calls.filter((call) => call.path.endsWith('/me/proactive-route')).length,
+      ).toBeGreaterThan(reads)
+      expect(
+        proxy.calls.filter(
+          (call) => call.method === 'PUT' && call.path.endsWith('/me/proactive-route'),
+        ),
+      ).toHaveLength(0)
+      expect((await connection(pa)).bindingId).toBe(observed.bindingId)
+      success = true
+    } finally {
+      await Promise.all([a.close().catch(() => {}), b.close().catch(() => {})])
+      await proxy.close()
+      await rig.close(success)
+    }
+  },
+)
 
 test('new server address proves real identity before bearer and resumes the original lost message receipt', async () => {
   test.setTimeout(120000)
@@ -49,7 +117,9 @@ test('new server address proves real identity before bearer and resumes the orig
     await page.getByRole('button', { name: '取消', exact: true }).click()
     await page.getByRole('button', { name: '返回', exact: true }).click()
     old.faults.loseNextSuffix = '/messages'
-    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('換網址前已接納的原訊息')
+    await page
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` })
+      .fill('換網址前已接納的原訊息')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect
       .poll(
@@ -94,14 +164,29 @@ test('new server address proves real identity before bearer and resumes the orig
     expect(
       moved.calls.filter((call) => call.method === 'POST' && call.path.endsWith('/messages')),
     ).toHaveLength(0)
-    const events = (await (await fetch(`${rig.base}/__test/events`)).json()) as { text: string }[]
-    expect(events.filter((event) => event.text === '換網址前已接納的原訊息')).toHaveLength(1)
+    const events = await ledgerEvents(rig.base)
+    expect(events.filter((event) => event.content === '換網址前已接納的原訊息')).toHaveLength(1)
     await page.getByRole('button', { name: '返回', exact: true }).click()
-    await expect(page.getByText('真實帳本回覆', { exact: true })).toBeVisible()
+    const receipt = () =>
+      page.evaluate(async ({ id, requestId }) => {
+        const result = await window.yuki.client.read<OriginalRequest>(id, { kind: 'request', requestId })
+        if (!result.ok) throw Error(result.code)
+        return result.value
+      }, { id: original.characterId, requestId })
+    await expect.poll(async () => (await receipt()).turn?.state).toBe('ended')
+    const result = await receipt()
+    expect(result.event_id).toBe(events.find((event) => event.content === '換網址前已接納的原訊息')!.event_id)
+    expect(result.result_event_ids).toHaveLength(1)
+    await expect(
+      page.locator(`article[data-event-id="${result.result_event_ids![0]}"]`)
+        .getByText('Desktop reference reply', { exact: true }),
+    ).toBeVisible()
     await app.close()
     app = await rig.launch('server-address')
     page = await app.firstWindow()
-    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
+    await expect(
+      page.getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` }),
+    ).toBeVisible()
     expect((await connection(page)).baseUrl).toBe(moved.base)
     success = true
   } finally {
@@ -118,7 +203,7 @@ async function settingsWithoutWaiting(page: Page) {
 
 test('two actual devices keep proactive route CAS and recover the original lost response after a cold App restart', async () => {
   test.setTimeout(120000)
-  const rig = await yukiFixture(),
+  const rig = await yukiFixture({ character: true }),
     proxy = await forwardProxy(rig.base, '/route')
   let a = await rig.launch('route-a'),
     success = false
@@ -130,23 +215,24 @@ test('two actual devices keep proactive route CAS and recover the original lost 
     await pairUI(pb, rig.base, await rig.code())
     const entry = (await (
       await fetch(`${rig.base}/__test/qq-entry`, { method: 'POST' })
-    ).json()) as { conversation_id: string }
+    ).json()) as { event_id: number; conversation_id: string }
     const original = await connection(pa)
     const me = await pa.evaluate(async (id) => {
       const result = await window.yuki.client.read<Me>(id, { kind: 'me' })
       if (!result.ok) throw Error(result.code)
       return result.value
     }, original.characterId)
-    const home = await pa.evaluate(async (id) => {
-      const result = await window.yuki.client.read<Home>(id, { kind: 'home' })
+    const seeded = await pa.evaluate(async ({ id, entry }) => {
+      const result = await window.yuki.client.read<EventsPage>(id, {
+        kind: 'events', conversationId: entry.conversation_id, after: entry.event_id - 1, limit: 1,
+      })
       if (!result.ok) throw Error(result.code)
-      return result.value
-    }, original.characterId)
-    const qq = me.bindings.find(
-      (item) =>
-        item.binding_id ===
-        home.entries.find((item) => item.conversation_id === entry.conversation_id)?.binding_id,
-    )!
+      return result.value.items[0]!
+    }, { id: original.characterId, entry })
+    expect(seeded.event_id).toBe(entry.event_id)
+    expect(seeded.conversation_id).toBe(entry.conversation_id)
+    const qq = me.bindings.find((item) => item.binding_id === seeded.binding_id)!
+    expect(qq.platform).toBe('qq')
     await settings(pa)
     await settings(pb)
     await pa.getByRole('combobox', { name: '主動訊息接收入口' }).selectOption(qq.binding_id)
@@ -183,7 +269,9 @@ test('two actual devices keep proactive route CAS and recover the original lost 
     proxy.faults.holdReceipts = false
     a = await rig.launch('route-a')
     pa = await a.firstWindow()
-    await expect(pa.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
+    await expect(
+      pa.getByRole('textbox', { name: `和 ${await activeCharacterName(pa)} 說點什麼` }),
+    ).toBeVisible()
     await settings(pa)
     await expect
       .poll(() =>
@@ -203,15 +291,29 @@ test('two actual devices keep proactive route CAS and recover the original lost 
         (call) => call.method === 'PUT' && call.path.endsWith('/me/proactive-route'),
       ),
     ).toHaveLength(2)
-    const withoutDestination = me.bindings.find(item => item.platform === 'qq' && item.binding_id !== qq.binding_id)!
-    await pa.getByRole('combobox', { name: '主動訊息接收入口' }).selectOption(withoutDestination.binding_id)
+    const bindingResponse = await fetch(`${rig.base}/__test/qq-binding-without-destination`, { method: 'POST' })
+    expect(bindingResponse.ok).toBe(true)
+    const withoutDestination = await bindingResponse.json() as {
+      binding_id: string; person_id: string; platform: string; external_account_id: string
+    }
+    expect(withoutDestination.person_id).toBe(original.personId)
+    expect(withoutDestination.platform).toBe('qq')
+    expect(withoutDestination.binding_id).not.toBe(qq.binding_id)
+    await pa.getByRole('button', { name: '重新讀取目的地', exact: true }).click()
+    await expect(pa.getByRole('combobox', { name: '主動訊息接收入口' })
+      .locator(`option[value="${withoutDestination.binding_id}"]`)).toHaveCount(1)
+    await pa
+      .getByRole('combobox', { name: '主動訊息接收入口' })
+      .selectOption(withoutDestination.binding_id)
     await pa.getByRole('button', { name: '儲存目的地', exact: true }).click()
-    await expect(pa.getByText('這個入口目前沒有可用的接收連線。請選擇其他入口。', { exact: true })).toBeVisible()
+    await expect(
+      pa.getByText('這個入口目前沒有可用的接收連線。請選擇其他入口。', { exact: true }),
+    ).toBeVisible()
     expect(await route(pa, original)).toEqual(accepted)
     await pa.getByRole('button', { name: '重新讀取目的地', exact: true }).click()
-    await pa.screenshot({ path: test.info().outputPath('darwin-2x-server-settings.png') })
+    await pa.screenshot({ path: test.info().outputPath(`${process.platform}-server-settings.png`) })
     await pa.getByRole('button', { name: '開啟角色資料', exact: true }).click()
-    await expect(pa.getByRole('heading', { name: 'Yuki', exact: true })).toBeVisible()
+    await expect(pa.getByRole('heading', { name: await activeCharacterName(pa), exact: true })).toBeVisible()
     success = true
   } finally {
     await a.close().catch(() => {})

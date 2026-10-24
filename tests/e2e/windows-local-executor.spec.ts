@@ -6,14 +6,9 @@ import { join } from 'node:path'
 import type { ExecutorView, LocalExecutorState } from '../../src/shared/executor'
 import { pairUI } from '../fixtures/backend'
 import { launchShell } from '../fixtures/shell-app'
+import { executorOperation } from '../fixtures/executor-operation'
 import { completeWindowsFileDialog, windowsFileDialogOwner } from '../fixtures/windows-file-dialog'
 
-interface Operation {
-  op_id: string
-  state: string
-  level?: string
-  result: { content_base64?: string; sha256?: string; size?: number; reason?: string }
-}
 interface ExecutorFacts {
   operations: {
     op_id: string
@@ -116,7 +111,7 @@ test('Windows native local executor grants a real folder, rejects a junction esc
       }, owner.characterId)
     await page.keyboard.press('Control+,')
     await page.getByRole('tab', { name: '本機連接', exact: true }).click()
-    await page.getByRole('button', { name: '允許 Yuki 使用這台電腦', exact: true }).click()
+    await page.getByRole('button', { name: `允許 ${owner.name} 使用這台電腦`, exact: true }).click()
     await expect.poll(async () => (await local()).state).toBe('online')
     expect((await local()).installation?.persistent).toBe(true)
     const executorId = (await local()).installation!.executorId
@@ -142,19 +137,34 @@ test('Windows native local executor grants a real folder, rejects a junction esc
     const encoded = JSON.stringify(publicState).toLowerCase()
     expect(encoded).not.toContain(JSON.stringify(folder).slice(1, -1).toLowerCase())
     expect(encoded).not.toContain(folder.replaceAll('\\', '/').toLowerCase())
-    const invoke = (capability: string, params: Record<string, unknown>) =>
-      request<Operation>('invoke', {
+    const invoke = async (
+      capability: string,
+      params: Record<string, unknown>,
+      state = 'succeeded',
+    ) => {
+      const admitted = await request<{ op_id: string; state: string }>('invoke', {
         person_id: owner.personId,
         arguments: { executor_id: executorId, capability, params },
       })
+      expect(admitted.state).toBe('dispatched')
+      await expect
+        .poll(async () => (await executorOperation(page, owner, executorId, admitted.op_id))?.state)
+        .toBe(state)
+      return (await executorOperation(page, owner, executorId, admitted.op_id))!
+    }
     const read = await invoke('folder.read', { mode: 'read', path: '收件匣/hello.txt' })
     expect(read).toMatchObject({
       state: 'succeeded',
       level: 'confirmed',
       result: { sha256: sha256(input), size: input.byteLength },
     })
-    expect(Buffer.from(read.result.content_base64!, 'base64')).toEqual(input)
-    const escaped = await invoke('folder.read', { mode: 'read', path: '收件匣/escape/private.txt' })
+    expect(typeof read.result.content_base64).toBe('string')
+    expect(Buffer.from(read.result.content_base64 as string, 'base64')).toEqual(input)
+    const escaped = await invoke(
+      'folder.read',
+      { mode: 'read', path: '收件匣/escape/private.txt' },
+      'failed',
+    )
     expect(escaped).toMatchObject({ state: 'failed', result: { reason: 'path_outside_scope' } })
     expect(escaped.result.content_base64).toBeUndefined()
     expect(await readFile(join(outside, 'private.txt'))).toEqual(privateInput)
@@ -183,11 +193,15 @@ test('Windows native local executor grants a real folder, rejects a junction esc
     expect(sha256(stored)).toBe(artifact.version)
     expect(written.result.size).toBe(stored.byteLength)
     const originalStat = await stat(target, { bigint: true })
-    const duplicate = await invoke('folder.write', {
-      path: '收件匣/artifact.txt',
-      content_base64: Buffer.from('不可覆寫原成果').toString('base64'),
-      if_absent: true,
-    })
+    const duplicate = await invoke(
+      'folder.write',
+      {
+        path: '收件匣/artifact.txt',
+        content_base64: Buffer.from('不可覆寫原成果').toString('base64'),
+        if_absent: true,
+      },
+      'failed',
+    )
     expect(duplicate).toMatchObject({ state: 'failed', result: { reason: 'already_exists' } })
     const afterDuplicate = await stat(target, { bigint: true })
     expect(afterDuplicate.ino).toBe(originalStat.ino)
@@ -225,17 +239,17 @@ test('Windows native local executor grants a real folder, rejects a junction esc
       {
         name: 'local_device',
         arguments: {
-          action: 'invoke',
+          action: 'execute',
           executor_id: executorId,
           capability: 'folder.write',
           params: { path: '收件匣/from-main.txt', ...artifact, if_absent: true },
         },
       },
-      { name: 'send_message', arguments: { text: completion } },
+      { name: 'send', arguments: { text: completion } },
     ])
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await page
-      .getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+      .getByRole('textbox', { name: `和 ${owner.name} 說點什麼`, exact: true })
       .fill('請把原成果寫入已授權的本機收件匣')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(page.getByText(completion, { exact: true })).toBeVisible({ timeout: 30000 })
@@ -266,7 +280,7 @@ test('Windows native local executor grants a real folder, rejects a junction esc
     await page.getByRole('button', { name: '移除此電腦…', exact: true }).click()
     await page.getByRole('dialog').getByRole('button', { name: '移除', exact: true }).click()
     await expect(
-      page.getByRole('button', { name: '允許 Yuki 使用這台電腦', exact: true }),
+      page.getByRole('button', { name: `允許 ${owner.name} 使用這台電腦`, exact: true }),
     ).toBeVisible()
     expect((await listed()).some((item) => item.executor_id === executorId)).toBe(false)
     expect(await readFile(target)).toEqual(stored)

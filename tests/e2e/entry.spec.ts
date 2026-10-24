@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import { currentConnection, currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
 
 test('reads another actual personal ingress and quotes its exact original event in the desktop conversation', async () => {
   test.setTimeout(120000)
@@ -9,6 +9,7 @@ test('reads another actual personal ingress and quotes its exact original event 
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
+    const connection = await currentConnection(page)
     const response = await fetch(`${rig.base}/__test/qq-entry`, { method: 'POST' })
     expect(response.status).toBe(200)
     const original = (await response.json()) as { event_id: number; conversation_id: string }
@@ -38,7 +39,7 @@ test('reads another actual personal ingress and quotes its exact original event 
     await expect(navigation.locator('[aria-current=page]')).toHaveCount(1)
     await expect(page.locator('textarea')).toHaveCount(0)
     await page.getByRole('button', { name: '在桌面對話中提到這段', exact: true }).click()
-    const composer = page.getByRole('textbox', { name: '和 Yuki 說點什麼' })
+    const composer = page.getByRole('textbox', { name: `和 ${connection.name} 說點什麼` })
     await expect(composer).toBeVisible()
     await expect(page.getByText('引用：QQ 原入口的真實帳本內容', { exact: true })).toBeVisible()
     await page.getByRole('button').filter({ hasText: '引用：QQ 原入口的真實帳本內容' }).click()
@@ -49,12 +50,10 @@ test('reads another actual personal ingress and quotes its exact original event 
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect
       .poll(async () => {
-        const facts = (await (await fetch(`${rig.base}/__test/events`)).json()) as {
-          text: string
-        }[]
+        const facts = (await currentEvents(page)).items
         return facts.some(
           (item) =>
-            item.text ===
+            item.content ===
             `[[yuki-ref conversation=${original.conversation_id} event=${original.event_id}]]\n請接續這個原入口的事情`,
         )
       })

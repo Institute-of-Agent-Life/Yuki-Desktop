@@ -4,7 +4,7 @@ import { once } from 'node:events'
 import { createServer } from 'node:net'
 import { closeSync, openSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, realpath, rm, appendFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createHash, randomUUID } from 'node:crypto'
 import { ApiClient } from '../../src/main/api/client'
@@ -17,10 +17,10 @@ import { ExecutorClient, ExecutorProtocol } from '../../src/main/executor/protoc
 import { NativeExecutorEffects } from '../../src/main/executor/effects'
 import { ExecutorJournal } from '../../src/main/executor/journal'
 import { ExecutorRunner } from '../../src/main/executor/runner'
-import type { ExecutorConfig } from '../../src/shared/executor'
-import type { Me, Meta } from '../../src/shared/api'
-import type { ProductModels as components } from '../../src/shared/product-models'
-type PairResult = components['schemas']['PairResult']
+import type { ExecutorConfig, ExecutorOperation } from '../../src/shared/executor'
+import type { EventsPage, Me, Meta } from '../../src/shared/api'
+import type { components } from '../../src/shared/contract.gen'
+type PairResult = components['schemas']['PairReceipt']
 
 const backend = process.env.YUKI_BACKEND_TEST_ROOT,
   python = process.env.YUKI_BACKEND_TEST_PYTHON
@@ -48,11 +48,26 @@ it.skipIf(!backend || !python)(
     const log = openSync(join(root, 'server.log'), 'w', 0o600)
     const server = spawn(
       python!,
-      ['-m', 'tests.support.desktop_reference_server', root, String(port)],
+      [
+        '-m',
+        'tests.support.desktop_reference_server',
+        '--root',
+        root,
+        '--state-file',
+        join(root, 'ready.json'),
+        '--port',
+        String(port),
+        '--base-path',
+        '/role/yuki',
+      ],
       {
         cwd: backend,
         stdio: ['ignore', log, log],
-        env: { ...process.env, YUKI_DESKTOP_EXECUTOR_FIXTURE: '1' },
+        env: {
+          ...process.env,
+          PYTHONPATH: [join(backend!, 'src'), backend!].join(delimiter),
+          YUKI_DESKTOP_EXECUTOR_FIXTURE: '1',
+        },
       },
     )
     const base = `http://127.0.0.1:${port}/role/yuki`,
@@ -82,12 +97,14 @@ it.skipIf(!backend || !python)(
           /* startup */
         }
       })
-      const ready = JSON.parse(await readFile(join(root, 'ready.json'), 'utf8')) as { code: string }
+      const ready = JSON.parse(await readFile(join(root, 'ready.json'), 'utf8')) as {
+        owner_pairing_code: string
+      }
       const publicClient = new ApiClient(base),
         meta = await publicClient.get<Meta>('meta')
       expect(meta.api_revision).toBeGreaterThanOrEqual(5)
       const paired = await publicClient.post<PairResult>('pair', {
-        code: ready.code,
+        code: ready.owner_pairing_code,
         device_label: 'Native integration',
       })
       const api = new ApiClient(base, paired.token),
@@ -202,13 +219,13 @@ it.skipIf(!backend || !python)(
         {
           name: 'local_device',
           arguments: {
-            action: 'invoke',
+            action: 'execute',
             executor_id: installed.executorId,
             capability: 'folder.write',
             params: { path: '收件匣/report.txt', ...artifact, if_absent: true },
           },
         },
-        { name: 'send_message', arguments: { text: '成果已交給本機執行器' } },
+        { name: 'send', arguments: { text: '成果已交給本機執行器' } },
       ])
       const request = randomUUID()
       await api.post('messages', {
@@ -238,21 +255,18 @@ it.skipIf(!backend || !python)(
         const op = facts.operations.find((item) => item.op_id === opId)
         expect(op?.person_id).toBe(owner.personId)
         expect(op?.work_id).toBeNull()
-        const events = (await (await fetch(`${base}/__test/events`)).json()) as {
-          text: string
-          direction: string
-        }[]
+        const events = await api.get<EventsPage>(`conversations/${owner.conversationId}/events`)
         if (
-          events.some(
+          events.items.some(
             (event) =>
-              event.direction === 'outbound' && event.text.includes('成果已交給本機執行器'),
+              event.direction === 'outbound' && event.content.includes('成果已交給本機執行器'),
           )
         )
           return true
       })
       hints.clear()
       await driver('loss', { method: 'POST', suffix: '/ack', timing: 'after' })
-      const pending = driver<{ state: string; observation: Record<string, unknown> }>('invoke', {
+      const admitted = await driver<{ op_id: string; pending: boolean }>('invoke', {
         person_id: owner.personId,
         arguments: {
           executor_id: installed.executorId,
@@ -260,7 +274,10 @@ it.skipIf(!backend || !python)(
           params: { path: '收件匣/report.txt', ...artifact, if_absent: true },
         },
       })
-      const second = await until(async () => [...hints].find((id) => id !== opId))
+      expect(admitted.pending).toBe(true)
+      const second = await until(async () =>
+        hints.has(admitted.op_id) ? admitted.op_id : undefined,
+      )
       await expect(runner.run(second)).rejects.toThrow('unknown')
       expect(journal.get(second)?.phase).toBe('started')
       expect((await protocol.get(second)).state).toBe('acknowledged')
@@ -269,7 +286,7 @@ it.skipIf(!backend || !python)(
       journal = new ExecutorJournal(box, installed.executorId)
       runner = new ExecutorRunner(journal, protocol, observed)
       expect((await runner.run(second)).state).toBe('unknown')
-      const result = await pending
+      const result = await exec.get<ExecutorOperation>(`operations/${second}`)
       expect(result.state).toBe('unknown')
       expect(result.observation).toEqual(
         expect.objectContaining({ exists: true, matches_intended: true }),
@@ -286,7 +303,7 @@ it.skipIf(!backend || !python)(
       if (box?.db.open) box.db.close()
       if (server.exitCode === null && server.signalCode === null) {
         const exited = once(server, 'exit')
-        server.kill('SIGTERM')
+        await fetch(`${base}/__test/shutdown`, { method: 'POST' })
         await exited
       }
       closeSync(log)
