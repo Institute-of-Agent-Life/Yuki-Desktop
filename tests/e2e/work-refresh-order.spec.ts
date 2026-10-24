@@ -1,56 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import type { Home, Work, OriginalRequest } from '../../src/shared/api'
-import { currentConnection, pairUI, recordBusinessState, yukiFixture } from '../fixtures/backend'
+import {
+  currentConnection,
+  pairUI,
+  recordBusinessState,
+  waitForWorkState,
+  yukiFixture,
+} from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
 import { navigate } from '../fixtures/navigation'
-
-async function originalWorkState(
-  page: Page,
-  characterId: string,
-  workId: string,
-  state: Work['state'],
-) {
-  return page.evaluate(
-    ({ characterId, workId, state }) =>
-      new Promise<Work>((resolve, reject) => {
-        let reading = false
-        let changed = false
-        const dispose = window.yuki.client.onHint((id, kind) => {
-          if (id === characterId && kind !== 'connection') void read()
-        })
-        async function read() {
-          if (reading) {
-            changed = true
-            return
-          }
-          reading = true
-          try {
-            do {
-              changed = false
-              const value = await window.yuki.client.read<Work>(characterId, {
-                kind: 'work',
-                workId,
-              })
-              if (!value.ok) throw Error(value.code)
-              if (value.value.state === state) {
-                dispose()
-                resolve(value.value)
-                return
-              }
-            } while (changed)
-          } catch (error) {
-            dispose()
-            reject(error)
-          } finally {
-            reading = false
-          }
-        }
-        void read()
-      }),
-    { characterId, workId, state },
-  )
-}
 
 test('a real terminal Work hint survives an older running detail response in the full workspace', async () => {
   test.setTimeout(120000)
@@ -138,7 +97,7 @@ test('a real terminal Work hint survives an older running detail response in the
     await fetch(`${rig.base}/__test/hold-work`, { method: 'POST' })
     await detailA.getByRole('textbox').fill('台北，沿原工作繼續')
     await detailA.getByRole('button', { name: '傳送給這項工作', exact: true }).click()
-    running = await originalWorkState(pa, identity.characterId, identity.workId, 'running')
+    running = await waitForWorkState(pa, identity.characterId, identity.workId, 'running')
     await b.evaluate((_electron, path) => {
       const original = globalThis.fetch
       const reads: { status?: number; body?: { data?: Work } }[] = []
@@ -185,7 +144,7 @@ test('a real terminal Work hint survives an older running detail response in the
     ).toBe('running')
     await fetch(`${rig.base}/__test/release-work`, { method: 'POST' })
     await pb.evaluate(() => (window as ProbeWindow).__workRefreshProbe!.terminal)
-    completed = await originalWorkState(pa, identity.characterId, identity.workId, 'completed')
+    completed = await waitForWorkState(pa, identity.characterId, identity.workId, 'completed')
     proxy.pauseActive(streamPath)
     proxy.faults.holdResponseSuffixes.delete(workPath)
     proxy.releaseResponses(workPath)

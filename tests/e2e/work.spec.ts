@@ -5,6 +5,7 @@ import {
   currentEvents,
   pairUI,
   recordBusinessState,
+  waitForWorkState,
   yukiFixture,
 } from '../fixtures/backend'
 import type { Home, Work, WorkSteps, OriginalRequest } from '../../src/shared/api'
@@ -229,6 +230,7 @@ test('continues the original work through an actual reply and confirms cancellat
       test.info().outputPath('third-work-input.json'),
       JSON.stringify({ identity: third, ...thirdInput }, null, 2),
     )
+    await waitForWorkState(page, third.characterId, third.workId, 'completed')
     await expect(otherDetail.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
     // The original confirmation keeps the revision observed before the other device's reply.
     await page.getByRole('button', { name: '仍然取消', exact: true }).click()
