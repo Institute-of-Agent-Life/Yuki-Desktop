@@ -116,14 +116,16 @@ export async function recordBusinessState(page: Page, name: string, computer = f
     return Promise.all(
       connections.value.map(async (connection) => {
         const id = connection.characterId
-        const [home, outbox, commands] = await Promise.all([
+        const [home, outbox, commands, computerCommands] = await Promise.all([
           window.yuki.client.read<Home>(id, { kind: 'home' }),
           window.yuki.client.outbox(id),
           window.yuki.client.workCommands(id),
+          computer ? window.yuki.client.computerCommands(id) : undefined,
         ])
         const requestIds = new Set([
           ...(outbox.ok ? outbox.value.map((item) => item.requestId) : []),
           ...(commands.ok ? commands.value.map((item) => item.requestId) : []),
+          ...(computerCommands?.ok ? computerCommands.value.map((item) => item.requestId) : []),
         ])
         const receipts = await Promise.all(
           [...requestIds].map(async (requestId) => ({
@@ -155,7 +157,10 @@ export async function recordBusinessState(page: Page, name: string, computer = f
           receipts,
           works,
           ...(computer
-            ? { computer: await window.yuki.client.read<Computer>(id, { kind: 'computer' }) }
+            ? {
+                computer: await window.yuki.client.read<Computer>(id, { kind: 'computer' }),
+                computerCommands,
+              }
             : {}),
         }
       }),
