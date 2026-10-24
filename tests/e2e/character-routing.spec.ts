@@ -100,7 +100,9 @@ async function send(page: Page, fact: MessageFacts) {
       resultEventIds: expect.arrayContaining([expect.any(Number)]),
       problemCode: null,
     })
-  const message = page.locator(`article[data-event-id="${original.eventId}"]`)
+  const message = page.locator(
+    `[data-character-session="${connection.characterId}"] article[data-event-id="${original.eventId}"]`,
+  )
   await expect(message).toHaveCount(1)
   await expect(message.getByText(text, { exact: true })).toBeVisible()
   expect(await connectionAt(page, connection.baseUrl)).toEqual(connection)
@@ -146,17 +148,14 @@ test('two equally named real roles send to their own original Main and recover s
       [facts[0]!, firstEventId, secondFact.text],
       [facts[1]!, secondEventId, firstFact.text],
     ] as const) {
-      const events = await page.evaluate(
-        async (connection) => {
-          const result = await window.yuki.client.read<EventsPage>(connection.characterId, {
-            kind: 'events',
-            conversationId: connection.conversationId,
-          })
-          if (!result.ok) throw Error(result.code)
-          return result.value.items
-        },
-        fact.connection,
-      )
+      const events = await page.evaluate(async (connection) => {
+        const result = await window.yuki.client.read<EventsPage>(connection.characterId, {
+          kind: 'events',
+          conversationId: connection.conversationId,
+        })
+        if (!result.ok) throw Error(result.code)
+        return result.value.items
+      }, fact.connection)
       fact.canonical = events.map((event) => ({
         eventId: event.event_id,
         conversationId: event.conversation_id,
