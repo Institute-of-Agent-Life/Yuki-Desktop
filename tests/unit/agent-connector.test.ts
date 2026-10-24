@@ -1,24 +1,26 @@
 import { PassThrough } from 'node:stream'
 import { ChildProcess, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { afterEach, expect, it, vi } from 'vitest'
 import { AgentConnector, runConnector } from '../../src/main/agent-connector'
 import { ConnectorInstallations } from '../../src/main/connector-installation'
+import { ApiError } from '../../src/main/api/client'
 import type { ConnectorServiceAction } from '../../src/shared/connector'
 
 const runtime = {
   directory: tmpdir(),
   executable: join(tmpdir(), 'python.exe'),
   arguments: ['-B', '-m', 'yuki_agent_connector'],
-  version: '0.3.0',
+  version: '0.3.2',
   protocol: 3,
   build: 'original',
 }
 const publicStatus = {
-  version: '0.3.0',
+  version: '0.3.2',
   protocol: 3,
   runtime: runtime.executable,
   paired: true,
@@ -28,6 +30,8 @@ const publicStatus = {
   service: { installed: true, running: true, executable: runtime.executable },
 }
 const temporary: string[] = []
+const actualBundle =
+  process.env.YUKI_CONNECTOR_COMPAT_RUNTIME ?? join(process.cwd(), '.cache', 'connector-runtime')
 afterEach(async () => {
   for (const path of temporary.splice(0)) await rm(path, { recursive: true, force: true })
 })
@@ -118,6 +122,297 @@ it('matching original pair is reused and another person cannot overwrite it', as
   )
   expect(run.mock.calls.every((call) => call[1].includes('status'))).toBe(true)
 })
+it.each([undefined, 2, 4])(
+  'protocol information remains diagnostic and never replaces an existing grant (server: %s)',
+  async (serverProtocol) => {
+    const { connector, options } = fixture()
+    options.admission.mockImplementation(async () => ({
+      matched: true,
+      connected: false,
+      serverProtocol,
+    }))
+    expect(await connector.connect({ characterId: 'character', label: 'PC' })).toMatchObject({
+      paired: true,
+      admission: { matched: true, connected: false },
+    })
+    expect(options.authorize).not.toHaveBeenCalled()
+  },
+)
+it('first connection prepares its runtime and pairs only the explicitly selected role', async () => {
+  let paired = false
+  const run = vi.fn(async (_runtime: unknown, args: readonly string[], input?: string) => {
+    if (args.includes('status')) return JSON.stringify({ ...publicStatus, paired })
+    expect(args).toContain('pair')
+    expect(input).toBe('private-code\n')
+    paired = true
+    return 'paired'
+  })
+  const options = {
+    root: join(tmpdir(), 'unused-root'),
+    bundledRuntime: join(tmpdir(), 'not-bundled'),
+    store: store(),
+    authorize: vi.fn(async () => ({ server: 'https://yuki.example', code: 'private-code' })),
+    admission: vi.fn(async () => ({ matched: true, connected: false })),
+  }
+  const connector = new AgentConnector(options, run)
+  const install = vi.spyOn(connector.installations, 'install').mockImplementation(async () => {
+    const installation = {
+      managed: true,
+      dataDirectory: join(tmpdir(), 'new-data'),
+      runtime,
+    }
+    connector.installations.select(installation)
+    return installation
+  })
+  expect(
+    await connector.connect({ characterId: 'selected-role', label: 'My computer' }),
+  ).toMatchObject({
+    available: true,
+    paired: true,
+    admission: { matched: true, connected: false },
+  })
+  expect(install).toHaveBeenCalledOnce()
+  expect(options.authorize).toHaveBeenCalledExactlyOnceWith('selected-role')
+  expect(run.mock.calls.find((call) => call[1].includes('pair'))?.[1]).toEqual([
+    '--data-dir',
+    join(tmpdir(), 'new-data'),
+    'pair',
+    '--url',
+    'https://yuki.example',
+    '--label',
+    'My computer',
+    '--code-stdin',
+  ])
+  await connector.connect({ characterId: 'selected-role', label: 'Another label' })
+  expect(options.authorize).toHaveBeenCalledOnce()
+  expect(run.mock.calls.filter((call) => call[1].includes('pair'))).toHaveLength(1)
+})
+it('configuration returns the real saved instance ID without inferring an identity from its path', async () => {
+  const run = vi.fn(async (_runtime: unknown, args: readonly string[]) => {
+    if (args.includes('configure')) return JSON.stringify({ instance_id: 'original-profile' })
+    return JSON.stringify(publicStatus)
+  })
+  const { connector } = fixture(run)
+  expect(await connector.configure({ id: 'original-profile', label: 'Same Codex' })).toMatchObject({
+    instanceId: 'original-profile',
+  })
+  expect(run.mock.calls.some((call) => call[1].includes('service'))).toBe(false)
+})
+it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
+  'actual standalone CLI keeps the preallocated creation ID through partial failure, human/JSON output and later edits',
+  async () => {
+    const manifest = JSON.parse(await readFile(join(actualBundle, 'manifest.json'), 'utf8'))
+    const root = await mkdtemp(join(tmpdir(), 'connector-cli-original-'))
+    temporary.push(root)
+    const command = join(root, 'native-codex.exe')
+    await writeFile(command, 'Only a configuration target; never executed')
+    await writeFile(
+      join(root, 'config.json'),
+      JSON.stringify({
+        url: 'ws://127.0.0.1:9/agents/v1/connect',
+        device_id: 'fixture-device',
+        token: 'fixture-only',
+        instances: [],
+      }),
+    )
+    let fail = true
+    const calls: string[][] = [],
+      outputs: string[] = []
+    const execute: typeof runConnector = async (selected, args, input) => {
+      calls.push([...args])
+      if (args.includes('configure') && fail) {
+        fail = false
+        throw new ApiError('connector_failed')
+      }
+      const output = await runConnector(selected, args, input)
+      outputs.push(output)
+      return output
+    }
+    const connector = new AgentConnector(
+      {
+        root: join(root, 'managed'),
+        bundledRuntime: join(root, 'absent'),
+        store: store(),
+        authorize: vi.fn(),
+        admission: vi.fn(),
+      },
+      execute,
+    )
+    connector.installations.select({
+      managed: false,
+      dataDirectory: root,
+      runtime: {
+        directory: actualBundle,
+        executable: join(actualBundle, manifest.executable),
+        arguments: manifest.arguments,
+        version: manifest.version,
+        protocol: manifest.protocol,
+        build: 'actual-bundled-cli',
+      },
+    })
+    const input = {
+      id: 'created-instance',
+      create: true,
+      label: 'My native Codex',
+      command,
+      cwd: root,
+    }
+    await expect(connector.configure(input)).rejects.toMatchObject({
+      code: 'connector_failed',
+      reason: 'configure',
+    })
+    expect(
+      JSON.parse(await readFile(join(root, 'config.json'), 'utf8')).instances.map(
+        (item: { id: string }) => item.id,
+      ),
+    ).toEqual(['created-instance'])
+    expect(await connector.configure(input)).toEqual({ instanceId: 'created-instance' })
+    expect(
+      await connector.configure({ ...input, create: false, label: 'Original Codex edited' }),
+    ).toEqual({ instanceId: 'created-instance' })
+    expect(calls.filter((args) => args.includes('add'))).toHaveLength(1)
+    expect(outputs.some((output) => output.includes('Configuration updated'))).toBe(true)
+    const before = await readFile(join(root, 'config.json'), 'utf8')
+    await expect(
+      connector.configure({ ...input, id: 'missing-original', create: false }),
+    ).rejects.toHaveProperty('code', 'connector_instance_missing')
+    expect(await readFile(join(root, 'config.json'), 'utf8')).toBe(before)
+  },
+  30000,
+)
+it('creation, configuration and background actions keep their original installation while discovery is pending', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'connector-bound-'))
+  temporary.push(root)
+  const command = join(root, 'codex.exe')
+  await writeFile(command, 'Not executed')
+  const first = join(root, 'first'),
+    second = join(root, 'second')
+  let entered!: () => void, release!: () => void
+  const discovering = new Promise<void>((resolve) => {
+    entered = resolve
+  })
+  const released = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const instances: { id: string; label: string; driver: string; command: string; cwd: string }[] =
+    []
+  const run = vi.fn(async (_runtime: unknown, args: readonly string[]) => {
+    expect(args[1]).toBe(first)
+    if (args.includes('status'))
+      return JSON.stringify({
+        ...publicStatus,
+        instances,
+        service: { installed: false, running: false },
+      })
+    if (args.includes('discover')) {
+      entered()
+      await released
+      return JSON.stringify([{ id: 'actual-installation', label: 'Codex', command }])
+    }
+    if (args.includes('add'))
+      instances.push({
+        id: 'original-created-id',
+        label: 'Codex',
+        driver: 'codex',
+        command,
+        cwd: root,
+      })
+    return 'Configuration updated; human output'
+  })
+  const { connector } = fixture(run)
+  connector.installations.select({ managed: false, dataDirectory: first, runtime })
+  const pending = connector.configure(
+    {
+      id: 'original-created-id',
+      create: true,
+      candidateId: 'actual-installation',
+      cwd: root,
+      label: 'Codex',
+    },
+    true,
+  )
+  await discovering
+  connector.installations.select({ managed: false, dataDirectory: second, runtime })
+  release()
+  expect(await pending).toEqual({ instanceId: 'original-created-id' })
+  expect(
+    run.mock.calls.filter((call) => call[1].includes('service')).map((call) => call[1].slice(-2)),
+  ).toEqual([
+    ['service', 'install'],
+    ['service', 'start'],
+  ])
+  expect(connector.installations.selected()!.dataDirectory).toBe(second)
+})
+it('upgrades a cached managed runtime before configuring once under the original namespace and instance', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'connector-cached-'))
+  temporary.push(root)
+  const bundle = join(root, 'bundle'),
+    directory = join(root, 'original-data')
+  await mkdir(bundle)
+  await mkdir(directory)
+  await writeFile(join(directory, 'config.json'), 'original identity')
+  await writeFile(join(directory, 'journal.sqlite3'), 'original receipts')
+  await writeFile(join(bundle, 'python.exe'), 'new-runtime')
+  await writeFile(
+    join(bundle, 'manifest.json'),
+    JSON.stringify({
+      version: '0.3.2',
+      protocol: 3,
+      platform: process.platform,
+      arch: process.arch,
+      executable: 'python.exe',
+      arguments: ['-m', 'yuki_agent_connector'],
+      files: [
+        { path: 'python.exe', sha256: createHash('sha256').update('new-runtime').digest('hex') },
+      ],
+    }),
+  )
+  const oldExecutable = join(root, 'old-python.exe')
+  const run = vi.fn(
+    async (selected: Parameters<typeof runConnector>[0], args: readonly string[]) => {
+      expect(args[1]).toBe(directory)
+      if (args.includes('status'))
+        return JSON.stringify({
+          ...publicStatus,
+          version: selected.executable === oldExecutable ? '0.3.1' : '0.3.2',
+        })
+      expect(selected.executable).not.toBe(oldExecutable)
+      if (args.includes('configure')) return JSON.stringify({ instance_id: 'original-profile' })
+      return 'service updated'
+    },
+  )
+  const authorize = vi.fn(),
+    connector = new AgentConnector(
+      {
+        root: join(root, 'managed'),
+        bundledRuntime: bundle,
+        store: store(),
+        authorize,
+        admission: vi.fn(),
+      },
+      run,
+    )
+  connector.installations.select({
+    managed: true,
+    dataDirectory: directory,
+    runtime: { ...runtime, version: '0.3.1', executable: oldExecutable },
+  })
+  expect(await connector.configure({ id: 'original-profile', label: 'Same Codex' })).toEqual({
+    instanceId: 'original-profile',
+  })
+  expect(run.mock.calls.filter((call) => call[1].includes('configure'))).toHaveLength(1)
+  expect(
+    run.mock.calls.filter((call) => call[1].includes('service')).map((call) => call[1].slice(-2)),
+  ).toEqual([
+    ['service', 'stop'],
+    ['service', 'install'],
+    ['service', 'start'],
+  ])
+  expect(connector.installations.selected()!.dataDirectory).toBe(directory)
+  expect(await readFile(join(directory, 'config.json'), 'utf8')).toBe('original identity')
+  expect(await readFile(join(directory, 'journal.sqlite3'), 'utf8')).toBe('original receipts')
+  expect(authorize).not.toHaveBeenCalled()
+})
 it.each(['install', 'start', 'stop', 'uninstall'] as const)(
   'service %s targets original data and rereads actual state',
   async (action) => {
@@ -129,6 +424,17 @@ it.each(['install', 'start', 'stop', 'uninstall'] as const)(
     ])
   },
 )
+it('a failed service action reports its concrete stage without replacing the selected installation', async () => {
+  const run = vi.fn(async () => {
+    throw new ApiError('connector_failed')
+  })
+  const { connector } = fixture(run)
+  await expect(connector.service('start')).rejects.toMatchObject({
+    code: 'connector_failed',
+    reason: 'service-start',
+  })
+  expect(connector.installations.selected()!.dataDirectory).toBe(join(tmpdir(), 'original-data'))
+})
 it('rejects unknown service actions and multiline codes before launching', async () => {
   const { connector, run } = fixture()
   await expect(connector.service('exec' as ConnectorServiceAction)).rejects.toHaveProperty(
@@ -176,6 +482,150 @@ it('managed upgrades preserve the original data directory and separate installs 
       readFile(join(first.dataDirectory, 'journal'), 'utf8'),
     ),
   ).resolves.toBe('receipts')
+})
+it('a prepared original installation does not replace another selection confirmed while preparation was pending', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'connector-selection-'))
+  temporary.push(root)
+  const bundle = join(root, 'bundle')
+  await mkdir(bundle)
+  await writeFile(join(bundle, 'python.exe'), 'prepared-runtime')
+  const installations = new ConnectorInstallations(join(root, 'managed'), bundle, store())
+  const original = { managed: true, dataDirectory: join(root, 'original'), runtime }
+  const other = { managed: false, dataDirectory: join(root, 'other'), runtime }
+  installations.select(original)
+  let entered!: () => void, release!: () => void
+  const preparing = new Promise<void>((resolve) => {
+    entered = resolve
+  })
+  const released = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  vi.spyOn(installations, 'manifest').mockImplementation(async () => {
+    entered()
+    await released
+    return {
+      version: '0.3.2',
+      protocol: 3,
+      platform: process.platform,
+      arch: process.arch,
+      executable: 'python.exe',
+      arguments: ['-m', 'yuki_agent_connector'],
+      files: [
+        {
+          path: 'python.exe',
+          sha256: createHash('sha256').update('prepared-runtime').digest('hex'),
+        },
+      ],
+    }
+  })
+  const pending = installations.install()
+  await preparing
+  installations.select(other)
+  release()
+  expect((await pending).dataDirectory).toBe(original.dataDirectory)
+  expect(installations.selected()).toEqual(other)
+})
+it('an older external-installation probe does not replace a selection confirmed during that probe', async () => {
+  let entered!: () => void, release!: () => void
+  const probing = new Promise<void>((resolve) => {
+    entered = resolve
+  })
+  const released = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const candidate = join(tmpdir(), 'pending-external'),
+    other = join(tmpdir(), 'confirmed-other')
+  const run = vi.fn(async (_runtime: unknown, args: readonly string[]) => {
+    if (args[1] === candidate) {
+      entered()
+      await released
+    }
+    return JSON.stringify(publicStatus)
+  })
+  const { connector } = fixture(run)
+  const pending = connector.useInstallation({
+    executable: runtime.executable,
+    dataDirectory: candidate,
+  })
+  await probing
+  const confirmed = { managed: false, dataDirectory: other, runtime }
+  connector.installations.select(confirmed)
+  release()
+  expect(await pending).toMatchObject({ dataDirectory: other })
+  expect(connector.installations.selected()).toEqual(confirmed)
+})
+it('a separate installation leaves the other role configuration, journal and running service untouched', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'connector-separate-'))
+  temporary.push(root)
+  const bundle = join(root, 'bundle'),
+    original = join(root, 'original-data')
+  await mkdir(bundle)
+  await mkdir(original)
+  await writeFile(join(bundle, 'python.exe'), 'runtime')
+  await writeFile(
+    join(bundle, 'manifest.json'),
+    JSON.stringify({
+      version: '0.3.1',
+      protocol: 3,
+      platform: process.platform,
+      arch: process.arch,
+      executable: 'python.exe',
+      arguments: ['-m', 'yuki_agent_connector'],
+      files: [{ path: 'python.exe', sha256: createHash('sha256').update('runtime').digest('hex') }],
+    }),
+  )
+  const originals = {
+    'config.json': 'original role identity',
+    'journal.sqlite3': 'original receipts',
+    'service.xml': 'original running service',
+  }
+  for (const [file, content] of Object.entries(originals))
+    await writeFile(join(original, file), content)
+  const run = vi.fn(async (_runtime: unknown, args: readonly string[]) => {
+    expect(args).toContain('status')
+    expect(args[1]).not.toBe(original)
+    return JSON.stringify({
+      ...publicStatus,
+      paired: false,
+      service: { installed: false, running: false },
+    })
+  })
+  const connector = new AgentConnector(
+    {
+      root: join(root, 'managed'),
+      bundledRuntime: bundle,
+      store: store(),
+      authorize: vi.fn(),
+      admission: vi.fn(),
+    },
+    run,
+  )
+  connector.installations.select({ managed: true, dataDirectory: original, runtime })
+  expect(await connector.install(true)).toMatchObject({
+    paired: false,
+    service: { installed: false, running: false },
+  })
+  expect(connector.installations.selected()!.dataDirectory).not.toBe(original)
+  for (const [file, content] of Object.entries(originals))
+    expect(await readFile(join(original, file), 'utf8')).toBe(content)
+  expect(run.mock.calls.some((call) => call[1].includes('service'))).toBe(false)
+})
+
+it('reveals only the native executable saved in the selected installation without launching it', async () => {
+  const executable = join(tmpdir(), 'actual-codex.exe')
+  const run = vi.fn(async () =>
+    JSON.stringify({
+      ...publicStatus,
+      instances: [{ ...publicStatus.instances[0], command: executable }],
+    }),
+  )
+  const { connector } = fixture(run)
+  expect(await connector.nativeExecutable('original-profile')).toBe(executable)
+  await expect(connector.nativeExecutable('another-instance')).rejects.toHaveProperty(
+    'code',
+    'native_not_installed',
+  )
+  expect(run.mock.calls).toHaveLength(2)
 })
 
 it('offline admission keeps real local service controls without claiming another owner', async () => {

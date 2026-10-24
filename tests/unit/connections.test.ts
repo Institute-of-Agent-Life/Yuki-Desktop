@@ -76,6 +76,59 @@ function data(schema: string, value: unknown) {
   validateFixture(schema, { data: value })
   return Response.json({ data: value })
 }
+it.each([undefined, 3])(
+  'projects real native readiness separately from the device connection and preserves its source IDs (server protocol: %s)',
+  async (serverProtocol) => {
+    const connections = setup()
+    connections.credentials.set(
+      `device/${original.characterId}/${original.personId}`,
+      'fixture-only',
+    )
+    vi.stubGlobal('fetch', async (input: string) => {
+      if (input.endsWith('/meta')) return data('Envelope_Meta_', meta)
+      if (input.endsWith('/me')) return data('Envelope_Me_', me)
+      expect(input).toBe(`${original.baseUrl}/agents/v1/devices`)
+      return Response.json({
+        ...(serverProtocol !== undefined ? { connector_protocol: serverProtocol } : {}),
+        devices: [{ id: 'original-device', label: 'My computer', online: true }],
+        instances: [
+          {
+            id: 'server-instance',
+            local_id: 'original-native-instance',
+            device_id: 'original-device',
+            label: 'My Codex',
+            driver: 'codex',
+            online: false,
+            status: 'unavailable',
+            error_type: 'native_login_required',
+          },
+        ],
+      })
+    })
+    expect(
+      await connections.connectorAdmission(
+        original.characterId,
+        original.baseUrl,
+        'original-device',
+      ),
+    ).toEqual({
+      matched: true,
+      connected: true,
+      ...(serverProtocol !== undefined ? { serverProtocol } : {}),
+      instances: [
+        {
+          id: 'server-instance',
+          localId: 'original-native-instance',
+          label: 'My Codex',
+          driver: 'codex',
+          online: false,
+          status: 'unavailable',
+          errorType: 'native_login_required',
+        },
+      ],
+    })
+  },
+)
 it.each([false, true])(
   'shares an initial message POST with SSE verification until its response settles (lost response: %s)',
   async (lostResponse) => {

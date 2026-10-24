@@ -2199,6 +2199,8 @@ export interface components {
         };
         /** NativeDirectory */
         NativeDirectory: {
+            /** Connector Protocol */
+            connector_protocol: number;
             /** Devices */
             devices: components["schemas"]["NativeDevice"][];
             /** Instances */

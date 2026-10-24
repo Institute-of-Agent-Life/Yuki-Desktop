@@ -3469,6 +3469,10 @@
           "$ref": "#/components/schemas/JsonValue"
         },
         "properties": {
+          "connector_protocol": {
+            "title": "Connector Protocol",
+            "type": "integer"
+          },
           "devices": {
             "items": {
               "$ref": "#/components/schemas/NativeDevice"
@@ -3485,6 +3489,7 @@
           }
         },
         "required": [
+          "connector_protocol",
           "devices",
           "instances"
         ],
