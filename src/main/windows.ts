@@ -6,12 +6,18 @@ import { windowGeometry, type Rect } from './geometry'
 import type { LocalStore } from './store'
 import { keyboardCommand } from '../shared/commands'
 
+const captures = new WeakSet<BrowserWindow>()
 const modes = new WeakMap<BrowserWindow, (pairing: boolean) => void>()
 const overlayAppearance = () => ({
   height: 52,
   color: '#00000000',
   symbolColor: nativeTheme.shouldUseDarkColors ? '#F2F2F4' : '#1D1D1F',
 })
+export function setKeyboardCapture(window: BrowserWindow, captured: boolean) {
+  if (captured) captures.add(window)
+  else captures.delete(window)
+  window.webContents.setIgnoreMenuShortcuts(captured)
+}
 export function setWindowMode(window: BrowserWindow, pairing: boolean) {
   modes.get(window)?.(pairing)
 }
@@ -20,12 +26,10 @@ export function createWindow(store: LocalStore, pairing = false) {
   const work = saved
     ? screen.getDisplayMatching(saved).workArea
     : screen.getPrimaryDisplay().workArea
-  const geometry = windowGeometry(work, saved, pairing ? 'pairing' : 'workspace')
+  let geometry = windowGeometry(work, saved, pairing ? 'pairing' : 'workspace')
   const mac = process.platform === 'darwin'
   const win = createPlatformWindow({
     ...geometry.bounds,
-    minWidth: geometry.minimum.width,
-    minHeight: geometry.minimum.height,
     title: 'Yuki',
     icon: join(app.getAppPath(), 'resources/icons/app/256x256.png'),
     show: false,
@@ -62,6 +66,21 @@ export function createWindow(store: LocalStore, pairing = false) {
     )
       win.setBounds(bounds)
   }
+  const applyGeometry = (next: ReturnType<typeof windowGeometry>) => {
+    geometry = next
+    applyBounds(next.bounds)
+    if (process.platform !== 'win32') return
+    // Windows projects overlay bounds through its native frame. Measure that
+    // projection once for this placement; native dragging never uses setters.
+    const actual = win.getBounds(),
+      widthOffset = actual.width - next.bounds.width,
+      heightOffset = actual.height - next.bounds.height
+    applyBounds({
+      ...next.bounds,
+      width: next.bounds.width - widthOffset,
+      height: next.bounds.height - heightOffset,
+    })
+  }
   let adjusting = false
   let displayId = screen.getDisplayMatching(win.getBounds()).id
   let moveTimer: ReturnType<typeof setTimeout> | undefined
@@ -73,6 +92,7 @@ export function createWindow(store: LocalStore, pairing = false) {
     cancelMove()
     if (
       !win.isDestroyed() &&
+      win.isVisible() &&
       !pairing &&
       !win.isMaximized() &&
       !win.isMinimized() &&
@@ -88,8 +108,7 @@ export function createWindow(store: LocalStore, pairing = false) {
     const display = screen.getDisplayMatching(old)
     displayId = display.id
     const next = windowGeometry(display.workArea, old, pairing ? 'pairing' : 'workspace')
-    win.setMinimumSize(next.minimum.width, next.minimum.height)
-    applyBounds(next.bounds)
+    applyGeometry(next)
     adjusting = false
     save()
   }
@@ -104,8 +123,7 @@ export function createWindow(store: LocalStore, pairing = false) {
       pairing ? undefined : store.get<Rect>('window'),
       pairing ? 'pairing' : 'workspace',
     )
-    win.setMinimumSize(next.minimum.width, next.minimum.height)
-    applyBounds(next.bounds)
+    applyGeometry(next)
     adjusting = false
   })
   screen.on('display-metrics-changed', fit)
@@ -135,6 +153,7 @@ export function createWindow(store: LocalStore, pairing = false) {
   })
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.on('before-input-event', (event, input) => {
+    if (captures.has(win)) return
     if (input.type !== 'keyDown' || input.isComposing) return
     const command = keyboardCommand(input, process.platform)
     if (command) {
@@ -146,21 +165,13 @@ export function createWindow(store: LocalStore, pairing = false) {
     if (url !== win.webContents.getURL()) event.preventDefault()
   })
   win.once('ready-to-show', () => {
-    // Windows resolves its overlay frame during native creation. Calibrate this
-    // first client size once; never feed later movement back through size setters.
     if (process.platform === 'win32') {
-      const outer = win.getBounds()
-      if (outer.width !== geometry.bounds.width || outer.height !== geometry.bounds.height) {
-        const content = win.getContentBounds()
-        adjusting = true
-        win.setContentSize(
-          geometry.bounds.width - outer.width + content.width,
-          geometry.bounds.height - outer.height + content.height,
-        )
-        adjusting = false
-      }
+      adjusting = true
+      applyGeometry(geometry)
+      adjusting = false
     }
     win.show()
+    save()
   })
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL)
     void win.loadURL(process.env.ELECTRON_RENDERER_URL)

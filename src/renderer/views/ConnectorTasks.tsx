@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import type { Connection } from '../../shared/api'
 import type {
   ConnectorOperation,
@@ -9,7 +9,7 @@ import type {
   ConnectorSubmission,
 } from '../../shared/connector'
 import { Banner, Button, TextField } from '../components/Controls'
-import { unwrap } from '../queries/client'
+import { hidesPrivateData, unwrap } from '../queries/client'
 import { Row } from './Settings'
 import styles from './Settings.module.css'
 import { NativeRequest } from './NativeRequest'
@@ -21,6 +21,7 @@ export function ConnectorTasks({
   connection: Connection
   state: Extract<ConnectorState, { available: true }>
 }) {
+  const query = useQueryClient()
   const [instance, setInstance] = useState('')
   const [sessions, setSessions] = useState<ConnectorSession[]>([])
   const [cursor, setCursor] = useState<string | null>()
@@ -29,7 +30,7 @@ export function ConnectorTasks({
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-  const [selected, setSelected] = useState<ConnectorOperation>()
+  const [selectedId, setSelectedId] = useState<string>()
   const [receipt, setReceipt] = useState<ConnectorSubmission>()
   const submittedPayload = useRef('')
   const submittedText = useRef('')
@@ -41,7 +42,43 @@ export function ConnectorTasks({
     getNextPageParam: (page) => page.next_cursor ?? undefined,
     retry: false,
   })
+  const detail = useInfiniteQuery({
+    queryKey: ['connector-operation', connection.characterId, selectedId],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      window.yuki.connector.operation(connection.characterId, selectedId!, pageParam).then(unwrap),
+    getNextPageParam: (page, _pages, cursor) =>
+      page.next_cursor !== cursor ? page.next_cursor : undefined,
+    enabled: !!selectedId,
+    retry: false,
+  })
+  const pages = hidesPrivateData(detail.error) ? undefined : detail.data?.pages
+  const latest = pages?.at(-1)
+  const selected = latest
+    ? { ...latest, events: pages!.flatMap((page) => page.events ?? []) }
+    : undefined
   const instances = state.admission?.instances ?? []
+  useEffect(() => {
+    if (!instance && instances.length === 1) setInstance(instances[0]!.id)
+  }, [instance, instances])
+  useEffect(
+    () =>
+      window.yuki.client.onHint((character, kind) => {
+        if (
+          character === connection.characterId &&
+          ['sync', 'refresh', 'work', 'conversation'].includes(kind)
+        ) {
+          for (const key of ['connector-operations', 'connector-operation']) {
+            const filter = { queryKey: [key, character] }
+            const refresh = () => query.invalidateQueries(filter, { cancelRefetch: false })
+            const pending = query.getQueryCache().find({ ...filter, type: 'active' })?.promise
+            if (pending) void pending.then(refresh, () => {})
+            else void refresh()
+          }
+        }
+      }),
+    [connection.characterId, query],
+  )
   const local = state.instances.find(
     (item) => item.id === instances.find((item) => item.id === instance)?.localId,
   )
@@ -177,7 +214,7 @@ export function ConnectorTasks({
             setSessions([])
             setSession('')
             setCursor(undefined)
-            setSelected(undefined)
+            setSelectedId(undefined)
           }}
         >
           <option value="">選擇 Agent</option>
@@ -240,11 +277,18 @@ export function ConnectorTasks({
         </Button>
       </div>
       <div className={styles.actions}>
-        <Button disabled={busy || operations.isFetching} onClick={() => void operations.refetch()}>
+        <Button
+          disabled={busy || operations.isFetching || detail.isFetching}
+          onClick={() => {
+            void operations.refetch()
+            if (selectedId) void detail.refetch()
+          }}
+        >
           重新讀取原操作
         </Button>
       </div>
       {operations.isError && <Banner status="unknown">原操作目錄暫時無法讀取。</Banner>}
+      {detail.isError && <Banner status="unknown">原回執尚未讀取完成，請重新讀取原操作。</Banner>}
       <div className={styles.group}>
         {operations.data?.pages
           .flatMap((page) => page.operations)
@@ -255,18 +299,7 @@ export function ConnectorTasks({
               title={operation.action ?? operation.id}
               description={`Work ${operation.work_id ?? '—'} · ${operation.status}`}
             >
-              <Button
-                disabled={busy}
-                onClick={() =>
-                  void perform(async () => {
-                    setSelected(
-                      unwrap(
-                        await window.yuki.connector.operation(connection.characterId, operation.id),
-                      ),
-                    )
-                  })
-                }
-              >
+              <Button disabled={busy} onClick={() => setSelectedId(operation.id)}>
                 查看原回執
               </Button>
             </Row>
@@ -324,24 +357,10 @@ export function ConnectorTasks({
               onRespond={(extra) => perform(() => submit('respond', selected, extra))}
             />
           ))}
-          {selected.next_cursor !== undefined && (
+          {detail.hasNextPage && (
             <Button
-              disabled={busy}
-              onClick={() =>
-                void perform(async () => {
-                  const next = unwrap(
-                    await window.yuki.connector.operation(
-                      connection.characterId,
-                      selected.id,
-                      selected.next_cursor,
-                    ),
-                  )
-                  setSelected({
-                    ...next,
-                    events: [...(selected.events ?? []), ...(next.events ?? [])],
-                  })
-                })
-              }
+              disabled={busy || detail.isFetching}
+              onClick={() => void detail.fetchNextPage()}
             >
               讀取後續進度
             </Button>

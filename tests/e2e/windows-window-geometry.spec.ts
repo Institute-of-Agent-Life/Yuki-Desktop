@@ -3,7 +3,8 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { currentConnection, pairUI } from '../fixtures/backend'
+import { pairUI } from '../fixtures/backend'
+import { activeCharacterName } from '../fixtures/active-character'
 import { launchShell } from '../fixtures/shell-app'
 import { contentSize } from '../fixtures/visual'
 
@@ -27,6 +28,9 @@ async function savedBounds(app: ElectronApplication) {
 }
 
 async function nativeWindow(app: ElectronApplication, page: Page) {
+  await expect
+    .poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible()))
+    .toBe(true)
   const native = await app.evaluate(({ app, BrowserWindow, screen }, log) => {
     const fs = process.getBuiltinModule('node:fs')
     const record = (stage: string) =>
@@ -50,6 +54,8 @@ async function nativeWindow(app: ElectronApplication, page: Page) {
       packaged: app.isPackaged,
       bounds,
       contentBounds,
+      contentSize: window.getContentSize(),
+      displayId: display.id,
       area: display.workArea,
       scaleFactor: display.scaleFactor,
       sandboxed: metrics.find((item) => item.pid === window.webContents.getOSProcessId())
@@ -108,9 +114,8 @@ test('Windows native workspace restores persisted frame and content bounds acros
     expect(response.ok).toBe(true)
     const { code } = (await response.json()) as { code: string }
     await pairUI(page, base!, code, 'Windows 視窗恢復', 20000)
-    const connection = await currentConnection(page)
-    const composer = () =>
-      page.getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true })
+    const name = await activeCharacterName(page)
+    const composer = () => page.getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true })
     await expect(composer()).toBeVisible()
     expect(await contentSize(app, page, 1100, 760)).toBe('native-window')
     await app.evaluate(({ BrowserWindow, screen }) => {
@@ -150,31 +155,76 @@ test('Windows native workspace restores persisted frame and content bounds acros
       expect(toolbar.y).toBe(0)
       expect(toolbar.height).toBe(52)
     }
-    // Exercise the same native correction at the work-area edge, after movement settles.
-    await app.evaluate(({ BrowserWindow, screen }) => {
-      const window = BrowserWindow.getAllWindows()[0]!
-      const area = screen.getDisplayMatching(window.getBounds()).workArea
-      window.setPosition(area.x + area.width - 80, area.y + area.height - 80)
+    // SetPosition itself resubmits size through Electron's native projection.
+    // Save its actual returned rectangle, then test that App does not grow it.
+    const outside = {
+      x: before.area.x + before.area.width - before.bounds.width + 80,
+      y: before.area.y + before.area.height - before.bounds.height + 80,
+    }
+    await app.evaluate(
+      ({ BrowserWindow }, point) => BrowserWindow.getAllWindows()[0]!.setPosition(point.x, point.y),
+      outside,
+    )
+    const offscreen = await nativeWindow(app, page)
+    expect(offscreen.displayId).toBe(before.displayId)
+    expect(offscreen.bounds).toMatchObject(outside)
+    expect(offscreen.bounds.x + offscreen.bounds.width).toBeGreaterThan(
+      before.area.x + before.area.width,
+    )
+    expect(offscreen.bounds.y + offscreen.bounds.height).toBeGreaterThan(
+      before.area.y + before.area.height,
+    )
+    await expect.poll(() => savedBounds(app)).toEqual(offscreen.bounds)
+    const persistedOffscreen = await nativeWindow(app, page)
+    expect(persistedOffscreen.bounds).toEqual(offscreen.bounds)
+    expect(persistedOffscreen.contentBounds).toEqual(offscreen.contentBounds)
+    expect(persistedOffscreen.contentSize).toEqual(offscreen.contentSize)
+    expect(persistedOffscreen.viewport).toEqual(offscreen.viewport)
+    stages.push({
+      stage: 'offscreen-persisted-before-crash',
+      requested: outside,
+      ...persistedOffscreen,
+      original: offscreen,
+      saved: await savedBounds(app),
     })
-    await expect
-      .poll(async () => {
-        const { bounds, area } = await app.evaluate(({ BrowserWindow, screen }) => {
-          const window = BrowserWindow.getAllWindows()[0]!
-          const bounds = window.getBounds()
-          return { bounds, area: screen.getDisplayMatching(bounds).workArea }
-        })
-        return (
-          bounds.x >= area.x &&
-          bounds.y >= area.y &&
-          bounds.x + bounds.width <= area.x + area.width &&
-          bounds.y + bounds.height <= area.y + area.height
-        )
-      })
-      .toBe(true)
-    const clamped = await nativeWindow(app, page)
-    stages.push({ stage: 'clamped-at-work-area-edge', ...clamped })
     await save()
-    await expect.poll(() => savedBounds(app)).toEqual(clamped.bounds)
+    const exited = new Promise<void>((resolve) => app.process().once('exit', () => resolve()))
+    expect(process.kill(pid!, 'SIGKILL')).toBe(true)
+    pid = undefined
+    await exited
+    await app.close()
+    app = await launchShell(data)
+    pid = await app.evaluate(() => process.pid)
+    page = await app.firstWindow()
+    await expect(composer()).toBeVisible()
+    const clamped = await nativeWindow(app, page)
+    const expected = {
+      ...offscreen.bounds,
+      x: before.area.x + before.area.width - offscreen.bounds.width,
+      y: before.area.y + before.area.height - offscreen.bounds.height,
+    }
+    stages.push({ stage: 'cold-clamped-at-work-area-edge', ...clamped, expected })
+    await save()
+    expect(clamped.profile).toBe(before.profile)
+    expect(clamped.displayId).toBe(before.displayId)
+    expect(clamped.bounds).toEqual(expected)
+    expect(clamped.contentBounds).toEqual({
+      ...offscreen.contentBounds,
+      x: offscreen.contentBounds.x + expected.x - offscreen.bounds.x,
+      y: offscreen.contentBounds.y + expected.y - offscreen.bounds.y,
+    })
+    expect(clamped.contentSize).toEqual(offscreen.contentSize)
+    expect(clamped.viewport).toEqual(offscreen.viewport)
+    await expect.poll(() => savedBounds(app)).toEqual(expected)
+    const titlebar = page.locator('[data-region="toolbar"]')
+    await expect(titlebar).toBeInViewport({ ratio: 1 })
+    const toolbar = (await titlebar.boundingBox())!
+    expect(toolbar.y).toBe(0)
+    expect(toolbar.height).toBe(52)
+    expect(clamped.contentBounds.y + toolbar.y).toBeGreaterThanOrEqual(before.area.y)
+    expect(clamped.contentBounds.y + toolbar.y + toolbar.height).toBeLessThanOrEqual(
+      before.area.y + before.area.height,
+    )
     await page.screenshot({ path: test.info().outputPath('windows-clamped-titlebar.png') })
     proof.complete = true
   } catch (error) {

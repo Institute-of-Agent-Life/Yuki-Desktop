@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Check, ChevronsUpDown } from 'lucide-react'
-import type { Connection, Profile } from '../../shared/api'
+import type { CharacterStatus, Connection, Profile } from '../../shared/api'
 import { characterPresence } from '../../shared/presence'
 import { unwrap } from '../queries/client'
 import { useSessionActive } from '../state/workspace'
@@ -24,9 +24,16 @@ function Role({
     queryFn: () => window.yuki.client.read<Profile>(id, { kind: 'character' }).then(unwrap),
     retry: false,
   })
+  const status = useQuery({
+    queryKey: [id, 'character-status'],
+    queryFn: () =>
+      window.yuki.client.read<CharacterStatus>(id, { kind: 'character-status' }).then(unwrap),
+    retry: false,
+  })
   const name = profile.data?.display_name ?? connection.name
   const presence = characterPresence(
-    profile.isError ? 'offline' : profile.data ? 'online' : 'connecting',
+    profile.isError || status.isError ? 'offline' : status.data ? 'online' : 'connecting',
+    status.data,
   )
   return (
     <CharacterVisuals.Provider value={{ id, name, profile: profile.data }}>

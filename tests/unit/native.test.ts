@@ -147,6 +147,31 @@ interface FakeNotice extends EventEmitter {
   options: { title: string }
 }
 
+it('shows each actual executor activity under its own role and clears only the finished operation', async () => {
+  os.trays.length = 0
+  os.notices.length = 0
+  const reveal = vi.fn(),
+    open = vi.fn(),
+    shell = new NativeShell(() => undefined, reveal, open)
+  shell.update(defaultPreferences)
+  shell.activity('role-a', 'op-a', '讀取 收件匣A', true)
+  shell.activity('role-b', 'op-b', '寫入 收件匣B', true)
+  const tray = os.trays[0] as FakeTray
+  expect(tray.tooltip).toContain('讀取 收件匣A')
+  expect(tray.tooltip).toContain('寫入 收件匣B')
+  expect(os.notices).toHaveLength(2)
+  ;(os.notices[1] as FakeNotice).emit('click')
+  expect(reveal).toHaveBeenCalledOnce()
+  expect(open).toHaveBeenCalledWith({ characterId: 'role-b', view: 'chat' })
+  shell.activity('role-a', 'op-a', '讀取 收件匣A', false)
+  expect(tray.tooltip).not.toContain('收件匣A')
+  expect(tray.tooltip).toContain('收件匣B')
+  shell.forget('role-b')
+  expect(tray.tooltip).toBe('Yuki')
+  expect(tray.menu.some((item) => item.label?.includes('收件匣'))).toBe(false)
+  shell.close()
+})
+
 it.each(['darwin', 'win32', 'linux'] as const)(
   'uses the %s tray adapter and real reveal/quit callbacks',
   (platform) => {
@@ -208,13 +233,13 @@ it('uses the identified role name before its private profile or avatar has loade
     )
   shell.update(defaultPreferences)
   shell.characterName('mika-id', 'Mika')
-  shell.selectedCharacter = 'mika-id'
+  shell.activity('mika-id', 'first-op', '讀取 Mika 的資料夾', true)
+  expect((os.notices[0] as FakeNotice).options.title).toBe('Mika')
+  expect(await shell.submitNotification('mika-id', '作業提醒', '原通知內容')).toBe(true)
+  expect((os.notices[1] as FakeNotice).options.title).toBe('Mika · 作業提醒')
   const tray = os.trays[0] as FakeTray
-  expect(tray.tooltip).toBe('Mika')
+  expect(tray.tooltip).toContain('Mika 正在讀取')
   tray.menu.find((item) => item.label === '開啟 Mika')!.click!()
   expect(open).toHaveBeenCalledWith({ characterId: 'mika-id', view: 'chat' })
-  shell.forget('mika-id')
-  expect(tray.menu.some((item) => item.label === '開啟 Mika')).toBe(false)
-  expect(tray.tooltip).toBe('Yuki')
   shell.close()
 })

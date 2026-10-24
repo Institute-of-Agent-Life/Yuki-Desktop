@@ -6,17 +6,29 @@ import { Composer } from '../../src/renderer/components/Composer'
 import { CommandPalette } from '../../src/renderer/components/CommandPalette'
 import { ConversationWork, WorkList, WorkDetail } from '../../src/renderer/views/Works'
 import { MessageAttachment, AttachmentPreview } from '../../src/renderer/views/Media'
-import { Message } from '../../src/renderer/views/Conversation'
+import { Conversation, Message } from '../../src/renderer/views/Conversation'
+import { ComputerInspector } from '../../src/renderer/views/Computer'
+import { Settings } from '../../src/renderer/views/Settings'
+import { Workspace } from '../../src/renderer/components/Workspace'
+import { defaultPreferences } from '../../src/shared/desktop'
+import appStyles from '../../src/renderer/App.module.css'
 import messageStyles from '../../src/renderer/views/Conversation.module.css'
 import type {
   ApiRead,
+  Activity,
   AttachmentSource,
   ConversationBridge,
+  Computer,
+  CharacterStatus,
+  EventsPage,
   Home,
   PublicEvent,
+  Profile,
   SoulDocument,
   SoulDraft,
   Work,
+  WorkPage,
+  WorkSteps,
 } from '../../src/shared/api'
 import '../../src/renderer/tokens.css'
 
@@ -39,6 +51,12 @@ let draft: SoulDraft = {
 let attempts = 0
 const reads: string[] = []
 const contentReads: AttachmentSource[] = []
+const lateWorkReads: { kind: 'work' | 'steps'; workId: string }[] = []
+const hintListeners = new Set<Parameters<ConversationBridge['onHint']>[0]>()
+let lateReceipt = false
+let holdNextSecondPage = false
+let releaseSecondPage: (() => void) | undefined
+const queries = new QueryClient()
 const source = {
   binding_id: 'binding',
   conversation_id: 'conversation',
@@ -64,6 +82,9 @@ const work: Work = {
   budget: { models: 3, tools: 2, root_id: 'original-work', model_limit: null, tool_limit: null },
   waiting_kind: null,
   waiting_question: null,
+  wait: null,
+  help_requested: false,
+  step_count: 1,
 }
 const home: Home = {
   main: {
@@ -104,6 +125,106 @@ const event: PublicEvent = {
   observed_at: '2026-10-24T00:00:00Z',
   occurred_at: null,
 }
+const historicalWork: Work = {
+  ...work,
+  work_id: 'historical-work',
+  goal: 'Completed work from the original message',
+  state: 'completed',
+}
+const computerView: Computer = {
+  revision: 1,
+  environment: 'running',
+  display: 'running',
+  control: { holder: 'none' },
+  resources: { cpus: 1, memory_mib: 512 },
+  help_requests: [],
+  tabs_available: true,
+  tabs: [
+    {
+      target_id: 'owned-tab',
+      title: 'Original owned browser tab',
+      url_host: 'example.invalid',
+      ownership: 'work',
+      work_id: work.work_id,
+      work_state: work.state,
+    },
+    {
+      target_id: 'completed-tab',
+      title: 'Original completed browser tab',
+      url_host: 'example.invalid',
+      ownership: 'work',
+      work_id: historicalWork.work_id,
+      work_state: historicalWork.state,
+    },
+    {
+      target_id: 'unknown-tab',
+      title: 'Original unassigned browser tab',
+      url_host: 'example.invalid',
+      ownership: 'unknown',
+      work_id: null,
+      work_state: null,
+    },
+  ],
+}
+const activeWorkPage: WorkPage = { works: [work], next_before: null }
+const historicalEvents: EventsPage = {
+  generation: 1,
+  revision: 3,
+  latest_event_id: 32,
+  next_after: 32,
+  next_before: null,
+  has_more: false,
+  items: [
+    {
+      ...event,
+      content: 'The original message still owns its completed work',
+      attachments: [],
+      work_ids: [historicalWork.work_id],
+    },
+    {
+      ...event,
+      id: 32,
+      event_id: 32,
+      direction: 'outbound',
+      author_kind: 'yuki',
+      author_person_id: null,
+      content: 'The original result remains a separate message',
+      attachments: [],
+      work_ids: [historicalWork.work_id],
+    },
+  ],
+}
+const profile: Profile = {
+  id: 'role',
+  display_name: 'Yuki',
+  slug: 'yuki',
+  bio: '',
+  revision: 1,
+  avatar_revision: 0,
+  avatar: null,
+  default_avatar: null,
+  accent: { light: '#3a6bd6', dark: '#80a6ff' },
+  viewer: { is_owner: true },
+}
+const characterStatus: CharacterStatus = {
+  observed_at: '2026-10-25T00:00:00Z',
+  revision: 1,
+  mine: { live_conversations: [], works: {} },
+  environment: {
+    control: null,
+    display: 'unavailable',
+    generation: null,
+    help_requested: null,
+    state: 'unavailable',
+  },
+}
+const activity: Activity = {
+  conversation_id: 'conversation',
+  evidence: 'idle',
+  revision: 1,
+  sources: [],
+  step_kind: null,
+}
 const client: Pick<
   ConversationBridge,
   'soulDraft' | 'soulDocument' | 'soulCommands' | 'soulEdit' | 'onHint'
@@ -117,7 +238,12 @@ const client: Pick<
     draft = { ...value, remote: document }
     return { ok: true, value: draft }
   },
-  onHint: () => () => {},
+  onHint: (listener) => {
+    hintListeners.add(listener)
+    return () => {
+      hintListeners.delete(listener)
+    }
+  },
 }
 Object.assign(window, {
   yuki: {
@@ -125,43 +251,294 @@ Object.assign(window, {
       ...client,
       read: async (_id: string, route: ApiRead) => {
         reads.push(route.kind)
+        const mode = new URLSearchParams(location.search).get('case')
+        if (mode === 'late-work' || mode === 'late-work-combined') {
+          if (route.kind === 'work' || route.kind === 'steps')
+            lateWorkReads.push({ kind: route.kind, workId: route.workId })
+          const token = lateReceipt ? 'with-original-late-receipt' : 'before-original-late-receipt'
+          if (route.kind === 'work')
+            return {
+              ok: true,
+              value: {
+                ...historicalWork,
+                step_count: lateReceipt ? 3 : 2,
+                steps_token: token,
+              } satisfies Work,
+            }
+          if (route.kind === 'steps') {
+            const value = {
+              steps: (route.after
+                ? [
+                    {
+                      step_id: 'original-second-step',
+                      label: 'Previously loaded second page step',
+                    },
+                    ...(lateReceipt
+                      ? [
+                          {
+                            step_id: 'original-late-effect',
+                            label: 'Original late effect receipt',
+                          },
+                        ]
+                      : []),
+                  ]
+                : [{ step_id: 'original-first-step', label: 'Original first page step' }]
+              ).map((step) => ({
+                ...step,
+                category: 'terminal',
+                record: 'committed',
+                status: 'succeeded',
+                created_at: '2026-10-24T00:00:00Z',
+                updated_at: '2026-10-24T00:00:00Z',
+                artifacts: [],
+              })),
+              children: [],
+              wait: null,
+              work_revision: historicalWork.revision,
+              steps_token: token,
+              next_after: route.after ? null : 'original-second-page',
+            } satisfies WorkSteps
+            if (route.after && holdNextSecondPage) {
+              holdNextSecondPage = false
+              await new Promise<void>((resolve) => {
+                releaseSecondPage = resolve
+              })
+            }
+            return { ok: true, value }
+          }
+        }
+        if (new URLSearchParams(location.search).get('case') === 'computer-inspector') {
+          if (route.kind === 'computer') return { ok: true, value: computerView }
+          if (route.kind === 'works') return { ok: true, value: activeWorkPage }
+          if (route.kind === 'computer-files')
+            return { ok: true, value: { path: '', items: [], next_cursor: null } }
+        }
+        if (mode === 'historical-work' || mode === 'late-work-combined') {
+          if (route.kind === 'home') return { ok: true, value: { ...home, works: [] } }
+          if (route.kind === 'events')
+            return {
+              ok: true,
+              value: {
+                ...historicalEvents,
+                items:
+                  new URLSearchParams(location.search).get('events') === 'result'
+                    ? historicalEvents.items.slice(1)
+                    : historicalEvents.items,
+              },
+            }
+          if (route.kind === 'work') return { ok: true, value: historicalWork }
+          if (route.kind === 'character') return { ok: true, value: profile }
+          if (route.kind === 'character-status') return { ok: true, value: characterStatus }
+          if (route.kind === 'activity') return { ok: true, value: activity }
+        }
         if (route.kind === 'home') return { ok: true, value: home }
-        if (route.kind === 'work') return { ok: true, value: work }
+        if (route.kind === 'work')
+          return {
+            ok: true,
+            value: {
+              ...work,
+              ...(mode === 'work-help'
+                ? { help_requested: new URLSearchParams(location.search).get('help') === 'true' }
+                : {}),
+            } satisfies Work,
+          }
+        if (route.kind === 'works')
+          return {
+            ok: true,
+            value: {
+              works: home.works.filter((item) =>
+                route.group === 'active' ? item.state !== 'completed' : item.state === 'completed',
+              ),
+              next_before: null,
+            },
+          }
+        if (route.kind === 'steps')
+          return {
+            ok: true,
+            value: {
+              steps: [
+                {
+                  step_id: 'original-public-step',
+                  category: 'terminal',
+                  label: 'Original terminal step',
+                  record: 'committed',
+                  status: 'succeeded',
+                  created_at: '2026-10-24T00:00:00Z',
+                  updated_at: '2026-10-24T00:00:00Z',
+                  artifacts: [],
+                },
+              ],
+              children: [],
+              wait: null,
+              next_after: null,
+              steps_token: 'original-steps',
+              work_revision: work.revision,
+            },
+          }
         throw Error('unexpected route')
       },
       workCommands: async () => ({ ok: true, value: [] }),
       workQuestionDrafts: async () => ({ ok: true, value: [] }),
       workDraft: async () => ({ ok: true, value: '' }),
+      selected: async () => ({ ok: true, value: null }),
+      draft: async () => ({ ok: true, value: '' }),
+      outbox: async () => ({ ok: true, value: [] }),
+      uploads: async () => ({ ok: true, value: [] }),
+      letterDecoration: async () => ({ ok: true, value: null }),
       content: async (_id: string, value: AttachmentSource) => {
         contentReads.push(value)
         return { ok: false, code: 'media_unavailable' }
       },
     },
     onCommand: () => () => {},
+    loginItem: async () => ({
+      ok: true,
+      value: { enabled: false, available: false, reason: 'install-required' },
+    }),
   },
-  regression: { snapshot: () => ({ draft, attempts, reads, contentReads }) },
+  regression: {
+    snapshot: () => ({
+      draft,
+      attempts,
+      reads,
+      contentReads,
+      lateWorkReads,
+      heldSecondPage: !!releaseSecondPage,
+      workStepsToken: queries.getQueryData<Work>(['role', 'work', historicalWork.work_id])
+        ?.steps_token,
+    }),
+    holdNextSecondPage: () => {
+      holdNextSecondPage = true
+    },
+    releaseSecondPage: () => {
+      const release = releaseSecondPage
+      releaseSecondPage = undefined
+      release?.()
+    },
+    settleLateEffect: () => {
+      lateReceipt = true
+      for (const listener of hintListeners) listener('role', 'refresh', {})
+    },
+  },
 })
 
 function Case() {
   const [value, setValue] = useState('original message')
+  const [preferences, setPreferences] = useState(defaultPreferences)
   const [calls, setCalls] = useState(0)
   const [selected, setSelected] = useState('')
   const [attachment, setAttachment] = useState<AttachmentSource>()
   const mode = new URLSearchParams(location.search).get('case')
+  if (mode === 'work-help')
+    return (
+      <>
+        <WorkDetail
+          id="role"
+          workId={work.work_id}
+          open={() => {}}
+          replyInChat={() => {}}
+          artifact={() => {}}
+          computer={() => setCalls((value) => value + 1)}
+        />
+        <output data-testid="computer-open-count">{calls}</output>
+      </>
+    )
+  if (mode === 'late-work')
+    return (
+      <WorkDetail
+        id="role"
+        workId={historicalWork.work_id}
+        open={() => {}}
+        replyInChat={() => {}}
+        artifact={() => {}}
+      />
+    )
+  if (mode === 'computer-inspector')
+    return (
+      <>
+        <ComputerInspector id="role" work={setSelected} />
+        <output data-testid="selected-work">{selected}</output>
+      </>
+    )
+  if (mode === 'historical-work' || mode === 'late-work-combined')
+    return (
+      <main className={appStyles.app}>
+        <Conversation
+          connection={{
+            characterId: 'role',
+            name: 'Yuki',
+            baseUrl: 'https://example.invalid',
+            personId: 'person',
+            bindingId: 'binding',
+            conversationId: 'conversation',
+            persistentCredentials: false,
+          }}
+          platform="linux"
+          preferences={preferences}
+          onSettings={() => {}}
+          onPairAgain={() => {}}
+        />
+      </main>
+    )
+  if (mode === 'settings')
+    return (
+      <main className={appStyles.app}>
+        <Workspace
+          name="Yuki Desktop"
+          status="尚未連接 Bot"
+          owner={false}
+          platform="linux"
+          floating={false}
+          settings={
+            <Settings
+              boot={{
+                nativeMaterial: 'none',
+                platform: 'linux',
+                version: 'fixture',
+                deviceLabel: 'Fixture desktop',
+                dark: false,
+                reducedTransparency: false,
+                highContrast: false,
+                preferences,
+                pairLink: null,
+                openTarget: null,
+              }}
+              embedded
+              preferences={preferences}
+              save={async (patch) => setPreferences((current) => ({ ...current, ...patch }))}
+              back={() => {}}
+              onConnection={() => {}}
+              about={() => {}}
+              onLoggedOut={async () => {}}
+              onAddCharacter={() => setSelected('connect')}
+              onDeployLocal={() => setSelected('deploy')}
+            />
+          }
+        >
+          {null}
+        </Workspace>
+        <output data-testid="settings-action">{selected}</output>
+      </main>
+    )
   if (mode === 'messages') {
     const messages: PublicEvent[] = [
-      { ...event, event_id: 1, text: 'First separate message', attachments: [] },
-      { ...event, event_id: 2, text: 'Second separate message', attachments: [] },
+      { ...event, event_id: 1, content: 'First separate message', attachments: [] },
+      { ...event, event_id: 2, content: 'Second separate message', attachments: [] },
       {
         ...event,
         event_id: 3,
-        text: 'A longer message\n\nWith a second paragraph and **Markdown**.\n\n```js\nconst value = 42\n```',
+        content:
+          'A longer message\n\nWith a second paragraph and **Markdown**.\n\n```js\nconst value = 42\n```',
         attachments: [],
       },
       {
         ...event,
         event_id: 4,
-        text: 'Another participant',
+        content: 'Another participant',
+        asr: [
+          { segment_index: 7, text: '第一段原始語音轉寫', source: 'fixture' },
+          { segment_index: 9, text: '第二段原始語音轉寫', source: 'fixture' },
+        ],
         author_person_id: 'other-person',
         sender_display_name: 'Other person',
         attachments: [],
@@ -169,7 +546,7 @@ function Case() {
       {
         ...event,
         event_id: 5,
-        text: 'First Yuki reply',
+        content: 'First Yuki reply',
         direction: 'outbound',
         author_kind: 'yuki',
         author_person_id: null,
@@ -178,7 +555,7 @@ function Case() {
       {
         ...event,
         event_id: 6,
-        text: 'Second Yuki reply',
+        content: 'Second Yuki reply',
         direction: 'outbound',
         author_kind: 'yuki',
         author_person_id: null,
@@ -223,7 +600,13 @@ function Case() {
       <>
         <WorkList id="role" open={setSelected} />
         {selected && (
-          <WorkDetail id="role" workId={selected} replyInChat={() => {}} artifact={() => {}} />
+          <WorkDetail
+            id="role"
+            workId={selected}
+            open={setSelected}
+            replyInChat={() => {}}
+            artifact={() => {}}
+          />
         )}
       </>
     )
@@ -271,7 +654,7 @@ function Case() {
   )
 }
 createRoot(window.document.getElementById('root')!).render(
-  <QueryClientProvider client={new QueryClient()}>
+  <QueryClientProvider client={queries}>
     <Case />
   </QueryClientProvider>,
 )

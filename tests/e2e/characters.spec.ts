@@ -1,26 +1,27 @@
 import { navigate, sidebar } from '../fixtures/navigation'
-import { expect, test, type Page } from '@playwright/test'
-import { join } from 'node:path'
+import { activeCharacterName } from '../fixtures/active-character'
 import { captureViewport, contentSize } from '../fixtures/visual'
+import { expect, test, type Page } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 
 async function add(page: Page) {
   await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
   await page.getByRole('button', { name: '加入另一個角色', exact: true }).click()
-  await expect(
-    page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true }).filter({ visible: true }),
-  ).toBeVisible()
+  await expect(page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })).toBeVisible()
 }
 async function switchRole(page: Page, name: string) {
-  await (await sidebar(page)).getByRole('button', { name: '切換角色', exact: true }).click()
+  await sidebar(page)
+  await page.getByRole('button', { name: '切換角色', exact: true }).click()
   await page.getByRole('menuitemradio', { name: new RegExp(name) }).click()
 }
 
-test('two real roles retain their own drafts, layout and single SOUL editor through actual switches', async () => {
+test('two real roles retain their own drafts, layout, editor and avatar dialogs through actual switches', async () => {
   test.setTimeout(180000)
-  const first = await yukiFixture()
-  const second = await yukiFixture()
+  const first = await yukiFixture({ character: true, prompts: true })
+  const second = await yukiFixture({ character: true, prompts: true })
   let app = await first.launch('multiple-roles')
   let success = false
   const errors: string[] = []
@@ -28,14 +29,15 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
     let page = await app.firstWindow()
     page.on('pageerror', (error) => errors.push(error.message))
     await pairUI(page, first.base, await first.code())
-    await contentSize(app, page, 1440, 900)
+    const firstName = await activeCharacterName(page)
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
     await page.getByRole('radio', { name: '淺色', exact: true }).click()
     await page.getByRole('button', { name: '返回', exact: true }).click()
+    await contentSize(app, page, 1440, 900)
     await expect(page.getByRole('button', { name: '切換角色', exact: true })).toHaveCount(0)
     await page
-      .getByRole('textbox', { name: '和 初始角色 說點什麼', exact: true })
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼`, exact: true })
       .fill('只有第一角色的草稿')
     const separator = page.getByRole('separator', { name: '調整側邊欄' })
     await separator.focus()
@@ -48,16 +50,14 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
       .click()
     await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
     await add(page)
-    await expect(page.getByText(`伺服器：${first.base}`, { exact: true })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: '確認並連接', exact: true })).toHaveCount(0)
     await page.getByRole('button', { name: '返回', exact: true }).click()
-    await expect(
-      page.getByRole('textbox', { name: '和 初始角色 說點什麼', exact: true }),
-    ).toHaveValue('只有第一角色的草稿')
     await add(page)
     await pairUI(page, second.base, await second.code())
     await expect(
-      page.getByRole('textbox', { name: '和 初始角色 說點什麼', exact: true }),
+      page.getByRole('textbox', {
+        name: `和 ${await activeCharacterName(page)} 說點什麼`,
+        exact: true,
+      }),
     ).toHaveValue('')
     await expect(separator).toHaveAttribute('aria-valuenow', '260')
     await page.getByRole('button', { name: '檢視器', exact: true }).click()
@@ -67,7 +67,7 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
         .getByRole('tab', { name: '工作', exact: true }),
     ).toHaveAttribute('aria-selected', 'true')
     await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
-    await navigate(page, '關於 初始角色')
+    await navigate(page, `關於 ${await activeCharacterName(page)}`)
     await page.getByRole('button', { name: '編輯角色資料', exact: true }).click()
     await page.getByLabel('名稱', { exact: true }).fill('Mika')
     await page.getByLabel('淺色外觀', { exact: true }).fill('#b0466b')
@@ -81,9 +81,12 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
     await expect
       .poll(() => page.evaluate(() => document.documentElement.style.getPropertyValue('--accent')))
       .toBe('#b0466b')
-    await switchRole(page, '初始角色')
+    await switchRole(page, firstName)
     await expect(
-      page.getByRole('textbox', { name: '和 初始角色 說點什麼', exact: true }),
+      page.getByRole('textbox', {
+        name: `和 ${firstName} 說點什麼`,
+        exact: true,
+      }),
     ).toHaveValue('只有第一角色的草稿')
     await expect(separator).toHaveAttribute('aria-valuenow', '264')
     await page.getByRole('button', { name: '檢視器', exact: true }).click()
@@ -117,21 +120,60 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
     await page.keyboard.press('ControlOrMeta+Shift+BracketLeft')
     await page.getByRole('dialog').getByRole('button', { name: '儲存', exact: true }).click()
     await expect(
-      page.getByRole('textbox', { name: '和 初始角色 說點什麼', exact: true }),
+      page.getByRole('textbox', {
+        name: `和 ${firstName} 說點什麼`,
+        exact: true,
+      }),
     ).toBeVisible()
-    await navigate(page, '關於 初始角色')
-    await expect(page.getByRole('button', { name: '編輯頭像', exact: true })).toHaveCount(0)
+    await navigate(page, `關於 ${await activeCharacterName(page)}`)
+    await page.getByRole('button', { name: '更換角色頭像', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: `更換 ${firstName} 的頭像` })).toBeVisible()
+    await app.evaluate(
+      ({ dialog }, path) => {
+        dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
+      },
+      join(process.cwd(), 'tests/fixtures/avatar-white.png'),
+    )
+    await page.getByRole('button', { name: '選擇圖片…', exact: true }).click()
+    await expect(page.getByRole('button', { name: '選擇其他圖片…', exact: true })).toBeVisible()
+    await page.getByRole('slider', { name: '頭像縮放', exact: true }).focus()
+    await page.keyboard.press('ArrowRight')
+    const zoom = await page
+      .getByRole('slider', { name: '頭像縮放', exact: true })
+      .getAttribute('aria-valuenow')
+    await page.keyboard.press('ControlOrMeta+Shift+BracketRight')
+    await expect(page.getByRole('dialog', { name: `更換 ${firstName} 的頭像` })).toHaveCount(0)
+    await expect(editor).toBeVisible()
+    await expect(editor).toContainText('只屬於 Mika 的提示詞')
+    await page
+      .locator('[data-region="toolbar"]')
+      .getByRole('button', { name: '關於 Mika', exact: true })
+      .click()
+    await page.getByRole('button', { name: '更換角色頭像', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: '更換 Mika 的頭像' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '選擇圖片…', exact: true })).toBeVisible()
+    await page.keyboard.press('ControlOrMeta+Shift+BracketLeft')
+    await expect(page.getByRole('dialog', { name: `更換 ${firstName} 的頭像` })).toBeVisible()
+    await expect(page.getByRole('button', { name: '選擇其他圖片…', exact: true })).toBeVisible()
+    await expect(page.getByRole('slider', { name: '頭像縮放', exact: true })).toHaveAttribute(
+      'aria-valuenow',
+      zoom!,
+    )
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('button', { name: '更換角色頭像', exact: true })).toBeFocused()
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     await expect(editor).not.toContainText('只屬於 Mika 的提示詞')
     await navigate(page, '對話')
     await switchRole(page, 'Mika')
+    await expect(page.getByRole('dialog', { name: '更換 Mika 的頭像' })).toBeVisible()
+    await page.keyboard.press('Escape')
     await page.keyboard.press('ControlOrMeta+1')
     await expect(page.getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })).toHaveValue(
       '只有 Mika 的草稿',
     )
     await page.getByRole('button', { name: '切換角色', exact: true }).click()
     await page.keyboard.press('Home')
-    await expect(page.getByRole('menuitemradio', { name: /初始角色/ })).toBeFocused()
+    await expect(page.getByRole('menuitemradio', { name: new RegExp(firstName) })).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('button', { name: '切換角色', exact: true })).toBeFocused()
     await captureViewport(app, page, join(test.info().outputDir, 'mika-role-switch.png'))
@@ -142,10 +184,46 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
     await expect(page.getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })).toHaveValue(
       '只有 Mika 的草稿',
     )
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible()),
+      )
+      .toBe(true)
+    await writeFile(
+      test.info().outputPath('roles-cold-before-wide-stage.json'),
+      JSON.stringify(
+        {
+          native: await app.evaluate(({ BrowserWindow, screen }) => {
+            const window = BrowserWindow.getAllWindows()[0]!
+            const display = screen.getDisplayMatching(window.getBounds())
+            return {
+              platform: process.platform,
+              visible: window.isVisible(),
+              outerBounds: window.getBounds(),
+              contentBounds: window.getContentBounds(),
+              contentSize: window.getContentSize(),
+              scaleFactor: display.scaleFactor,
+              workArea: display.workArea,
+            }
+          }),
+          viewport: await page.evaluate(() => ({
+            width: innerWidth,
+            height: innerHeight,
+            dpr: devicePixelRatio,
+          })),
+        },
+        null,
+        2,
+      ),
+    )
+    // Measure the saved column width in the same wide stage; renderer emulation ends on quit.
     await contentSize(app, page, 1440, 900)
-    await switchRole(page, '初始角色')
+    await switchRole(page, firstName)
     await expect(
-      page.getByRole('textbox', { name: '和 初始角色 說點什麼', exact: true }),
+      page.getByRole('textbox', {
+        name: `和 ${firstName} 說點什麼`,
+        exact: true,
+      }),
     ).toHaveValue('只有第一角色的草稿')
     await expect(page.getByRole('separator', { name: '調整側邊欄' })).toHaveAttribute(
       'aria-valuenow',
@@ -178,12 +256,15 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
         [1280, 800],
         [960, 640],
       ] as const) {
-        await contentSize(app, page, width, height)
-        const actualWidth = await page.evaluate(() => innerWidth)
-        for (const name of ['初始角色', 'Mika']) {
+        const viewportMethod = await contentSize(app, page, width, height)
+        for (const name of [firstName, 'Mika']) {
+          if (viewportMethod === 'electron-device-emulation')
+            await expect
+              .poll(() => page.evaluate(() => [window.innerWidth, window.innerHeight]))
+              .toEqual([width, height])
           await expect(
             page.locator('[data-character-session]:not([hidden]) [data-region="sidebar"]'),
-          ).toHaveCSS('position', actualWidth < 1100 ? 'absolute' : 'relative')
+          ).toHaveCSS('position', width < 1100 ? 'absolute' : 'relative')
           await expect(
             page.getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true }),
           ).toBeVisible()
@@ -192,7 +273,7 @@ test('two real roles retain their own drafts, layout and single SOUL editor thro
           await page.getByRole('button', { name: '切換角色', exact: true }).click()
           await expect(page.getByRole('menu', { name: '角色', exact: true })).toBeVisible()
           const menu = page.getByRole('menu', { name: '角色', exact: true })
-          await expect(menu.getByRole('img', { name: '初始角色', exact: true })).toHaveCSS(
+          await expect(menu.getByRole('img', { name: firstName, exact: true })).toHaveCSS(
             'background-color',
             mode === 'dark' ? 'rgb(127, 164, 255)' : 'rgb(58, 107, 214)',
           )

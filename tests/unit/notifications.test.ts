@@ -12,8 +12,8 @@ import type {
   Home,
   Profile,
   PublicEvent,
-  Work,
 } from '../../src/shared/api'
+import type { components } from '../../src/shared/contract.gen'
 import { validateFixture } from '../fixtures/schema'
 
 const id = '00000000-0000-4000-8000-000000000001',
@@ -21,6 +21,7 @@ const id = '00000000-0000-4000-8000-000000000001',
   binding = '00000000-0000-4000-8000-000000000003',
   conversation = '00000000-0000-4000-8000-000000000004',
   workId = '00000000-0000-4000-8000-000000000005'
+type Work = components['schemas']['Work']
 const source = {
   binding_id: binding,
   conversation_id: conversation,
@@ -36,6 +37,7 @@ function work(patch: Partial<Work> = {}): Work {
     conversation_id: conversation,
     generation: 1,
     goal: '原工作目標',
+    help_requested: false,
     result_delivery: source,
     results: [],
     revision: 1,
@@ -50,15 +52,15 @@ function work(patch: Partial<Work> = {}): Work {
 }
 function event(event_id: number, origin: string): PublicEvent {
   return {
-    asr: [],
-    id: event_id,
-    author_person_id: null,
-    content: 'original outbound',
-    event_kind: 'message',
-    observed_at: '2026-10-19T00:00:00Z',
-    occurred_at: null,
     attachments: [],
     author_kind: 'yuki',
+    id: event_id,
+    event_kind: 'message',
+    author_person_id: null,
+    content: 'original outbound',
+    asr: [],
+    observed_at: '2026-10-19T00:00:00Z',
+    occurred_at: '2026-10-19T00:00:00Z',
     binding_id: binding,
     conversation_id: conversation,
     created_at: '2026-10-19T00:00:00Z',
@@ -166,22 +168,44 @@ afterEach(() => {
   }
 })
 
-it('does not invent help for external waits and finds completed Work missing from active home', async () => {
+it('uses live facts for help without treating wait-control as a help request, and finds a completed Work missing from active home', async () => {
   const facts = setup(),
     service = facts.create()
-  facts.store.set('appearance', { notifyHelp: true })
   await service.wake(id)
-  facts.home.works = [work({ state: 'waiting_external', revision: 2, waiting_kind: 'external' })]
+  facts.home.works = [
+    work({
+      state: 'waiting_external',
+      revision: 2,
+      wait: {
+        mode: 'all',
+        conditions: [{ kind: 'owned_run', run_kind: 'wait_control' }],
+        since: '2026-10-19T00:00:00Z',
+        deadline_at: null,
+      },
+    }),
+  ]
   await service.wake(id)
-  await facts.create().wake(id)
   expect(facts.shown).toEqual([])
-  expect(facts.store.preferences().notifyHelp).toBe(true)
+  facts.home.works = [work({ state: 'waiting_external', revision: 2, help_requested: true })]
+  await service.wake(id)
+  expect(facts.shown).toMatchObject([
+    {
+      category: 'help',
+      title: '目前角色 · 需要你幫忙',
+      target: { characterId: id, view: 'computer', workId },
+    },
+  ])
+  await facts.create().wake(id)
+  expect(facts.shown).toHaveLength(1)
   facts.home.works = []
   facts.ended.set(workId, work({ state: 'completed', revision: 3 }))
   await service.wake(id)
-  expect(facts.shown).toMatchObject([{ category: 'completed', target: { workId, view: 'works' } }])
+  expect(facts.shown.at(-1)).toMatchObject({
+    category: 'completed',
+    target: { workId, view: 'works' },
+  })
   await service.wake(id)
-  expect(facts.shown).toHaveLength(1)
+  expect(facts.shown).toHaveLength(2)
 })
 it('does not lose the last active Work when its completion GET temporarily fails', async () => {
   const facts = setup(),
@@ -231,9 +255,9 @@ it('keeps proactive notification watermarks across restarts and honors disabled 
       target: { characterId: id, conversationId: conversation },
     },
   ])
-  facts.store.set('appearance', { notifyProactive: false, notifyWaiting: false })
+  facts.store.set('appearance', { notifyProactive: false, notifyHelp: false })
   facts.events.items.push(event(4, 'self_initiative'))
-  facts.home.works = [work({ state: 'waiting_user' })]
+  facts.home.works = [work({ help_requested: true })]
   await service.wake(id)
   expect(facts.shown).toHaveLength(1)
 })

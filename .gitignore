@@ -5,6 +5,7 @@ dist/
 out/
 resources/icons/
 resources/local-bot/
+.cache/
 coverage/
 .env
 .env.*
@@ -26,5 +27,3 @@ coverage/
 /INTEGRATION.md
 /NOTICE.md
 /LOCAL-README.md
-
-.cache/

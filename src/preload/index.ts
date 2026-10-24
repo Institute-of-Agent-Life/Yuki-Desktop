@@ -11,8 +11,9 @@ const bridge: DesktopBridge = {
     pair: (input) => ipcRenderer.invoke('yuki:connector-pair', input),
     service: (action) => ipcRenderer.invoke('yuki:connector-service', action),
     discover: () => ipcRenderer.invoke('yuki:connector-discover'),
-    configure: (input) => ipcRenderer.invoke('yuki:connector-configure', input),
+    configure: (input, start) => ipcRenderer.invoke('yuki:connector-configure', input, start),
     diagnose: (id) => ipcRenderer.invoke('yuki:connector-diagnose', id),
+    revealNative: (id) => ipcRenderer.invoke('yuki:connector-reveal-native', id),
     chooseProject: () => ipcRenderer.invoke('yuki:connector-choose-project'),
     chooseExecutable: () => ipcRenderer.invoke('yuki:connector-choose-executable'),
     sessions: (id, instance, cursor) =>
@@ -37,6 +38,17 @@ const bridge: DesktopBridge = {
     },
   },
   client: {
+    executorState: (id) => ipcRenderer.invoke('yuki:executor-state', id),
+    clearUnavailableExecutor: (id) => ipcRenderer.invoke('yuki:executor-clear-unavailable', id),
+    enableExecutor: (id) => ipcRenderer.invoke('yuki:enable-executor', id),
+    executorAction: (id, action) => ipcRenderer.invoke('yuki:executor-action', id, action),
+    executorCommands: (id) => ipcRenderer.invoke('yuki:executor-commands', id),
+    verifyExecutorCommand: (id, request) =>
+      ipcRenderer.invoke('yuki:verify-executor-command', id, request),
+    pickExecutorFolder: (id, alias) => ipcRenderer.invoke('yuki:pick-executor-folder', id, alias),
+    removeExecutorFolder: (id, digest) =>
+      ipcRenderer.invoke('yuki:remove-executor-folder', id, digest),
+
     pendingPairings: () => ipcRenderer.invoke('yuki:pending-pairings'),
     resumePairing: (id, device) => ipcRenderer.invoke('yuki:resume-pairing', id, device),
     forgetPairing: (id, device) => ipcRenderer.invoke('yuki:forget-pairing', id, device),
@@ -61,6 +73,12 @@ const bridge: DesktopBridge = {
       ipcRenderer.invoke('yuki:letter-decoration', id, revision, avatarRevision, bytes),
     avatarBytes: (id, sha, size) => ipcRenderer.invoke('yuki:avatar-bytes', id, sha, size),
     previewAvatar: (server) => ipcRenderer.invoke('yuki:preview-avatar', server),
+    pickAvatar: () => ipcRenderer.invoke('yuki:pick-avatar'),
+    dropAvatar: (file) => ipcRenderer.invoke('yuki:drop-avatar', webUtils.getPathForFile(file)),
+    pasteAvatar: () => ipcRenderer.invoke('yuki:paste-avatar'),
+    avatarCommand: (id, revision, bytes) =>
+      ipcRenderer.invoke('yuki:avatar-command', id, revision, bytes),
+    avatarDraft: (id, request) => ipcRenderer.invoke('yuki:avatar-draft', id, request),
     characterCommand: (id, command) => ipcRenderer.invoke('yuki:character-command', id, command),
     characterCommands: (id) => ipcRenderer.invoke('yuki:character-commands', id),
     verifyCharacterCommand: (id, request) =>
@@ -72,6 +90,14 @@ const bridge: DesktopBridge = {
     selected: (id) => ipcRenderer.invoke('yuki:selected', id),
     acknowledgeTarget: (target) => ipcRenderer.invoke('yuki:acknowledge-target', target),
     contextMenu: (options) => ipcRenderer.invoke('yuki:context-menu', options),
+    computerTicket: (id) => ipcRenderer.invoke('yuki:computer-ticket', id),
+    saveComputerFile: (id, path) => ipcRenderer.invoke('yuki:save-computer-file', id, path),
+    computerCommand: (id, command) => ipcRenderer.invoke('yuki:computer-command', id, command),
+    computerCommands: (id) => ipcRenderer.invoke('yuki:computer-commands', id),
+    verifyComputerCommand: (id, request) =>
+      ipcRenderer.invoke('yuki:verify-computer-command', id, request),
+    keyboardCapture: (captured) => ipcRenderer.invoke('yuki:keyboard-capture', captured),
+    saveScreenshot: (id, bytes) => ipcRenderer.invoke('yuki:save-screenshot', id, bytes),
     connections: () => ipcRenderer.invoke('yuki:connections'),
     meta: (server) => ipcRenderer.invoke('yuki:meta', server),
     pair: (server, code, label) => ipcRenderer.invoke('yuki:pair', server, code, label),

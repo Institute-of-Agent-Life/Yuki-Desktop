@@ -8,6 +8,11 @@ test('consecutive messages keep separate bubbles and preserve the actual partici
     await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=messages')
     const log = page.getByRole('log', { name: 'Message spacing sample' })
     await expect(log.locator('article[data-event-id]')).toHaveCount(6)
+    await expect(log.getByText('First separate message', { exact: true })).toBeVisible()
+    await expect(log.locator('[data-transcript-segment]')).toHaveText([
+      '第一段原始語音轉寫',
+      '第二段原始語音轉寫',
+    ])
     const card = log
       .locator('article')
       .filter({ has: page.getByRole('heading', { name: 'Original active work' }) })
@@ -71,7 +76,9 @@ test('composer associates submission failure with retained input and ignores IME
   page,
 }) => {
   await page.goto('http://127.0.0.1:4178/renderer-regressions.html')
-  const input = page.getByRole('textbox', { name: '和 Yuki 說點什麼' })
+  const input = page.getByRole('textbox', {
+    name: '和 Yuki 說點什麼',
+  })
   await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true })
   await expect(page.getByTestId('calls')).toHaveText('0')
   await input.press('Enter')
@@ -94,7 +101,7 @@ test('command palette does not execute composition Enter or keyCode 229', async 
   await expect(page.getByTestId('calls')).toHaveText('1')
 })
 
-test('work overview and detail consume current home and work wire shapes without catalog or steps', async ({
+test('work overview and detail preserve real catalog pagination and original steps', async ({
   page,
 }) => {
   await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=work')
@@ -104,6 +111,7 @@ test('work overview and detail consume current home and work wire shapes without
   await page.getByRole('button').filter({ hasText: 'Original active work' }).click()
   await expect(page.getByRole('heading', { name: 'Original active work' })).toBeVisible()
   await expect(page.getByText('Original result', { exact: true })).toBeVisible()
+  await expect(page.getByText('Original terminal step', { exact: true })).toBeVisible()
   await expect(page.getByText(/模型請求 3／無上限/)).toBeVisible()
   expect(
     await page.evaluate(
@@ -112,7 +120,84 @@ test('work overview and detail consume current home and work wire shapes without
           window as unknown as { regression: { snapshot(): { reads: string[] } } }
         ).regression.snapshot().reads,
     ),
-  ).toEqual(['home', 'work'])
+  ).toEqual(expect.arrayContaining(['works', 'work', 'steps']))
+})
+
+test('a completed work stays with its original message when the active home is empty', async ({
+  page,
+}) => {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=historical-work')
+  const log = page.getByRole('log', { name: '對話訊息' })
+  const original = log.locator('[data-event-id="31"]')
+  await expect(original).toContainText('The original message still owns its completed work')
+  const card = log.getByRole('article').filter({
+    has: page.getByRole('heading', { name: 'Completed work from the original message' }),
+  })
+  await expect(card).toHaveCount(1)
+  await expect(log.locator('[data-event-id="32"]')).toContainText(
+    'The original result remains a separate message',
+  )
+  await expect(card.getByText('已完成', { exact: true })).toBeVisible()
+  const originalBounds = await original.boundingBox()
+  const cardBounds = await card.boundingBox()
+  expect(cardBounds!.y).toBeGreaterThanOrEqual(originalBounds!.y + originalBounds!.height)
+  const resultBounds = await log.locator('[data-event-id="32"]').boundingBox()
+  expect(resultBounds!.y).toBeGreaterThanOrEqual(cardBounds!.y + cardBounds!.height)
+  await card.getByRole('button', { name: '查看詳情', exact: true }).click()
+  const inspector = page.getByRole('complementary', { name: '檢視器' })
+  await expect(
+    inspector.getByRole('heading', { name: 'Completed work from the original message' }),
+  ).toBeVisible()
+  await expect(inspector.getByText('Original terminal step', { exact: true })).toBeVisible()
+  await expect(inspector.getByText('Original result', { exact: true })).toBeVisible()
+  expect(errors).toEqual([])
+  await page.screenshot({ path: test.info().outputPath('completed-work-original-message.png') })
+})
+
+test('the result page can show its work when the original trigger has not been loaded', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(
+    'http://127.0.0.1:4178/renderer-regressions.html?case=historical-work&events=result',
+  )
+  const log = page.getByRole('log', { name: '對話訊息' })
+  await expect(log.locator('[data-event-id="31"]')).toHaveCount(0)
+  const result = log.locator('[data-event-id="32"]')
+  await expect(result).toContainText('The original result remains a separate message')
+  const card = log.getByRole('article').filter({
+    has: page.getByRole('heading', { name: 'Completed work from the original message' }),
+  })
+  await expect(card).toHaveCount(1)
+  await expect(card.getByText('已完成', { exact: true })).toBeVisible()
+  const resultBounds = await result.boundingBox()
+  const cardBounds = await card.boundingBox()
+  expect(cardBounds!.y).toBeGreaterThanOrEqual(resultBounds!.y + resultBounds!.height)
+  await card.getByRole('button', { name: '查看詳情', exact: true }).click()
+  await expect(
+    page
+      .getByRole('complementary', { name: '檢視器' })
+      .getByText('Original terminal step', { exact: true }),
+  ).toBeVisible()
+})
+
+test('computer tabs use the current WorkPage and keep the original work identity', async ({
+  page,
+}) => {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=computer-inspector')
+  await expect(page.getByText('Original owned browser tab', { exact: true })).toBeVisible()
+  await expect(page.getByText('Original unassigned browser tab', { exact: true })).toBeVisible()
+  await expect(page.getByText('歸屬不明', { exact: true })).toHaveCount(1)
+  await page.getByRole('button', { name: 'Original active work', exact: true }).click()
+  await expect(page.getByTestId('selected-work')).toHaveText('original-work')
+  await page.getByRole('button', { name: '查看所屬工作', exact: true }).click()
+  await expect(page.getByTestId('selected-work')).toHaveText('historical-work')
+  expect(errors).toEqual([])
 })
 
 test('an attachment without invented availability is clickable and original failure comes from content retrieval', async ({
@@ -129,4 +214,29 @@ test('an attachment without invented availability is clickable and original fail
         ).regression.snapshot().contentReads,
     ),
   ).toEqual([{ conversationId: 'conversation', eventId: 31, index: 0 }])
+})
+
+test('settings use the available column and keep both local integration entries before Bot setup', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=settings')
+  const content = page.locator('[data-region="content"]')
+  const pane = page.getByRole('tabpanel', { name: '一般', exact: true })
+  await expect(pane).toBeVisible()
+  const bounds = await pane.boundingBox()
+  const contentBounds = await content.boundingBox()
+  expect(bounds!.width).toBeGreaterThan(680)
+  expect(
+    Math.abs(bounds!.x + bounds!.width - contentBounds!.x - contentBounds!.width),
+  ).toBeLessThanOrEqual(1)
+  expect(await pane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  await expect(page.getByRole('tab', { name: '本機連接', exact: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '編程 Agent', exact: true })).toBeVisible()
+  await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
+  await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
+  await expect(page.getByTestId('settings-action')).toHaveText('connect')
+  await page.getByRole('button', { name: '本機部署與管理', exact: true }).click()
+  await expect(page.getByTestId('settings-action')).toHaveText('deploy')
+  await page.screenshot({ path: test.info().outputPath('settings-full-column.png') })
 })

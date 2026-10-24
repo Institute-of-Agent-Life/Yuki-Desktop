@@ -296,6 +296,7 @@ async function packagedFixture(root) {
       '<script src="assets/index.js"></script><link href="assets/index.css">',
     'out/renderer/assets/index.js': 'export const fixture = true',
     'out/renderer/assets/index.css': 'body { color: black }',
+    'out/renderer/assets/diff.worker-fixture.js': 'onmessage = () => {}',
     'resources/icons/trayTemplate.png': 'icon fixture',
     'resources/icons/trayTemplate@2x.png': 'icon fixture',
     'package.json': '{"name":"integrity-fixture"}',
@@ -303,6 +304,15 @@ async function packagedFixture(root) {
   }
   for (const size of [16, 32, 64, 128, 256, 512, 1024])
     files[`resources/icons/app/${size}x${size}.png`] = 'icon fixture'
+  for (const file of [
+    'AUTHORS',
+    'NOTICE.txt',
+    'LICENSE.MPL-2.0',
+    'LICENSE.BSD-2-Clause',
+    'LICENSE.BSD-3-Clause',
+    'LICENSE.OFL-1.1',
+  ])
+    files[`resources/legal/novnc/${file}`] = 'legal fixture'
   for (const [path, content] of Object.entries(files)) {
     const destination = join(source, path)
     await mkdir(join(destination, '..'), { recursive: true })

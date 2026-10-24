@@ -1,24 +1,12 @@
 import type { Outbox } from './index'
 
-const retiredTables = [
-  'computer_commands',
-  'avatar_commands',
-  'avatar_command_acknowledgements',
-  'executor_commands',
-  'executor_setup',
-  'local_executor_operations',
-  'character_commands',
-] as const
+const retiredTables = ['avatar_commands', 'avatar_command_acknowledgements'] as const
 
 function retiredTablesPresent(box: Outbox) {
   return retiredTables.flatMap((table) => {
     if (!box.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table))
       return []
-    const condition =
-      table === 'character_commands'
-        ? " WHERE json_extract(command, '$.kind') NOT IN ('profile', 'device-revoke')"
-        : ''
-    return [{ table, condition }]
+    return [{ table, condition: '' }]
   })
 }
 
@@ -89,7 +77,6 @@ export function localSummary(box: Outbox) {
     'work_commands',
     'computer_commands',
     'character_commands',
-    'avatar_commands',
     'soul_commands',
     'link_code_commands',
     'executor_commands',

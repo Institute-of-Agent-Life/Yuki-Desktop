@@ -1,6 +1,13 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
-import { writeFile } from 'node:fs/promises'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import { referencedMessage } from '../../src/shared/message'
+import {
+  ledgerEvents,
+  pairUI,
+  waitForAcceptedMessage,
+  waitForMainEnded,
+  yukiFixture,
+} from '../fixtures/backend'
 
 test('paginates real history without moving the visible message and jumps to the exact older reference', async () => {
   test.setTimeout(120000)
@@ -10,47 +17,110 @@ test('paginates real history without moving the visible message and jumps to the
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
-    const composer = page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })
+    const composer = page.getByRole('textbox', {
+      name: `和 ${await activeCharacterName(page)} 說點什麼`,
+    })
     await composer.fill('原始歷史錨點')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     const original = page
       .getByRole('article')
       .filter({ has: page.getByText('原始歷史錨點', { exact: true }) })
+    await expect(original).toHaveAttribute('data-event-id', /^\d+$/)
+    const originalId = Number(await original.getAttribute('data-event-id'))
     await original.getByRole('button', { name: '引用回覆' }).click()
-    // Seed actual canonical App events; pagination does not require running Main 61 times.
-    const response = await fetch(`${rig.base}/__test/history?count=61`, { method: 'POST' })
-    expect(response.status).toBe(200)
-    const history = (await response.json()) as { conversation_id: string; event_ids: number[] }
-    expect(new Set(history.event_ids).size).toBe(61)
+    // Populate history through the product's normal API/outbox, never by setting UI state.
+    const submission = await page.evaluate(async () => {
+      const connections = await window.yuki.client.connections()
+      if (!connections.ok || !connections.value[0]) throw new Error('Missing paired connection')
+      const id = connections.value[0].characterId
+      const results = await Promise.all(
+        Array.from({ length: 61 }, (_, index) =>
+          window.yuki.client.send(
+            id,
+            `歷史測試 ${String(index).padStart(2, '0')}\n${'真實帳本的一段較長文字。'.repeat(4)}`,
+          ),
+        ),
+      )
+      for (const result of results) if (!result.ok) throw new Error(result.code)
+      const submitted = results.map((result) => {
+        if (!result.ok) throw Error(result.code)
+        return result.value
+      })
+      const receipts = await Promise.all(
+        submitted
+          .filter((item) => item.eventId === null)
+          .map((item) => window.yuki.client.verify(id, item.requestId)),
+      )
+      for (const receipt of receipts) if (!receipt.ok) throw Error(receipt.code)
+      return {
+        id,
+        conversationId: connections.value[0].conversationId,
+        requests: submitted.map((item) => item.requestId),
+      }
+    })
+    const readSeeded = () =>
+      page.evaluate(async ({ id, requests }) => {
+        const journal = await window.yuki.client.outbox(id)
+        if (!journal.ok) throw Error(journal.code)
+        return journal.value
+          .filter((item) => requests.includes(item.requestId))
+          .map((item) => ({
+            requestId: item.requestId,
+            eventId: item.eventId,
+            text: item.body.text,
+          }))
+      }, submission)
+    await expect
+      .poll(async () => {
+        const items = await readSeeded()
+        return { count: items.length, accepted: items.every((item) => item.eventId !== null) }
+      })
+      .toEqual({ count: 61, accepted: true })
+    const seeded = await readSeeded()
     await composer.fill('引用很早以前的原事件')
     await page.getByRole('button', { name: '送出', exact: true }).click()
+    const finalSubmission = await waitForAcceptedMessage(
+      page,
+      submission.id,
+      referencedMessage(
+        [{ conversationId: submission.conversationId, eventId: originalId }],
+        '引用很早以前的原事件',
+      ),
+    )
     await expect(page.getByText('引用很早以前的原事件', { exact: true })).toBeVisible()
     await expect(composer).toHaveValue('')
+    const latest = page
+      .getByRole('article')
+      .filter({ has: page.getByText('引用很早以前的原事件', { exact: true }) })
+    await expect(latest).toHaveAttribute('data-event-id', String(finalSubmission.eventId))
+    const latestId = finalSubmission.eventId
+    const ended = await waitForMainEnded(page, submission.id, finalSubmission.requestId)
+    expect(ended.event_id).toBe(latestId)
+    expect(Array.isArray(ended.result_event_ids)).toBe(true)
+    for (const eventId of ended.result_event_ids!)
+      await expect(page.locator(`article[data-event-id="${eventId}"]`)).toBeVisible()
+    expect(new Set(seeded.map((item) => item.requestId)).size).toBe(61)
+    expect(new Set(seeded.map((item) => item.eventId)).size).toBe(61)
+    const ledger = await ledgerEvents(rig.base)
+    for (const item of seeded) {
+      expect(item.eventId).toBeGreaterThan(originalId)
+      expect(item.eventId).toBeLessThan(latestId)
+      expect(
+        ledger.filter((event) => event.event_id === item.eventId).map((event) => event.content),
+      ).toEqual([item.text])
+    }
     // Reload clears renderer history; only the latest API page is initially requested.
     await page.reload()
     const log = page.getByRole('log', { name: '對話訊息' })
     await expect(page.getByText('引用很早以前的原事件', { exact: true })).toBeVisible()
     await expect(page.getByText('原始歷史錨點', { exact: true })).toHaveCount(0)
-    await page.screenshot({ path: test.info().outputPath('conversation-history-latest.png') })
-    await writeFile(
-      test.info().outputPath('conversation-history-layout.json'),
-      JSON.stringify(
-        await log.locator('article[data-event-id]').evaluateAll((items) =>
-          items.map((item, index) => {
-            const rect = item.getBoundingClientRect()
-            return {
-              eventId: item.getAttribute('data-event-id'),
-              top: rect.top,
-              bottom: rect.bottom,
-              height: rect.height,
-              gap: index ? rect.top - items[index - 1]!.getBoundingClientRect().bottom : null,
-            }
-          }),
-        ),
-        null,
-        2,
-      ),
-    )
+    await log.getByRole('button').filter({ hasText: '引用：原始歷史錨點' }).click()
+    await expect(page.getByText('原始歷史錨點', { exact: true })).toBeVisible()
+    await expect(original).toHaveClass(/selected/)
+    await page.getByRole('button', { name: '回到最新訊息', exact: true }).click()
+    await expect(page.getByText('引用很早以前的原事件', { exact: true })).toBeInViewport({
+      ratio: 1,
+    })
     // Each real wheel reaches the top of the current page. Wait for its prepend
     // before the next wheel, so coalesced input cannot skip the pagination check.
     await log.hover()
@@ -63,22 +133,13 @@ test('paginates real history without moving the visible message and jumps to the
       await expect(log.locator(`article[data-event-id="${before}"]`)).toBeInViewport()
     }
     await expect(page.getByText('原始歷史錨點', { exact: true })).toHaveCount(1)
-    // Clear the paginated renderer page so the reference must resolve its original event again.
-    await page.reload()
-    await expect(page.getByText('引用很早以前的原事件', { exact: true })).toBeVisible()
-    await expect(page.getByText('原始歷史錨點', { exact: true })).toHaveCount(0)
-    await log.getByRole('button').filter({ hasText: '引用：原始歷史錨點' }).click()
-    await expect(page.getByText('原始歷史錨點', { exact: true })).toBeVisible()
-    await expect(original).toHaveClass(/selected/)
-    await page.getByRole('button', { name: '回到最新訊息', exact: true }).click()
-    await expect(page.getByText('引用很早以前的原事件', { exact: true })).toBeInViewport({
-      ratio: 1,
-    })
     await expect(page.getByRole('button', { name: '↓ 新訊息', exact: true })).toHaveCount(0)
     // A read-only sync does not pretend that another message arrived.
-    await page.evaluate(() => window.yuki.client.reconnect())
+    await fetch(`${rig.base}/__test/disconnect`, { method: 'POST' })
     await expect(
-      page.locator('[data-region="toolbar"]').getByText('已連線', { exact: true }),
+      page
+        .locator('[data-character-session]:not([hidden]) [data-region="toolbar"]')
+        .getByText('已連線', { exact: true }),
     ).toBeVisible()
     await expect(page.getByRole('button', { name: '↓ 新訊息', exact: true })).toHaveCount(0)
     await page.screenshot({

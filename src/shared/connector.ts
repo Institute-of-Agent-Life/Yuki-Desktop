@@ -12,8 +12,17 @@ export interface ConnectorInstance {
 export interface ConnectorAdmission {
   matched: boolean | null
   connected: boolean
+  serverProtocol?: number
   problem?: string
-  instances?: { id: string; localId?: string; label: string; driver: string }[]
+  instances?: {
+    id: string
+    localId?: string
+    label?: string | null
+    driver?: string | null
+    online: boolean
+    status?: string | null
+    errorType?: string | null
+  }[]
 }
 export type ConnectorState =
   | { available: false; bundled?: boolean }
@@ -44,10 +53,11 @@ export interface ConnectorCandidate {
 }
 export interface ConnectorConfiguration {
   id?: string
+  create?: boolean
   candidateId?: string
   command?: string
   label: string
-  cwd: string
+  cwd?: string
 }
 export interface ConnectorDiagnostic {
   id: string
@@ -94,8 +104,12 @@ export interface ConnectorBridge {
   pair(input: ConnectorPairing): Promise<ApiReply<ConnectorState>>
   service(action: ConnectorServiceAction): Promise<ApiReply<ConnectorState>>
   discover(): Promise<ApiReply<ConnectorCandidate[]>>
-  configure(input: ConnectorConfiguration): Promise<ApiReply<ConnectorState>>
+  configure(
+    input: ConnectorConfiguration,
+    start?: boolean,
+  ): Promise<ApiReply<{ instanceId: string }>>
   diagnose(instanceId: string): Promise<ApiReply<ConnectorDiagnostic>>
+  revealNative(instanceId: string): Promise<ApiReply<void>>
   chooseProject(): Promise<ApiReply<string | null>>
   chooseExecutable(): Promise<ApiReply<string | null>>
   sessions(

@@ -1,139 +1,259 @@
 import { navigate } from '../fixtures/navigation'
-import { expect, test } from '@playwright/test'
-import { currentConnection, currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
-import { forwardProxy } from '../fixtures/forward-proxy'
-import type { Work } from '../../src/shared/api'
+import { expect, test, type Page } from '@playwright/test'
+import {
+  currentConnection,
+  currentEvents,
+  pairUI,
+  recordBusinessState,
+  waitForAcceptedMessage,
+  waitForMainEnded,
+  waitForWorkState,
+  yukiFixture,
+} from '../fixtures/backend'
+import type { Home, Work, WorkSteps, OriginalRequest } from '../../src/shared/api'
+import { writeFile } from 'node:fs/promises'
 
-test('real Work input and cancellation retain original identities and recover their lost responses', async () => {
+test('continues the original work through an actual reply and confirms cancellation with lost command responses', async () => {
   test.setTimeout(120000)
   const rig = await yukiFixture(),
-    proxy = await forwardProxy(rig.base, '/work')
-  const app = await rig.launch('work-device')
+    app = await rig.launch('work-device')
+  let second: Awaited<ReturnType<typeof rig.launch>> | undefined
   let success = false
+  let third: { characterId: string; requestId: string; eventId: number; workId: string } | undefined
+  const recordThirdWork = async (page: Page, device: string) => {
+    if (!third) return
+    const facts = await page.evaluate(async (identity) => {
+      const id = identity.characterId
+      const commands = await window.yuki.client.workCommands(id)
+      const related = commands.ok
+        ? commands.value.filter((item) => item.command.workId === identity.workId)
+        : []
+      const requestIds = new Set([identity.requestId, ...related.map((item) => item.requestId)])
+      const [work, steps, requests] = await Promise.all([
+        window.yuki.client.read<Work>(id, { kind: 'work', workId: identity.workId }),
+        window.yuki.client.read<WorkSteps>(id, { kind: 'steps', workId: identity.workId }),
+        Promise.all(
+          [...requestIds].map(async (requestId) => ({
+            requestId,
+            result: await window.yuki.client.read<OriginalRequest>(id, {
+              kind: 'request',
+              requestId,
+            }),
+          })),
+        ),
+      ])
+      return { identity, commands, related, work, steps, requests }
+    }, third)
+    await writeFile(
+      test.info().outputPath(`third-work-state-${device}.json`),
+      JSON.stringify(facts, null, 2),
+    )
+  }
   try {
     const page = await app.firstWindow()
-    await pairUI(page, proxy.base, await rig.code(), undefined, 15000)
-    const connection = await currentConnection(page)
-    const seed = await fetch(`${rig.base}/__test/work`, { method: 'POST' })
-    expect(seed.status).toBe(200)
-    const { work_id } = (await seed.json()) as { work_id: string }
-    const read = () =>
-      page.evaluate(
-        async ({ id, workId }) => {
-          const result = await window.yuki.client.read<Work>(id, { kind: 'work', workId })
-          if (!result.ok) throw Error(result.code)
-          return result.value
-        },
-        { id: connection.characterId, workId: work_id },
-      )
-    const original = await read()
-    expect(original.state).toBe('waiting_user')
-    expect(original.waiting_question?.event_id).toEqual(expect.any(Number))
-    await navigate(page, '工作')
-    await page.getByRole('button').filter({ hasText: 'Desktop reference work' }).click()
-    const detail = page.getByRole('complementary', { name: '檢視器', exact: true })
-    await expect(
-      detail.getByText('Which details should I use?', { exact: true }).first(),
-    ).toBeVisible()
-    const answer = 'Original user input attached to original Work'
-    await detail
-      .getByRole('textbox', { name: '補充給：Desktop reference work', exact: true })
-      .fill(answer)
-    proxy.faults.loseNextSuffix = '/inputs'
-    await detail.getByRole('button', { name: '傳送給這項工作', exact: true }).click()
-    await expect.poll(() => proxy.lostStatuses).toEqual([200])
-    proxy.faults.holdReceipts = false
-    const receipts = () =>
-      page.evaluate(async (id) => {
-        const result = await window.yuki.client.workCommands(id)
-        if (!result.ok) throw Error(result.code)
-        return result.value
-      }, connection.characterId)
-    const input = (await receipts()).find((item) => item.command.kind === 'input')!
-    await expect
-      .poll(() =>
-        page.evaluate(
-          async ({ id, requestId }) => {
-            const result = await window.yuki.client.verifyWorkCommand(id, requestId)
-            return result.ok ? result.value.state : result.code
-          },
-          { id: connection.characterId, requestId: input.requestId },
-        ),
-      )
-      .toBe('result')
-    const after = await read()
-    expect(after).toMatchObject({
-      work_id,
-      conversation_id: original.conversation_id,
-      generation: original.generation,
-    })
-    expect(after.budget.root_id).toBe(original.budget.root_id)
-    expect(after.budget.models).toBeGreaterThanOrEqual(original.budget.models)
-    expect(
-      (await currentEvents(page)).items.filter((event) => event.text.includes(answer)),
-    ).toHaveLength(1)
-    expect(
-      proxy.calls.filter(
-        (call) =>
-          call.method === 'POST' &&
-          call.path.endsWith('/inputs') &&
-          call.requestId === input.requestId,
-      ),
-    ).toHaveLength(1)
-    await expect.poll(async () => (await read()).state, { timeout: 20000 }).toBe('completed')
-    // Seed another actual waiting Work so cancellation tests an active original execution.
-    const nextSeed = await fetch(`${rig.base}/__test/work`, { method: 'POST' })
-    expect(nextSeed.status).toBe(200)
-    const next = (await nextSeed.json()) as { work_id: string }
-    await page.evaluate(async (id) => {
-      await window.yuki.client.reconnect()
-      await window.yuki.client.read(id, { kind: 'home' })
-    }, connection.characterId)
-    await navigate(page, '對話')
-    await navigate(page, '工作')
+    await pairUI(page, rig.base, await rig.code())
+    const name = (await currentConnection(page)).name
+    await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
     await page
-      .getByRole('button')
-      .filter({ hasText: /等你回覆.*Desktop reference work/ })
-      .click()
+      .getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true })
+      .fill('請建立原工作整合測試')
+    await page.getByRole('button', { name: '送出', exact: true }).click()
+    const card = page
+      .getByRole('article')
+      .filter({ has: page.getByRole('heading', { name: '原工作整合測試', exact: true }) })
+    await expect(card.getByText('等你回覆', { exact: true })).toBeVisible({ timeout: 20000 })
+    const original = await page.evaluate(async () => {
+      const list = await window.yuki.client.connections()
+      if (!list.ok || !list.value[0]) throw new Error('No paired connection')
+      const home = await window.yuki.client.read<Home>(list.value[0].characterId, { kind: 'home' })
+      if (!home.ok || !home.value.works[0]) throw new Error('No actual work')
+      return { characterId: list.value[0].characterId, work: home.value.works[0] }
+    })
+    await card.getByRole('button', { name: '查看詳情', exact: true }).click()
+    const detail = page.getByRole('complementary', { name: '檢視器' })
+    await expect(detail.getByText('需要你提供城市', { exact: true }).first()).toBeVisible()
+    await detail.getByRole('button', { name: '在對話中回答', exact: true }).click()
+    const reply = page.locator('[data-region="content"] [data-work-reply]')
+    await reply.getByRole('textbox').fill('台北，請接續原工作')
+    await fetch(`${rig.base}/__test/lose-next-work-response/inputs`, { method: 'POST' })
+    await reply.getByRole('button', { name: '送出', exact: true }).click()
+    await expect(card.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
+    const finished = await page.evaluate(async ({ characterId, work }) => {
+      const value = await window.yuki.client.read<Work>(characterId, {
+        kind: 'work',
+        workId: work.work_id,
+      })
+      if (!value.ok) throw new Error(value.code)
+      return value.value
+    }, original)
+    expect(finished.work_id).toBe(original.work.work_id)
+    expect(finished.conversation_id).toBe(original.work.conversation_id)
+    expect(finished.generation).toBe(original.work.generation)
+    expect(finished.budget.root_id).toBe(original.work.budget.root_id)
+    expect(finished.budget.models).toBeGreaterThanOrEqual(original.work.budget.models)
+    const facts = (await currentEvents(page)).items
+    expect(facts.filter((item) => item.content === '台北，請接續原工作')).toHaveLength(1)
+    await page.getByRole('button', { name: '取消回覆工作', exact: true }).click()
+    await page.reload()
+    await expect(card.getByText('已完成', { exact: true })).toBeVisible()
+    const afterReload = await page.evaluate(async (id) => {
+      const home = await window.yuki.client.read<Home>(id, { kind: 'home' })
+      return home.ok ? home.value.works : null
+    }, original.characterId)
+    expect(afterReload).toEqual([])
+    await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
+    await page
+      .getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true })
+      .fill('再建立一項可取消的工作')
+    await page.getByRole('button', { name: '送出', exact: true }).click()
+    await navigate(page, '工作')
+    const row = page.getByRole('button', { name: /等你回覆.*原工作整合測試/ })
+    await expect(row).toBeVisible({ timeout: 20000 })
+    await row.click()
     await detail.getByRole('button', { name: '取消工作', exact: true }).click()
     await page.getByRole('button', { name: '保持執行', exact: true }).click()
+    await expect(detail.getByText('等你回覆', { exact: true })).toBeVisible()
     await detail.getByRole('button', { name: '取消工作', exact: true }).click()
-    proxy.faults.loseNextSuffix = '/cancel'
+    await fetch(`${rig.base}/__test/lose-next-work-response/cancel`, { method: 'POST' })
     await page.getByRole('button', { name: '仍然取消', exact: true }).click()
-    await expect.poll(() => proxy.lostStatuses).toEqual([200, 200])
-    proxy.faults.holdReceipts = false
-    const cancellation = (await receipts()).find((item) => item.command.kind === 'cancel')!
+    await expect(detail.getByText('已取消', { exact: true })).toBeVisible({ timeout: 20000 })
+    const cancellation = await page.evaluate(async (id) => {
+      const commands = await window.yuki.client.workCommands(id)
+      if (!commands.ok) throw Error(commands.code)
+      return commands.value.find((item) => item.command.kind === 'cancel')!
+    }, original.characterId)
+    const cancellationReceipt = () =>
+      page.evaluate(
+        async ({ id, requestId }) => {
+          const value = await window.yuki.client.read<OriginalRequest>(id, {
+            kind: 'request',
+            requestId,
+          })
+          if (!value.ok) throw Error(value.code)
+          return value.value
+        },
+        { id: original.characterId, requestId: cancellation.requestId },
+      )
+    await expect.poll(async () => (await cancellationReceipt()).found).toBe(true)
+    await writeFile(
+      test.info().outputPath('original-cancellation-receipt.json'),
+      JSON.stringify(
+        { requestId: cancellation.requestId, receipt: await cancellationReceipt() },
+        null,
+        2,
+      ),
+    )
+    const cancellationState = await page.evaluate(
+      async ({ id, requestId }) => {
+        const commands = await window.yuki.client.workCommands(id)
+        if (!commands.ok) throw Error(commands.code)
+        return commands.value.find((item) => item.requestId === requestId)!.state
+      },
+      { id: original.characterId, requestId: cancellation.requestId },
+    )
+    if (cancellationState !== 'result')
+      await detail.getByRole('button', { name: '查詢', exact: true }).click()
     await expect
       .poll(() =>
-        page.evaluate(
-          async ({ id, requestId }) => {
-            const result = await window.yuki.client.verifyWorkCommand(id, requestId)
-            return result.ok ? result.value.state : result.code
-          },
-          { id: connection.characterId, requestId: cancellation.requestId },
-        ),
+        page.evaluate(async (id) => {
+          const commands = await window.yuki.client.workCommands(id)
+          return commands.ok
+            ? commands.value.map((item) => [item.command.kind, item.state, item.problem])
+            : []
+        }, original.characterId),
       )
-      .toBe('result')
-    const final = await page.evaluate(
-      async ({ id, workId }) => {
-        const result = await window.yuki.client.read<Work>(id, { kind: 'work', workId })
-        return result.ok ? result.value : null
-      },
-      { id: connection.characterId, workId: next.work_id },
+      .toEqual([
+        ['input', 'result', null],
+        ['cancel', 'result', null],
+      ])
+    await page.screenshot({
+      animations: 'disabled',
+      path: test.info().outputPath('work-cancelled.png'),
+    })
+    await navigate(page, '對話')
+    await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
+    await page
+      .getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true })
+      .fill('兩台裝置同時處理的工作')
+    await page.getByRole('button', { name: '送出', exact: true }).click()
+    await navigate(page, '工作')
+    const thirdMessage = await waitForAcceptedMessage(
+      page,
+      original.characterId,
+      '兩台裝置同時處理的工作',
     )
-    expect(final).toMatchObject({ work_id: next.work_id, state: 'cancelled' })
-    expect(
-      proxy.calls.filter(
-        (call) =>
-          call.method === 'POST' &&
-          call.path.endsWith('/cancel') &&
-          call.requestId === cancellation.requestId,
-      ),
-    ).toHaveLength(1)
+    const thirdReceipt = await waitForMainEnded(page, original.characterId, thirdMessage.requestId)
+    expect(thirdReceipt.event_id).toBe(thirdMessage.eventId)
+    if (!thirdReceipt.event_id || !thirdReceipt.work)
+      throw Error('Original third Work association is missing')
+    third = {
+      characterId: original.characterId,
+      requestId: thirdMessage.requestId,
+      eventId: thirdReceipt.event_id,
+      workId: thirdReceipt.work.work_id,
+    }
+    await writeFile(
+      test.info().outputPath('third-work-identity.json'),
+      JSON.stringify(third, null, 2),
+    )
+    await expect(row).toBeVisible({ timeout: 20000 })
+    await row.click()
+    await detail.getByRole('button', { name: '取消工作', exact: true }).click()
+    second = await rig.launch('another-work-device')
+    const other = await second.firstWindow()
+    await pairUI(other, rig.base, await rig.code())
+    await navigate(other, '工作')
+    await other.getByRole('button', { name: /等你回覆.*原工作整合測試/ }).click()
+    const otherDetail = other.getByRole('complementary', { name: '檢視器' })
+    await otherDetail.getByRole('textbox').fill('另一台裝置回答：台北')
+    await otherDetail.getByRole('button', { name: '傳送給這項工作', exact: true }).click()
+    const thirdInput = await other.evaluate(async ({ characterId, workId }) => {
+      const commands = await window.yuki.client.workCommands(characterId)
+      return {
+        commands,
+        input: commands.ok
+          ? (commands.value.find(
+              (item) =>
+                item.command.workId === workId &&
+                item.command.kind === 'input' &&
+                item.command.text === '另一台裝置回答：台北',
+            ) ?? null)
+          : null,
+      }
+    }, third)
+    await writeFile(
+      test.info().outputPath('third-work-input.json'),
+      JSON.stringify({ identity: third, ...thirdInput }, null, 2),
+    )
+    await waitForWorkState(page, third.characterId, third.workId, 'completed')
+    await expect(otherDetail.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
+    // The original confirmation keeps the revision observed before the other device's reply.
+    await page.getByRole('button', { name: '仍然取消', exact: true }).click()
+    await expect(
+      detail.getByText('工作狀態已改變，請確認最新狀態後再取消。', { exact: true }),
+    ).toBeVisible()
+    await expect(detail.getByText('已完成', { exact: true })).toBeVisible()
+    await expect
+      .poll(() =>
+        page.evaluate(async (id) => {
+          const commands = await window.yuki.client.workCommands(id)
+          return commands.ok ? commands.value.at(-1)?.problem : 'unreadable'
+        }, original.characterId),
+      )
+      .toBe('version_conflict')
     success = true
   } finally {
-    await app.close().catch(() => {})
-    await proxy.close()
+    for (const [device, instance] of [
+      ['a', app],
+      ['b', second],
+    ] as const) {
+      if (!instance) continue
+      const page = await instance.firstWindow()
+      await recordBusinessState(page, `work-state-${device}.json`).catch(console.error)
+      await recordThirdWork(page, device).catch(console.error)
+    }
+    await second?.close()
+    await app.close()
     await rig.close(success)
   }
 })

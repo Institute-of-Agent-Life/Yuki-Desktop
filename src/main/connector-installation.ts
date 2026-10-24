@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { cp, mkdir, readFile, readlink, rename, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 import { ApiError } from './api/client'
 import type { LocalStore } from './store'
 
@@ -40,6 +41,9 @@ export class ConnectorInstallations {
   select(installation: ConnectorInstallation) {
     this.store.set(preference, installation)
   }
+  selectIfCurrent(installation: ConnectorInstallation, expected: ConnectorInstallation | null) {
+    if (isDeepStrictEqual(this.selected() ?? null, expected)) this.select(installation)
+  }
   async manifest(): Promise<RuntimeManifest | undefined> {
     try {
       return JSON.parse(await readFile(join(this.bundledRuntime, 'manifest.json'), 'utf8'))
@@ -48,12 +52,16 @@ export class ConnectorInstallations {
       throw error
     }
   }
-  async install(separate = false, adopt = false): Promise<ConnectorInstallation> {
+  async install(
+    separate = false,
+    adopt = false,
+    selected: ConnectorInstallation | null = this.selected() ?? null,
+  ): Promise<ConnectorInstallation> {
+    const previous = separate ? undefined : (selected ?? undefined)
     const manifest = await this.manifest()
     if (!manifest) throw new ApiError('connector_runtime_unavailable')
     if (manifest.platform !== process.platform || manifest.arch !== process.arch)
       throw new ApiError('connector_runtime_platform')
-    const previous = separate ? undefined : this.selected()
     if (previous && !previous.managed && !adopt)
       throw new ApiError('connector_external_installation')
     const source = this.bundledRuntime
@@ -104,7 +112,7 @@ export class ConnectorInstallations {
       },
     }
     // Selection is local installation metadata; credentials remain solely in Connector config.
-    this.select(installation)
+    this.selectIfCurrent(installation, selected)
     return installation
   }
 }
