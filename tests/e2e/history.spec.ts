@@ -1,7 +1,6 @@
 import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
-import { ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
-import type { OriginalRequest } from '../../src/shared/api'
+import { ledgerEvents, pairUI, waitForMainEnded, yukiFixture } from '../fixtures/backend'
 
 test('paginates real history without moving the visible message and jumps to the exact older reference', async () => {
   test.setTimeout(120000)
@@ -89,20 +88,7 @@ test('paginates real history without moving the visible message and jumps to the
       },
       { id: submission.id, eventId: latestId },
     )
-    const finalReceipt = () =>
-      page.evaluate(
-        async ({ id, requestId }) => {
-          const receipt = await window.yuki.client.read<OriginalRequest>(id, {
-            kind: 'request',
-            requestId,
-          })
-          if (!receipt.ok) throw Error(receipt.code)
-          return receipt.value
-        },
-        { id: submission.id, requestId: finalRequest },
-      )
-    await expect.poll(async () => (await finalReceipt()).turn?.state).toBe('ended')
-    const ended = await finalReceipt()
+    const ended = await waitForMainEnded(page, submission.id, finalRequest)
     expect(ended.event_id).toBe(latestId)
     expect(Array.isArray(ended.result_event_ids)).toBe(true)
     for (const eventId of ended.result_event_ids!)

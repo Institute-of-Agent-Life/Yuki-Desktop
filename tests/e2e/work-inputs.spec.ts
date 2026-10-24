@@ -3,7 +3,14 @@ import { crashElectron } from '../fixtures/electron-process'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import type { Connection, Home, Work } from '../../src/shared/api'
-import { recordBusinessState, currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
+import {
+  recordBusinessState,
+  currentEvents,
+  pairUI,
+  waitForAcceptedMessage,
+  waitForMainEnded,
+  yukiFixture,
+} from '../fixtures/backend'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
 
 const detail = (page: Page) => page.getByRole('complementary', { name: '檢視器', exact: true })
@@ -33,12 +40,25 @@ async function create(page: Page, base: string) {
     .getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true })
     .fill('請建立原工作整合測試')
   await page.getByRole('button', { name: '送出', exact: true }).click()
+  const submitted = await waitForAcceptedMessage(
+    page,
+    connection.characterId,
+    '請建立原工作整合測試',
+  )
+  const receipt = await waitForMainEnded(page, connection.characterId, submitted.requestId)
+  expect(receipt.event_id).toBe(submitted.eventId)
+  if (!receipt.work) throw Error('Original Work association is missing')
   await expect(card(page).getByText('等你回覆', { exact: true })).toBeVisible({ timeout: 20000 })
-  return page.evaluate(async (connection) => {
-    const home = await window.yuki.client.read<Home>(connection.characterId, { kind: 'home' })
-    if (!home.ok || !home.value.works[0]) throw Error('Original work missing')
-    return { connection, work: home.value.works[0] }
-  }, connection)
+  return page.evaluate(
+    async ({ connection, workId }) => {
+      const home = await window.yuki.client.read<Home>(connection.characterId, { kind: 'home' })
+      if (!home.ok) throw Error(home.code)
+      const work = home.value.works.find((item) => item.work_id === workId)
+      if (!work) throw Error('Original Work is missing from Home')
+      return { connection, work }
+    },
+    { connection, workId: receipt.work.work_id },
+  )
 }
 async function readWork(page: Page, connection: Connection, work: Work) {
   return page.evaluate(

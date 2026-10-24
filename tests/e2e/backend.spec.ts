@@ -120,6 +120,7 @@ test('actual Yuki container: pairing, real ledger reply, lost response, cold rec
     composer = page.getByRole('textbox', { name: composerName, exact: true })
     await expect(composer).toHaveValue('尚未送出的草稿')
     await expect(page.getByText('原回應遺失的訊息', { exact: true })).toBeVisible()
+    await waitForMainEnded(page, connection.characterId, unknown.requestId)
     await expect
       .poll(() =>
         page.evaluate(

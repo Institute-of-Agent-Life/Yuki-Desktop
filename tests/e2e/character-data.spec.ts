@@ -1,6 +1,12 @@
 import { navigate } from '../fixtures/navigation'
-import { expect, test } from '@playwright/test'
-import type { AutomationPage, MemoryPage, Profile } from '../../src/shared/api'
+import { expect, test, type Page } from '@playwright/test'
+import type {
+  AutomationPage,
+  CharacterCommandItem,
+  MemoryPage,
+  OriginalRequest,
+  Profile,
+} from '../../src/shared/api'
 import { expectContainedText } from '../fixtures/contained-text'
 import {
   recordBusinessState,
@@ -9,6 +15,59 @@ import {
   waitForMainEnded,
   yukiFixture,
 } from '../fixtures/backend'
+
+async function memoryResult(page: Page, characterId: string, text: string) {
+  const command = await page.evaluate(
+    ({ characterId, text }) =>
+      new Promise<CharacterCommandItem>((resolve, reject) => {
+        const read = async () => {
+          try {
+            const result = await window.yuki.client.characterCommands(characterId)
+            if (!result.ok) throw Error(result.code)
+            const item = result.value.find(
+              (item) => item.command.kind === 'memory' && item.command.text === text,
+            )
+            if (item?.state === 'result') {
+              dispose()
+              resolve(item)
+            }
+          } catch (error) {
+            dispose()
+            reject(error)
+          }
+        }
+        const dispose = window.yuki.client.onHint((id, kind) => {
+          if (id === characterId && kind === 'character-command') void read()
+        })
+        void read()
+      }),
+    { characterId, text },
+  )
+  expect(command.problem).toBeNull()
+  const receipt = await page.evaluate(
+    async ({ characterId, requestId }) => {
+      const result = await window.yuki.client.read<OriginalRequest>(characterId, {
+        kind: 'request',
+        requestId,
+      })
+      if (!result.ok) throw Error(result.code)
+      return result.value
+    },
+    { characterId, requestId: command.requestId },
+  )
+  expect(command.command.kind).toBe('memory')
+  if (command.command.kind !== 'memory') throw Error('Original memory command is missing')
+  expect(receipt).toMatchObject({
+    found: true,
+    operation_kind: 'client.memory_correction',
+    target: String(command.command.factId),
+    payload_hash: command.payloadHash,
+    status: 'succeeded',
+  })
+  expect(receipt.result).not.toBeNull()
+  expect(command.result).toMatchObject(receipt.result!)
+  return { command, receipt }
+}
 
 test('real Electron edits original memory and arrangements, handles two-device conflicts and lost responses', async () => {
   test.setTimeout(150000)
@@ -85,6 +144,7 @@ test('real Electron edits original memory and arrangements, handles two-device c
     await pa.getByRole('textbox', { name: '更正後的記憶' }).fill(retainedDraft)
     await pb.getByRole('textbox', { name: '更正後的記憶' }).fill('另一台已核對的修正')
     await pb.getByRole('button', { name: '送出更正' }).click()
+    await memoryResult(pb, connection.characterId, '另一台已核對的修正')
     await expect(pb.getByRole('dialog')).not.toBeVisible()
     await pa.getByRole('button', { name: '送出更正' }).click()
     await expect(pa.getByRole('dialog')).toContainText('這則記憶已變更')

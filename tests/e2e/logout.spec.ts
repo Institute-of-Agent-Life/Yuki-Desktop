@@ -37,6 +37,7 @@ test('logout drains a real delayed read; kept original pending content survives 
   test.setTimeout(180000)
   const rig = await yukiFixture({ character: true }),
     proxy = await forwardProxy(rig.base, '/logout')
+  const mePath = '/client/v1/me'
   let app = await rig.launch('logout-owners'),
     success = false
   try {
@@ -91,22 +92,17 @@ test('logout drains a real delayed read; kept original pending content survives 
       )
       .toBe(draft)
     await security(page)
-    await fetch(`${rig.base}/__test/pause-next-me`, { method: 'POST' })
+    proxy.faults.holdResponses.add(mePath)
+    const heldRead = proxy.waitForHeldResponse(mePath)
     await page.getByRole('button', { name: '重新讀取裝置', exact: true }).click()
-    await expect
-      .poll(
-        async () =>
-          ((await (await fetch(`${rig.base}/__test/me-blocked`)).json()) as { blocked: boolean })
-            .blocked,
-      )
-      .toBe(true)
+    await heldRead
     await page.getByRole('button', { name: '登出…', exact: true }).click()
     await page.getByRole('button', { name: '撤銷憑據並繼續', exact: true }).click()
     await expect(
       page.getByText('正在收尾進行中的操作並確認裝置憑據…', { exact: true }),
     ).toBeVisible()
     expect(proxy.calls.filter((c) => c.method === 'DELETE')).toHaveLength(0)
-    await fetch(`${rig.base}/__test/resume-me`, { method: 'POST' })
+    proxy.releaseResponses(mePath)
     let choice = page.getByRole('dialog', { name: '處理本機內容', exact: true })
     await expect(choice).toBeVisible()
     await expect(choice.getByText('1 份草稿', { exact: true })).toBeVisible()
@@ -235,6 +231,7 @@ test('logout drains a real delayed read; kept original pending content survives 
     })
     success = true
   } finally {
+    proxy.releaseResponses(mePath)
     await app.close().catch(() => {})
     await proxy.close()
     await rig.close(success)

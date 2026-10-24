@@ -1,9 +1,54 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { writeFile, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
-import type { Profile } from '../../src/shared/api'
+import type { OutboxItem, OriginalRequest, Profile } from '../../src/shared/api'
 import { currentConnection, ledgerEvents, yukiFixture, pairUI } from '../fixtures/backend'
+
+async function acceptedAttachment(page: Page, characterId: string, mediaId: string) {
+  const item = await page.evaluate(
+    ({ characterId, mediaId }) =>
+      new Promise<OutboxItem>((resolve, reject) => {
+        const read = async () => {
+          try {
+            const result = await window.yuki.client.outbox(characterId)
+            if (!result.ok) throw Error(result.code)
+            const item = result.value.find((item) => item.body.attachments?.includes(mediaId))
+            if (item?.eventId) {
+              dispose()
+              resolve(item)
+            }
+          } catch (error) {
+            dispose()
+            reject(error)
+          }
+        }
+        const dispose = window.yuki.client.onHint((id, kind) => {
+          if (id === characterId && kind === 'outbox') void read()
+        })
+        void read()
+      }),
+    { characterId, mediaId },
+  )
+  const receipt = await page.evaluate(
+    async ({ characterId, requestId }) => {
+      const result = await window.yuki.client.read<OriginalRequest>(characterId, {
+        kind: 'request',
+        requestId,
+      })
+      if (!result.ok) throw Error(result.code)
+      return result.value
+    },
+    { characterId, requestId: item.requestId },
+  )
+  expect(receipt).toMatchObject({
+    found: true,
+    operation_kind: 'message',
+    payload_hash: item.payloadHash,
+    event_id: item.eventId,
+  })
+  return item
+}
 
 test('device A uploads with a lost receipt; device B previews and saves verified bytes without the original file', async () => {
   test.setTimeout(120000)
@@ -82,8 +127,20 @@ test('device A uploads with a lost receipt; device B previews and saves verified
       })
     await expect(page.getByLabel('待送出附件')).toContainText('dropped.png')
     await expect(page.getByLabel('待送出附件')).toContainText('可送出')
+    const image = await page.evaluate(async (id) => {
+      const result = await window.yuki.client.uploads(id)
+      if (!result.ok) throw Error(result.code)
+      const item = result.value.find((item) => item.filename === 'dropped.png')
+      if (!item?.mediaId || item.state !== 'ready') throw Error('Original image upload is missing')
+      return item
+    }, connection.characterId)
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(page.getByRole('img', { name: 'dropped.png', exact: true })).toBeVisible()
+    const imageMessage = await acceptedAttachment(page, connection.characterId, image.mediaId!)
+    await expect(
+      page
+        .locator(`article[data-event-id="${imageMessage.eventId}"]`)
+        .getByRole('img', { name: 'dropped.png', exact: true }),
+    ).toBeVisible()
     const videoPath = join(rig.root, 'clip.webm')
     const videoBytes = await page.evaluate(async () => {
       const canvas = document.createElement('canvas')
@@ -114,8 +171,20 @@ test('device A uploads with a lost receipt; device B previews and saves verified
     }, videoPath)
     await page.getByRole('button', { name: '附加檔案', exact: true }).click()
     await expect(page.getByLabel('待送出附件')).toContainText('可送出')
+    const video = await page.evaluate(async (id) => {
+      const result = await window.yuki.client.uploads(id)
+      if (!result.ok) throw Error(result.code)
+      const item = result.value.find((item) => item.filename === 'clip.webm')
+      if (!item?.mediaId || item.state !== 'ready') throw Error('Original video upload is missing')
+      return item
+    }, connection.characterId)
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(page.locator('article').getByRole('button', { name: /clip\.webm/ })).toBeVisible()
+    const videoMessage = await acceptedAttachment(page, connection.characterId, video.mediaId!)
+    await expect(
+      page
+        .locator(`article[data-event-id="${videoMessage.eventId}"]`)
+        .getByRole('button', { name: /clip\.webm/ }),
+    ).toBeVisible()
     await expect
       .poll(async () => {
         const events = await ledgerEvents(rig.base)

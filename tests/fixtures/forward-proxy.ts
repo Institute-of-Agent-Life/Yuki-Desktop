@@ -106,6 +106,7 @@ export async function forwardProxy(target: string, prefix: string) {
             const pending = held.get(path) ?? []
             pending.push(() => response.pipe(res))
             held.set(path, pending)
+            server.emit('held-response', path)
           } else response.pipe(res)
         }
       },
@@ -126,6 +127,17 @@ export async function forwardProxy(target: string, prefix: string) {
     completed,
     lostStatuses,
     held,
+    waitForHeldResponse(path: string) {
+      return new Promise<void>((resolve) => {
+        const observed = (heldPath: string) => {
+          if (heldPath !== path) return
+          server.off('held-response', observed)
+          resolve()
+        }
+        server.on('held-response', observed)
+        if (held.has(path)) observed(path)
+      })
+    },
     pauseActive(path: string) {
       for (const response of responses.get(path) ?? []) response.pause()
     },

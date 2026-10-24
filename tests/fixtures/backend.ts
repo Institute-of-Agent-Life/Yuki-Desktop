@@ -39,6 +39,47 @@ export async function currentEvents(page: Page): Promise<EventsPage> {
   })
 }
 
+/** Wait for this normal UI submission's actual accepted event and original UUID. */
+export async function waitForAcceptedMessage(page: Page, characterId: string, text: string) {
+  return page.evaluate(
+    ({ characterId, text }) =>
+      new Promise<{ requestId: string; eventId: number }>((resolve, reject) => {
+        let reading = false
+        let changed = false
+        const dispose = window.yuki.client.onHint((id, kind) => {
+          if (id === characterId && kind === 'outbox') void read()
+        })
+        async function read() {
+          if (reading) {
+            changed = true
+            return
+          }
+          reading = true
+          try {
+            do {
+              changed = false
+              const result = await window.yuki.client.outbox(characterId)
+              if (!result.ok) throw Error(result.code)
+              const message = result.value.find((item) => item.body.text === text)
+              if (message?.eventId) {
+                dispose()
+                resolve({ requestId: message.requestId, eventId: message.eventId })
+                return
+              }
+            } while (changed)
+          } catch (error) {
+            dispose()
+            reject(error)
+          } finally {
+            reading = false
+          }
+        }
+        void read()
+      }),
+    { characterId, text },
+  )
+}
+
 /** Follow commit hints, while completion remains the original Main receipt. */
 export async function waitForMainEnded(
   page: Page,

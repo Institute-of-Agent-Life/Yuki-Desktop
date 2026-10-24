@@ -4,7 +4,13 @@ import { crashElectron } from '../fixtures/electron-process'
 import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import {
+  currentConnection,
+  pairUI,
+  waitForAcceptedMessage,
+  waitForMainEnded,
+  yukiFixture,
+} from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
 async function open(page: Page, text = '') {
   await page.keyboard.press('ControlOrMeta+k')
@@ -122,12 +128,22 @@ test(
         .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` })
         .fill('請建立原工作整合測試')
       await page.getByRole('button', { name: '送出', exact: true }).click()
+      const connection = await currentConnection(page)
+      const submitted = await waitForAcceptedMessage(
+        page,
+        connection.characterId,
+        '請建立原工作整合測試',
+      )
+      const receipt = await waitForMainEnded(page, connection.characterId, submitted.requestId)
+      expect(receipt.event_id).toBe(submitted.eventId)
+      if (!receipt.work) throw Error('Original Work association is missing')
       await expect(page.getByText('需要你提供城市', { exact: true }).first()).toBeVisible()
       await page.keyboard.press('ControlOrMeta+2')
       await expect(page.getByRole('button', { name: /原工作整合測試/ }).first()).toBeVisible()
       let palette = await open(page, '原工作整合測試')
       const work = palette.dialog.locator('[role="option"][data-item-id^="work/"]')
       await expect(work).toHaveCount(1)
+      await expect(work).toHaveAttribute('data-item-id', `work/${receipt.work.work_id}`)
       await work.hover()
       await page.keyboard.press('ControlOrMeta+Enter')
       await expect(

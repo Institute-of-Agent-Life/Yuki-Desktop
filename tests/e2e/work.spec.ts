@@ -5,6 +5,8 @@ import {
   currentEvents,
   pairUI,
   recordBusinessState,
+  waitForAcceptedMessage,
+  waitForMainEnded,
   waitForWorkState,
   yukiFixture,
 } from '../fixtures/backend'
@@ -175,33 +177,26 @@ test('continues the original work through an actual reply and confirms cancellat
       .fill('兩台裝置同時處理的工作')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await navigate(page, '工作')
-    await expect(row).toBeVisible({ timeout: 20000 })
-    third = await page.evaluate(async (id) => {
-      const outbox = await window.yuki.client.outbox(id)
-      if (!outbox.ok) throw Error(outbox.code)
-      const sent = outbox.value.find((item) => item.body.text === '兩台裝置同時處理的工作')
-      if (!sent) throw Error('Original third Work request is missing')
-      const request = await window.yuki.client.read<OriginalRequest>(id, {
-        kind: 'request',
-        requestId: sent.requestId,
-      })
-      if (!request.ok) throw Error(request.code)
-      const home = await window.yuki.client.read<Home>(id, { kind: 'home' })
-      if (!home.ok) throw Error(home.code)
-      const work = home.value.works.find((item) => item.trigger_event_id === request.value.event_id)
-      if (!request.value.event_id || !work)
-        throw Error('Original third Work association is missing')
-      return {
-        characterId: id,
-        requestId: sent.requestId,
-        eventId: request.value.event_id,
-        workId: work.work_id,
-      }
-    }, original.characterId)
+    const thirdMessage = await waitForAcceptedMessage(
+      page,
+      original.characterId,
+      '兩台裝置同時處理的工作',
+    )
+    const thirdReceipt = await waitForMainEnded(page, original.characterId, thirdMessage.requestId)
+    expect(thirdReceipt.event_id).toBe(thirdMessage.eventId)
+    if (!thirdReceipt.event_id || !thirdReceipt.work)
+      throw Error('Original third Work association is missing')
+    third = {
+      characterId: original.characterId,
+      requestId: thirdMessage.requestId,
+      eventId: thirdReceipt.event_id,
+      workId: thirdReceipt.work.work_id,
+    }
     await writeFile(
       test.info().outputPath('third-work-identity.json'),
       JSON.stringify(third, null, 2),
     )
+    await expect(row).toBeVisible({ timeout: 20000 })
     await row.click()
     await detail.getByRole('button', { name: '取消工作', exact: true }).click()
     second = await rig.launch('another-work-device')

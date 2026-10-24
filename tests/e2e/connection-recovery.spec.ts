@@ -3,7 +3,15 @@ import { crashElectron } from '../fixtures/electron-process'
 import { expect, test } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import type { Home, Work } from '../../src/shared/api'
-import { recordBusinessState, ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
+import {
+  recordBusinessState,
+  ledgerEvents,
+  pairUI,
+  currentConnection,
+  waitForAcceptedMessage,
+  waitForMainEnded,
+  yukiFixture,
+} from '../fixtures/backend'
 import { transportGate } from '../fixtures/transport'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
 
@@ -131,6 +139,15 @@ test('two actual devices submit different answers to one work and recover their 
       .getByRole('textbox', { name: `和 ${await activeCharacterName(pa)} 說點什麼`, exact: true })
       .fill('兩台裝置共同補充原工作')
     await pa.getByRole('button', { name: '送出', exact: true }).click()
+    const connection = await currentConnection(pa)
+    const submitted = await waitForAcceptedMessage(
+      pa,
+      connection.characterId,
+      '兩台裝置共同補充原工作',
+    )
+    const receipt = await waitForMainEnded(pa, connection.characterId, submitted.requestId)
+    expect(receipt.event_id).toBe(submitted.eventId)
+    if (!receipt.work) throw Error('Original Work association is missing')
     for (const page of [pa, pb])
       await expect(
         page
@@ -138,14 +155,16 @@ test('two actual devices submit different answers to one work and recover their 
           .filter({ has: page.getByRole('heading', { name: '原工作整合測試', exact: true }) })
           .getByText('等你回覆', { exact: true }),
       ).toBeVisible({ timeout: 20000 })
-    const original = await pa.evaluate(async () => {
-      const connections = await window.yuki.client.connections()
-      if (!connections.ok || !connections.value[0]) throw Error('Missing paired connection')
-      const characterId = connections.value[0].characterId
-      const home = await window.yuki.client.read<Home>(characterId, { kind: 'home' })
-      if (!home.ok || home.value.works.length !== 1) throw Error('Expected one original work')
-      return { characterId, work: home.value.works[0]! }
-    })
+    const original = await pa.evaluate(
+      async ({ characterId, workId }) => {
+        const home = await window.yuki.client.read<Home>(characterId, { kind: 'home' })
+        if (!home.ok || home.value.works.length !== 1) throw Error('Expected one original work')
+        const work = home.value.works.find((item) => item.work_id === workId)
+        if (!work) throw Error('Original Work is missing from Home')
+        return { characterId, work }
+      },
+      { characterId: connection.characterId, workId: receipt.work.work_id },
+    )
     const answers = ['裝置A回答：台北，沿原工作繼續', '裝置B補充：還要保留原版本成果']
     const details = [pa, pb].map((page) =>
       page.getByRole('complementary', { name: '檢視器', exact: true }),
