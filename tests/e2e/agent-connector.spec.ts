@@ -192,6 +192,32 @@ test('native readiness remains distinct from a running service and an online ser
     page.getByText('請先在原生 Codex 完成登入，再重新檢查。', { exact: true }),
   ).toBeVisible()
   await expect(page.getByRole('button', { name: '開啟原生程式位置', exact: true })).toBeEnabled()
+  await page.evaluate(async () => {
+    const state = await window.yuki.connector.state('00000000-0000-4000-8000-000000000001')
+    if (!state.ok || !state.value.available) throw Error('Expected the existing local installation')
+    window.yuki.connector.state = async () => ({
+      ok: true,
+      value: {
+        ...state.value,
+        admission: { matched: null, connected: false, problem: 'transport_unknown' },
+      },
+    })
+    ;(window as Window & { __connectorAdvance?: (phase: string) => void }).__connectorAdvance!(
+      'server-unreachable',
+    )
+  })
+  await expect(page.getByRole('status').filter({ hasText: '伺服器接納尚未確認：' })).toContainText(
+    '無法連到伺服器，已保留本機內容。',
+  )
+  await expect(page.getByRole('status').filter({ hasText: '伺服器接納尚未確認：' })).toContainText(
+    '可按「重新讀取狀態」再確認；本機服務仍可管理。',
+  )
+  await expect(page.getByText('尚未確認目前本人', { exact: true })).toBeVisible()
+  await expect(page.getByText('transport_unknown', { exact: false })).toHaveCount(0)
+  await expect(page.getByText('原安裝屬於另一個授權來源，原身份及回執會保留。')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '建立另一份獨立安裝', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '停止連接器', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '重新讀取狀態', exact: true })).toBeEnabled()
 })
 
 test('a previously authorized namespace continues discovery without another consent gate', async ({

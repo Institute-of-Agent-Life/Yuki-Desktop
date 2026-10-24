@@ -7,7 +7,7 @@ import type {
   ConnectorServiceAction,
 } from '../../shared/connector'
 import { Banner, Button, Spinner, TextField } from '../components/Controls'
-import { ClientProblem, unwrap } from '../queries/client'
+import { ClientProblem, problemText, unwrap } from '../queries/client'
 import { Row } from './Settings'
 import { ConnectorTasks } from './ConnectorTasks'
 import styles from './Settings.module.css'
@@ -222,7 +222,9 @@ export function AgentConnector({
         <>
           {available.admission?.problem && (
             <Banner status="unknown">
-              伺服器接納尚未確認（{available.admission.problem}）。本機服務狀態仍可讀取與管理。
+              伺服器接納尚未確認：
+              {problems[available.admission.problem] ?? problemText(available.admission.problem)}
+              可按「重新讀取狀態」再確認；本機服務仍可管理。
             </Banner>
           )}
           <div className={styles.group}>
