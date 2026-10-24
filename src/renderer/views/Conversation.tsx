@@ -1,5 +1,5 @@
 import { useFloatingInsets } from '../materials/floating'
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   Connection,
@@ -126,6 +126,11 @@ export function Conversation({
   const earlierBusy = useRef(false)
   const needsEarlier = useRef(false)
   const activeRange = useRef('')
+  const prepend = useRef<{
+    range: string
+    eventId: string
+    top: number
+  } | null>(null)
   activeRange.current = `${conversation}/${anchor}`
   const latestSeen = useRef<{ range: string; event: number }>({ range: '', event: 0 })
   const home = useQuery({ queryKey: [id, 'home'], queryFn: () => read<Home>(id, { kind: 'home' }) })
@@ -182,6 +187,20 @@ export function Conversation({
     queryFn: () => read<Activity>(id, { kind: 'activity', conversationId: conversation }),
   })
   const events = useHistory(id, conversation, anchor)
+  useLayoutEffect(() => {
+    const snapshot = prepend.current
+    prepend.current = null
+    if (snapshot?.range === activeRange.current) {
+      const element = list.current,
+        article = element?.querySelector<HTMLElement>(
+          `article[data-event-id="${snapshot.eventId}"]`,
+        )
+      if (element && article)
+        element.scrollTo({
+          top: element.scrollTop + article.getBoundingClientRect().top - snapshot.top,
+        })
+    }
+  })
   useEffect(() => {
     if (view !== 'chat') workspace.patch({ messageStage: undefined })
   }, [view])
@@ -465,18 +484,27 @@ export function Conversation({
   const more = async () => {
     if (earlierBusy.current || !eventData?.has_more || events.isFetching) return
     needsEarlier.current = false
-    const element = list.current,
-      height = element?.scrollHeight ?? 0,
-      top = element?.scrollTop ?? 0,
-      range = activeRange.current
+    const range = activeRange.current,
+      article = list.current?.querySelector<HTMLElement>('article[data-event-id]'),
+      snapshot = article
+        ? {
+            range,
+            eventId: article.dataset.eventId!,
+            top: article.getBoundingClientRect().top,
+          }
+        : null
     earlierBusy.current = true
     setLoadingEarlier(true)
     setHistoryError('')
     try {
       const page = await events.earlier(eventData)
-      query.setQueryData(events.key, page)
-      if (activeRange.current === range)
-        requestAnimationFrame(() => element?.scrollTo({ top: top + element.scrollHeight - height }))
+      const entry = query.getQueryCache().find<EventsPage>({ queryKey: events.key, exact: true })!
+      if (entry.state.fetchStatus !== 'idle' || entry.state.data !== eventData) {
+        // Settle older Query delivery before reading the expanded range.
+        await entry.cancel({ revert: true })
+        await entry.fetch(undefined, { cancelRefetch: false })
+      } else query.setQueryData(events.key, page)
+      if (activeRange.current === range) prepend.current = snapshot
     } catch (error) {
       if (activeRange.current === range)
         setHistoryError(error instanceof Error ? error.message : '無法載入更早訊息。')
