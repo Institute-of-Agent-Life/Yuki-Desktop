@@ -1,4 +1,5 @@
 import { captureViewport, contentSize } from '../fixtures/visual'
+import { navigate } from '../fixtures/navigation'
 import { expect, test } from '@playwright/test'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -12,7 +13,7 @@ test('standalone and connected settings fill the available column with their for
   const observations: unknown[] = []
   try {
     const page = await app.firstWindow()
-    await page.getByRole('button', { name: '設定', exact: true }).click()
+    await navigate(page, '設定')
     for (const mode of ['standalone', 'connected'] as const) {
       if (mode === 'connected') {
         await page.getByRole('button', { name: '返回', exact: true }).click()

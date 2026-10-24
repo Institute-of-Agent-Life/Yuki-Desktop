@@ -1,0 +1,50 @@
+.toolbarTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 40px 24px;
+  text-align: center;
+  min-width: 0;
+}
+.mark {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.empty h1 {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+}
+.description {
+  max-width: 520px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+.hint {
+  color: var(--text-secondary);
+  line-height: 20px;
+}
+.inspectorEmpty {
+  margin: 16px;
+  color: var(--text-secondary);
+  line-height: 22px;
+}

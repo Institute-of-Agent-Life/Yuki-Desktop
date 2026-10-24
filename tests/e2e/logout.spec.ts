@@ -4,6 +4,25 @@ import { readFile, writeFile, access } from 'node:fs/promises'
 import { join } from 'node:path'
 import { currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
+import { sidebar } from '../fixtures/navigation'
+async function connectAfterLogout(page: Page) {
+  await sidebar(page)
+  await expect
+    .poll(() => page.evaluate(() => window.yuki.client.connections()))
+    .toEqual({
+      ok: true,
+      value: [],
+    })
+  const input = page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })
+  await expect(input).toBeHidden()
+  await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
+  await expect(input).toHaveValue('')
+  await expect(page.getByRole('button', { name: '繼續', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '確認並連接', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '處理原連線的登出資料', exact: true })).toHaveCount(
+    0,
+  )
+}
 async function selected(page: Page) {
   return page.evaluate(async () => {
     const r = await window.yuki.client.connections()
@@ -132,9 +151,7 @@ test('logout drains a real delayed read; kept original pending content survives 
     await expect(choice.getByText('1 項待確認請求', { exact: true })).toBeVisible()
     await expect(choice.getByText('1 個待送附件', { exact: true })).toBeVisible()
     await choice.getByRole('button', { name: '保留並登出', exact: true }).click()
-    await expect(
-      page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true }).filter({ visible: true }),
-    ).toBeVisible()
+    await connectAfterLogout(page)
     expect(await exists(originalFile)).toBe(true)
     const otherCode = (await rig.state()).nonowner_pairing_code
     await pairUI(page, proxy.base, otherCode, 'Different owner device')
@@ -165,9 +182,7 @@ test('logout drains a real delayed read; kept original pending content survives 
     if (!(await page.getByRole('dialog', { name: '刪除本機資料？', exact: true }).isVisible()))
       await page.getByRole('button', { name: '刪除本機資料…', exact: true }).click()
     await page.getByRole('button', { name: '刪除並登出', exact: true }).click()
-    await expect(
-      page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true }).filter({ visible: true }),
-    ).toBeVisible()
+    await connectAfterLogout(page)
     expect(
       await exists(
         join(
@@ -243,9 +258,7 @@ test('offline logout retains credentials; a committed self-revocation with a los
     await expect(choice.getByText('1 項待確認請求', { exact: true })).toBeVisible()
     expect(proxy.lostStatuses).toEqual([200])
     await choice.getByRole('button', { name: '保留並登出', exact: true }).click()
-    await expect(
-      page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true }).filter({ visible: true }),
-    ).toBeVisible()
+    await connectAfterLogout(page)
     proxy.faults.holdReceipts = false
     await pairUI(page, proxy.base, await rig.code(), 'Repaired self revoke')
     await expect
