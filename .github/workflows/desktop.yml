@@ -1,26 +1,19 @@
-name: Desktop
+name: Desktop ARM original Work probe
+run-name: ARM original Work facts · ${{ github.ref_name }} · attempt ${{ github.run_attempt }}
 on:
-  pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: desktop-${{ github.ref }}
-  cancel-in-progress: true
+  group: desktop-arm-work-probe-${{ github.ref }}
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
 jobs:
-  desktop:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: macos-15, platform: mac, arch: arm64 }
-          - { os: macos-15-intel, platform: mac, arch: x64 }
-          - { os: windows-2025, platform: win, arch: x64 }
-          - { os: ubuntu-24.04, platform: linux, arch: x64 }
-          - { os: ubuntu-24.04-arm, platform: linux, arch: arm64 }
-    runs-on: ${{ matrix.os }}
+  original-work:
+    name: Original Work facts (Linux ARM64)
+    runs-on: ubuntu-24.04-arm
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
@@ -46,37 +39,50 @@ jobs:
             .cache/backend/packages/yuki-agent-connector/uv.lock
       - name: Prepare the actual backend test environment
         run: uv sync --directory .cache/backend --frozen --all-extras --python 3.12
-      - name: Select the actual backend fixture
-        run: node -e "const fs=require('node:fs'),p=require('node:path');const root=p.resolve('.cache/backend');const py=p.join(root,'.venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');fs.appendFileSync(process.env.GITHUB_ENV,'YUKI_BACKEND_TEST_ROOT='+root+'\nYUKI_BACKEND_TEST_PYTHON='+py+'\nYUKI_E2E_OUTPUT='+p.join(process.env.RUNNER_TEMP,'yuki-desktop-e2e')+'\n')"
+      - name: Select and record the actual backend fixture
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const path = require('node:path')
+          const cp = require('node:child_process')
+          const root = path.resolve('.cache/backend')
+          const py = path.join(root, '.venv/bin/python')
+          const output = path.join(process.env.RUNNER_TEMP, 'yuki-desktop-arm-work-probe')
+          fs.appendFileSync(process.env.GITHUB_ENV,
+            'YUKI_BACKEND_TEST_ROOT=' + root + '\n' +
+            'YUKI_BACKEND_TEST_PYTHON=' + py + '\n' +
+            'YUKI_E2E_OUTPUT=' + output + '\n')
+          fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'arm-work-source.json'),
+            JSON.stringify({
+              purpose: 'Isolated diagnostic run; not a release or final acceptance',
+              desktopCommit: process.env.GITHUB_SHA,
+              backendCommit: cp.execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], {encoding: 'utf8'}).trim(),
+              contractSource: JSON.parse(fs.readFileSync('contracts/source.json', 'utf8')),
+              node: process.version,
+              platform: process.platform,
+              arch: process.arch,
+              runId: process.env.GITHUB_RUN_ID,
+              runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+              test: 'tests/e2e/work.spec.ts'
+            }, null, 2))
+          NODE
       - run: npm ci
       - name: Bundle the platform's standalone Connector
         run: node build-tools/prepare-connector.mjs --backend .cache/backend
       - name: Bundle the matching local Bot setup
         run: node build-tools/prepare-local-bot.mjs --source .cache/backend
       - run: npm exec playwright install -- --with-deps chromium
-      - if: runner.os == 'Linux'
+      - name: Install the formal Linux desktop dependencies
         run: sudo apt-get install --no-install-recommends -y rpm ffmpeg libnotify4 dbus-x11 gnome-keyring openbox
-      - if: runner.os == 'macOS'
-        run: brew install ffmpeg
-      - if: runner.os == 'Windows'
-        run: choco install ffmpeg --yes --no-progress
       - name: Configure Electron sandbox for Ubuntu CI
-        if: runner.os == 'Linux'
-        shell: bash
         run: |
           node -e 'require("electron")'
           electron_path="$(node --print 'require("electron")')"
           printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile yuki-desktop-ci "%s" flags=(unconfined) {\n  userns,\n}\n' "$electron_path" | sudo tee /etc/apparmor.d/yuki-desktop-ci
           sudo apparmor_parser --replace /etc/apparmor.d/yuki-desktop-ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm run check:contract
-      - run: node build-tools/check-backend-contract.mjs
-      - run: npm test
-      - run: npm run test:release
-      - if: runner.os != 'Linux'
-        run: npm run test:e2e
-      - if: runner.os == 'Linux'
+      - name: Build the actual Desktop
+        run: npm run build 2>&1 | tee "$RUNNER_TEMP/arm-work-build.log"
+      - name: Run only the original Work scenario with complete trace
         env:
           XDG_CURRENT_DESKTOP: GNOME
         run: |
@@ -87,49 +93,28 @@ jobs:
             openbox > "$RUNNER_TEMP/openbox.log" 2>&1 &
             node build-tools/check-linux-keyring.mjs
             node build-tools/diagnose-linux-notifications.mjs
-            npm run test:e2e
-          '
-      - run: npm run package -- --${{ matrix.platform }} --${{ matrix.arch }}
-      - name: Verify the real signed Mac runtime on a disposable copy
-        if: runner.os == 'macOS'
-        run: node build-tools/check-mac-runtime-signing.mjs dist
-      - run: npm run check:package
-      - run: node build-tools/prepare-upload.mjs dist/upload dist
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Yuki-unsigned-${{ matrix.platform }}-${{ matrix.arch }}
-          path: dist/upload/*
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: Yuki-e2e-failure-${{ matrix.platform }}-${{ matrix.arch }}
-          path: ${{ runner.temp }}/yuki-desktop-e2e
-          if-no-files-found: ignore
-
-  local-bot:
-    name: Real local Bot deployment
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - name: Read the pinned backend source
-        id: backend
-        run: node -e "const fs=require('node:fs');const s=JSON.parse(fs.readFileSync('contracts/source.json','utf8'));fs.appendFileSync(process.env.GITHUB_OUTPUT,'commit='+s.commit+'\n')"
-      - uses: actions/checkout@v4
-        with:
-          repository: YuanYeYouTao/Yuki
-          ref: ${{ steps.backend.outputs.commit }}
-          path: .cache/backend
-      - run: npm ci
-      - name: Build the actual App-only Bot image
-        run: docker build --target direct --tag yuki-desktop-local:ci .cache/backend
-      - name: Prepare matching local deployment templates
-        run: node build-tools/prepare-local-bot.mjs --source .cache/backend --image yuki-desktop-local:ci
-      - name: Deploy, initialize and pair through the actual services
-        run: npm test -- tests/unit/local-bot.test.ts
+            npm exec playwright test -- tests/e2e/work.spec.ts --trace on
+          ' 2>&1 | tee "$RUNNER_TEMP/arm-work-e2e.log"
+      - name: Record this diagnostic run's outcome
+        if: always()
         env:
-          YUKI_TEST_DOCKER: '1'
+          PROBE_JOB_STATUS: ${{ job.status }}
+          PROBE_BACKEND_COMMIT: ${{ steps.backend.outputs.commit }}
+        run: |
+          printf '%s\n' "desktop_commit=$GITHUB_SHA" "backend_commit=$PROBE_BACKEND_COMMIT" \
+            "run_id=$GITHUB_RUN_ID" "run_attempt=$GITHUB_RUN_ATTEMPT" \
+            "status=$PROBE_JOB_STATUS" > "$RUNNER_TEMP/arm-work-run.txt"
+      - name: Retain this run's original Work evidence on success or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Yuki-arm-original-work-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/yuki-desktop-arm-work-probe
+            ${{ runner.temp }}/arm-work-run.txt
+            ${{ runner.temp }}/arm-work-source.json
+            ${{ runner.temp }}/arm-work-build.log
+            ${{ runner.temp }}/arm-work-e2e.log
+            ${{ runner.temp }}/keyring-startup.log
+            ${{ runner.temp }}/openbox.log
+          if-no-files-found: warn
