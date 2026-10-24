@@ -394,10 +394,10 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
         arguments: [
           ...selected.arguments.slice(0, selected.arguments.indexOf('-m')),
           '-c',
-          `import sys\nfrom pathlib import Path\nfrom yuki_agent_connector.journal import Journal\njournal=Journal(Path(sys.argv[1]),namespace=sys.argv[2])\njournal.begin({'id':'original-journal-operation','action':'list'})\njournal.complete('original-journal-operation',{'type':'response','id':'original-journal-operation','result':{'status':'completed'}})\njournal.close()`,
+          `import json,sys\nfrom pathlib import Path\nfrom yuki_agent_connector.config import Config\nfrom yuki_agent_connector.journal import Journal\nconfig=Config.load(Path(sys.argv[2]))\njournal=Journal(Path(sys.argv[1]),namespace=json.dumps([config.url,config.device_id]))\njournal.begin({'id':'original-journal-operation','action':'list'})\njournal.complete('original-journal-operation',{'type':'response','id':'original-journal-operation','result':{'status':'completed'}})\njournal.close()`,
         ],
       },
-      [journalPath, JSON.stringify([identity.url, identity.device_id])],
+      [journalPath, configPath],
     )
     const configBytes = await readFile(configPath),
       journalBytes = await readFile(journalPath)
