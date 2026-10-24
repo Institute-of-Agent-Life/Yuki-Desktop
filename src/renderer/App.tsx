@@ -377,44 +377,46 @@ export function App({ boot }: { boot: BootInfo }) {
               />
             </WorkspaceSession>
           )}
-          <div
-            hidden={!pairing || showingSettings || step === 'local'}
-            inert={!pairing || showingSettings || step === 'local'}
-          >
-            <Pairing
-              key={pairingTarget?.characterId ?? 'new'}
-              active={pairing && !showingSettings && step !== 'local'}
-              label={boot.deviceLabel}
-              onUpdate={openSettings}
-              initialLink={pairLink}
-              initialServer={pairingTarget?.baseUrl}
-              reconnect={!!pairingTarget}
-              startAtServer
-              onCancel={() => {
-                setTarget(null)
-                setPairLink(null)
-                setPairingTarget(undefined)
-                if (connection?.needsPairing) {
-                  setConnection(undefined)
-                  selection.current = undefined
-                }
-                setSettingsOpen(false)
-                setStep('welcome')
-              }}
-              onResumeLogout={async (id) => {
-                const candidate = unwrap(await window.yuki.client.connections()).find(
-                  (item) => item.characterId === id,
-                )
-                if (!candidate) throw new Error('原連線已處理完成，可以重新配對。')
-                setPairLink(null)
-                setPairingTarget(undefined)
-                updateConnection(candidate)
-                setSettingsOpen(true)
-                setStep('welcome')
-              }}
-              onDone={complete}
-            />
-          </div>
+          {pairing && (
+            <div
+              hidden={showingSettings || step === 'local'}
+              inert={showingSettings || step === 'local'}
+            >
+              <Pairing
+                key={pairingTarget?.characterId ?? 'new'}
+                active={!showingSettings && step !== 'local'}
+                label={boot.deviceLabel}
+                onUpdate={openSettings}
+                initialLink={pairLink}
+                initialServer={pairingTarget?.baseUrl}
+                reconnect={!!pairingTarget}
+                startAtServer
+                onCancel={() => {
+                  setTarget(null)
+                  setPairLink(null)
+                  setPairingTarget(undefined)
+                  if (connection?.needsPairing) {
+                    setConnection(undefined)
+                    selection.current = undefined
+                  }
+                  setSettingsOpen(false)
+                  setStep('welcome')
+                }}
+                onResumeLogout={async (id) => {
+                  const candidate = unwrap(await window.yuki.client.connections()).find(
+                    (item) => item.characterId === id,
+                  )
+                  if (!candidate) throw new Error('原連線已處理完成，可以重新配對。')
+                  setPairLink(null)
+                  setPairingTarget(undefined)
+                  updateConnection(candidate)
+                  setSettingsOpen(true)
+                  setStep('welcome')
+                }}
+                onDone={complete}
+              />
+            </div>
+          )}
           {(pairing || step === 'local') && !showingSettings && (
             <ApplicationMenu platform={boot.platform} overlay />
           )}
