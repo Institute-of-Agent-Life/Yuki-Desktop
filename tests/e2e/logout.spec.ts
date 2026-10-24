@@ -16,7 +16,12 @@ async function connectAfterLogout(page: Page) {
   const input = page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })
   await expect(input).toBeHidden()
   await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
-  await expect(input).toBeVisible()
+  await expect(input).toHaveValue('')
+  await expect(page.getByRole('button', { name: '繼續', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '確認並連接', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '處理原連線的登出資料', exact: true })).toHaveCount(
+    0,
+  )
 }
 async function selected(page: Page) {
   return page.evaluate(async () => {
@@ -148,8 +153,6 @@ test('logout drains a real delayed read; kept original pending content survives 
     await choice.getByRole('button', { name: '保留並登出', exact: true }).click()
     await connectAfterLogout(page)
     expect(await exists(originalFile)).toBe(true)
-    await expect(page.getByRole('button', { name: '確認並連接', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '返回', exact: true }).click()
     const otherCode = (await rig.state()).nonowner_pairing_code
     await pairUI(page, proxy.base, otherCode, 'Different owner device')
     const other = await selected(page)
