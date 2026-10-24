@@ -2,6 +2,7 @@ import { navigate, sidebar } from '../fixtures/navigation'
 import { activeCharacterName } from '../fixtures/active-character'
 import { contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 
@@ -183,6 +184,40 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await expect(page.getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })).toHaveValue(
       '只有 Mika 的草稿',
     )
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible()),
+      )
+      .toBe(true)
+    await writeFile(
+      test.info().outputPath('roles-cold-before-wide-stage.json'),
+      JSON.stringify(
+        {
+          native: await app.evaluate(({ BrowserWindow, screen }) => {
+            const window = BrowserWindow.getAllWindows()[0]!
+            const display = screen.getDisplayMatching(window.getBounds())
+            return {
+              platform: process.platform,
+              visible: window.isVisible(),
+              outerBounds: window.getBounds(),
+              contentBounds: window.getContentBounds(),
+              contentSize: window.getContentSize(),
+              scaleFactor: display.scaleFactor,
+              workArea: display.workArea,
+            }
+          }),
+          viewport: await page.evaluate(() => ({
+            width: innerWidth,
+            height: innerHeight,
+            dpr: devicePixelRatio,
+          })),
+        },
+        null,
+        2,
+      ),
+    )
+    // Measure the saved column width in the same wide stage; renderer emulation ends on quit.
+    await contentSize(app, page, 1440, 900)
     await switchRole(page, firstName)
     await expect(
       page.getByRole('textbox', {
