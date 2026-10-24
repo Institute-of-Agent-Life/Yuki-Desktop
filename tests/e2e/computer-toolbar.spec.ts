@@ -87,6 +87,7 @@ test(
       await expect(
         controls.getByRole('button', { name: '改由這台控制', exact: true }),
       ).toBeVisible()
+      await expect(other.getByRole('button', { name: '改由這台控制', exact: true })).toHaveCount(0)
       await other.getByRole('button', { name: `交回給 ${name}`, exact: true }).click()
       await pb
         .getByRole('dialog', { name: `交回給 ${name}`, exact: true })
