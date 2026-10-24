@@ -80,7 +80,7 @@ export function ServerSettings({
         <Banner status="failed">{(info.error ?? me.error)?.message}</Banner>
       )}
       <h3>角色資料</h3>
-      <p className={styles.notice}>名稱、頭像與提示詞會隨角色保留。</p>
+      <p className={styles.notice}>名稱、簡介與提示詞會隨角色保留。</p>
       <Button onClick={about}>開啟角色資料</Button>
       <Sheet
         title="更改伺服器位址"
