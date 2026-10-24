@@ -4,91 +4,6 @@
  */
 
 export interface paths {
-    "/agents/v1/devices": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Devices */
-        get: operations["devices_agents_v1_devices_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agents/v1/instances/{instance_id}/sessions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Sessions */
-        get: operations["sessions_agents_v1_instances__instance_id__sessions_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agents/v1/operations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Operations */
-        get: operations["operations_agents_v1_operations_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agents/v1/operations/{operation_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Operation */
-        get: operations["operation_agents_v1_operations__operation_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agents/v1/pair": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Pair */
-        post: operations["pair_agents_v1_pair_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/client/v1/acp/sessions": {
         parameters: {
             query?: never;
@@ -236,23 +151,6 @@ export interface paths {
         };
         /** Events */
         get: operations["events_client_v1_conversations__identity__events_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/client/v1/conversations/{identity}/events/{event_id}/attachments/{attachment_index}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Attachment */
-        get: operations["attachment_client_v1_conversations__identity__events__event_id__attachments__attachment_index__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -493,99 +391,6 @@ export interface components {
             /** Light */
             light: string;
         };
-        /** Activity */
-        Activity: {
-            /** Conversation Id */
-            conversation_id: string;
-            /** Evidence */
-            evidence: string;
-            /** Revision */
-            revision: number;
-            /** Sources */
-            sources: components["schemas"]["ActivitySource"][];
-            /** Step Kind */
-            step_kind: string | null;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** ActivitySource */
-        ActivitySource: {
-            /** Kind */
-            kind: string;
-            /** Origin */
-            origin: string;
-            /** Started At */
-            started_at: string;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** AgentTarget */
-        AgentTarget: {
-            /** Cwd */
-            cwd?: string | null;
-            /** Device Id */
-            device_id?: string | null;
-            /** Execution Id */
-            execution_id?: string | null;
-            /** Instance Id */
-            instance_id?: string | null;
-            /** Intent */
-            intent?: ("prompt" | "watch" | "queue" | "steer" | "respond" | "cancel" | "detach") | null;
-            /** Operation Id */
-            operation_id?: string | null;
-            /** Option Id */
-            option_id?: string | null;
-            /** Permission Id */
-            permission_id?: string | null;
-            /** Response */
-            response?: {
-                [key: string]: components["schemas"]["JsonValue"];
-            } | null;
-            /** Session Id */
-            session_id?: string | null;
-        };
-        /** Artifact */
-        Artifact: {
-            /** Artifact Id */
-            artifact_id: string;
-            /** Filename */
-            filename?: string | null;
-            /** Mime Type */
-            mime_type?: string | null;
-            /** Name */
-            name?: string | null;
-            /** Size */
-            size?: number | null;
-            /** Version */
-            version?: string | null;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** Attachment */
-        Attachment: {
-            /** Artifact Id */
-            artifact_id?: string | null;
-            /** Attachment Index */
-            attachment_index: number;
-            /** Filename */
-            filename?: string | null;
-            /** Kind */
-            kind: string;
-            /** Media Id */
-            media_id?: string | null;
-            /** Mime Type */
-            mime_type?: string | null;
-            /** Name */
-            name?: string | null;
-            /** Segment Index */
-            segment_index: number;
-            /** Size */
-            size?: number | null;
-            /** Version */
-            version?: string | null;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
         /** Avatar */
         Avatar: {
             /** Sha256 */
@@ -594,21 +399,6 @@ export interface components {
             sizes: {
                 [key: string]: string;
             };
-        };
-        /** Binding */
-        Binding: {
-            /** Binding Id */
-            binding_id: string;
-            /** Display Name */
-            display_name: string;
-            /** Platform */
-            platform: string;
-            /** Source Person Id */
-            source_person_id: string;
-            /** Status */
-            status: string;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
         };
         /** CharacterProfile */
         CharacterProfile: {
@@ -648,37 +438,6 @@ export interface components {
             /** Slug */
             slug?: string;
         };
-        /** ConnectorPairBody */
-        ConnectorPairBody: {
-            /**
-             * Code
-             * Format: password
-             */
-            code: string;
-            /** Device Label */
-            device_label: string;
-        };
-        /** Conversation */
-        Conversation: {
-            /** Binding Id */
-            binding_id: string;
-            /** Conversation Id */
-            conversation_id: string;
-            /** Display Name */
-            display_name: string;
-            /** Generation */
-            generation: number;
-            /** Latest Event Id */
-            latest_event_id: number;
-            /** Platform */
-            platform: string;
-            /** Revision */
-            revision: number;
-            /** Status */
-            status: string;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
         /** CurrentAvatar */
         CurrentAvatar: {
             /** Revision */
@@ -692,70 +451,13 @@ export interface components {
             /** Updated At */
             updated_at: string;
         };
-        /** Device */
-        Device: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Device Id */
-            device_id: string;
-            /** Label */
-            label: string;
-            /**
-             * Purpose
-             * @enum {string}
-             */
-            purpose: "chat" | "connector";
-            /** Revoked At */
-            revoked_at: string | null;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** Envelope[Activity] */
-        Envelope_Activity_: {
-            data: components["schemas"]["Activity"];
-        };
         /** Envelope[CharacterProfile] */
         Envelope_CharacterProfile_: {
             data: components["schemas"]["CharacterProfile"];
         };
-        /** Envelope[Events] */
-        Envelope_Events_: {
-            data: components["schemas"]["Events"];
-        };
-        /** Envelope[Home] */
-        Envelope_Home_: {
-            data: components["schemas"]["Home"];
-        };
-        /** Envelope[InputReceipt] */
-        Envelope_InputReceipt_: {
-            data: components["schemas"]["InputReceipt"];
-        };
-        /** Envelope[LinkCodeReceipt] */
-        Envelope_LinkCodeReceipt_: {
-            data: components["schemas"]["LinkCodeReceipt"];
-        };
-        /** Envelope[Me] */
-        Envelope_Me_: {
-            data: components["schemas"]["Me"];
-        };
-        /** Envelope[MessageReceipt] */
-        Envelope_MessageReceipt_: {
-            data: components["schemas"]["MessageReceipt"];
-        };
         /** Envelope[Meta] */
         Envelope_Meta_: {
             data: components["schemas"]["Meta"];
-        };
-        /** Envelope[PairReceipt] */
-        Envelope_PairReceipt_: {
-            data: components["schemas"]["PairReceipt"];
-        };
-        /** Envelope[RequestReceipt] */
-        Envelope_RequestReceipt_: {
-            data: components["schemas"]["RequestReceipt"];
         };
         /** Envelope[SoulDocument] */
         Envelope_SoulDocument_: {
@@ -765,190 +467,13 @@ export interface components {
         Envelope_SoulResult_: {
             data: components["schemas"]["SoulResult"];
         };
-        /** Envelope[UploadReceipt] */
-        Envelope_UploadReceipt_: {
-            data: components["schemas"]["UploadReceipt"];
-        };
-        /** Envelope[WorkCancelReceipt] */
-        Envelope_WorkCancelReceipt_: {
-            data: components["schemas"]["WorkCancelReceipt"];
-        };
-        /** Envelope[Work] */
-        Envelope_Work_: {
-            data: components["schemas"]["Work"];
-        };
-        /** Event */
-        Event: {
-            /** Asr */
-            asr: components["schemas"]["Transcript"][];
-            /** Attachments */
-            attachments: components["schemas"]["Attachment"][];
-            /** Author Kind */
-            author_kind: string;
-            /** Author Person Id */
-            author_person_id: string | null;
-            /** Binding Id */
-            binding_id: string;
-            /** Content */
-            content: string;
-            /** Conversation Id */
-            conversation_id: string;
-            /** Created At */
-            created_at: string;
-            /** Direction */
-            direction: string;
-            /** Event Id */
-            event_id: number;
-            /** Event Kind */
-            event_kind: string;
-            /** Id */
-            id: number;
-            /** Observed At */
-            observed_at: string;
-            /** Occurred At */
-            occurred_at: string | null;
-            /** Origin */
-            origin: string;
-            /** Platform */
-            platform: string;
-            /** Sender Display Name */
-            sender_display_name?: string | null;
-            /** Text */
-            text: string;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** Events */
-        Events: {
-            /** Generation */
-            generation: number;
-            /** Has More */
-            has_more: boolean;
-            /** Items */
-            items: components["schemas"]["Event"][];
-            /** Latest Event Id */
-            latest_event_id: number;
-            /** Next After */
-            next_after: number;
-            /** Next Before */
-            next_before: number | null;
-            /** Revision */
-            revision: number;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
-        /** Home */
-        Home: {
-            /** Entries */
-            entries: components["schemas"]["Conversation"][];
-            main: components["schemas"]["Conversation"];
-            /** Snapshot At */
-            snapshot_at: string;
-            /** Works */
-            works: components["schemas"]["Work"][];
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** InputReceipt */
-        InputReceipt: {
-            /** Event Id */
-            event_id: number;
-            /** Input Id */
-            input_id: number;
-            /** Replay */
-            replay: boolean;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        JsonValue: unknown;
-        /** LinkCodeBody */
-        LinkCodeBody: {
-            /**
-             * Purpose
-             * @default chat
-             * @enum {string}
-             */
-            purpose: "chat" | "connector";
-            /**
-             * Request Id
-             * Format: uuid4
-             */
-            request_id?: string;
-        };
-        /** LinkCodeReceipt */
-        LinkCodeReceipt: {
-            /** Code */
-            code: string | null;
-            /** Code Id */
-            code_id: string;
-            /** Expires At */
-            expires_at: string;
-            /**
-             * Purpose
-             * @enum {string}
-             */
-            purpose: "chat" | "connector";
-            /** Replay */
-            replay?: boolean | null;
-            /** Request Id */
-            request_id?: string | null;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** LinkedWork */
-        LinkedWork: {
-            /** Active */
-            active: boolean;
-            /** Reason */
-            reason: string | null;
-            /** Revision */
-            revision: number;
-            /** State */
-            state: string;
-            /** Work Id */
-            work_id: string;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** Me */
-        Me: {
-            /** Binding Id */
-            binding_id: string;
-            /** Bindings */
-            bindings: components["schemas"]["Binding"][];
-            /** Conversation Id */
-            conversation_id: string;
-            /** Devices */
-            devices: components["schemas"]["Device"][];
-            /** Display Name */
-            display_name: string;
-            /** Person Id */
-            person_id: string;
-            /** Platform */
-            platform: string;
-            /** Presence Id */
-            presence_id: string;
-            /** Request Conversation Id */
-            request_conversation_id: string | null;
-            /** Request Person Id */
-            request_person_id: string;
-            /** Request Scope */
-            request_scope: string;
-            /** Source Person Id */
-            source_person_id: string;
-            /** Thread Id */
-            thread_id: string | null;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
         /** MessageBody */
         MessageBody: {
-            agent_target?: components["schemas"]["AgentTarget"] | null;
             /**
              * Attachments
              * @default []
@@ -961,17 +486,6 @@ export interface components {
             request_id: string;
             /** Text */
             text: string;
-        };
-        /** MessageReceipt */
-        MessageReceipt: {
-            /** Conversation Id */
-            conversation_id: string;
-            /** Event Id */
-            event_id: number;
-            /** Replay */
-            replay: boolean;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
         };
         /** Meta */
         Meta: {
@@ -991,134 +505,6 @@ export interface components {
             /** Desktop */
             desktop: string | null;
         };
-        /** NativeDevice */
-        NativeDevice: {
-            /** Id */
-            id: string;
-            /** Label */
-            label: string;
-            /** Online */
-            online: boolean;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** NativeDirectory */
-        NativeDirectory: {
-            /** Devices */
-            devices: components["schemas"]["NativeDevice"][];
-            /** Instances */
-            instances: components["schemas"]["NativeInstance"][];
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** NativeEvent */
-        NativeEvent: {
-            /** Cursor */
-            cursor: number;
-            /** Kind */
-            kind: string;
-            /** Payload */
-            payload?: {
-                [key: string]: components["schemas"]["JsonValue"];
-            } | null;
-            /** Permission Id */
-            permission_id?: string | null;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** NativeInstance */
-        NativeInstance: {
-            /** Capabilities */
-            capabilities?: string[] | null;
-            /** Device Id */
-            device_id: string;
-            /** Driver */
-            driver?: string | null;
-            /** Error Type */
-            error_type?: string | null;
-            /** Id */
-            id: string;
-            /** Label */
-            label?: string | null;
-            /** Local Id */
-            local_id: string;
-            /** Online */
-            online: boolean;
-            /** Status */
-            status?: string | null;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** NativeOperation */
-        NativeOperation: {
-            /** Action */
-            action?: string | null;
-            /** Admitted */
-            admitted?: boolean | null;
-            /** Events */
-            events?: components["schemas"]["NativeEvent"][] | null;
-            /** Execution Id */
-            execution_id?: string | null;
-            /** Instance Id */
-            instance_id: string;
-            /** Next Cursor */
-            next_cursor?: number | null;
-            /** Operation Id */
-            operation_id: string;
-            /** Pending */
-            pending?: boolean | null;
-            /** Run Id */
-            run_id?: string | null;
-            /** Session Id */
-            session_id?: string | null;
-            /** Status */
-            status?: string | null;
-            /** Uncertain */
-            uncertain?: boolean | null;
-            /** Work Id */
-            work_id?: string | null;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** NativeOperations */
-        NativeOperations: {
-            /** Items */
-            items: components["schemas"]["NativeOperation"][];
-            /** Next Cursor */
-            next_cursor: string | null;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** NativeSession */
-        NativeSession: {
-            /** Cwd */
-            cwd?: string | null;
-            /** Id */
-            id: string;
-            /** Label */
-            label?: string | null;
-            /** Status */
-            status?: string | null;
-            /** Title */
-            title?: string | null;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** NativeSessions */
-        NativeSessions: {
-            /** Error */
-            error?: string | null;
-            /** Executed */
-            executed?: boolean | null;
-            /** Instance Id */
-            instance_id: string;
-            /** Next Cursor */
-            next_cursor?: string | null;
-            /** Sessions */
-            sessions?: components["schemas"]["NativeSession"][] | null;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
         /** PairBody */
         PairBody: {
             /**
@@ -1128,15 +514,6 @@ export interface components {
             code: string;
             /** Device Label */
             device_label: string;
-        };
-        /** PairReceipt */
-        PairReceipt: {
-            /** Device Id */
-            device_id: string;
-            /** Token */
-            token: string;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
         };
         /** PersonalRequest */
         PersonalRequest: {
@@ -1155,41 +532,6 @@ export interface components {
             display_name: string;
             /** Id */
             id: string;
-        };
-        /** RequestReceipt */
-        RequestReceipt: {
-            /** Conversation Id */
-            conversation_id?: string | null;
-            /** Event Id */
-            event_id?: number | null;
-            /** Found */
-            found: boolean;
-            /** Operation Kind */
-            operation_kind?: string | null;
-            /** Payload Hash */
-            payload_hash?: string | null;
-            /** Problem */
-            problem?: {
-                [key: string]: components["schemas"]["JsonValue"];
-            } | null;
-            /** Problem Code */
-            problem_code?: string | null;
-            /** Result */
-            result?: {
-                [key: string]: components["schemas"]["JsonValue"];
-            } | null;
-            /** Result Event Ids */
-            result_event_ids?: number[] | null;
-            /** State */
-            state?: string | null;
-            /** Status */
-            status?: string | null;
-            /** Target */
-            target?: string | null;
-            turn?: components["schemas"]["TurnState"] | null;
-            work?: components["schemas"]["LinkedWork"] | null;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
         };
         /** SoulDocument */
         SoulDocument: {
@@ -1241,50 +583,6 @@ export interface components {
              */
             request_id: string;
         };
-        /** Transcript */
-        Transcript: {
-            /** Segment Index */
-            segment_index: number;
-            /** Source */
-            source: string;
-            /** Text */
-            text: string;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** TurnState */
-        TurnState: {
-            /** Error Category */
-            error_category?: string | null;
-            /** Outcome */
-            outcome: string | null;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "running" | "ended" | "unknown";
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** UploadReceipt */
-        UploadReceipt: {
-            /** Expires At */
-            expires_at: number;
-            /** Filename */
-            filename: string;
-            /** Kind */
-            kind: string;
-            /** Media Id */
-            media_id: string;
-            /** Replay */
-            replay?: boolean | null;
-            /** Sha256 */
-            sha256: string;
-            /** Size */
-            size: number;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -1303,50 +601,6 @@ export interface components {
             /** Is Owner */
             is_owner: boolean;
         };
-        /** Work */
-        Work: {
-            budget: components["schemas"]["WorkBudget"];
-            /** Child Count */
-            child_count: number;
-            /** Conversation Id */
-            conversation_id: string;
-            /** Generation */
-            generation: number;
-            /** Goal */
-            goal: string;
-            result_delivery: components["schemas"]["WorkSource"];
-            /** Results */
-            results: components["schemas"]["WorkResult"][];
-            /** Revision */
-            revision: number;
-            source: components["schemas"]["WorkSource"];
-            /** State */
-            state: string;
-            /** Updated At */
-            updated_at: number;
-            /** Waiting Kind */
-            waiting_kind: string | null;
-            waiting_question: components["schemas"]["WorkResult"] | null;
-            /** Work Id */
-            work_id: string;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** WorkBudget */
-        WorkBudget: {
-            /** Model Limit */
-            model_limit: number | null;
-            /** Models */
-            models: number;
-            /** Root Id */
-            root_id: string;
-            /** Tool Limit */
-            tool_limit: number | null;
-            /** Tools */
-            tools: number;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
         /** WorkCancelBody */
         WorkCancelBody: {
             /** Expected Revision */
@@ -1357,22 +611,8 @@ export interface components {
              */
             request_id: string;
         };
-        /** WorkCancelReceipt */
-        WorkCancelReceipt: {
-            /** Replay */
-            replay: boolean;
-            /** Revision */
-            revision: number;
-            /** State */
-            state: string;
-            /** Work Id */
-            work_id: string;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
         /** WorkInputBody */
         WorkInputBody: {
-            agent_target?: components["schemas"]["AgentTarget"] | null;
             /**
              * Request Id
              * Format: uuid4
@@ -1380,36 +620,6 @@ export interface components {
             request_id: string;
             /** Text */
             text: string;
-        };
-        /** WorkResult */
-        WorkResult: {
-            /** Artifacts */
-            artifacts: components["schemas"]["Artifact"][];
-            /** Conversation Id */
-            conversation_id: string;
-            /** Event Id */
-            event_id: number;
-            /** Text */
-            text: string;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
-        };
-        /** WorkSource */
-        WorkSource: {
-            /** Binding Id */
-            binding_id: string | null;
-            /** Conversation Id */
-            conversation_id: string;
-            /** Display Name */
-            display_name: string;
-            /** Kind */
-            kind: string;
-            /** Platform */
-            platform: string | null;
-            /** Space Id */
-            space_id: string | null;
-        } & {
-            [key: string]: components["schemas"]["JsonValue"];
         };
     };
     responses: never;
@@ -1420,177 +630,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    devices_agents_v1_devices_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NativeDirectory"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    sessions_agents_v1_instances__instance_id__sessions_get: {
-        parameters: {
-            query?: {
-                cursor?: string | null;
-            };
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                instance_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NativeSessions"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    operations_agents_v1_operations_get: {
-        parameters: {
-            query?: {
-                work_id?: string | null;
-                cursor?: string | null;
-                limit?: number;
-            };
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NativeOperations"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    operation_agents_v1_operations__operation_id__get: {
-        parameters: {
-            query?: {
-                cursor?: number;
-            };
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                operation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NativeOperation"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    pair_agents_v1_pair_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConnectorPairBody"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     new_session_client_v1_acp_sessions_post: {
         parameters: {
             query?: never;
@@ -1719,7 +758,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_Activity_"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -1972,43 +1011,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_Events_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    attachment_client_v1_conversations__identity__events__event_id__attachments__attachment_index__get: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-                "x-yuki-entry"?: string | null;
-                "x-yuki-conversation"?: string | null;
-            };
-            path: {
-                identity: string;
-                event_id: number;
-                attachment_index: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
                     "application/json": unknown;
                 };
             };
@@ -2081,7 +1083,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_Home_"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2108,7 +1110,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["LinkCodeBody"] | null;
+                "application/json": components["schemas"]["PersonalRequest"] | null;
             };
         };
         responses: {
@@ -2118,7 +1120,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_LinkCodeReceipt_"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2151,7 +1153,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_Me_"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2188,7 +1190,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_MessageReceipt_"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2243,7 +1245,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_PairReceipt_"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2278,7 +1280,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_RequestReceipt_"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2350,7 +1352,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_UploadReceipt_"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2385,7 +1387,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_Work_"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2424,7 +1426,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_WorkCancelReceipt_"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2463,7 +1465,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_InputReceipt_"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

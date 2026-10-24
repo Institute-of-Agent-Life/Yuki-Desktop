@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import type { Home, Work } from '../../src/shared/api'
-import { currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
+import { pairUI, yukiFixture } from '../fixtures/backend'
 import { transportGate } from '../fixtures/transport'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
 
@@ -17,7 +17,7 @@ test('a real thirty second transport outage preserves the draft and converges an
     const pb = await b.firstWindow()
     await pairUI(pa, gate.base, await rig.code())
     await pairUI(pb, rig.base, await rig.code())
-    const composer = pa.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })
+    const composer = pa.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
     await composer.fill('斷線之前的原訊息')
     await pa.getByRole('button', { name: '送出', exact: true }).click()
     await expect(pb.getByText('斷線之前的原訊息', { exact: true })).toBeVisible()
@@ -31,15 +31,17 @@ test('a real thirty second transport outage preserves the draft and converges an
       .first()
     await expect(offline).toBeVisible()
     const missed = '另一台裝置在斷線期間送出的原事件'
-    await pb.getByRole('textbox', { name: /^和 .+ 說點什麼$/ }).fill(missed)
+    await pb.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true }).fill(missed)
     await pb.getByRole('button', { name: '送出', exact: true }).click()
     await expect
       .poll(async () => {
-        const events = (await currentEvents(pb)).items
+        const events = (await (await fetch(`${rig.base}/__test/events`)).json()) as {
+          text: string
+        }[]
         return events.filter((item) => item.text === missed).length
       })
       .toBe(1)
-    await expect(pb.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible({
+    await expect(pb.getByText('真實帳本回覆', { exact: true }).first()).toBeVisible({
       timeout: 20000,
     })
     await captureWorkspace(
@@ -76,7 +78,10 @@ test('a real thirty second transport outage preserves the draft and converges an
     await pa.getByRole('button', { name: '送出', exact: true }).click()
     await expect(composer).toHaveValue('')
     await expect(pb.getByText(draft, { exact: true })).toBeVisible()
-    const facts = (await currentEvents(pa)).items
+    const facts = (await (await fetch(`${rig.base}/__test/events`)).json()) as {
+      id: number
+      text: string
+    }[]
     for (const text of ['斷線之前的原訊息', missed, draft]) {
       const events = facts.filter((item) => item.text === text)
       expect(events).toHaveLength(1)
@@ -95,6 +100,7 @@ test('a real thirty second transport outage preserves the draft and converges an
     success = true
   } finally {
     gate.reconnect()
+    if (!success) for (const app of [a, b]) app.process().kill('SIGKILL')
     await Promise.all([a.close().catch(() => {}), b.close().catch(() => {})])
     await gate.close()
     await rig.close(success)
@@ -112,7 +118,18 @@ test('two actual devices submit different answers to one work and recover their 
     const pb = await b.firstWindow()
     await pairUI(pa, rig.base, await rig.code())
     await pairUI(pb, rig.base, await rig.code())
-    expect((await fetch(`${rig.base}/__test/work`, { method: 'POST' })).status).toBe(200)
+    await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
+    await pa
+      .getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+      .fill('兩台裝置共同補充原工作')
+    await pa.getByRole('button', { name: '送出', exact: true }).click()
+    for (const page of [pa, pb])
+      await expect(
+        page
+          .getByRole('article')
+          .filter({ has: page.getByRole('heading', { name: '原工作整合測試', exact: true }) })
+          .getByText('等你回覆', { exact: true }),
+      ).toBeVisible({ timeout: 20000 })
     const original = await pa.evaluate(async () => {
       const connections = await window.yuki.client.connections()
       if (!connections.ok || !connections.value[0]) throw Error('Missing paired connection')
@@ -127,11 +144,12 @@ test('two actual devices submit different answers to one work and recover their 
     )
     for (const [index, page] of [pa, pb].entries()) {
       await page.keyboard.press('ControlOrMeta+2')
-      await page.getByRole('button', { name: /等你回覆.*Desktop reference work/ }).click()
+      await page.getByRole('button', { name: /等你回覆.*原工作整合測試/ }).click()
       await details[index]!.getByRole('textbox').fill(answers[index]!)
     }
     // Keep the scripted provider in flight while both real API inputs reach the original mailbox.
-    expect((await fetch(`${rig.base}/__test/hold-work`, { method: 'POST' })).status).toBe(200)
+    await fetch(`${rig.base}/__test/model-delay/2`, { method: 'POST' })
+    await fetch(`${rig.base}/__test/lose-next-work-response/inputs`, { method: 'POST' })
     await Promise.all(
       details.map((detail) =>
         detail.getByRole('button', { name: '傳送給這項工作', exact: true }).click(),
@@ -148,7 +166,6 @@ test('two actual devices submit different answers to one work and recover their 
           { timeout: 20000 },
         )
         .toEqual([['result', null]])
-    expect((await fetch(`${rig.base}/__test/release-work`, { method: 'POST' })).status).toBe(200)
     for (const detail of details)
       await expect(detail.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
     const results = await Promise.all(
@@ -188,7 +205,10 @@ test('two actual devices submit different answers to one work and recover their 
     })
     expect(new Set(receipts.map((item) => item.eventId)).size).toBe(2)
     expect(new Set(receipts.map((item) => item.inputId)).size).toBe(2)
-    const events = (await currentEvents(pa)).items
+    const events = (await (await fetch(`${rig.base}/__test/events`)).json()) as {
+      id: number
+      text: string
+    }[]
     for (const [index, page] of [pa, pb].entries()) {
       await contentSize(index === 0 ? a : b, page, 1440, 900)
       await page.keyboard.press('ControlOrMeta+1')
@@ -213,7 +233,7 @@ test('two actual devices submit different answers to one work and recover their 
     )
     success = true
   } finally {
-    await fetch(`${rig.base}/__test/release-work`, { method: 'POST' })
+    if (!success) for (const app of [a, b]) app.process().kill('SIGKILL')
     await Promise.all([a.close().catch(() => {}), b.close().catch(() => {})])
     await rig.close(success)
   }

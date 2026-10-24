@@ -142,7 +142,6 @@ export function CommandPalette({
             setSelected(first?.id ?? null)
           }}
           onKeyDown={(event) => {
-            if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
             if (busy) return
             if (event.key === 'Enter') {
               event.preventDefault()

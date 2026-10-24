@@ -5,9 +5,15 @@ import type { ArtifactSource, AttachmentSource, Connection } from '../../shared/
 import type { MessageReference } from '../../shared/message'
 import { requestNavigation } from './navigation'
 
-export type InspectorTab = 'work' | 'files'
+export type InspectorTab = 'work' | 'computer' | 'files'
 const inspectorFor = (view: View): InspectorTab | undefined =>
-  view === 'works' ? 'work' : undefined
+  view === 'computer'
+    ? 'computer'
+    : view === 'files'
+      ? 'files'
+      : view === 'works'
+        ? 'work'
+        : undefined
 interface WorkspaceState {
   view: View
   inspector: boolean
@@ -48,7 +54,8 @@ export function workspaceFor(scope: string) {
         inspectorWidthCustom =
           typeof saved.inspectorWidthCustom === 'boolean' ? saved.inspectorWidthCustom : true
       }
-      if (saved && ['work', 'files'].includes(saved.inspectorTab)) inspectorTab = saved.inspectorTab
+      if (saved && ['work', 'computer', 'files'].includes(saved.inspectorTab))
+        inspectorTab = saved.inspectorTab
     } catch {
       /* Keep the live workspace usable when local layout storage is unavailable. */
     }

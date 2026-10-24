@@ -1,5 +1,5 @@
 import { useFloatingInsets } from '../materials/floating'
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   Connection,
@@ -12,11 +12,12 @@ import type {
   Activity,
   Work,
   ArtifactSource,
+  CharacterStatus,
 } from '../../shared/api'
 import type { Preferences } from '../../shared/desktop'
-import type { SyncHint } from '../../shared/sync'
+import type { ProductModels as components } from '../../shared/product-models'
 import { Composer } from '../components/Composer'
-import { Avatar, Banner, Button, EmptyState, IconButton } from '../components/Controls'
+import { Banner, Button, EmptyState, IconButton } from '../components/Controls'
 import { CharacterAvatar, CharacterVisuals } from '../components/CharacterAvatar'
 import { characterPresence } from '../../shared/presence'
 import { SoulEditor } from './SoulEditor'
@@ -37,7 +38,8 @@ import { CommandPalette, type PaletteCommand } from '../components/CommandPalett
 import type { LoadedItem } from '../state/loaded'
 import { requestNavigation } from '../state/navigation'
 import { ConversationWork, WorkDetail, WorkList, WorkReply } from './Works'
-import { ArtifactInspector } from './Files'
+import { Files, ArtifactInspector } from './Files'
+import { Computer, ComputerInspector } from './Computer'
 import { About } from './About'
 
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
@@ -56,7 +58,7 @@ export function Conversation({
   connection: Connection
   platform: string
   preferences: Preferences
-  onSettings(): void
+  onSettings(target?: 'folder'): void
   onPairAgain(): void
   roleSwitcher?: React.ReactNode
   settings?: React.ReactNode
@@ -73,6 +75,7 @@ export function Conversation({
   const focusMode = useWorkspace((state) => state.focusMode)
   const [soulEditing, setSoulEditing] = useState(false)
   const [soulToolbar, setSoulToolbar] = useState<HTMLDivElement | null>(null)
+  const [computerToolbar, setComputerToolbar] = useState<HTMLDivElement | null>(null)
   useEffect(() => {
     if (settings || view !== 'about' || focusMode) setSoulEditing(false)
   }, [view, focusMode, settings])
@@ -104,7 +107,6 @@ export function Conversation({
   const [search, setSearch] = useState<string | null>(null)
   const [palette, setPalette] = useState(false)
   const alive = useRef(true)
-  const invalidatedReads = useRef(new Set<Promise<unknown>>())
   useEffect(() => {
     alive.current = true
     return () => {
@@ -126,17 +128,16 @@ export function Conversation({
   const earlierBusy = useRef(false)
   const needsEarlier = useRef(false)
   const activeRange = useRef('')
-  const prepend = useRef<{
-    range: string
-    eventId: string
-    top: number
-  } | null>(null)
   activeRange.current = `${conversation}/${anchor}`
   const latestSeen = useRef<{ range: string; event: number }>({ range: '', event: 0 })
   const home = useQuery({ queryKey: [id, 'home'], queryFn: () => read<Home>(id, { kind: 'home' }) })
   const profile = useQuery({
     queryKey: [id, 'character'],
     queryFn: () => read<Profile>(id, { kind: 'character' }),
+  })
+  const characterStatus = useQuery({
+    queryKey: [id, 'character-status'],
+    queryFn: () => read<CharacterStatus>(id, { kind: 'character-status' }),
   })
   useEffect(() => {
     if (!profile.data || profile.data.avatar || hidesPrivateData(profile.error)) return
@@ -187,21 +188,10 @@ export function Conversation({
     queryFn: () => read<Activity>(id, { kind: 'activity', conversationId: conversation }),
   })
   const events = useHistory(id, conversation, anchor)
-  useLayoutEffect(() => {
-    const snapshot = prepend.current
-    prepend.current = null
-    if (snapshot?.range === activeRange.current) {
-      const element = list.current,
-        article = element?.querySelector<HTMLElement>(
-          `article[data-event-id="${snapshot.eventId}"]`,
-        )
-      if (element && article)
-        element.scrollTo({
-          top: element.scrollTop + article.getBoundingClientRect().top - snapshot.top,
-        })
-    }
-  })
   useEffect(() => {
+    if (view === 'files') {
+      workspace.patch({ preview: undefined, inspector: false })
+    }
     if (view !== 'chat') workspace.patch({ messageStage: undefined })
   }, [view])
   useEffect(() => {
@@ -228,44 +218,38 @@ export function Conversation({
     homeData = accessLost || hidesPrivateData(home.error) ? undefined : home.data,
     profileData = accessLost || hidesPrivateData(profile.error) ? undefined : profile.data
   const refresh = useCallback(() => {
+    void query.invalidateQueries({ queryKey: [id, 'home'] })
+    void query.invalidateQueries({ queryKey: [id, 'character'] })
+    void query.invalidateQueries({ queryKey: [id, 'character-status'] })
+    void query.invalidateQueries({ queryKey: [id, 'events'] })
+    void query.invalidateQueries({ queryKey: [id, 'reference'] })
+    void query.invalidateQueries({ queryKey: [id, 'outbox'] })
+    void query.invalidateQueries({ queryKey: [id, 'uploads'] })
+    void query.invalidateQueries({ queryKey: [id, 'content'] })
+    void query.invalidateQueries({ queryKey: [id, 'activity'] })
+    void query.invalidateQueries({ queryKey: [id, 'work'] })
     for (const key of [
-      'home',
-      'character',
-      'events',
-      'reference',
-      'outbox',
-      'uploads',
-      'content',
-      'activity',
-      'work',
+      'memory',
+      'automations',
+      'capabilities',
       'character-commands',
-    ]) {
-      const filter = { queryKey: [id, key] }
-      for (const entry of query.getQueryCache().findAll({
-        ...filter,
-        type: 'active',
-        fetchStatus: 'fetching',
-      })) {
-        const pending = entry.promise
-        if (!pending || invalidatedReads.current.has(pending)) continue
-        invalidatedReads.current.add(pending)
-        // Initial fetches reuse their old response even when invalidated. Deliver it,
-        // then honour the real change once without cancelling reads under frequent hints.
-        void pending.then(
-          () => {
-            invalidatedReads.current.delete(pending)
-            if (alive.current)
-              void query.invalidateQueries(
-                { queryKey: entry.queryKey, exact: true },
-                { cancelRefetch: false },
-              )
-          },
-          () => invalidatedReads.current.delete(pending),
-        )
-      }
-      void query.invalidateQueries(filter, { cancelRefetch: false })
-    }
+      'avatar-commands',
+    ])
+      void query.invalidateQueries({ queryKey: [id, key] })
   }, [id, query])
+  useEffect(() => {
+    const deadlines = (eventData?.items ?? [])
+      .flatMap((event) =>
+        event.attachments.map((item) => (item.expires_at ? Date.parse(item.expires_at) : NaN)),
+      )
+      .filter((time) => time > Date.now())
+    if (!deadlines.length) return
+    const timer = setTimeout(
+      refresh,
+      Math.min(Math.max(1, Math.min(...deadlines) - Date.now()), 2147483647),
+    )
+    return () => clearTimeout(timer)
+  }, [eventData, refresh])
   const finishVoice = useCallback(() => {
     setRecording(false)
     refresh()
@@ -318,10 +302,10 @@ export function Conversation({
         if (character !== id) return
         if (kind === 'sync') query.setQueryData([id, 'sync'], data)
         if (kind === 'conversation' || kind === 'work') {
-          query.setQueryData<SyncHint>([id, 'sync'], (current) => {
+          query.setQueryData<components['schemas']['SyncHint']>([id, 'sync'], (current) => {
             if (!current) return current
             if (kind === 'conversation') {
-              const entry = data as Home['main']
+              const entry = data as components['schemas']['Entry']
               return {
                 ...current,
                 conversations: [
@@ -332,7 +316,7 @@ export function Conversation({
                 ],
               }
             }
-            const work = data as SyncHint['works'][number]
+            const work = data as components['schemas']['WorkHint']
             return {
               ...current,
               works: [...current.works.filter((item) => item.work_id !== work.work_id), work],
@@ -428,17 +412,16 @@ export function Conversation({
   useEffect(() => {
     if (!active || settings) setPalette(false)
   }, [active, settings])
-  const choose = (next: string) =>
-    requestNavigation(() => {
-      needsEarlier.current = false
-      setAnchor(null)
-      setHistoryError('')
-      setNewMessages(false)
-      workspace.patch({ conversationId: next })
-      setSelection(undefined)
-      bottom.current = true
-      workspace.setView('chat')
-    })
+  const choose = (next: string) => {
+    needsEarlier.current = false
+    setAnchor(null)
+    setHistoryError('')
+    setNewMessages(false)
+    workspace.patch({ conversationId: next })
+    setSelection(undefined)
+    bottom.current = true
+    workspace.setView('chat')
+  }
   const updateDraft = (value: string) => {
     currentDraft.current = value
     setDraft(value)
@@ -484,27 +467,18 @@ export function Conversation({
   const more = async () => {
     if (earlierBusy.current || !eventData?.has_more || events.isFetching) return
     needsEarlier.current = false
-    const range = activeRange.current,
-      article = list.current?.querySelector<HTMLElement>('article[data-event-id]'),
-      snapshot = article
-        ? {
-            range,
-            eventId: article.dataset.eventId!,
-            top: article.getBoundingClientRect().top,
-          }
-        : null
+    const element = list.current,
+      height = element?.scrollHeight ?? 0,
+      top = element?.scrollTop ?? 0,
+      range = activeRange.current
     earlierBusy.current = true
     setLoadingEarlier(true)
     setHistoryError('')
     try {
       const page = await events.earlier(eventData)
-      const entry = query.getQueryCache().find<EventsPage>({ queryKey: events.key, exact: true })!
-      if (entry.state.fetchStatus !== 'idle' || entry.state.data !== eventData) {
-        // Settle older Query delivery before reading the expanded range.
-        await entry.cancel({ revert: true })
-        await entry.fetch(undefined, { cancelRefetch: false })
-      } else query.setQueryData(events.key, page)
-      if (activeRange.current === range) prepend.current = snapshot
+      query.setQueryData(events.key, page)
+      if (activeRange.current === range)
+        requestAnimationFrame(() => element?.scrollTo({ top: top + element.scrollHeight - height }))
     } catch (error) {
       if (activeRange.current === range)
         setHistoryError(error instanceof Error ? error.message : '無法載入更早訊息。')
@@ -579,7 +553,10 @@ export function Conversation({
   }
   const name = profileData?.display_name ?? connection.name,
     isMain = conversation === connection.conversationId
-  const inspectorTab = workspace.inspectorTab
+  const inspectorTab =
+    workspace.inspectorTab === 'computer' && !profileData?.viewer.is_owner
+      ? 'work'
+      : workspace.inspectorTab
   const openWork = (workId: string) => {
     workspace.patch({
       selectedWork: workId,
@@ -597,6 +574,14 @@ export function Conversation({
       inspectorTab: 'files',
     })
   }
+  const selectArtifact = (source: ArtifactSource) => {
+    workspace.patch({
+      artifact: source,
+      preview: undefined,
+      messageStage: undefined,
+      inspectorTab: 'files',
+    })
+  }
   const answerWork = (work: Work) => {
     setReplyWork(work)
     choose(connection.conversationId)
@@ -611,7 +596,10 @@ export function Conversation({
   const visible = (eventData?.items ?? []).filter(
     (item) => search === null || item.text.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
   )
-  const presence = characterPresence(online, homeData?.works)
+  const presence = characterPresence(
+    online,
+    accessLost || hidesPrivateData(characterStatus.error) ? undefined : characterStatus.data,
+  )
   const paletteNavigate = (run: () => void) => {
     setPalette(false)
     requestNavigation(() => {
@@ -631,18 +619,18 @@ export function Conversation({
       })
     else
       paletteNavigate(() => {
-        openArtifact(item.source)
-        if (stage) workspace.patch({ focusMode: true })
+        workspace.setView(stage ? 'chat' : 'files')
+        if (stage) {
+          openArtifact(item.source)
+          workspace.patch({ focusMode: true })
+        } else selectArtifact(item.source)
       })
   }
   const paletteCommands: PaletteCommand[] = [
-    ...(['chat', 'works', 'about'] as const).map((view, index) => ({
+    ...(['chat', 'works', 'files', 'about'] as const).map((view, index) => ({
       id: `command/${view}`,
-      title: ['開啟對話', '開啟工作', '開啟角色資料'][index]!,
-      run: () =>
-        paletteNavigate(() =>
-          view === 'chat' ? choose(connection.conversationId) : workspace.setView(view),
-        ),
+      title: ['開啟對話', '開啟工作', '開啟檔案與成果', '開啟角色資料'][index]!,
+      run: () => paletteNavigate(() => workspace.setView(view)),
     })),
     {
       id: 'command/inspector',
@@ -666,21 +654,54 @@ export function Conversation({
       run: () => paletteNavigate(() => workspace.toggle('focusMode')),
     },
     { id: 'command/settings', title: '開啟設定', run: () => paletteNavigate(onSettings) },
+    {
+      id: 'command/folder',
+      title: '授權本機資料夾',
+      run: () => paletteNavigate(() => onSettings('folder')),
+    },
+    ...(profileData?.viewer.is_owner && !accessLost
+      ? [
+          {
+            id: 'command/computer',
+            title: `觀看 ${name} 的電腦`,
+            run: (stage: boolean) =>
+              paletteNavigate(() => {
+                workspace.setView('computer')
+                if (stage) workspace.patch({ focusMode: true, inspector: true })
+              }),
+          },
+          {
+            id: 'command/wake',
+            title: `喚醒 ${name} 的電腦`,
+            run: (stage: boolean) =>
+              paletteNavigate(() => {
+                workspace.setView('computer')
+                if (stage) workspace.patch({ focusMode: true, inspector: true })
+                void window.yuki.client
+                  .computerCommand(id, { action: 'wake' })
+                  .then(unwrap)
+                  .then((result) => {
+                    if (alive.current && (result.problem || result.state !== 'result'))
+                      setMediaError(
+                        result.state !== 'result'
+                          ? '喚醒結果尚未確認，請在電腦頁查證原請求。'
+                          : problemText(result.problem!),
+                      )
+                  })
+                  .catch((error) => {
+                    if (alive.current)
+                      setMediaError(error instanceof Error ? error.message : '喚醒尚未確認。')
+                  })
+              }),
+          },
+        ]
+      : []),
   ]
-  const upgradeNotice = updateRequired && (
-    <Banner status="failed">
-      {problemText('client_upgrade_required')}
-      <Button variant="plain" onClick={onSettings}>
-        查看 App 更新
-      </Button>
-    </Banner>
-  )
   return (
     <CharacterVisuals.Provider value={{ id, name, profile: profileData, presence }}>
       <Workspace
         scrolled={scrolled}
         mainConversation={isMain}
-        onChat={() => choose(connection.conversationId)}
         settings={settings}
         onView={settings ? onSettingsBack : undefined}
         toolbar={
@@ -694,6 +715,13 @@ export function Conversation({
             </>
           ) : soulEditing && view === 'about' && !focusMode ? (
             <div className={styles.soulToolbar} ref={setSoulToolbar} />
+          ) : undefined
+        }
+        toolbarTitle={
+          view === 'computer' && !focusMode && !accessLost && profileData?.viewer.is_owner ? (
+            <div className={styles.computerToolbar} ref={setComputerToolbar}>
+              <span className={styles.computerToolbarFallback}>{name} 的電腦</span>
+            </div>
           ) : undefined
         }
         roleSwitcher={roleSwitcher}
@@ -718,27 +746,63 @@ export function Conversation({
                       ? 'page'
                       : undefined
                   }
-                  onClick={() =>
-                    requestNavigation(() => {
-                      choose(item.conversation_id)
-                      if (settings) onSettingsBack?.()
-                    })
-                  }
+                  onClick={() => {
+                    choose(item.conversation_id)
+                    if (settings) onSettingsBack?.()
+                  }}
                 >
                   {item.platform.toUpperCase()} · {item.display_name}
                 </button>
               ))}
+            {!isMain && (
+              <Button
+                variant="plain"
+                onClick={() => {
+                  choose(connection.conversationId)
+                  if (settings) onSettingsBack?.()
+                }}
+              >
+                回到桌面對話
+              </Button>
+            )}
           </>
         }
         inspector={
-          messageStage && view === 'chat' && !accessLost ? (
+          inspectorTab === 'computer' &&
+          !(messageStage && view === 'chat') &&
+          !accessLost &&
+          profileData?.viewer.is_owner ? (
+            focusMode ? (
+              <Computer key={id} connection={connection} name={name} work={openWork} />
+            ) : (
+              <ComputerInspector
+                key={id}
+                id={id}
+                work={openWork}
+                preview={
+                  view !== 'computer' ? (
+                    <Computer
+                      connection={connection}
+                      name={name}
+                      work={openWork}
+                      compact={{
+                        expand: () =>
+                          requestNavigation(() =>
+                            workspace.patch({ inspector: true, focusMode: true }),
+                          ),
+                      }}
+                    />
+                  ) : undefined
+                }
+              />
+            )
+          ) : messageStage && view === 'chat' && !accessLost ? (
             <MessageStage
               id={id}
               reference={messageStage}
               render={(event) => (
                 <Message
                   characterId={id}
-                  viewerPersonId={connection.personId}
                   event={event}
                   name={name}
                   selected={false}
@@ -760,15 +824,27 @@ export function Conversation({
               key={`${artifact.artifactId}/${artifact.version}`}
               id={id}
               source={artifact}
+              library={() => workspace.setView('files')}
             />
           ) : inspectorTab === 'work' && selectedWork && !accessLost ? (
             <WorkDetail
               key={selectedWork}
               id={id}
               workId={selectedWork}
+              open={openWork}
               replyInChat={answerWork}
               commandEnter={preferences.sendKey === 'command-enter'}
               artifact={openArtifact}
+              computer={
+                profileData?.viewer.is_owner
+                  ? () => {
+                      requestNavigation(() => {
+                        workspace.setView('computer')
+                        workspace.patch({ inspector: true, focusMode: true })
+                      })
+                    }
+                  : undefined
+              }
             />
           ) : inspectorTab === 'files' && preview && !accessLost ? (
             <AttachmentPreview
@@ -779,7 +855,10 @@ export function Conversation({
           ) : inspectorTab === 'files' ? (
             <div className={styles.inspector}>
               <h3>尚未選取檔案</h3>
-              <p>從對話附件或工作成果選取一項，查看原版本。</p>
+              <p>從對話附件或檔案與成果選取一項，查看原版本。</p>
+              <Button variant="plain" onClick={() => workspace.setView('files')}>
+                開啟檔案與成果
+              </Button>
             </div>
           ) : (
             <div className={styles.inspector}>
@@ -804,9 +883,42 @@ export function Conversation({
           )
         }
       >
-        {view !== 'chat' && !focusMode && upgradeNotice}
+        {updateRequired && (
+          <Banner status="failed">
+            {problemText('client_upgrade_required')}
+            <Button variant="plain" onClick={() => onSettings()}>
+              查看 App 更新
+            </Button>
+          </Banner>
+        )}
         {mediaError && view !== 'chat' && <Banner status="failed">{mediaError}</Banner>}
-        {view === 'works' && !focusMode ? (
+        {view === 'computer' && !focusMode ? (
+          accessLost || !profileData?.viewer.is_owner ? (
+            <Banner status="failed">
+              {accessLost ? problemText(connectionProblem) : '這項操作需要角色擁有者權限。'}
+            </Banner>
+          ) : (
+            <Computer
+              key={id}
+              connection={connection}
+              name={name}
+              work={openWork}
+              toolbar={computerToolbar}
+            />
+          )
+        ) : view === 'files' && !focusMode ? (
+          accessLost ? (
+            <Banner status="failed">{problemText(connectionProblem)}</Banner>
+          ) : (
+            <Files
+              id={id}
+              initial={artifact}
+              onSelect={selectArtifact}
+              jump={(ref) => void jumpTo(ref)}
+              work={openWork}
+            />
+          )
+        ) : view === 'works' && !focusMode ? (
           accessLost ? (
             <Banner status="failed">{problemText(connectionProblem)}</Banner>
           ) : (
@@ -826,11 +938,25 @@ export function Conversation({
                 toolbar={soulToolbar}
               />
             ) : (
-              <About key={id} id={id} profile={profileData} editSoul={() => setSoulEditing(true)} />
+              <About
+                key={id}
+                id={id}
+                profile={profileData}
+                jump={jumpTo}
+                editSoul={() => setSoulEditing(true)}
+              />
             )
           ) : (
             <EmptyState title="角色資料">{profile.error?.message ?? '正在讀取…'}</EmptyState>
           )
+        ) : view !== 'chat' && !focusMode ? (
+          <EmptyState
+            title={
+              view === 'settings' ? '設定' : view === 'computer' ? `${name} 的電腦` : '檔案與成果'
+            }
+          >
+            <span>正在接入此單元的伺服器介面。</span>
+          </EmptyState>
         ) : (
           <div
             ref={floatingRef}
@@ -855,7 +981,6 @@ export function Conversation({
           >
             {dragging && <div className={mediaStyles.drop}>放開以附加</div>}
             <div className={styles.notices} data-floating-notices>
-              {upgradeNotice}
               {mediaError && <Banner status="failed">{mediaError}</Banner>}
               {historyError && <Banner status="failed">{historyError}</Banner>}
               {online !== 'online' && !updateRequired && (
@@ -941,15 +1066,10 @@ export function Conversation({
                     consecutive={
                       index > 0 &&
                       event.direction === visible[index - 1]!.direction &&
-                      event.author_kind === visible[index - 1]!.author_kind &&
-                      (event.author_kind === 'yuki' ||
-                        (event.author_person_id !== null &&
-                          event.author_person_id === visible[index - 1]!.author_person_id)) &&
                       dayKey(event.created_at) === dayKey(visible[index - 1]!.created_at)
                     }
                     onJump={(reference) => void jumpTo(reference)}
                     characterId={id}
-                    viewerPersonId={connection.personId}
                     receipt={(outbox.data ?? []).find((item) => item.eventId === event.event_id)}
                     verify={async (requestId) => {
                       unwrap(await window.yuki.client.verify(id, requestId))
@@ -966,24 +1086,16 @@ export function Conversation({
                     onArtifact={openArtifact}
                   />
                   {!accessLost &&
-                    (homeData?.works ?? [])
-                      .filter((work) =>
-                        work.results.some(
-                          (result) =>
-                            result.event_id === event.event_id &&
-                            result.conversation_id === event.conversation_id,
-                        ),
-                      )
-                      .map((work) => (
-                        <ConversationWork
-                          key={work.work_id}
-                          id={id}
-                          work={work}
-                          open={openWork}
-                          reply={answerWork}
-                          artifact={openArtifact}
-                        />
-                      ))}
+                    (event.work_ids ?? []).map((workId) => (
+                      <ConversationWork
+                        key={workId}
+                        id={id}
+                        work={workId}
+                        open={openWork}
+                        reply={answerWork}
+                        artifact={openArtifact}
+                      />
+                    ))}
                 </Fragment>
               ))}
               {pending.map((item) => (
@@ -1194,9 +1306,8 @@ function Pending({ item, verify }: { item: OutboxItem; verify(): Promise<void> }
   )
 }
 
-export function Message({
+function Message({
   characterId,
-  viewerPersonId,
   receipt,
   verify,
   event,
@@ -1210,7 +1321,6 @@ export function Message({
   consecutive,
 }: {
   characterId: string
-  viewerPersonId: string
   receipt?: OutboxItem
   verify(requestId: string): Promise<void>
   event: PublicEvent
@@ -1223,11 +1333,9 @@ export function Message({
   onJump(reference: MessageReference): void
   consecutive: boolean
 }) {
-  const own = event.direction === 'inbound' && event.author_person_id === viewerPersonId
-  const yuki = event.author_kind === 'yuki'
-  const author = own ? '你' : yuki ? name : (event.sender_display_name ?? '參與者')
+  const own = event.direction === 'inbound'
   const { timeLabel } = useDisplayTime()
-  const html = useMarkdown(parseMessage(event.text).text)
+  const html = useMarkdown(parseMessage(event.display_text ?? event.text).text)
   const [error, setError] = useState('')
   const action = (work: Promise<unknown>) =>
     void work.catch((error) => setError(error instanceof Error ? error.message : '操作未完成。'))
@@ -1235,7 +1343,7 @@ export function Message({
     <article
       data-event-id={event.event_id}
       tabIndex={0}
-      aria-label={`${author}的訊息`}
+      aria-label={`${own ? '你' : name}的訊息`}
       className={`${styles.message} ${own ? styles.ownMessage : ''} ${selected ? styles.selected : ''} ${consecutive ? styles.consecutive : ''}`}
       onClick={onSelect}
       onContextMenu={(click) => {
@@ -1252,16 +1360,10 @@ export function Message({
       }}
     >
       {!own &&
-        (consecutive ? (
-          <span className={styles.avatarSpace} />
-        ) : yuki ? (
-          <CharacterAvatar size={28} />
-        ) : (
-          <Avatar name={author} size={28} />
-        ))}
+        (!consecutive ? <CharacterAvatar size={28} /> : <span className={styles.avatarSpace} />)}
       <div className={styles.messageBody}>
         <header>
-          <strong>{author}</strong>
+          <strong>{own ? '你' : name}</strong>
           <time dateTime={event.created_at}>{timeLabel(event.created_at)}</time>
         </header>
         <References characterId={characterId} text={event.text} onJump={onJump} />
@@ -1298,11 +1400,6 @@ export function Message({
             open={onAttachment}
             artifact={onArtifact}
           />
-        ))}
-        {event.asr.map((transcript) => (
-          <p key={transcript.segment_index} data-transcript-segment={transcript.segment_index}>
-            {transcript.text}
-          </p>
         ))}
         <div className={styles.messageActions}>
           <IconButton
@@ -1395,7 +1492,7 @@ function Reference({
         {event.isPending
           ? '正在讀取引用…'
           : !event.error && event.data
-            ? `引用：${parseMessage(event.data.text).text.slice(0, 120)}`
+            ? `引用：${parseMessage(event.data.display_text ?? event.data.text).text.slice(0, 120)}`
             : '引用的訊息無法讀取'}
       </span>
     </button>

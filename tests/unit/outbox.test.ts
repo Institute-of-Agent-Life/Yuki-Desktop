@@ -21,7 +21,7 @@ const me: Me = {
   request_conversation_id: null,
   request_scope: owner.personId,
   platform: 'app',
-  presence_id: '00000000-0000-4000-8000-000000000099',
+  presence_id: null,
   thread_id: null,
   binding_id: owner.bindingId,
   display_name: 'Test',
@@ -56,8 +56,8 @@ const data = (value: unknown) => {
     'person_id' in shape
       ? 'Envelope_Me_'
       : 'found' in shape
-        ? 'Envelope_RequestReceipt_'
-        : 'Envelope_MessageReceipt_'
+        ? 'Envelope_OriginalRequest_'
+        : 'Envelope_MessageResult_'
   validateFixture(schema, { data: value })
   return Response.json({ data: value })
 }

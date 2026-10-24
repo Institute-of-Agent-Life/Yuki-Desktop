@@ -56,15 +56,34 @@ export function MessageAttachment({
       index: attachment.attachment_index,
     },
     voice = ['audio', 'record'].includes(attachment.kind),
+    available = attachment.availability === 'available',
     image = attachment.kind === 'image'
-  const content = useContent(id, source, image && !attachment.artifact_id),
-    url = useBlob(content.error ? undefined : content.data)
+  const content = useContent(id, source, image && available && !attachment.artifact_id),
+    url = useBlob(content.error || !available ? undefined : content.data)
   const [menuError, setMenuError] = useState('')
-  const status = content.error?.message
+  if (voice)
+    return (
+      <div className={styles.voice}>
+        <div>
+          <Mic size={18} />
+          語音訊息
+        </div>
+        <p>{event.transcript?.state === 'available' ? event.transcript.text : '沒有轉寫'}</p>
+      </div>
+    )
+  const status = attachment.artifact_id
+    ? undefined
+    : attachment.availability === 'expired'
+      ? '已過期'
+      : !available
+        ? '無法取得'
+        : content.error?.message
   return (
     <button
       className={`${styles.attachment} ${image ? styles.image : ''}`}
-      disabled={attachment.artifact_id ? !attachment.version || !artifact : false}
+      disabled={
+        attachment.artifact_id ? !attachment.version || !artifact : !available || !!content.error
+      }
       onClick={() =>
         attachment.artifact_id && attachment.version
           ? artifact?.({ artifactId: attachment.artifact_id, version: attachment.version })
@@ -76,7 +95,7 @@ export function MessageAttachment({
         void window.yuki.client
           .contextMenu({
             text: attachment.filename ?? '附件',
-            save: !attachment.artifact_id,
+            save: available && !attachment.artifact_id,
           })
           .then(unwrap)
           .then((action) => {
@@ -89,11 +108,9 @@ export function MessageAttachment({
         <img src={url} alt={attachment.filename ?? '圖片附件'} />
       ) : (
         <div className={styles.file}>
-          <span>
-            {image ? <ImageIcon size={20} /> : voice ? <Mic size={20} /> : <File size={20} />}
-          </span>
+          <span>{image ? <ImageIcon size={20} /> : <File size={20} />}</span>
           <span className={styles.filename}>
-            {attachment.filename ?? (image ? '圖片' : voice ? '語音訊息' : '檔案')}
+            {attachment.filename ?? (image ? '圖片' : '檔案')}
           </span>
           {attachment.size !== null && attachment.size !== undefined && (
             <small>{size(attachment.size)}</small>
@@ -202,8 +219,6 @@ export function AttachmentPreview({
             <img src={url} alt={data.filename} onError={() => setDecodeError(true)} />
           ) : data.mime.startsWith('video/') && url ? (
             <video src={url} controls onError={() => setDecodeError(true)} />
-          ) : data.mime.startsWith('audio/') && url ? (
-            <audio src={url} controls onError={() => setDecodeError(true)} />
           ) : data.bytes &&
             (data.mime.startsWith('text/') ||
               /\.(txt|md|json|csv|py|js|ts|yaml|yml|log)$/i.test(data.filename)) ? (

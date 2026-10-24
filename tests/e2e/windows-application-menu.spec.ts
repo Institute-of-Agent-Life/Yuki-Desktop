@@ -4,7 +4,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { launchShell } from '../fixtures/shell-app'
-import { currentConnection, pairUI } from '../fixtures/backend'
+import { pairUI } from '../fixtures/backend'
 import { nativeWindowsMenu } from '../fixtures/windows-application-menu'
 import { windowsFileDialogOwner } from '../fixtures/windows-file-dialog'
 import { nativeWindowsControls } from '../fixtures/windows-window-controls'
@@ -73,10 +73,10 @@ test('Windows application commands have a real native menu entry before pairing 
       stages.push({ stage, box, overlay })
       await save()
     }
-    await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible()
     await geometry('welcome')
     await page.keyboard.press('Tab')
-    await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeFocused()
+    await expect(page.getByRole('button', { name: '開始', exact: true })).toBeFocused()
     await more().focus()
     await page.mouse.move(20, 300)
     await page.keyboard.press('ArrowDown')
@@ -111,12 +111,11 @@ test('Windows application commands have a real native menu entry before pairing 
     await page.getByRole('radio', { name: '深色', exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
     await page.getByRole('button', { name: '返回', exact: true }).click()
-    await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
+    await page.getByRole('button', { name: '開始', exact: true }).click()
     await geometry('pairing')
     const code = await fetch(base + '/__test/link-code', { method: 'POST' })
     expect(code.ok).toBe(true)
     await pairUI(page, base!, ((await code.json()) as { code: string }).code, '原生選單驗證', 20000)
-    const connection = await currentConnection(page)
     const boot = await page.evaluate(() => window.yuki.client.connections())
     expect(boot.ok).toBe(true)
     if (!boot.ok) throw Error(boot.code)
@@ -127,9 +126,7 @@ test('Windows application commands have a real native menu entry before pairing 
       deviceId: connection.deviceId,
     }))
     const draft = 'menu-draft-' + randomUUID()
-    await page
-      .getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true })
-      .fill(draft)
+    await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill(draft)
     proof.draft = draft
     await geometry('conversation')
     await more().click()
@@ -151,9 +148,7 @@ test('Windows application commands have a real native menu entry before pairing 
       stage: 'return-chat',
       receipt: await nativeWindowsMenu(owner, { path: ['顯示', '對話'] }),
     })
-    await expect(
-      page.getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true }),
-    ).toHaveValue(draft)
+    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toHaveValue(draft)
     const invalid = await page.evaluate(() => window.yuki.applicationMenu({ x: -1, y: 0 }))
     expect(invalid).toMatchObject({ ok: false, code: 'validation_error' })
     proof.invalidPosition = invalid
@@ -205,9 +200,7 @@ test('Windows application commands have a real native menu entry before pairing 
     proof.reopenedOwner = owner
     expect(owner.processId).not.toBe(native.pid)
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
-    await expect(
-      page.getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true }),
-    ).toHaveValue(draft)
+    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toHaveValue(draft)
     const cold = await page.evaluate(() => window.yuki.client.connections())
     expect(cold.ok).toBe(true)
     if (!cold.ok) throw Error(cold.code)
@@ -293,9 +286,7 @@ test('Windows application commands have a real native menu entry before pairing 
     expect(zoomedActualY - zoomedExpectedY).toBeGreaterThanOrEqual(0)
     expect(zoomedActualY - zoomedExpectedY).toBeLessThanOrEqual(16)
     await expect(more()).toHaveAttribute('aria-expanded', 'false')
-    await expect(
-      page.getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true }),
-    ).toHaveValue(draft)
+    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toHaveValue(draft)
     await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0]!.webContents.setZoomFactor(1),
     )

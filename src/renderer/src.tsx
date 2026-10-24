@@ -12,7 +12,6 @@ window.yuki
   .boot()
   .then((boot) => {
     window.addEventListener('keydown', (event) => {
-      if (event.isComposing || event.keyCode === 229) return
       const command = keyboardCommand(
         {
           key: event.key,

@@ -31,7 +31,7 @@ export class ContentCache {
   }
   async download(client: ApiClient, route: string, expectedVersion?: string) {
     const response = await client.response(route),
-      expected = response.headers.get('ETag')?.match(/^"([a-f0-9]{64})"$/)?.[1]
+      expected = response.headers.get('X-Yuki-Sha256')
     if (!expected || !/^[a-f0-9]{64}$/.test(expected) || !response.body)
       throw new ApiError('invalid_response')
     if (expectedVersion && expectedVersion !== expected) {

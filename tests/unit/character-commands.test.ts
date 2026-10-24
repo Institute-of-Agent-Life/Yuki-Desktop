@@ -3,10 +3,10 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Outbox } from '../../src/main/outbox'
-import { CharacterCommands } from '../../src/main/outbox/character-commands'
+import { CharacterCommands, characterRequest } from '../../src/main/outbox/character-commands'
 import { ApiClient } from '../../src/main/api/client'
+import { payloadHash } from '../../src/main/outbox/fingerprint'
 import type { CharacterCommand, Me, OutboxOwner } from '../../src/shared/api'
-import { retiredSummary, exportRetired, localSummary } from '../../src/main/outbox/local-summary'
 const owner: OutboxOwner = {
   characterId: '00000000-0000-4000-8000-000000000001',
   personId: '00000000-0000-4000-8000-000000000002',
@@ -20,7 +20,7 @@ const me: Me = {
   request_scope: owner.personId,
   request_conversation_id: null,
   platform: 'app',
-  presence_id: owner.bindingId,
+  presence_id: null,
   thread_id: null,
   binding_id: owner.bindingId,
   display_name: '本人',
@@ -50,78 +50,16 @@ afterEach(() => {
     rmSync(root, { recursive: true, force: true })
   }
 })
-const correction = {
-  kind: 'profile',
-  expectedRevision: 1,
-  displayName: 'Yuki',
-  bio: 'original',
-  accent: { light: '#123456', dark: '#abcdef' },
-} as const satisfies CharacterCommand
+const correction: CharacterCommand = {
+  kind: 'memory',
+  factId: 42,
+  expectedRevision: 'a'.repeat(64),
+  action: 'correct',
+  text: '\u0085 原內容 🙂 \u001f',
+}
 const api = (fetcher: typeof fetch) =>
   new ApiClient('http://localhost/role', 'test-only', owner.bindingId, '1.0.0-beta.1', fetcher)
 const data = (value: unknown) => Response.json({ data: value })
-
-it('leaves retired requests and executor results byte-for-byte intact across reopen, inspection and explicit verification', async () => {
-  const { path, box } = setup()
-  const command = '{ "kind": "memory", "factId": 42, "text": "original draft" }'
-  const result = '{ "state": "unknown", "result": { "native": "already submitted" } }'
-  box.db
-    .exec(`CREATE TABLE local_executor_operations(executor_id TEXT, op_id TEXT, phase TEXT, result_json TEXT);
-    CREATE TABLE avatar_commands(request_id TEXT, body BLOB, state TEXT);
-    CREATE TABLE computer_commands(request_id TEXT, state TEXT, result TEXT);
-    CREATE TABLE executor_commands(request_id TEXT, state TEXT, result TEXT);
-    CREATE TABLE executor_setup(id INTEGER, create_request TEXT, revoke_request TEXT)`)
-  box.db
-    .prepare('INSERT INTO character_commands VALUES(?,?,?,?,NULL,NULL,NULL)')
-    .run('original-request', command, 'original-hash', 'submitted')
-  box.db
-    .prepare('INSERT INTO local_executor_operations VALUES(?,?,?,?)')
-    .run('original-executor', 'original-operation', 'finished', result)
-  box.db
-    .prepare('INSERT INTO avatar_commands VALUES(?,?,?)')
-    .run('original-avatar', Buffer.from([0, 255, 1]), 'submitted')
-  box.db.exec(
-    "INSERT INTO computer_commands VALUES('original-control','submitted',NULL); INSERT INTO executor_commands VALUES('original-create','submitted',NULL); INSERT INTO executor_setup VALUES(1,'original-create',NULL)",
-  )
-  const before = exportRetired(box)
-  box.db.close()
-  const recovered = new Outbox(path, owner)
-  try {
-    const commands = new CharacterCommands(recovered)
-    const fetcher = async () => {
-      throw Error('retired requests must not issue any HTTP request')
-    }
-    expect(commands.list()).toEqual([])
-    const original = await commands.run(api(fetcher), 'original-request', true)
-    expect(original).toMatchObject({
-      requestId: 'original-request',
-      payloadHash: 'original-hash',
-      state: 'submitted',
-    })
-    expect(retiredSummary(recovered).reduce((sum, item) => sum + item.count, 0)).toBe(6)
-    expect(exportRetired(recovered)).toBe(before)
-    expect(localSummary(recovered)).toEqual({ drafts: 0, pending: 5, attachments: 0 })
-    expect(recovered.db.prepare('SELECT command FROM character_commands').get()).toEqual({
-      command,
-    })
-    expect(recovered.db.prepare('SELECT result_json FROM local_executor_operations').get()).toEqual(
-      { result_json: result },
-    )
-    expect(() => new Outbox(path, { ...owner, personId: owner.characterId })).toThrow(
-      'outbox_owner_mismatch',
-    )
-  } finally {
-    recovered.db.close()
-  }
-})
-
-it('does not create retired tables while reading a fresh namespace', () => {
-  const { box } = setup()
-  const before = box.db.prepare('SELECT name,sql FROM sqlite_master ORDER BY name').all()
-  expect(retiredSummary(box)).toEqual([])
-  expect(JSON.parse(exportRetired(box))).toEqual({ owner, tables: { character_commands: [] } })
-  expect(box.db.prepare('SELECT name,sql FROM sqlite_master ORDER BY name').all()).toEqual(before)
-})
 
 it('keeps character names exactly as supplied by the public contract', () => {
   const { commands } = setup()
@@ -135,7 +73,7 @@ it('keeps character names exactly as supplied by the public contract', () => {
   expect(item.command).toMatchObject({ displayName: '' })
 })
 
-it('cold recovery queries the original receipt after a committed profile change loses its response', async () => {
+it('cold recovery queries the original receipt after a committed correction loses its response', async () => {
   const { path, box, commands } = setup()
   const item = commands.prepare(correction)
   let effects = 0
@@ -146,19 +84,24 @@ it('cold recovery queries the original receipt after a committed profile change 
     if (url.includes('/requests/'))
       return data({
         found: effects > 0,
-        operation_kind: 'client.character_update',
-        target: owner.characterId,
+        operation_kind: 'client.memory_correction',
+        target: '42',
         payload_hash: item.payloadHash,
         status: 'succeeded',
-        result: { revision: 2 },
+        result: {
+          event_id: 9,
+          old_fact_id: 42,
+          new_fact_id: 43,
+          applied_operation: 'correct',
+          revision: 'b'.repeat(64),
+        },
       })
     effects++
     expect(JSON.parse(init!.body as string)).toEqual({
       request_id: item.requestId,
       expected_revision: correction.expectedRevision,
-      display_name: 'Yuki',
-      bio: 'original',
-      accent: { light: '#123456', dark: '#abcdef' },
+      action: 'correct',
+      text: '原內容 🙂',
     })
     throw new TypeError('response lost after commit')
   })
@@ -169,14 +112,14 @@ it('cold recovery queries the original receipt after a committed profile change 
   try {
     const original = await new CharacterCommands(recovered).run(client, item.requestId, true)
     expect(original.state).toBe('result')
-    expect(original.result).toMatchObject({ revision: 2 })
+    expect(original.result).toMatchObject({ old_fact_id: 42, new_fact_id: 43 })
     expect(effects).toBe(1)
   } finally {
     recovered.db.close()
   }
 })
 
-it('a 404 original receipt never starts a replacement profile change', async () => {
+it('a 404 original receipt never starts a replacement correction', async () => {
   const { commands } = setup(),
     item = commands.prepare(correction)
   let effects = 0
@@ -239,8 +182,8 @@ it('a transferred entry and a mismatched original receipt cannot dispatch a priv
     if (String(input).includes('/requests/'))
       return data({
         found: true,
-        operation_kind: 'client.character_update',
-        target: owner.personId,
+        operation_kind: 'client.memory_correction',
+        target: '43',
         payload_hash: next.payloadHash,
         status: 'succeeded',
         result: {},
@@ -250,4 +193,99 @@ it('a transferred entry and a mismatched original receipt cannot dispatch a priv
   })
   expect((await commands.run(mismatch, next.requestId, true)).problem).toBe('request_conflict')
   expect(effects).toBe(0)
+})
+
+it.each([
+  [
+    {
+      kind: 'profile',
+      expectedRevision: 2,
+      displayName: '新名稱',
+      bio: '簡介',
+      accent: { light: '#123456', dark: '#abcdef' },
+    },
+    'character',
+    'PATCH',
+  ],
+  [
+    { kind: 'automation', automationId: 31, expectedRevision: 'c'.repeat(64), action: 'pause' },
+    'automations/31/actions/pause',
+    'POST',
+  ],
+  [
+    { kind: 'memory', factId: 42, expectedRevision: 'd'.repeat(64), action: 'retract' },
+    'memory/facts/42/corrections',
+    'POST',
+  ],
+] as const)(
+  'dispatches the original typed %s command to its contracted method',
+  async (command, path, method) => {
+    const { commands } = setup(),
+      item = commands.prepare(command)
+    const client = api(async (input, init) => {
+      if (String(input).endsWith('/me')) return data(me)
+      expect(String(input).endsWith(`/${path}`)).toBe(true)
+      expect(init?.method).toBe(method)
+      const body = JSON.parse(init!.body as string)
+      expect(body.request_id).toBe(item.requestId)
+      if (command.kind === 'automation') expect(body).not.toHaveProperty('action')
+      if (command.kind === 'memory') expect(body.text).toBeNull()
+      return data({ revision: 3 })
+    })
+    expect((await commands.run(client, item.requestId)).problem).toBeNull()
+    expect(characterRequest(command, owner.characterId, owner.personId).target).toBe(
+      command.kind === 'profile' ? owner.characterId : command.kind === 'automation' ? '31' : '42',
+    )
+  },
+)
+
+it('proactive route uses the original Person fingerprint and the destination binding receipt, including cold lost-response recovery', async () => {
+  const { path, box, commands } = setup()
+  const destination = '00000000-0000-4000-8000-000000000005'
+  const command: CharacterCommand = {
+    kind: 'proactive-route',
+    expectedRevision: 8,
+    bindingId: destination,
+  }
+  const item = commands.prepare(command)
+  expect(item.payloadHash).toBe(
+    payloadHash('client.proactive_route', owner.personId, {
+      expected_revision: 8,
+      binding_id: destination,
+    }),
+  )
+  let effects = 0
+  const client = api(async (input, init) => {
+    if (String(input).endsWith('/me')) return data(me)
+    if (String(input).includes('/requests/'))
+      return data({
+        found: effects > 0,
+        request_id: item.requestId,
+        operation_kind: 'client.proactive_route',
+        target: destination,
+        payload_hash: item.payloadHash,
+        status: 'succeeded',
+        result: { binding_id: destination, platform: 'qq', paused: false, revision: 9 },
+      })
+    expect(init?.method).toBe('PUT')
+    expect(String(input)).toBe('http://localhost/role/client/v1/me/proactive-route')
+    expect(JSON.parse(init!.body as string)).toEqual({
+      request_id: item.requestId,
+      binding_id: destination,
+      expected_revision: 8,
+    })
+    effects++
+    throw Error('lost after actual effect')
+  })
+  expect((await commands.run(client, item.requestId, true)).state).toBe('submitted')
+  box.db.close()
+  const recovered = new Outbox(path, owner)
+  try {
+    const replay = await new CharacterCommands(recovered).run(client, item.requestId, true)
+    expect(replay.state).toBe('result')
+    expect(replay.result).toMatchObject({ revision: 9 })
+    expect(effects).toBe(1)
+  } finally {
+    recovered.db.close()
+  }
 })

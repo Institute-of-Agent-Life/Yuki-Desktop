@@ -6,47 +6,15 @@ export const workspaceSizes = [
   [1100, 760],
   [960, 492],
 ] as const
-const viewports = new WeakMap<
-  Page,
-  { width: number; height: number; emulated: boolean; scale: number }
->()
-let measurement = 0
-async function renderedWorkspaceLayout(page: Page) {
-  return page.evaluate(() => ({
-    viewport: { width: innerWidth, height: innerHeight },
-    regions: [...document.querySelectorAll<HTMLElement>('[data-region]')]
-      .filter((element) => !element.closest('[hidden]') && element.getClientRects().length > 0)
-      .map((element) => {
-        const { x, y, width, height } = element.getBoundingClientRect()
-        const style = getComputedStyle(element)
-        return {
-          region: element.dataset.region,
-          rect: { x, y, width, height },
-          visibility: style.visibility,
-          position: style.position,
-        }
-      }),
-  }))
-}
-export async function systemAccessibility(page: Page) {
-  return page.evaluate(async () => {
-    const boot = await window.yuki.boot()
-    return {
-      reducedTransparency: boot.reducedTransparency,
-      highContrast: boot.highContrast,
-      cssReducedTransparency: matchMedia('(prefers-reduced-transparency: reduce)').matches,
-      cssHighContrast: matchMedia('(prefers-contrast: more)').matches,
-    }
-  })
-}
+const viewports = new WeakMap<Page, { width: number; height: number; emulated: boolean }>()
 export async function contentSize(
   app: ElectronApplication,
   page: Page,
   width: number,
   height: number,
 ) {
-  const viewport = await app.evaluate(
-    async ({ BrowserWindow, screen }, size) => {
+  const viewportMethod = await app.evaluate(
+    ({ BrowserWindow, screen }, size) => {
       const window = BrowserWindow.getAllWindows()[0]!
       window.webContents.disableDeviceEmulation()
       const [minimumWidth, minimumHeight] = window.getMinimumSize()
@@ -58,7 +26,7 @@ export async function contentSize(
         size.height <= area.height
       ) {
         window.setContentSize(size.width, size.height)
-        return { method: 'native-window' as const, scale: 1 }
+        return 'native-window' as const
       }
       window.webContents.enableDeviceEmulation({
         screenPosition: 'desktop',
@@ -68,131 +36,37 @@ export async function contentSize(
         viewSize: size,
         scale: 1,
       })
-      return { method: 'electron-device-emulation' as const, scale: 1 }
+      return 'electron-device-emulation' as const
     },
     { width, height },
   )
-  const viewportMethod = viewport.method
-  const emulated = viewportMethod === 'electron-device-emulation'
-  if (emulated)
-    await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([width, height])
-  // Keep the existing stability observation, including React's rendered resize layout.
-  let previous = ''
-  await expect
-    .poll(async () => {
-      const current = JSON.stringify(await renderedWorkspaceLayout(page))
-      const settled = current === previous
-      previous = current
-      return settled
-    })
-    .toBe(true)
-  // Native DPI/frame rounding is measured, never replaced with a claimed exact CSS size.
-  const actual = await page.evaluate(() => ({
-    width: innerWidth,
-    height: innerHeight,
-    dpr: devicePixelRatio,
-  }))
-  viewports.set(page, { ...actual, emulated, scale: viewport.scale })
-  await writeFile(
-    test.info().outputPath(`viewport-${++measurement}-requested-${width}x${height}.json`),
-    JSON.stringify(
-      { requested: { width, height }, actual, viewportMethod, emulationScale: viewport.scale },
-      null,
-      2,
-    ),
-  )
+  await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([width, height])
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
+  viewports.set(page, { width, height, emulated: viewportMethod === 'electron-device-emulation' })
   return viewportMethod
 }
 
-/** Capture virtual CSS views with Chromium, then restore Electron's interactive emulation. */
+/** CDP capture resets Electron's device emulation. Capture its surface directly instead. */
 export async function captureViewport(app: ElectronApplication, page: Page, path: string) {
   const viewport = viewports.get(page)
   if (!viewport?.emulated) return page.screenshot({ path, animations: 'disabled' })
   const { width, height } = viewport
   await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([width, height])
-  const nativeSurface = await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]!.getContentBounds(),
+  const data = await app.evaluate(
+    async ({ BrowserWindow }, size) => {
+      const window = BrowserWindow.getAllWindows()[0]!
+      const bounds = window.getContentBounds()
+      if (size.width > bounds.width || size.height > bounds.height)
+        throw Error('The emulated viewport must fit the native capture surface')
+      const image = await window.webContents.capturePage({ x: 0, y: 0, ...size })
+      return image.toPNG().toString('base64')
+    },
+    { width, height },
   )
-  const dpr = await page.evaluate(() => devicePixelRatio)
-  const cdp = await page.context().newCDPSession(page)
-  let layoutBefore: Awaited<ReturnType<typeof renderedWorkspaceLayout>> | null = null
-  let pngPixels: { width: number; height: number } | null = null
-  let layoutAfter: Awaited<ReturnType<typeof renderedWorkspaceLayout>> | null = null
-  try {
-    // An explicit Chromium viewport paints the whole CSS view rather than padding
-    // a cropped native surface. It remains virtual, not a larger physical display.
-    await cdp.send('Emulation.setDeviceMetricsOverride', {
-      width,
-      height,
-      deviceScaleFactor: dpr,
-      mobile: false,
-      screenWidth: width,
-      screenHeight: height,
-    })
-    await page.evaluate(
-      () =>
-        new Promise<void>((resolve) =>
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-        ),
-    )
-    layoutBefore = await renderedWorkspaceLayout(page)
-    const frame = await cdp.send('Page.captureScreenshot', {
-      format: 'png',
-      fromSurface: true,
-      captureBeyondViewport: true,
-      clip: { x: 0, y: 0, width, height, scale: 1 },
-    })
-    const buffer = Buffer.from(frame.data, 'base64')
-    pngPixels = { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) }
-    await writeFile(path, buffer)
-    return buffer
-  } finally {
-    try {
-      await cdp.send('Emulation.clearDeviceMetricsOverride')
-      await cdp.detach()
-      await app.evaluate(
-        ({ BrowserWindow }, size) => {
-          BrowserWindow.getAllWindows()[0]!.webContents.enableDeviceEmulation({
-            screenPosition: 'desktop',
-            screenSize: size,
-            viewPosition: { x: 0, y: 0 },
-            deviceScaleFactor: 0,
-            viewSize: size,
-            scale: 1,
-          })
-        },
-        { width, height },
-      )
-      // Restoring CSS dimensions does not mean React has committed its resize layout.
-      if (layoutBefore)
-        await expect
-          .poll(async () => {
-            layoutAfter = await renderedWorkspaceLayout(page)
-            return layoutAfter
-          })
-          .toEqual(layoutBefore)
-    } finally {
-      await writeFile(
-        path.replace(/\.png$/, '.capture.json'),
-        JSON.stringify(
-          {
-            viewport: { width, height },
-            viewportMethod: 'electron-device-emulation',
-            captureMethod: 'cdp-virtual-viewport',
-            interactionScale: 1,
-            captureScale: 1,
-            nativeSurface,
-            captureDip: { width, height },
-            pngPixels,
-            layoutBefore,
-            layoutAfter,
-          },
-          null,
-          2,
-        ),
-      )
-    }
-  }
+  const buffer = Buffer.from(data, 'base64')
+  await writeFile(path, buffer)
+  await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([width, height])
+  return buffer
 }
 /** Captures the real app; theme changes go through its normal Settings controls. */
 export async function captureWorkspace(
@@ -217,19 +91,15 @@ export async function captureWorkspace(
       await expect(toggle).toHaveAttribute('aria-checked', String(checked))
     }
     await page.getByRole('button', { name: '返回', exact: true }).click()
-    const system = await systemAccessibility(page)
     await expect(page.locator('html')).toHaveAttribute(
       'data-theme',
       theme === 'dark' ? 'dark' : 'light',
     )
     await expect(page.locator('html')).toHaveAttribute(
       'data-contrast',
-      String(theme === 'contrast' || system.highContrast || system.cssHighContrast),
+      String(theme === 'contrast'),
     )
-    await expect(page.locator('html')).toHaveAttribute(
-      'data-opaque',
-      String(theme === 'opaque' || theme === 'contrast' || Object.values(system).some(Boolean)),
-    )
+    await expect(page.locator('html')).toHaveAttribute('data-opaque', String(theme === 'opaque'))
     await prepare()
     for (const [width, height] of workspaceSizes) {
       const viewportMethod = await contentSize(app, page, width, height)
@@ -296,17 +166,7 @@ export async function captureWorkspace(
       })
       await writeFile(
         path.replace(/\.png$/, '.metrics.json'),
-        JSON.stringify(
-          {
-            ...metrics,
-            requested: { width, height },
-            viewportMethod,
-            emulationScale: viewports.get(page)!.scale,
-            systemAccessibility: system,
-          },
-          null,
-          2,
-        ) + '\n',
+        JSON.stringify({ ...metrics, viewportMethod }, null, 2) + '\n',
       )
     }
     await options.cleanup?.()

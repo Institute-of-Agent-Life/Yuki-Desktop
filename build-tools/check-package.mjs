@@ -1,7 +1,6 @@
 import { extractFile, listPackage, statFile, uncache } from '@electron/asar'
 import { readdirSync, lstatSync } from 'node:fs'
-import { join, resolve, normalize, dirname } from 'node:path'
-import { checkProductResources } from './product-resources.mjs'
+import { join, resolve, normalize } from 'node:path'
 import { createHash } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 
@@ -17,7 +16,6 @@ export function checkPackage(root) {
   walk(root)
   if (!archives.length) throw new Error('No packaged app.asar found')
   for (const archive of archives) {
-    checkProductResources(dirname(archive))
     uncache(archive)
     const entries = listPackage(archive).map((entry) => entry.replaceAll('\\', '/'))
     for (const file of [
@@ -26,6 +24,14 @@ export function checkPackage(root) {
       'out/renderer/index.html',
       'resources/icons/trayTemplate.png',
       'resources/icons/trayTemplate@2x.png',
+      ...[
+        'AUTHORS',
+        'NOTICE.txt',
+        'LICENSE.MPL-2.0',
+        'LICENSE.BSD-2-Clause',
+        'LICENSE.BSD-3-Clause',
+        'LICENSE.OFL-1.1',
+      ].map((name) => `resources/legal/novnc/${name}`),
       ...[16, 32, 64, 128, 256, 512, 1024].map((size) => `resources/icons/app/${size}x${size}.png`),
     ]) {
       if (!entries.includes('/' + file)) throw new Error(`Missing product entry: ${file}`)
@@ -43,15 +49,22 @@ export function checkPackage(root) {
       if (!entries.includes('/out/renderer/' + asset))
         throw new Error(`Missing bundled asset: ${asset}`)
     }
+    if (!entries.some((entry) => /^\/out\/renderer\/assets\/diff\.worker-[^/]+\.js$/.test(entry)))
+      throw new Error('Missing artifact comparison worker')
     for (const entry of entries) {
       const path = entry.replace(/^\//, '')
       const icon =
         /^resources\/icons\/app\/(16|32|64|128|256|512|1024)x\1\.png$/.test(path) ||
         /^resources\/icons\/trayTemplate(?:@2x)?\.png$/.test(path)
       const iconDirectory = /^resources(?:\/icons(?:\/app)?)?$/.test(path)
+      const legal =
+        /^resources\/legal(?:\/novnc(?:\/(?:AUTHORS|NOTICE\.txt|LICENSE\.(?:MPL-2\.0|BSD-2-Clause|BSD-3-Clause|OFL-1\.1)))?)?$/.test(
+          path,
+        )
       if (
         !/^(out|node_modules)(\/|$)|^(package\.json|LICENSE)$/.test(path) &&
         !icon &&
+        !legal &&
         !iconDirectory
       )
         throw new Error(`Unexpected package content: ${path}`)

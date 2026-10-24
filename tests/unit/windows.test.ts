@@ -6,7 +6,6 @@ import { defaultPreferences } from '../../src/shared/desktop'
 import type { Rect } from '../../src/main/geometry'
 
 const os = vi.hoisted(() => ({
-  displayId: 1,
   work: { x: 0, y: 0, width: 1920, height: 1040 },
   windows: [] as BrowserWindow[],
 }))
@@ -31,6 +30,12 @@ vi.mock('electron', async () => {
     }
     getBounds() {
       return { ...this.bounds }
+    }
+    getContentBounds() {
+      return { ...this.bounds, width: this.bounds.width - 16, height: this.bounds.height - 39 }
+    }
+    setContentSize(width: number, height: number) {
+      this.setBounds({ ...this.bounds, width: width + 16, height: height + 39 })
     }
     getMinimumSize() {
       return [...this.minimum]
@@ -78,8 +83,8 @@ vi.mock('electron', async () => {
   return {
     BrowserWindow: Window,
     screen: Object.assign(new EventEmitter(), {
-      getPrimaryDisplay: () => ({ id: os.displayId, workArea: { ...os.work } }),
-      getDisplayMatching: () => ({ id: os.displayId, workArea: { ...os.work } }),
+      getPrimaryDisplay: () => ({ workArea: { ...os.work } }),
+      getDisplayMatching: () => ({ workArea: { ...os.work } }),
     }),
     nativeTheme: Object.assign(new EventEmitter(), {
       shouldUseDarkColors: false,
@@ -90,7 +95,6 @@ vi.mock('electron', async () => {
 })
 beforeEach(() => {
   vi.useFakeTimers()
-  os.displayId = 1
   os.work = { x: 0, y: 0, width: 1920, height: 1040 }
 })
 afterEach(() => {
@@ -123,7 +127,6 @@ describe.each(['darwin', 'win32', 'linux'] as const)('window movement on %s', (p
     await vi.advanceTimersByTimeAsync(100)
     expect(window.getBounds().x).toBe(900)
     os.work = { x: 1920, y: 0, width: 960, height: 492 }
-    os.displayId = 2
     window.setPosition(1920, 0)
     await vi.advanceTimersByTimeAsync(150)
     expect(window.getBounds()).toEqual(os.work)
@@ -147,7 +150,7 @@ describe.each(['darwin', 'win32', 'linux'] as const)('window movement on %s', (p
     const { window, values, set } = localStore()
     window.setPosition(700, 40)
     window.emit('close')
-    expect(values.get('window')).toEqual({ x: 700, y: 40, width: 1440, height: 900 })
+    expect(values.get('window')).toEqual({ x: 480, y: 40, width: 1440, height: 900 })
     window.setPosition(300, 50)
     expect(vi.getTimerCount()).toBe(1)
     window.destroy()
@@ -157,21 +160,6 @@ describe.each(['darwin', 'win32', 'linux'] as const)('window movement on %s', (p
     expect(vi.getTimerCount()).toBe(0)
     for (const kind of ['display-metrics-changed', 'display-added', 'display-removed'])
       expect(screen.listenerCount(kind)).toBe(0)
-  })
-  it('persists same-display native bounds without calling another geometry setter', async () => {
-    const { window, values } = localStore()
-    const bounds = vi.spyOn(window, 'setBounds')
-    const minimum = vi.spyOn(window, 'setMinimumSize')
-    window.setPosition(1800, 900)
-    const actual = window.getBounds()
-    bounds.mockClear()
-    await vi.advanceTimersByTimeAsync(150)
-    expect(window.getBounds()).toEqual(actual)
-    expect(values.get('window')).toEqual(actual)
-    expect(bounds).not.toHaveBeenCalled()
-    expect(minimum).not.toHaveBeenCalled()
-    window.emit('ready-to-show')
-    expect(bounds).not.toHaveBeenCalled()
   })
 })
 

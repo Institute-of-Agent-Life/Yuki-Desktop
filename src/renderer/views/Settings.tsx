@@ -9,6 +9,7 @@ import {
   Wrench,
   Server,
   ShieldCheck,
+  Laptop,
   Terminal,
 } from 'lucide-react'
 import type { Connection } from '../../shared/api'
@@ -16,6 +17,7 @@ import { UpdatePanel } from '../components/Updates'
 import { ApplicationMenu } from '../components/ApplicationMenu'
 import { ServerSettings } from './ServerSettings'
 import { DeviceSecurity } from './DeviceSecurity'
+import { LocalConnection } from './LocalConnection'
 import { AgentConnector } from './AgentConnector'
 import type { BootInfo, Preferences } from '../../shared/desktop'
 import { Banner, Button, Segmented, Spinner, Toggle, SelectionPill } from '../components/Controls'
@@ -26,6 +28,7 @@ const categories = [
   { id: 'general', label: '一般', icon: SlidersHorizontal },
   { id: 'look', label: '外觀', icon: Palette },
   { id: 'notify', label: '通知', icon: Bell },
+  { id: 'local', label: '本機連接', icon: Laptop },
   { id: 'agents', label: '編程 Agent', icon: Terminal },
   { id: 'security', label: '裝置與安全', icon: ShieldCheck },
   { id: 'server', label: '伺服器與角色', icon: Server },
@@ -62,8 +65,8 @@ export function Settings({
   about,
   onLoggedOut,
   serverRequest = false,
+  folderRequest = false,
   onAddCharacter,
-  onDeployLocal,
 }: {
   boot: BootInfo
   embedded?: boolean
@@ -74,12 +77,18 @@ export function Settings({
   onConnection(connection: Connection): void
   about(): void
   onLoggedOut(): Promise<void>
+  folderRequest?: boolean
   serverRequest?: boolean
   onAddCharacter(): void
-  onDeployLocal(): void
 }) {
   const [category, setCategory] = useState<Category>(
-      connection?.logout ? 'security' : serverRequest ? 'server' : 'general',
+      connection?.logout
+        ? 'security'
+        : folderRequest
+          ? 'local'
+          : serverRequest
+            ? 'server'
+            : 'general',
     ),
     [error, setError] = useState(''),
     [notice, setNotice] = useState('')
@@ -88,6 +97,7 @@ export function Settings({
     categories.map((item) => item.id),
   )
   const [busy, setBusy] = useState(false)
+  const [folderPending, setFolderPending] = useState(folderRequest)
   const query = useQueryClient()
   useEffect(() => {
     if (connection?.logout) setCategory('security')
@@ -96,11 +106,6 @@ export function Settings({
     queryKey: ['desktop', 'login-item'],
     queryFn: () => window.yuki.loginItem().then(unwrap),
     retry: false,
-  })
-  const history = useQuery({
-    queryKey: [connection?.characterId, 'retired-history'],
-    queryFn: () => window.yuki.client.retiredHistory(connection!.characterId).then(unwrap),
-    enabled: category === 'advanced' && !!connection,
   })
   const change = async (patch: Partial<Preferences>) => {
     setError('')
@@ -307,6 +312,7 @@ export function Settings({
                   { key: 'notifyProactive', label: '角色主動訊息' },
                   { key: 'notifyWaiting', label: '等待你回覆' },
                   { key: 'notifyCompleted', label: '工作完成' },
+                  { key: 'notifyHelp', label: '電腦協助請求' },
                 ] as const
               ).map((item) => (
                 <Row key={item.key} title={item.label}>
@@ -318,8 +324,19 @@ export function Settings({
                 </Row>
               ))}
             </div>
+          ) : category === 'local' ? (
+            connection ? (
+              <LocalConnection
+                key={connection.characterId}
+                connection={connection}
+                folderRequest={folderPending}
+                onFolderRequested={() => setFolderPending(false)}
+              />
+            ) : (
+              <p className={styles.notice}>配對角色後可設定本機連接。</p>
+            )
           ) : category === 'agents' ? (
-            <AgentConnector connection={connection} deviceLabel={boot.deviceLabel} />
+            <AgentConnector server={connection?.baseUrl} deviceLabel={boot.deviceLabel} />
           ) : category === 'security' ? (
             connection ? (
               <DeviceSecurity
@@ -332,31 +349,17 @@ export function Settings({
               <p className={styles.notice}>配對角色後可管理本人的裝置。</p>
             )
           ) : category === 'server' ? (
-            <>
-              <div className={styles.group}>
-                <Row title={connection ? '其他角色' : '連接 Yuki'}>
-                  <Button onClick={onAddCharacter}>
-                    {connection ? '加入另一個角色' : '連接已有 Yuki'}
-                  </Button>
-                </Row>
-                <Row
-                  title="本機 Yuki"
-                  description="在這台電腦部署 Yuki，或管理已有的本機部署。"
-                >
-                  <Button onClick={onDeployLocal}>本機部署與管理</Button>
-                </Row>
-              </div>
-              {connection ? (
-                <ServerSettings
-                  key={connection.characterId}
-                  connection={connection}
-                  onConnection={onConnection}
-                  about={about}
-                />
-              ) : (
-                <p className={styles.notice}>連接角色後，這裡會顯示伺服器與角色設定。</p>
-              )}
-            </>
+            connection ? (
+              <ServerSettings
+                key={connection.characterId}
+                connection={connection}
+                onConnection={onConnection}
+                about={about}
+                onAddCharacter={onAddCharacter}
+              />
+            ) : (
+              <p className={styles.notice}>配對角色後可查看伺服器與主動訊息設定。</p>
+            )
           ) : (
             <>
               <div className={styles.group}>
@@ -385,30 +388,6 @@ export function Settings({
                 </Row>
               </div>
               <p className={styles.version}>Yuki Desktop {boot.version}</p>
-              {!!history.data?.length && (
-                <Row
-                  title="舊版操作記錄"
-                  description="原始識別碼、未決操作與回執保留供查閱，不會重新執行。匯出檔案含原始操作資料，請自行保管。"
-                >
-                  <Button
-                    onClick={async () => {
-                      setError('')
-                      try {
-                        if (
-                          unwrap(
-                            await window.yuki.client.exportRetiredHistory(connection!.characterId),
-                          )
-                        )
-                          setNotice('舊版操作記錄已匯出。')
-                      } catch {
-                        setError('舊版操作記錄未能匯出。')
-                      }
-                    }}
-                  >
-                    匯出 {history.data.reduce((sum, item) => sum + item.count, 0)} 筆記錄…
-                  </Button>
-                </Row>
-              )}
             </>
           )}
         </div>

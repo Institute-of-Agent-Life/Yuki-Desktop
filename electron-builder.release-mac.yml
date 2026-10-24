@@ -2,7 +2,6 @@ extends: build-tools/builder-config.mjs
 forceCodeSigning: true
 mac:
   identity: '${env.YUKI_MAC_SIGNING_IDENTITY}'
-  sign: build-tools/sign-mac.mjs
   notarize: true
 dmg:
   sign: true

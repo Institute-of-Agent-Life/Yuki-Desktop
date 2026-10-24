@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowUp, Mic, Plus } from 'lucide-react'
 import { useGlass } from '../materials/glass'
 import { IconButton } from './Controls'
@@ -32,7 +32,6 @@ export function Composer({
   const input = useRef<HTMLTextAreaElement>(null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
-  const feedbackId = useId()
   useEffect(() => {
     const element = input.current
     if (element) {
@@ -58,14 +57,9 @@ export function Composer({
       <textarea
         ref={input}
         aria-label={`和 ${name} 說點什麼`}
-        aria-describedby={feedbackId}
-        aria-invalid={!!error}
         placeholder={`和 ${name} 說點什麼…`}
         value={draft}
-        onChange={(event) => {
-          setError('')
-          onDraft(event.target.value)
-        }}
+        onChange={(event) => onDraft(event.target.value)}
         onKeyDown={(event) => {
           if (
             event.key === 'Enter' &&
@@ -86,9 +80,7 @@ export function Composer({
         <IconButton label="語音輸入" disabled={!onRecord} onClick={onRecord}>
           <Mic size={18} strokeWidth={1.6} />
         </IconButton>
-        <small id={feedbackId} aria-live="polite">
-          {error || (commandEnter ? '⌘ / Ctrl ↩ 送出' : '↩ 送出 · ⇧↩ 換行')}
-        </small>
+        <small>{error || (commandEnter ? '⌘ / Ctrl ↩ 送出' : '↩ 送出 · ⇧↩ 換行')}</small>
         <IconButton
           label="送出"
           variant="send"

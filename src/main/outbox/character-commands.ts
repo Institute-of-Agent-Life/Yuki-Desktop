@@ -3,6 +3,7 @@ import type { CharacterCommand, CharacterCommandItem, OriginalRequest } from '..
 import { ApiClient, ApiError } from '../api/client'
 import type { Outbox } from './index'
 import { payloadHash } from './fingerprint'
+import { normalizeMessageText } from '../../shared/message'
 
 const terminal = new Set([
   'not_found',
@@ -14,7 +15,7 @@ const terminal = new Set([
   'precondition_failed',
   'validation_error',
 ])
-export function characterRequest(command: CharacterCommand, characterId: string) {
+export function characterRequest(command: CharacterCommand, characterId: string, personId: string) {
   if (command.kind === 'device-revoke')
     return {
       operation: 'client.revoke',
@@ -22,6 +23,15 @@ export function characterRequest(command: CharacterCommand, characterId: string)
       path: `devices/${command.deviceId}`,
       method: 'DELETE' as const,
       payload: {},
+    }
+  if (command.kind === 'proactive-route')
+    return {
+      operation: 'client.proactive_route',
+      target: command.bindingId,
+      hashTarget: personId,
+      path: 'me/proactive-route',
+      method: 'PUT' as const,
+      payload: { expected_revision: command.expectedRevision, binding_id: command.bindingId },
     }
   if (command.kind === 'profile')
     return {
@@ -36,7 +46,25 @@ export function characterRequest(command: CharacterCommand, characterId: string)
         accent: command.accent,
       },
     }
-  throw new ApiError('feature_unavailable')
+  if (command.kind === 'memory')
+    return {
+      operation: 'client.memory_correction',
+      target: String(command.factId),
+      path: `memory/facts/${command.factId}/corrections`,
+      method: 'POST' as const,
+      payload: {
+        expected_revision: command.expectedRevision,
+        action: command.action,
+        text: command.action === 'correct' ? normalizeMessageText(command.text!) : null,
+      },
+    }
+  return {
+    operation: 'client.automation',
+    target: String(command.automationId),
+    path: `automations/${command.automationId}/actions/${command.action}`,
+    method: 'POST' as const,
+    payload: { expected_revision: command.expectedRevision, action: command.action },
+  }
 }
 
 export class CharacterCommands {
@@ -76,9 +104,7 @@ export class CharacterCommands {
       this.box.db.prepare('SELECT request_id FROM character_commands ORDER BY rowid').all() as {
         request_id: string
       }[]
-    )
-      .map((row) => this.get(row.request_id))
-      .filter((item) => ['profile', 'device-revoke'].includes(item.command.kind))
+    ).map((row) => this.get(row.request_id))
   }
   prepare(command: CharacterCommand) {
     if (command.kind === 'profile') {
@@ -99,9 +125,36 @@ export class CharacterCommands {
         )
       )
         throw new ApiError('validation_error')
+    } else if (command.kind === 'proactive-route') {
+      if (
+        !Number.isSafeInteger(command.expectedRevision) ||
+        command.expectedRevision < 0 ||
+        typeof command.bindingId !== 'string' ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          command.bindingId,
+        )
+      )
+        throw new ApiError('validation_error')
+    } else if (command.kind === 'memory' || command.kind === 'automation') {
+      const id = command.kind === 'memory' ? command.factId : command.automationId
+      if (
+        !Number.isSafeInteger(id) ||
+        id < 1 ||
+        !/^[0-9a-f]{64}$/.test(command.expectedRevision) ||
+        (command.kind === 'memory'
+          ? !['correct', 'retract'].includes(command.action) ||
+            (command.action === 'correct' &&
+              (typeof command.text !== 'string' || !normalizeMessageText(command.text)))
+          : !['pause', 'resume', 'delete'].includes(command.action))
+      )
+        throw new ApiError('validation_error')
     } else throw new ApiError('validation_error')
-    const request = characterRequest(command, this.box.owner.characterId)
-    const hash = payloadHash(request.operation, request.target, request.payload)
+    const request = characterRequest(command, this.box.owner.characterId, this.box.owner.personId)
+    const hash = payloadHash(
+      request.operation,
+      request.hashTarget ?? request.target,
+      request.payload,
+    )
     const previous = this.box.db
       .prepare(
         "SELECT request_id FROM character_commands WHERE hash=? AND state='submitted' ORDER BY rowid LIMIT 1",
@@ -143,11 +196,14 @@ export class CharacterCommands {
   }
   private async dispatch(client: ApiClient, id: string, verify: boolean) {
     const item = this.get(id)
-    if (item.state === 'result' || !['profile', 'device-revoke'].includes(item.command.kind))
-      return item
+    if (item.state === 'result') return item
     try {
       await this.box.verifyOwner(client)
-      const request = characterRequest(item.command, this.box.owner.characterId)
+      const request = characterRequest(
+        item.command,
+        this.box.owner.characterId,
+        this.box.owner.personId,
+      )
       if (verify) {
         const receipt = await client.get<OriginalRequest>(`requests/${id}`)
         if (receipt.found) {
@@ -166,6 +222,7 @@ export class CharacterCommands {
         }
       }
       const body: Record<string, unknown> = { ...request.payload }
+      if (item.command.kind === 'automation') delete body.action
       const result = await client.mutate<CharacterCommandItem['result']>(
         request.path,
         {

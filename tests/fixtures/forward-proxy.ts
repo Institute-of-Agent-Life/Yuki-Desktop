@@ -5,7 +5,6 @@ import { createServer, request as forward, type IncomingMessage } from 'node:htt
 export async function forwardProxy(target: string, prefix: string) {
   const root = new URL(target)
   const calls: { path: string; method: string; bearer: boolean; requestId?: string }[] = []
-  const completed = new Set<(typeof calls)[number]>()
   const faults = {
     offline: false,
     holdReceipts: false,
@@ -14,7 +13,6 @@ export async function forwardProxy(target: string, prefix: string) {
     holdResponseSuffixes: new Set<string>(),
     rejectPostSuffixes: new Set<string>(),
     loseNextSuffix: '',
-    loseNextReadSuffix: '',
     minDesktop: null as string | null,
   }
   const lostStatuses: number[] = []
@@ -22,15 +20,13 @@ export async function forwardProxy(target: string, prefix: string) {
   const responses = new Map<string, Set<IncomingMessage>>()
   const server = createServer((req, res) => {
     const path = (req.url ?? '/').slice(prefix.length)
-    const parsed = new URL(path, root)
     const call = {
       path,
       method: req.method ?? 'GET',
       bearer: !!req.headers.authorization,
-      requestId: parsed.searchParams.get('request_id') ?? undefined,
+      requestId: undefined as string | undefined,
     }
     calls.push(call)
-    res.once('finish', () => completed.add(call))
     if (
       faults.offline ||
       (req.method === 'POST' &&
@@ -53,17 +49,9 @@ export async function forwardProxy(target: string, prefix: string) {
         }
       })
     }
-    const loseRead =
-      !!faults.loseNextReadSuffix &&
-      parsed.pathname.endsWith(faults.loseNextReadSuffix) &&
-      req.method === 'GET'
-    const loseWrite =
-      !!faults.loseNextSuffix &&
-      parsed.pathname.endsWith(faults.loseNextSuffix) &&
-      req.method !== 'GET'
-    const loseResponse = loseRead || loseWrite
-    if (loseRead) faults.loseNextReadSuffix = ''
-    if (loseWrite) {
+    const loseResponse =
+      !!faults.loseNextSuffix && path.endsWith(faults.loseNextSuffix) && req.method !== 'GET'
+    if (loseResponse) {
       faults.loseNextSuffix = ''
       faults.holdReceipts = true
     }
@@ -123,7 +111,6 @@ export async function forwardProxy(target: string, prefix: string) {
   return {
     base: `http://127.0.0.1:${address.port}${prefix}`,
     calls,
-    completed,
     lostStatuses,
     held,
     pauseActive(path: string) {

@@ -1,41 +1,38 @@
-import { navigate } from '../fixtures/navigation'
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
-import type { Connection, Work } from '../../src/shared/api'
-import { currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
+import type { Connection, Home, Work } from '../../src/shared/api'
+import { pairUI, yukiFixture } from '../fixtures/backend'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
 
 const detail = (page: Page) => page.getByRole('complementary', { name: '檢視器', exact: true })
+const card = (page: Page, id?: string) =>
+  (id ? page.locator(`[data-character-session="${id}"]`) : page).getByRole('article').filter({
+    has: page.getByRole('heading', { name: '原工作整合測試', exact: true }),
+  })
 async function open(page: Page, id?: string) {
   if (id)
     await expect(
       page.locator(`[data-character-session="${id}"] [data-region="toolbar"]`),
     ).toBeVisible()
-  await navigate(page, '工作')
-  await page.getByRole('button').filter({ hasText: 'Desktop reference work' }).click()
+  await card(page, id).getByRole('button', { name: '查看詳情', exact: true }).click()
 }
 async function create(page: Page, base: string) {
-  const response = await fetch(`${base}/__test/work`, { method: 'POST' })
-  expect(response.status).toBe(200)
-  const { work_id } = (await response.json()) as { work_id: string }
-  return page.evaluate(
-    async ({ base, work_id }) => {
-      const list = await window.yuki.client.connections()
-      if (!list.ok) throw Error(list.code)
-      const connection = list.value.find(
-        (item) => item.baseUrl.replace(/\/+$/, '') === base.replace(/\/+$/, ''),
-      )
-      if (!connection) throw Error('Paired role missing')
-      const work = await window.yuki.client.read<Work>(connection.characterId, {
-        kind: 'work',
-        workId: work_id,
-      })
-      if (!work.ok) throw Error(work.code)
-      return { connection, work: work.value }
-    },
-    { base, work_id },
-  )
+  expect((await fetch(`${base}/__test/work-scenario`, { method: 'POST' })).ok).toBe(true)
+  await page.getByRole('textbox', { name: '和 Yuki 說點什麼' }).fill('請建立原工作整合測試')
+  await page.getByRole('button', { name: '送出', exact: true }).click()
+  await expect(card(page).getByText('等你回覆', { exact: true })).toBeVisible({ timeout: 20000 })
+  return page.evaluate(async (base) => {
+    const list = await window.yuki.client.connections()
+    if (!list.ok) throw Error(list.code)
+    const connection = list.value.find(
+      (item) => item.baseUrl.replace(/\/+$/, '') === base.replace(/\/+$/, ''),
+    )
+    if (!connection) throw Error('Paired role missing')
+    const home = await window.yuki.client.read<Home>(connection.characterId, { kind: 'home' })
+    if (!home.ok || !home.value.works[0]) throw Error('Original work missing')
+    return { connection, work: home.value.works[0] }
+  }, base)
 }
 async function readWork(page: Page, connection: Connection, work: Work) {
   return page.evaluate(
@@ -70,7 +67,7 @@ async function diskFault(app: ElectronApplication, path: string, enabled: boolea
 
 test('inline answers and supplements retain distinct multiline drafts, survive a crash and recover a failed atomic send', async () => {
   test.setTimeout(240000)
-  const rig = await yukiFixture()
+  const rig = await yukiFixture({ character: true })
   let app = await rig.launch('inline-work'),
     success = false
   try {
@@ -82,7 +79,7 @@ test('inline answers and supplements retain distinct multiline drafts, survive a
     const supplementText = '另外保留的補充草稿\n第二行沒有被壓平',
       answerText = '台北\n請沿原工作接續。'
     let supplement = detail(page).getByRole('textbox', {
-      name: '補充給：Desktop reference work',
+      name: '補充給：原工作整合測試',
       exact: true,
     })
     expect(
@@ -142,18 +139,17 @@ test('inline answers and supplements retain distinct multiline drafts, survive a
       },
     )
     await contentSize(app, page, 1440, 900)
-    const stopped = app.waitForEvent('close')
-    await app.evaluate(() => process.exit(17)).catch(() => {})
+    const desktopProcess = app.process(),
+      stopped = new Promise<void>((resolve) => desktopProcess.once('exit', () => resolve()))
+    desktopProcess.kill('SIGKILL')
     await stopped
+    await app.close().catch(() => {})
     app = await rig.launch('inline-work')
     page = await app.firstWindow()
     await open(page)
     await detail(page).getByRole('button', { name: '回覆', exact: true }).click()
     answer = detail(page).getByRole('textbox', { name: '回答這個問題', exact: true })
-    supplement = detail(page).getByRole('textbox', {
-      name: '補充給：Desktop reference work',
-      exact: true,
-    })
+    supplement = detail(page).getByRole('textbox', { name: '補充給：原工作整合測試', exact: true })
     await expect(answer).toHaveValue(answerText)
     await expect(supplement).toHaveValue(supplementText)
     const box = join(
@@ -178,6 +174,7 @@ test('inline answers and supplements retain distinct multiline drafts, survive a
       }, original.connection.characterId),
     ).toEqual([])
     await diskFault(app, box, false)
+    await fetch(`${rig.base}/__test/lose-next-work-response/inputs`, { method: 'POST' })
     await detail(page).getByRole('button', { name: '送出回答', exact: true }).click()
     await expect(detail(page).getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
     const finished = await readWork(page, original.connection, original.work)
@@ -203,7 +200,7 @@ test('inline answers and supplements retain distinct multiline drafts, survive a
         },
       },
     )
-    const events = (await currentEvents(page)).items
+    const events = (await (await fetch(`${rig.base}/__test/events`)).json()) as { text: string }[]
     expect(events.filter((event) => event.text === answerText)).toHaveLength(1)
     expect(events.filter((event) => event.text === supplementText)).toHaveLength(0)
     success = true
@@ -264,7 +261,7 @@ test('another real device can finish the work without discarding this device’s
         text: unsent,
       },
     ])
-    const events = (await currentEvents(pa)).items
+    const events = (await (await fetch(`${rig.base}/__test/events`)).json()) as { text: string }[]
     expect(events.filter((event) => event.text === unsent)).toHaveLength(0)
     await pa.screenshot({ path: test.info().outputPath('retained-original-answer.png') })
     success = true
@@ -291,7 +288,7 @@ test('two real roles keep both inline draft scopes separate through actual role 
     return {
       answer,
       supplement: detail(page).getByRole('textbox', {
-        name: '補充給：Desktop reference work',
+        name: '補充給：原工作整合測試',
         exact: true,
       }),
     }

@@ -9,6 +9,7 @@ import {
   dialog,
   ipcMain,
   nativeTheme,
+  nativeImage,
   Menu,
   net,
   powerMonitor,
@@ -18,11 +19,14 @@ import {
   systemPreferences,
 } from 'electron'
 import { hostname } from 'node:os'
+import type { ExecutorAction } from '../shared/executor'
 import { randomUUID } from 'node:crypto'
-import { mkdir, stat, writeFile } from 'node:fs/promises'
+import { mkdir, stat, writeFile, readFile, mkdtemp, rm } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { basename, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { createWindow, setWindowMode } from './windows'
+import { createWindow, setWindowMode, setKeyboardCapture } from './windows'
 import { applyWindowAppearance, platformMaterial } from './window-appearance'
 import { installMenu } from './menu'
 import { LocalStore } from './store'
@@ -35,6 +39,7 @@ import type {
   ArtifactSource,
   WorkCommand,
   WorkDraftQuestion,
+  ComputerCommand,
   Profile,
   SoulCommand,
   SoulEdit,
@@ -43,19 +48,11 @@ import { Connections } from './connections'
 import { ApiError } from './api/client'
 import { NativeShell } from './native'
 import { ClientNotifications } from './notifications'
+import { heldComputers } from './computer-exit'
 import { LoginItem } from './login-item'
 import { diagnostics } from './diagnostics'
 import { AgentConnector } from './agent-connector'
-import type {
-  ConnectorPairing,
-  ConnectorServiceAction,
-  ConnectorConfiguration,
-  ConnectorTarget,
-  ConnectorOperation,
-} from '../shared/connector'
-import type { components } from '../shared/contract.gen'
-import { LocalBot } from './local-bot'
-import type { LocalBotConfiguration } from '../shared/local-bot'
+import type { ConnectorPairing, ConnectorServiceAction } from '../shared/connector'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -139,7 +136,7 @@ else {
       app.getVersion(),
       (id, kind, data) => {
         win?.webContents.send('yuki:hint', id, kind, data)
-        if (['sync', 'conversation', 'work', 'character', 'work_steps'].includes(kind))
+        if (['sync', 'conversation', 'work', 'character', 'work_steps', 'computer'].includes(kind))
           void notifications.wake(id).catch(() => {})
       },
     )
@@ -151,6 +148,31 @@ else {
         win?.webContents.send('yuki:open-target', target)
       },
     )
+    connections.executorNative = (id) => ({
+      openURL: (url) => shell.openExternal(url),
+      openFile: (path) => shell.openPath(path),
+      notify: (title, body) => native.submitNotification(id, title, body),
+    })
+    connections.onExecutorActivity = (id, task, active) => {
+      const verbs: Record<string, string> = {
+        'folder.read': '讀取',
+        'folder.write': '寫入',
+        'open.file': '開啟檔案',
+        'open.url': '開啟網址',
+        notify: '提交通知',
+      }
+      const scopes = connections.executorState(id).installation?.scopes ?? []
+      const path = typeof task.params.path === 'string' ? task.params.path : ''
+      const scope = scopes
+        .filter((item) => path === item.alias || path.startsWith(`${item.alias}/`))
+        .sort((a, b) => b.alias.length - a.alias.length)[0]
+      native.activity(
+        id,
+        task.opId,
+        `${verbs[task.capability] ?? '處理本機操作'}${scope ? ` ${scope.alias}` : ''}`,
+        active,
+      )
+    }
     connections.onIdentity = (id, name) => native.characterName(id, name)
     const decorations = new Map<string, Promise<void>>()
     connections.onProfile = (id, profile) => {
@@ -172,7 +194,12 @@ else {
           process.env.ELECTRON_RENDERER_URL &&
           details.url.startsWith(process.env.ELECTRON_RENDERER_URL.replace(/^http/, 'ws') + '/')
         callback({
-          cancel: !development,
+          cancel:
+            !development &&
+            !(
+              details.webContentsId === win?.webContents.id &&
+              connections.computerTickets.consume(details.url)
+            ),
         })
       },
     )
@@ -248,6 +275,40 @@ else {
       askingToQuit = true
       void (async () => {
         if (!(await askToLeave())) return false
+        const held = await heldComputers(connections)
+        if (!held.length) return true
+        reveal?.()
+        const options = {
+          type: 'question' as const,
+          title: '你正在控制角色的電腦',
+          message: `${held.some((item) => item.offline) ? '你上次仍在控制' : '你正在控制'} ${held.map((item) => item.connection.name).join('、')} 的電腦`,
+          detail: `${held.some((item) => item.offline) ? '目前無法連線確認；交回時會核對伺服器目前的控制權。' : ''}保持控制時，需要用電腦的步驟會一直等待交回；其他步驟照常進行。`,
+          buttons: ['交回並結束', '保持控制並結束', '取消'],
+          defaultId: 0,
+          cancelId: 2,
+        }
+        const choice = win
+          ? await dialog.showMessageBox(win, options)
+          : await dialog.showMessageBox(options)
+        if (choice.response === 2) return false
+        if (choice.response === 1) return true
+        for (const item of held) {
+          const result = await connections.computerCommand(item.connection.characterId, {
+            action: 'return',
+            leaseId: item.leaseId,
+            note: '使用者交回控制並結束 App。',
+          })
+          if (result.state !== 'result' || result.problem) {
+            const failure = {
+              type: 'warning' as const,
+              message: '尚未確認交回，App 會保持開啟。',
+              detail: '請確認目前控制權或查證原請求，再決定是否結束。',
+            }
+            if (win) await dialog.showMessageBox(win, failure)
+            else await dialog.showMessageBox(failure)
+            return false
+          }
+        }
         return true
       })()
         .then(async (allowed) => {
@@ -293,109 +354,10 @@ else {
       })
     }
     action('update-state', () => updates.state())
-    const resourceRoot = app.isPackaged
-      ? process.resourcesPath
-      : join(app.getAppPath(), 'resources')
-    const connector = new AgentConnector({
-      root: join(app.getPath('userData'), 'agent-connector'),
-      bundledRuntime: app.isPackaged
-        ? join(resourceRoot, 'agent-connector')
-        : join(app.getAppPath(), '.cache', 'connector-runtime'),
-      store,
-      authorize: (id) => connections.authorizeConnector(id),
-      admission: (id, server, device) => connections.connectorAdmission(id, server, device),
-    })
-    action('connector-state', (id?: string) => connector.state(id))
-    action('connector-install', (separate?: boolean) => connector.install(separate))
-    action('connector-adopt', () => connector.adopt())
-    action('connector-use-installation', (input: { executable: string; dataDirectory: string }) =>
-      connector.useInstallation(input),
-    )
-    action('connector-connect', (input: { characterId: string; label: string }) =>
-      connector.connect(input),
-    )
+    const connector = new AgentConnector()
+    action('connector-state', () => connector.state())
     action('connector-pair', (input: ConnectorPairing) => connector.pair(input))
     action('connector-service', (command: ConnectorServiceAction) => connector.service(command))
-    action('connector-discover', () => connector.discover())
-    action('connector-configure', (input: ConnectorConfiguration) => connector.configure(input))
-    action('connector-diagnose', (id: string) => connector.diagnose(id))
-    const choosePath = async (directory: boolean) => {
-      const options: Electron.OpenDialogOptions = {
-        properties: directory ? ['openDirectory'] : ['openFile'],
-      }
-      const result = win
-        ? await dialog.showOpenDialog(win, options)
-        : await dialog.showOpenDialog(options)
-      return result.canceled ? null : (result.filePaths[0] ?? null)
-    }
-    action('connector-choose-project', () => choosePath(true))
-    action('connector-choose-executable', () => choosePath(false))
-    action('connector-sessions', async (id: string, instance: string, cursor?: string) => {
-      const page = await connections.agentRead<components['schemas']['NativeSessions']>(
-        id,
-        `instances/${encodeURIComponent(instance)}/sessions${cursor ? '?' + new URLSearchParams({ cursor }) : ''}`,
-      )
-      if (page.error) throw new ApiError(page.error)
-      return { sessions: page.sessions ?? [], next_cursor: page.next_cursor }
-    })
-    const operationView = (item: components['schemas']['NativeOperation']): ConnectorOperation => ({
-      id: item.operation_id,
-      instance_id: item.instance_id,
-      work_id: item.work_id ?? undefined,
-      session_id: item.session_id ?? undefined,
-      execution_id: item.execution_id ?? undefined,
-      status: item.status ?? 'unknown',
-      action: item.action ?? undefined,
-      events: item.events ?? [],
-      admitted: item.admitted ?? undefined,
-      pending: item.pending ?? undefined,
-      uncertain: item.uncertain ?? undefined,
-      next_cursor: item.next_cursor ?? undefined,
-      result: typeof item.text === 'string' ? { text: item.text } : null,
-    })
-    action('connector-operations', async (id: string, work?: string, cursor?: string) => {
-      const params = new URLSearchParams({
-        ...(work ? { work_id: work } : {}),
-        ...(cursor ? { cursor } : {}),
-      })
-      const page = await connections.agentRead<components['schemas']['NativeOperations']>(
-        id,
-        `operations${params.size ? '?' + params : ''}`,
-      )
-      return { operations: page.items.map(operationView), next_cursor: page.next_cursor }
-    })
-    action('connector-operation', async (id: string, operation: string, cursor?: number) =>
-      operationView(
-        await connections.agentRead<components['schemas']['NativeOperation']>(
-          id,
-          `operations/${encodeURIComponent(operation)}${cursor === undefined ? '' : '?' + new URLSearchParams({ cursor: String(cursor) })}`,
-        ),
-      ),
-    )
-    action(
-      'connector-submit',
-      async (id: string, input: { text: string; agentTarget: ConnectorTarget }) => {
-        const result = await connections.send(id, input.text, [], input.agentTarget)
-        return {
-          requestId: result.requestId,
-          state: result.state,
-          eventId: result.eventId,
-          problem: result.problem,
-        }
-      },
-    )
-    const localBot = new LocalBot({
-      resources: join(resourceRoot, 'local-bot'),
-      store,
-      connections,
-      progress: (message) => win?.webContents.send('yuki:local-bot-progress', message),
-    })
-    action('local-bot-state', () => localBot.state())
-    action('local-bot-directory', () => choosePath(true))
-    action('local-bot-deploy', (input: LocalBotConfiguration) => localBot.deploy(input))
-    action('local-bot-start', () => localBot.start())
-    action('local-bot-stop', () => localBot.stop())
-    action('local-bot-connect', () => localBot.connect())
     action('update-check', () => updates.check())
     action('update-download', () => updates.download())
     action('update-cancel', () => updates.cancel())
@@ -410,10 +372,36 @@ else {
       name: string,
       run: (id: string, ...args: A) => T | Promise<T>,
     ) => action(name, (id: string, ...args: A) => connections.activity(id, () => run(id, ...args)))
+    clientAction('executor-state', (id) => connections.executorState(id))
+    clientAction('executor-clear-unavailable', (id) => connections.clearUnavailableExecutor(id))
+    clientAction('enable-executor', (id) => connections.enableExecutor(id, hostname()))
+    clientAction('executor-action', (id, command: ExecutorAction) =>
+      connections.executorAction(id, command),
+    )
+    clientAction('executor-commands', (id) => connections.executorCommands(id))
+    clientAction('verify-executor-command', (id, request: string) =>
+      connections.verifyExecutorCommand(id, request),
+    )
+    clientAction('remove-executor-folder', (id, digest: string) =>
+      connections.removeExecutorFolder(id, digest),
+    )
+    clientAction('pick-executor-folder', async (id, alias: string) => {
+      if (typeof alias !== 'string') throw new ApiError('validation_error')
+      const options = {
+        title: `允許 ${connections.connection(id).name} 使用資料夾`,
+        properties: ['openDirectory'] as 'openDirectory'[],
+      }
+      const selected = win
+        ? await dialog.showOpenDialog(win, options)
+        : await dialog.showOpenDialog(options)
+      if (selected.canceled || !selected.filePaths[0]) return null
+      return connections.executorFolder(
+        id,
+        selected.filePaths[0],
+        alias.trim() || basename(selected.filePaths[0]) || '資料夾',
+      )
+    })
     action('connections', () => connections.publicList())
-    action('pending-pairings', () => connections.pendingPairings())
-    action('resume-pairing', (id: string, device: string) => connections.resumePairing(id, device))
-    action('forget-pairing', (id: string, device: string) => connections.forgetPairing(id, device))
     action('prepare-logout', async (id: string) => {
       try {
         return await connections.prepareLogout(id, () => notifications.pause(id))
@@ -423,20 +411,6 @@ else {
       }
     })
     action('logout-summary', (id: string) => connections.logoutSummary(id))
-    clientAction('retired-history', (id: string) => connections.retiredHistory(id))
-    clientAction('export-retired-history', async (id: string) => {
-      const result = await dialog.showSaveDialog(win!, {
-        title: '匯出舊版操作記錄',
-        defaultPath: 'Yuki-retired-history.json',
-        filters: [{ name: '舊版操作記錄', extensions: ['json'] }],
-      })
-      if (result.canceled || !result.filePath) return false
-      await writeFile(result.filePath, connections.exportRetiredHistory(id), {
-        encoding: 'utf8',
-        mode: 0o600,
-      })
-      return true
-    })
     action('finish-logout', async (id: string, deviceId: string, choice: 'keep' | 'delete') => {
       await connections.finishLogout(id, deviceId, choice)
       native.forget(id)
@@ -616,10 +590,79 @@ else {
           native.decorate(id, native.prepareCharacter(id, profile), bytes)
       },
     )
+    const avatarInput = async (path: string) => {
+      const bytes = await readFile(path)
+      const heif =
+        bytes.toString('ascii', 4, 8) === 'ftyp' &&
+        ['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1'].includes(bytes.toString('ascii', 8, 12))
+      if (process.platform === 'darwin' && (heif || /\.hei[cf]$/i.test(path))) {
+        const root = await mkdtemp(join(app.getPath('temp'), 'yuki-avatar-'))
+        const output = join(root, 'decoded.png')
+        try {
+          // Electron's nativeImage codec does not decode HEIC on macOS; ImageIO does.
+          await promisify(execFile)('/usr/bin/sips', [
+            '--setProperty',
+            'format',
+            'png',
+            path,
+            '--out',
+            output,
+          ])
+          return {
+            filename: basename(path),
+            bytes: new Uint8Array(await readFile(output)),
+            sourceSize: bytes.byteLength,
+          }
+        } catch {
+          throw new ApiError('unsupported_image')
+        } finally {
+          await rm(root, { recursive: true, force: true })
+        }
+      }
+      return { filename: basename(path), bytes: new Uint8Array(bytes) }
+    }
+    action('pick-avatar', async () => {
+      const picked = await dialog.showOpenDialog(win!, {
+        title: '選擇頭像圖片',
+        properties: ['openFile'],
+        filters: [
+          {
+            name: '圖片',
+            extensions: [
+              'png',
+              'jpg',
+              'jpeg',
+              'webp',
+              ...(process.platform === 'darwin' ? ['heic', 'heif'] : []),
+            ],
+          },
+        ],
+      })
+      return picked.canceled || !picked.filePaths[0] ? null : avatarInput(picked.filePaths[0])
+    })
+    action('drop-avatar', (path: string) => avatarInput(path))
+    action('paste-avatar', () => {
+      const image = clipboard.readImage()
+      if (image.isEmpty()) throw new ApiError('unsupported_image')
+      return { filename: '剪貼簿圖片.png', bytes: image.toPNG() }
+    })
     clientAction('avatar-bytes', (id: string, sha: string, size: number) =>
       connections.avatarBytes(id, sha, size),
     )
     action('preview-avatar', (server: string) => connections.previewAvatar(server))
+    clientAction('avatar-command', (id: string, revision: number, bytes?: Uint8Array) =>
+      connections.avatarCommand(id, revision, bytes),
+    )
+    clientAction('avatar-commands', (id: string) => connections.avatarCommands(id).list())
+    clientAction('avatar-draft', (id: string, request: string) =>
+      connections.avatarCommands(id).draft(request),
+    )
+    clientAction('acknowledge-avatar-command', (id: string, request: string) =>
+      connections.avatarCommands(id).acknowledge(request),
+    )
+    clientAction('verify-avatar-command', (id: string, request: string) =>
+      connections.verifyAvatarCommand(id, request),
+    )
     clientAction('character-command', (id: string, command: CharacterCommand) =>
       connections.characterCommand(id, command),
     )
@@ -627,6 +670,36 @@ else {
     clientAction('verify-character-command', (id: string, request: string) =>
       connections.verifyCharacterCommand(id, request),
     )
+    clientAction('computer-ticket', (id: string) => connections.computerTicket(id))
+    clientAction('save-computer-file', async (id: string, path: string) => {
+      const item = await connections.computerFile(id, path)
+      const target = await dialog.showSaveDialog(win!, {
+        defaultPath: item.filename ?? basename(path),
+      })
+      if (target.canceled || !target.filePath) return false
+      await item.cache.save(item.path, item.sha256, target.filePath)
+      return true
+    })
+    clientAction('computer-command', (id: string, command: ComputerCommand) =>
+      connections.computerCommand(id, command),
+    )
+    clientAction('computer-commands', (id: string) => connections.computerCommands(id).list())
+    clientAction('verify-computer-command', (id: string, request: string) =>
+      connections.verifyComputerCommand(id, request),
+    )
+    action('keyboard-capture', (captured: boolean) => setKeyboardCapture(win!, captured))
+    clientAction('save-screenshot', async (id: string, bytes: Uint8Array) => {
+      const connection = connections.connection(id)
+      const image = nativeImage.createFromBuffer(Buffer.from(bytes))
+      if (image.isEmpty()) throw new ApiError('validation_error')
+      const result = await dialog.showSaveDialog(win!, {
+        defaultPath: `${connection.name} 電腦截圖.png`,
+        filters: [{ name: 'PNG 圖片', extensions: ['png'] }],
+      })
+      if (result.canceled || !result.filePath) return false
+      await writeFile(result.filePath, image.toPNG())
+      return true
+    })
     clientAction('send', (id: string, text: string, uploads?: string[]) =>
       connections.send(id, text, uploads),
     )

@@ -3,7 +3,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { launchShell } from '../fixtures/shell-app'
-import { currentConnection, pairUI } from '../fixtures/backend'
+import { pairUI } from '../fixtures/backend'
 
 async function snapshot(app: ElectronApplication, page: Page) {
   const renderer = await page.evaluate(() => {
@@ -81,7 +81,6 @@ test('native material remains exposed only beneath the sidebar and follows actua
       '原生材質驗證',
       20000,
     )
-    const connection = await currentConnection(page)
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
     const native = await app.evaluate(({ app, BrowserWindow }) => ({
@@ -182,9 +181,7 @@ test('native material remains exposed only beneath the sidebar and follows actua
     await app.close()
     app = await launchShell(data)
     page = await app.firstWindow()
-    await expect(
-      page.getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true }),
-    ).toBeVisible()
+    await expect(page.getByRole('textbox', { name: '和 Yuki 說點什麼' })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('data-material', 'none')
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '外觀', exact: true }).click()

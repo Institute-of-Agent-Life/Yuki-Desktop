@@ -23,7 +23,7 @@ const me: Me = {
   request_scope: owner.personId,
   request_conversation_id: null,
   platform: 'app',
-  presence_id: '00000000-0000-4000-8000-000000000099',
+  presence_id: null,
   thread_id: null,
   binding_id: owner.bindingId,
   display_name: '測試本人',
@@ -61,7 +61,7 @@ function data(schema: string, value: unknown) {
 const api = (fetcher: typeof fetch) =>
   new ApiClient('http://localhost/role', 'fixture-only', owner.bindingId, '1.0.0-beta.1', fetcher)
 const receipt = (item: WorkCommandItem, extra: Partial<OriginalRequest> = {}) =>
-  data('Envelope_RequestReceipt_', {
+  data('Envelope_OriginalRequest_', {
     found: true,
     operation_kind: item.command.kind === 'input' ? 'client.work_input' : 'client.work_cancel',
     target: workId,
@@ -230,9 +230,9 @@ it('permits only found:false to resend the original cancellation and keeps its o
   const client = api(async (url, init) => {
     if (String(url).endsWith('/me')) return data('Envelope_Me_', me)
     if (String(url).includes('/requests/'))
-      return data('Envelope_RequestReceipt_', { found: false })
+      return data('Envelope_OriginalRequest_', { found: false })
     sent.push(JSON.parse(String(init?.body)))
-    return data('Envelope_WorkCancelReceipt_', {
+    return data('Envelope_WorkCancelResult_', {
       work_id: workId,
       state: 'cancelled',
       revision: 8,
@@ -252,7 +252,7 @@ it('never resends not_found even if a later receipt lookup says found:false', as
     if (init?.method === 'POST') posts++
     return missing
       ? Response.json({ problem: { code: 'not_found' } }, { status: 404 })
-      : data('Envelope_RequestReceipt_', { found: false })
+      : data('Envelope_OriginalRequest_', { found: false })
   })
   expect(await commands.verify(client, item.requestId)).toMatchObject({
     state: 'result',

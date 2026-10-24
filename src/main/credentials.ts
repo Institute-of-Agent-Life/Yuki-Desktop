@@ -1,5 +1,5 @@
 import { safeStorage } from 'electron'
-import { realpathSync, watch } from 'node:fs'
+import { watch } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { LocalStore } from './store'
@@ -25,14 +25,9 @@ export function windowsEncryptionKeyPersisted(directory: string): Promise<void> 
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') failed(error)
       }
     }
-    // libuv's Windows events need the long path for 8.3 directory aliases.
-    const watcher = watch(
-      realpathSync.native(directory),
-      { persistent: false },
-      (_event, filename) => {
-        if (filename === null || filename.toString() === 'Local State') void check()
-      },
-    )
+    const watcher = watch(directory, { persistent: false }, (_event, filename) => {
+      if (filename === null || filename.toString() === 'Local State') void check()
+    })
     watcher.on('error', failed)
     // Watch before reading so an atomic rename between setup and the first read cannot be missed.
     void check()

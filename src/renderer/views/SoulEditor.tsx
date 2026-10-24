@@ -54,7 +54,7 @@ export function SoulEditor({
   const [leaving, setLeaving] = useState<NavigationAttempt>()
   const leavingRef = useRef<NavigationAttempt>(undefined)
   const alive = useRef(true)
-  const writes = useRef<Promise<boolean>>(Promise.resolve(true))
+  const writes = useRef<Promise<void>>(Promise.resolve())
   const writeError = useRef(false)
   const loadSequence = useRef(0)
   const change = useCallback((next: SoulDraft[]) => {
@@ -64,21 +64,20 @@ export function SoulEditor({
   const persist = useCallback(
     (draft: SoulDraft) => {
       versions.current++
+      change([draft])
       writes.current = writes.current.then(async () => {
         try {
           unwrap(await window.yuki.client.soulEdit(id, draft))
           writeError.current = false
-          return true
         } catch (error) {
           writeError.current = true
           if (alive.current)
             setError(`本機草稿未能儲存：${error instanceof Error ? error.message : '請重試。'}`)
-          return false
         }
       })
       return writes.current
     },
-    [id],
+    [id, change],
   )
   const load = useCallback(
     async (initial = false) => {
@@ -149,6 +148,9 @@ export function SoulEditor({
       leavingRef.current?.cancel()
     }
   }, [id, load, change])
+  useEffect(() => {
+    if (restore && drafts.length && !drafts.some(dirty)) setRestore(false)
+  }, [restore, drafts])
   useEffect(() => {
     if (!notice) return
     const timer = setTimeout(() => setNotice(''), 4000)
@@ -259,17 +261,14 @@ export function SoulEditor({
   }
   const discard = async (draft: SoulDraft, undo = true) => {
     if (undo) setUndoable((value) => value + 1)
-    const next = {
+    await persist({
       ...draft,
       baseRevision: draft.remote.revision,
       baseContent: draft.remote.content,
       draft: draft.remote.content,
-    }
-    if (await persist(next)) {
-      change([next])
-      setError('')
-      setComparing(false)
-    }
+    })
+    setError('')
+    setComparing(false)
   }
   const draft = drafts[0]
   const pending = commands.filter((item) => item.state !== 'result')
@@ -354,9 +353,7 @@ export function SoulEditor({
         onClick={() => {
           if (!draft) return
           setUndoable((value) => value + 1)
-          const next = { ...draft, draft: draft.baseContent }
-          change([next])
-          void persist(next)
+          void persist({ ...draft, draft: draft.baseContent })
         }}
       >
         還原
@@ -389,7 +386,7 @@ export function SoulEditor({
         <p>{effectExplanation}</p>
         {cacheExplanation && <p>{cacheExplanation}</p>}
       </div>
-      {error && !restore && !leaving && <Banner status="failed">{error}</Banner>}
+      {error && <Banner status="failed">{error}</Banner>}
       {!draft.remote.writable && <Banner>{reason()}</Banner>}
       {applied && (
         <Banner>
@@ -463,16 +460,13 @@ export function SoulEditor({
               variant="primary"
               disabled={readOnly}
               onClick={async () => {
-                const next = {
+                await persist({
                   ...draft,
                   baseRevision: draft.remote.revision,
                   baseContent: draft.remote.content,
-                }
-                if (await persist(next)) {
-                  change([next])
-                  setComparing(false)
-                  setError('')
-                }
+                })
+                setComparing(false)
+                setError('')
               }}
             >
               在新版上重新編輯
@@ -488,9 +482,7 @@ export function SoulEditor({
             readOnly={readOnly}
             undoableChange={undoable}
             onChange={(content) => {
-              const next = { ...current.current[0]!, draft: content }
-              change([next])
-              void persist(next)
+              void persist({ ...current.current[0]!, draft: content })
             }}
             onSave={() => saveFromKeyboard.current()}
             onBack={returnToAbout}
@@ -542,7 +534,6 @@ export function SoulEditor({
         }
       >
         <p>{draft.remote.file_name} 的修改尚未儲存。</p>
-        {error && <Banner status="failed">{error}</Banner>}
       </Sheet>
       <Sheet
         title="以我的版本覆蓋？"
@@ -562,10 +553,8 @@ export function SoulEditor({
                   baseContent: overwrite.remote.content,
                 }
                 setOverwrite(undefined)
-                if (await persist(rebased)) {
-                  change([rebased])
-                  await save(rebased)
-                }
+                await persist(rebased)
+                await save(rebased)
               }}
             >
               覆蓋
@@ -606,7 +595,6 @@ export function SoulEditor({
             .join('、')}{' '}
           的修改。草稿仍以當時的版本為基線。
         </p>
-        {error && <Banner status="failed">{error}</Banner>}
       </Sheet>
     </section>
   )

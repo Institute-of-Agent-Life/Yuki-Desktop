@@ -16,7 +16,7 @@ import {
   TextField,
   Toggle,
 } from '../../src/renderer/components/Controls'
-import { WorkCard } from '../../src/renderer/components/Content'
+import { FileRow, StepRow, WorkCard } from '../../src/renderer/components/Content'
 import { Workspace } from '../../src/renderer/components/Workspace'
 import '../../src/renderer/tokens.css'
 import '../../src/renderer/materials/materials.css'
@@ -27,40 +27,9 @@ let connectorState: ConnectorState = connectorMode
   : { available: false }
 
 window.yuki = {
-  localBot: {
-    state: async () => ({
-      ok: true,
-      value: {
-        docker: false,
-        bundled: false,
-        installation: null,
-        configured: false,
-        running: false,
-      },
-    }),
-    chooseDirectory: async () => ({ ok: true, value: null }),
-    deploy: async () => ({ ok: false, code: 'fixture_only' }),
-    start: async () => ({ ok: false, code: 'fixture_only' }),
-    stop: async () => ({ ok: false, code: 'fixture_only' }),
-    connect: async () => ({ ok: false, code: 'fixture_only' }),
-    onProgress: () => () => {},
-  },
   connector: {
     state: async () => ({ ok: true, value: connectorState }),
-    install: async () => ({ ok: true, value: connectorState }),
-    adopt: async () => ({ ok: true, value: connectorState }),
-    useInstallation: async () => ({ ok: true, value: connectorState }),
-    discover: async () => ({ ok: true, value: [] }),
-    configure: async () => ({ ok: true, value: connectorState }),
-    diagnose: async (id) => ({ ok: true, value: { id, available: true } }),
-    chooseProject: async () => ({ ok: true, value: null }),
-    chooseExecutable: async () => ({ ok: true, value: null }),
-    sessions: async () => ({ ok: true, value: { sessions: [] } }),
-    operations: async () => ({ ok: true, value: { operations: [] } }),
-    operation: async () => ({ ok: false, code: 'not_found' }),
-    submit: async () => ({ ok: true, value: { requestId: 'original-request', state: 'accepted', eventId: 7, problem: null } }),
-    pair: async () => ({ ok: true, value: connectorState }),
-    connect: async () => {
+    pair: async () => {
       connectorState = {
         available: true,
         paired: true,
@@ -91,11 +60,14 @@ window.yuki = {
     onChange: () => () => {},
   },
   client: {
-    pendingPairings: async () => ({ ok: true, value: [] }),
-    resumePairing: async () => ({ ok: false, code: 'fixture_only' }),
-    forgetPairing: async () => ({ ok: true, value: undefined }),
-    retiredHistory: async () => ({ ok: true, value: [] }),
-    exportRetiredHistory: async () => ({ ok: true, value: false }),
+    executorState: async () => ({ ok: false, code: 'fixture_only' }),
+    clearUnavailableExecutor: async () => ({ ok: false, code: 'fixture_only' }),
+    enableExecutor: async () => ({ ok: false, code: 'fixture_only' }),
+    executorAction: async () => ({ ok: false, code: 'fixture_only' }),
+    executorCommands: async () => ({ ok: false, code: 'fixture_only' }),
+    verifyExecutorCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    pickExecutorFolder: async () => ({ ok: false, code: 'fixture_only' }),
+    removeExecutorFolder: async () => ({ ok: false, code: 'fixture_only' }),
     prepareLogout: async () => ({ ok: false, code: 'fixture_only' }),
     logoutSummary: async () => ({ ok: false, code: 'fixture_only' }),
     finishLogout: async () => ({ ok: false, code: 'fixture_only' }),
@@ -111,11 +83,26 @@ window.yuki = {
     soulCommands: async () => ({ ok: true, value: [] }),
     verifySoulCommand: async () => ({ ok: false, code: 'fixture_only' }),
     letterDecoration: async () => ({ ok: true, value: undefined }),
+    pickAvatar: async () => ({ ok: true, value: null }),
+    dropAvatar: async () => ({ ok: false, code: 'fixture_only' }),
+    pasteAvatar: async () => ({ ok: false, code: 'fixture_only' }),
     avatarBytes: async () => ({ ok: false, code: 'fixture_only' }),
     previewAvatar: async () => ({ ok: true, value: null }),
+    avatarCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    avatarCommands: async () => ({ ok: true, value: [] }),
+    avatarDraft: async () => ({ ok: true, value: null }),
+    acknowledgeAvatarCommand: async () => ({ ok: true, value: undefined }),
+    verifyAvatarCommand: async () => ({ ok: false, code: 'fixture_only' }),
     characterCommand: async () => ({ ok: false, code: 'fixture_only' }),
     characterCommands: async () => ({ ok: true, value: [] }),
     verifyCharacterCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    computerTicket: async () => ({ ok: false, code: 'fixture_only' }),
+    saveComputerFile: async () => ({ ok: false, code: 'fixture_only' }),
+    computerCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    computerCommands: async () => ({ ok: true, value: [] }),
+    verifyComputerCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    keyboardCapture: async () => ({ ok: true, value: undefined }),
+    saveScreenshot: async () => ({ ok: false, code: 'fixture_only' }),
     reconnect: async () => ({ ok: true, value: undefined }),
     external: async () => ({ ok: false, code: 'fixture_only' }),
     copy: async () => ({ ok: true, value: undefined }),
@@ -297,6 +284,18 @@ function Gallery() {
           onReply={() => setSheet(true)}
           onCancel={() => setSheet(true)}
         />
+        <section aria-label="步驟狀態">
+          <StepRow label={stepLabel} status="running" time="14:00" />
+          <StepRow label="已完成" status="done" />
+          <StepRow label="結果未確認" status="unknown" />
+        </section>
+        <FileRow
+          name="很長的繁體中文檔案名稱與原始交付版本_測試.pdf"
+          identity="artifact-id"
+          detail="這個對話"
+          size="12 MB"
+          onOpen={() => setSheet(true)}
+        />
         <Sheet
           title="驗證對話框"
           open={sheet}
@@ -327,18 +326,7 @@ createRoot(document.getElementById('root')!).render(
   connectorMode ? (
     <QueryClientProvider client={new QueryClient()}>
       <main style={{ maxWidth: 680, padding: 32 }}>
-        <AgentConnector
-          connection={{
-            characterId: 'yuki',
-            baseUrl: 'https://yuki.example',
-            name: 'Yuki',
-            personId: 'person',
-            bindingId: 'binding',
-            conversationId: 'conversation',
-            persistentCredentials: true,
-          }}
-          deviceLabel="My computer"
-        />
+        <AgentConnector server="https://yuki.example" deviceLabel="My computer" />
       </main>
     </QueryClientProvider>
   ) : (

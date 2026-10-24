@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import {
   BriefcaseBusiness,
+  Folder,
   Maximize2,
   Minimize2,
   MessageCircle,
+  Monitor,
   PanelLeft,
   PanelRight,
   Search,
@@ -35,7 +37,6 @@ interface Props {
   inspector?: ReactNode
   inspectorTitle?: string
   entries?: ReactNode
-  onChat?(): void
   onSettings?: () => void
   toolbar?: ReactNode
   toolbarTitle?: ReactNode
@@ -48,6 +49,8 @@ interface Props {
 const views = [
   ['chat', '對話', MessageCircle],
   ['works', '工作', BriefcaseBusiness],
+  ['computer', '電腦', Monitor],
+  ['files', '檔案與成果', Folder],
   ['about', '關於', Snowflake],
   ['settings', '設定', Settings2],
 ] as const
@@ -59,12 +62,10 @@ export function Workspace(props: Props) {
   const focusMode = !props.settings && state.focusMode
   const inspector = !props.settings && state.inspector
   const selectedView = props.settings ? 'settings' : state.view
-  const selectView = (view: View) =>
-    requestNavigation(() => {
-      if (view === 'chat' && props.onChat) props.onChat()
-      else state.setView(view)
-      props.onView?.()
-    })
+  const selectView = (view: View) => {
+    state.setView(view)
+    props.onView?.()
+  }
   const [width, setWidth] = useState(window.innerWidth)
   const stopDrag = useRef<(() => void) | undefined>(undefined)
   useLayoutEffect(
@@ -106,9 +107,11 @@ export function Workspace(props: Props) {
   }
   const inspectorTabs = [
     { value: 'work' as const, label: '工作' },
+    ...(props.owner ? [{ value: 'computer' as const, label: '電腦' }] : []),
     { value: 'files' as const, label: '檔案' },
   ]
-  const selectedTab = state.inspectorTab
+  const selectedTab =
+    state.inspectorTab === 'computer' && !props.owner ? 'work' : state.inspectorTab
   useEffect(() => {
     const resize = () => setWidth(window.innerWidth)
     window.addEventListener('resize', resize)
@@ -226,7 +229,10 @@ export function Workspace(props: Props) {
       {props.entries}
       <div className={styles.group}>工作與成果</div>
       {views
-        .filter(([view]) => view !== 'chat' && view !== 'settings')
+        .filter(
+          ([view]) =>
+            view !== 'chat' && view !== 'settings' && (view !== 'computer' || props.owner),
+        )
         .map(([view, label, Icon]) => (
           <button
             className={styles.nav}
@@ -235,7 +241,11 @@ export function Workspace(props: Props) {
             onClick={() => selectView(view)}
           >
             <Icon size={16} strokeWidth={1.5} />
-            {view === 'about' ? `關於 ${props.name}` : label}
+            {view === 'computer'
+              ? `${props.name} 的電腦`
+              : view === 'about'
+                ? `關於 ${props.name}`
+                : label}
           </button>
         ))}
       <div className={styles.group} />

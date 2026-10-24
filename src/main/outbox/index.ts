@@ -35,10 +35,8 @@ export class Outbox {
     if (
       (this.db.prepare('SELECT value FROM owner WHERE id=1').get() as { value: string }).value !==
       encoded
-    ) {
-      this.db.close()
+    )
       throw new ApiError('outbox_owner_mismatch')
-    }
   }
   list() {
     return (
@@ -65,31 +63,16 @@ export class Outbox {
   prepare(
     text: string,
     state: 'submitted' | 'draft' = 'submitted',
-    draftSnapshot: string | null = this.draft(),
+    draftSnapshot = this.draft(),
     attachments: string[] = [],
     linkUploads: () => void = () => {},
-    agentTarget?: OutboxItem['body']['agent_target'],
   ) {
     const id = randomUUID(),
-      body = {
-        request_id: id,
-        text: normalizeMessageText(text),
-        attachments,
-        ...(agentTarget
-          ? {
-              agent_target: Object.fromEntries(
-                Object.entries(agentTarget).filter(
-                  ([, value]) => value !== null && value !== undefined,
-                ),
-              ),
-            }
-          : {}),
-      }
+      body = { request_id: id, text: normalizeMessageText(text), attachments }
     if (!body.text && !attachments.length) throw new ApiError('validation_error')
     const hash = payloadHash('message', this.owner.conversationId, {
       text: body.text,
       attachments: body.attachments,
-      ...(body.agent_target ? { agent_target: body.agent_target } : {}),
     })
     return this.db.transaction(() => {
       this.db

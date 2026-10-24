@@ -64,6 +64,7 @@
 .pane {
   padding: 8px 32px 32px;
   overflow: auto;
+  max-width: 680px;
   min-width: 0;
 }
 .pane h2 {
