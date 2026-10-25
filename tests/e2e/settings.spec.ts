@@ -261,6 +261,7 @@ test('settings use the original role workspace, preserve its inspector and resto
     await page.getByRole('button', { name: '展開工作區', exact: true }).click()
     await expect(page.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+,')
+    await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeVisible()
     await openSidebar(page)
     await expect(sidebar).toBeVisible()
     await expect(page.getByRole('complementary', { name: '檢視器', exact: true })).toHaveCount(0)
