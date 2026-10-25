@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
-import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
+import { currentConnection, pairUI, waitForMainEnded, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
-import type { EventsPage, OriginalRequest } from '../../src/shared/api'
+import type { EventsPage } from '../../src/shared/api'
 
 test('a committed first message replaces an older initial history response after its send invalidations', async () => {
   test.setTimeout(120000)
@@ -52,20 +52,8 @@ test('a committed first message replaces an older initial history response after
     )
     requestId = sent.requestId
     eventId = sent.eventId
-    await expect
-      .poll(async () =>
-        page.evaluate(
-          async ({ id, requestId }) => {
-            const result = await window.yuki.client.read<OriginalRequest>(id, {
-              kind: 'request',
-              requestId,
-            })
-            return result.ok ? result.value.turn?.state : result.code
-          },
-          { id: original!.characterId, requestId },
-        ),
-      )
-      .toBe('ended')
+    const ended = await waitForMainEnded(page, original.characterId, requestId)
+    expect(ended.event_id).toBe(eventId)
     const verified = await page.evaluate(
       async ({ id, requestId }) => window.yuki.client.verify(id, requestId),
       { id: original.characterId, requestId },

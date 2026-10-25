@@ -3,7 +3,8 @@ import { useLayoutEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AgentConnector } from '../../src/renderer/views/AgentConnector'
-import type { ConnectorState } from '../../src/shared/connector'
+import type { ConnectorOperation, ConnectorState } from '../../src/shared/connector'
+import type { Connection } from '../../src/shared/api'
 import { defaultPreferences } from '../../src/shared/desktop'
 import {
   Avatar,
@@ -16,15 +17,126 @@ import {
   TextField,
   Toggle,
 } from '../../src/renderer/components/Controls'
-import { WorkCard } from '../../src/renderer/components/Content'
+import { FileRow, StepRow, WorkCard } from '../../src/renderer/components/Content'
 import { Workspace } from '../../src/renderer/components/Workspace'
 import '../../src/renderer/tokens.css'
 import '../../src/renderer/materials/materials.css'
 
 const connectorMode = new URLSearchParams(location.search).get('connector')
-let connectorState: ConnectorState = connectorMode
-  ? { available: true, paired: false, instances: [], service: { installed: false, running: false } }
-  : { available: false }
+const connectorConnection: Connection = {
+  characterId: '00000000-0000-4000-8000-000000000001',
+  personId: '00000000-0000-4000-8000-000000000002',
+  bindingId: '00000000-0000-4000-8000-000000000003',
+  conversationId: '00000000-0000-4000-8000-000000000004',
+  baseUrl: 'https://yuki.example',
+  name: 'Fixture Yuki',
+  persistentCredentials: false,
+}
+const connectorCalls: { method: string; input?: unknown; start?: boolean }[] = []
+Object.assign(window, { __connectorCalls: connectorCalls })
+const preparedConnector = (): Extract<ConnectorState, { available: true }> => ({
+  available: true,
+  managed: true,
+  paired: false,
+  version: 'component-fixture',
+  protocol: 3,
+  runtime: '/fixture/connector/python',
+  dataDirectory: '/fixture/connector/data',
+  instances: [],
+  service: { installed: false, running: false },
+})
+let connectorState: ConnectorState =
+  connectorMode && connectorMode !== 'missing'
+    ? preparedConnector()
+    : { available: false, bundled: true }
+if (
+  connectorMode?.startsWith('protocol-') ||
+  connectorMode === 'native-unavailable' ||
+  connectorMode === 'operation-detail'
+) {
+  connectorState = {
+    ...preparedConnector(),
+    paired: true,
+    deviceId: 'fixture-connector-device',
+    server: connectorConnection.baseUrl,
+    instances: [
+      {
+        id: 'fixture-native-instance',
+        label: 'My Codex',
+        driver: 'codex',
+        command: '/fixture/Codex/codex',
+        cwd: '/fixture/project',
+      },
+    ],
+    service: { installed: true, running: true },
+    admission: {
+      matched: true,
+      connected: true,
+      ...(connectorMode === 'protocol-unknown'
+        ? {}
+        : { serverProtocol: connectorMode === 'protocol-connector' ? 4 : 2 }),
+      instances: [
+        {
+          id: 'fixture-server-instance',
+          localId: 'fixture-native-instance',
+          label: 'My Codex',
+          driver: 'codex',
+          online: connectorMode !== 'native-unavailable',
+          status: connectorMode === 'native-unavailable' ? 'unavailable' : 'available',
+          ...(connectorMode === 'native-unavailable' ? { errorType: 'native_login_required' } : {}),
+        },
+      ],
+    },
+  }
+}
+if (connectorMode === 'paired')
+  connectorState = {
+    ...preparedConnector(),
+    paired: true,
+    deviceId: 'fixture-connector-device',
+    server: connectorConnection.baseUrl,
+    admission: { matched: true, connected: false },
+  }
+let failedServiceStart = false
+let operationPhase = 'initial'
+const operationReads: { id: string; cursor: number }[] = []
+const hintListeners = new Set<Parameters<typeof window.yuki.client.onHint>[0]>()
+Object.assign(window, {
+  __connectorOperationReads: operationReads,
+  __connectorAdvance(phase: string, emit = true) {
+    operationPhase = phase
+    if (emit)
+      for (const listener of hintListeners) listener(connectorConnection.characterId, 'refresh', {})
+  },
+})
+function operationPage(id: string, cursor = 0): ConnectorOperation {
+  const events: NonNullable<ConnectorOperation['events']> = Array.from(
+    { length: 201 },
+    (_, index) => ({
+      cursor: index + 1,
+      kind: 'progress',
+      payload: { text: index === 0 ? '第一頁原進度' : index === 200 ? '第二頁原進度' : '' },
+    }),
+  )
+  if (operationPhase !== 'initial')
+    events.push({
+      cursor: 202,
+      kind: 'permission',
+      permission_id: 'original-permission',
+      payload: { options: ['accept'], native_request: { command: '原任務的遲到權限要求' } },
+    })
+  if (operationPhase === 'terminal')
+    events.push({ cursor: 203, kind: 'result', payload: { text: '原任務的真終態結果' } })
+  const page = events.filter((event) => event.cursor > cursor).slice(0, 200)
+  return {
+    id,
+    instance_id: 'fixture-server-instance',
+    status: operationPhase === 'terminal' ? 'completed' : 'running',
+    pending: operationPhase !== 'terminal',
+    events: page,
+    next_cursor: page.at(-1)?.cursor ?? cursor,
+  }
+}
 
 window.yuki = {
   localBot: {
@@ -47,36 +159,149 @@ window.yuki = {
   },
   connector: {
     state: async () => ({ ok: true, value: connectorState }),
-    install: async () => ({ ok: true, value: connectorState }),
-    adopt: async () => ({ ok: true, value: connectorState }),
-    useInstallation: async () => ({ ok: true, value: connectorState }),
-    discover: async () => ({ ok: true, value: [] }),
-    configure: async () => ({ ok: true, value: connectorState }),
-    diagnose: async (id) => ({ ok: true, value: { id, available: true } }),
-    chooseProject: async () => ({ ok: true, value: null }),
+    install: async (separate) => {
+      connectorCalls.push({ method: 'install', input: separate })
+      connectorState = preparedConnector()
+      return { ok: true, value: connectorState }
+    },
+    adopt: async () => ({ ok: false, code: 'fixture_only' }),
+    useInstallation: async (input) => {
+      connectorCalls.push({ method: 'useInstallation', input })
+      connectorState = {
+        ...preparedConnector(),
+        managed: false,
+        runtime: input.executable,
+        dataDirectory: input.dataDirectory,
+      }
+      return { ok: true, value: connectorState }
+    },
+    discover: async () => {
+      connectorCalls.push({ method: 'discover' })
+      return {
+        ok: true,
+        value: [
+          { id: 'fixture-codex-one', label: 'Codex App', command: '/fixture/Codex/codex' },
+          ...(connectorMode === 'multiple'
+            ? [{ id: 'fixture-codex-two', label: 'Codex CLI', command: '/fixture/cli/codex' }]
+            : []),
+        ],
+      }
+    },
+    configure: async (input, start) => {
+      connectorCalls.push({ method: 'configure', input, start })
+      if (!connectorState.available) throw Error('Connector runtime has not been prepared')
+      const local = input.id ?? 'fixture-native-instance'
+      connectorState = {
+        ...connectorState,
+        instances: [
+          {
+            id: local,
+            label: input.label,
+            driver: 'codex',
+            command: '/fixture/Codex/codex',
+            cwd: input.cwd ?? '/fixture/home',
+          },
+        ],
+        service: start ? { installed: true, running: true } : connectorState.service,
+        admission: {
+          matched: true,
+          connected: !!start,
+          instances: [
+            {
+              id: 'fixture-server-instance',
+              localId: local,
+              label: input.label,
+              driver: 'codex',
+              online: !!start,
+              status: 'available',
+            },
+          ],
+        },
+      }
+      if (start && connectorMode === 'service-failure' && !failedServiceStart) {
+        failedServiceStart = true
+        connectorState = { ...connectorState, service: { installed: true, running: false } }
+        return { ok: false, code: 'connector_failed', reason: 'service-start' }
+      }
+      return { ok: true, value: { instanceId: local } }
+    },
+    diagnose: async (id) => ({
+      ok: true,
+      value: {
+        id,
+        available: connectorMode !== 'native-unavailable',
+        ...(connectorMode === 'native-unavailable' ? { problem: 'native_login_required' } : {}),
+      },
+    }),
+    revealNative: async () => ({ ok: true, value: undefined }),
+    chooseProject: async () => {
+      connectorCalls.push({ method: 'chooseProject' })
+      return { ok: true, value: '/fixture/project' }
+    },
     chooseExecutable: async () => ({ ok: true, value: null }),
     sessions: async () => ({ ok: true, value: { sessions: [] } }),
-    operations: async () => ({ ok: true, value: { operations: [] } }),
-    operation: async () => ({ ok: false, code: 'not_found' }),
-    submit: async () => ({ ok: true, value: { requestId: 'original-request', state: 'accepted', eventId: 7, problem: null } }),
-    pair: async () => ({ ok: true, value: connectorState }),
-    connect: async () => {
+    operations: async () => ({
+      ok: true,
+      value: {
+        operations:
+          connectorMode === 'operation-detail'
+            ? [
+                {
+                  id: 'original-operation',
+                  instance_id: 'fixture-server-instance',
+                  status: operationPhase === 'terminal' ? 'completed' : 'running',
+                },
+              ]
+            : [],
+      },
+    }),
+    operation: async (_character, id, cursor = 0) => {
+      operationReads.push({ id, cursor })
+      return connectorMode === 'operation-detail'
+        ? { ok: true, value: operationPage(id, cursor) }
+        : { ok: false, code: 'not_found' }
+    },
+    submit: async () => ({ ok: false, code: 'fixture_only' }),
+    pair: async (input) => {
+      connectorCalls.push({ method: 'pair', input })
+      if (!connectorState.available) throw Error('Connector runtime has not been prepared')
       connectorState = {
-        available: true,
+        ...connectorState,
         paired: true,
-        deviceId: 'paired-computer',
-        instances: [],
-        service: { installed: false, running: false },
+        deviceId: 'fixture-connector-device',
+        server: input.server,
+      }
+      return { ok: true, value: connectorState }
+    },
+    connect: async (input) => {
+      connectorCalls.push({ method: 'connect', input })
+      connectorState = {
+        ...(connectorState.available ? connectorState : preparedConnector()),
+        paired: true,
+        deviceId: 'fixture-connector-device',
+        server: connectorConnection.baseUrl,
+        admission: { matched: true, connected: false },
       }
       return { ok: true, value: connectorState }
     },
     service: async (action) => {
+      connectorCalls.push({ method: 'service', input: action })
+      if (action === 'start' && connectorMode === 'service-failure' && !failedServiceStart) {
+        failedServiceStart = true
+        return { ok: false, code: 'connector_failed', reason: 'service-start' }
+      }
+      if (!connectorState.available) throw Error('Connector runtime has not been prepared')
       connectorState = {
-        available: true,
-        paired: true,
-        deviceId: 'paired-computer',
-        instances: [],
+        ...connectorState,
         service: { installed: action !== 'uninstall', running: action === 'start' },
+        admission: {
+          ...connectorState.admission!,
+          connected: action === 'start',
+          instances: connectorState.admission?.instances?.map((item) => ({
+            ...item,
+            online: action === 'start',
+          })),
+        },
       }
       return { ok: true, value: connectorState }
     },
@@ -96,6 +321,14 @@ window.yuki = {
     forgetPairing: async () => ({ ok: true, value: undefined }),
     retiredHistory: async () => ({ ok: true, value: [] }),
     exportRetiredHistory: async () => ({ ok: true, value: false }),
+    executorState: async () => ({ ok: false, code: 'fixture_only' }),
+    clearUnavailableExecutor: async () => ({ ok: false, code: 'fixture_only' }),
+    enableExecutor: async () => ({ ok: false, code: 'fixture_only' }),
+    executorAction: async () => ({ ok: false, code: 'fixture_only' }),
+    executorCommands: async () => ({ ok: false, code: 'fixture_only' }),
+    verifyExecutorCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    pickExecutorFolder: async () => ({ ok: false, code: 'fixture_only' }),
+    removeExecutorFolder: async () => ({ ok: false, code: 'fixture_only' }),
     prepareLogout: async () => ({ ok: false, code: 'fixture_only' }),
     logoutSummary: async () => ({ ok: false, code: 'fixture_only' }),
     finishLogout: async () => ({ ok: false, code: 'fixture_only' }),
@@ -111,11 +344,23 @@ window.yuki = {
     soulCommands: async () => ({ ok: true, value: [] }),
     verifySoulCommand: async () => ({ ok: false, code: 'fixture_only' }),
     letterDecoration: async () => ({ ok: true, value: undefined }),
+    pickAvatar: async () => ({ ok: true, value: null }),
+    dropAvatar: async () => ({ ok: false, code: 'fixture_only' }),
+    pasteAvatar: async () => ({ ok: false, code: 'fixture_only' }),
     avatarBytes: async () => ({ ok: false, code: 'fixture_only' }),
     previewAvatar: async () => ({ ok: true, value: null }),
+    avatarCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    avatarDraft: async () => ({ ok: true, value: null }),
     characterCommand: async () => ({ ok: false, code: 'fixture_only' }),
     characterCommands: async () => ({ ok: true, value: [] }),
     verifyCharacterCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    computerTicket: async () => ({ ok: false, code: 'fixture_only' }),
+    saveComputerFile: async () => ({ ok: false, code: 'fixture_only' }),
+    computerCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    computerCommands: async () => ({ ok: true, value: [] }),
+    verifyComputerCommand: async () => ({ ok: false, code: 'fixture_only' }),
+    keyboardCapture: async () => ({ ok: true, value: undefined }),
+    saveScreenshot: async () => ({ ok: false, code: 'fixture_only' }),
     reconnect: async () => ({ ok: true, value: undefined }),
     external: async () => ({ ok: false, code: 'fixture_only' }),
     copy: async () => ({ ok: true, value: undefined }),
@@ -150,7 +395,12 @@ window.yuki = {
     verifyWorkCommand: async () => ({ ok: false, code: 'fixture_only' }),
     workDraft: async () => ({ ok: true, value: '' }),
     draft: async () => ({ ok: false, code: 'fixture_only' }),
-    onHint: () => () => {},
+    onHint: (listener) => {
+      hintListeners.add(listener)
+      return () => {
+        hintListeners.delete(listener)
+      }
+    },
   },
   boot: async () => {
     throw new Error('fixture only')
@@ -297,6 +547,18 @@ function Gallery() {
           onReply={() => setSheet(true)}
           onCancel={() => setSheet(true)}
         />
+        <section aria-label="步驟狀態">
+          <StepRow label={stepLabel} status="running" time="14:00" />
+          <StepRow label="已完成" status="done" />
+          <StepRow label="結果未確認" status="unknown" />
+        </section>
+        <FileRow
+          name="很長的繁體中文檔案名稱與原始交付版本_測試.pdf"
+          identity="artifact-id"
+          detail="這個對話"
+          size="12 MB"
+          onOpen={() => setSheet(true)}
+        />
         <Sheet
           title="驗證對話框"
           open={sheet}
@@ -328,15 +590,7 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={new QueryClient()}>
       <main style={{ maxWidth: 680, padding: 32 }}>
         <AgentConnector
-          connection={{
-            characterId: 'yuki',
-            baseUrl: 'https://yuki.example',
-            name: 'Yuki',
-            personId: 'person',
-            bindingId: 'binding',
-            conversationId: 'conversation',
-            persistentCredentials: true,
-          }}
+          connection={connectorMode === 'disconnected' ? undefined : connectorConnection}
           deviceLabel="My computer"
         />
       </main>

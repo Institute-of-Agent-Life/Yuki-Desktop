@@ -1,255 +1,271 @@
 import { expect, test } from '@playwright/test'
 
-test('connector GUI uses explicit current-person authorization without exposing a code', async ({
+test('connector settings prepare an independent runtime, explicitly connect the current role and manage its service', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 720, height: 650 })
+  await page.goto('http://127.0.0.1:4178/components.html?connector=missing')
+  const connect = page.getByRole('button', { name: '連接本機 Codex', exact: true })
+  await expect(connect).toBeDisabled()
+  await page.getByRole('textbox', { name: '電腦名稱', exact: true }).fill('My work computer')
+  await page.getByRole('checkbox', { name: '我允許這個 Yuki 連接本機 Agent', exact: true }).check()
+  await connect.click()
+  await expect(page.getByText('目前本人', { exact: true })).toBeVisible()
+  await expect(page.getByText('fixture-connector-device', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '啟動連接器', exact: true })).toBeDisabled()
+  await expect(page.getByRole('combobox', { name: 'Codex 安裝', exact: true })).toHaveCount(0)
+  await expect(page.getByText(/已找到 Codex/)).toBeVisible()
+  await page.getByRole('button', { name: '選擇資料夾', exact: true }).click()
+  await page.getByRole('button', { name: '使用此專案並啟動背景連接', exact: true }).click()
+  await expect(page.getByText('Codex 原生連線已建立', { exact: true })).toBeVisible()
+  await expect(page.getByText('執行中', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '停止連接器', exact: true }).click()
+  await expect(page.getByText('已停止', { exact: true })).toBeVisible()
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __connectorCalls?: unknown[] }).__connectorCalls,
+    ),
+  ).toEqual([
+    {
+      method: 'connect',
+      input: { characterId: '00000000-0000-4000-8000-000000000001', label: 'My work computer' },
+    },
+    { method: 'discover' },
+    { method: 'chooseProject' },
+    {
+      method: 'configure',
+      input: {
+        id: expect.any(String),
+        create: true,
+        candidateId: 'fixture-codex-one',
+        label: '本機 Codex',
+        cwd: '/fixture/project',
+      },
+      start: true,
+    },
+    { method: 'service', input: 'stop' },
+  ])
+  expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  )
+  await page.screenshot({ path: test.info().outputPath('connector-720.png') })
+})
+
+test('advanced Connector installation and its dedicated one-time code use the current bridge inputs', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 720, height: 650 })
   await page.goto('http://127.0.0.1:4178/components.html?connector=unpaired')
-  const connect = page.getByRole('button', { name: '連接目前的 Yuki' })
-  await expect(connect).toBeDisabled()
-  await expect(page.getByText('https://yuki.example', { exact: false })).toBeVisible()
-  await page.getByRole('checkbox', { name: '我允許這個 Yuki 連接本機 Agent' }).check()
-  await connect.click()
-  await expect(connect).toHaveCount(0)
-  await expect(page.locator('input[type="password"]')).toHaveCount(0)
-  await page.getByRole('button', { name: '安裝目前使用者的背景服務' }).click()
-  await page.getByRole('button', { name: '啟動連接器', exact: true }).click()
-  await expect(page.getByText('執行中', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '停止連接器', exact: true }).click()
-  await expect(page.getByText('已停止', { exact: true })).toBeVisible()
+  await page.getByText('進階：接入原有安裝', { exact: true }).click()
+  await page
+    .getByRole('textbox', { name: '原 Python 絕對路徑', exact: true })
+    .fill('/original/python')
+  await page
+    .getByRole('textbox', { name: '原資料目錄', exact: true })
+    .fill('/original/connector-data')
+  await page.getByRole('button', { name: '讀取並選用原安裝', exact: true }).click()
+  await expect(page.getByText('/original/connector-data', { exact: true })).toBeVisible()
+  await page.getByText('進階：手動專用授權碼', { exact: true }).click()
+  const code = page.getByRole('textbox', { name: '手動 Connector 授權碼', exact: true })
+  await expect(code).toHaveAttribute('type', 'password')
+  await page
+    .getByRole('textbox', { name: '手動 Connector 伺服器', exact: true })
+    .fill('https://manual.example')
+  await code.fill('component-only-dedicated-code')
+  await page.getByRole('button', { name: '使用專用碼連接', exact: true }).click()
+  await expect(code).toHaveCount(0)
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __connectorCalls?: unknown[] }).__connectorCalls,
+    ),
+  ).toEqual([
+    {
+      method: 'useInstallation',
+      input: { executable: '/original/python', dataDirectory: '/original/connector-data' },
+    },
+    {
+      method: 'pair',
+      input: {
+        server: 'https://manual.example',
+        label: 'My computer',
+        code: 'component-only-dedicated-code',
+      },
+    },
+  ])
   expect(await page.locator('body').evaluate((body) => body.scrollWidth <= window.innerWidth)).toBe(
     true,
   )
 })
 
-test('failed authorization keeps input and supports keyboard retry without claiming pairing', async ({
+test('multiple Codex installations require a real choice and an existing session needs no new project folder', async ({
   page,
 }) => {
-  await page.goto('http://127.0.0.1:4178/components.html?connector=unpaired')
-  await page.evaluate(() => {
-    window.yuki.connector.connect = async () => ({
-      ok: false,
-      code: 'connector_server_unreachable',
-    })
-  })
-  await page.getByLabel('電腦名稱', { exact: true }).fill('Original PC')
-  const consent = page.getByRole('checkbox', { name: '我允許這個 Yuki 連接本機 Agent' })
-  await consent.focus()
-  await page.keyboard.press('Space')
-  await page.getByRole('button', { name: '連接目前的 Yuki' }).focus()
-  await page.keyboard.press('Enter')
-  await expect(page.getByText('無法連到 Yuki 伺服器。請確認連線後重試。')).toBeVisible()
-  await expect(page.getByLabel('電腦名稱', { exact: true })).toHaveValue('Original PC')
-  await expect(page.getByRole('button', { name: '連接目前的 Yuki' })).toBeEnabled()
-  await expect(page.getByRole('button', { name: '啟動連接器' })).toHaveCount(0)
+  await page.goto('http://127.0.0.1:4178/components.html?connector=multiple')
+  await page.getByRole('checkbox', { name: '我允許這個 Yuki 連接本機 Agent', exact: true }).check()
+  await page.getByRole('button', { name: '連接本機 Codex', exact: true }).click()
+  const candidate = page.getByRole('combobox', { name: 'Codex 安裝', exact: true })
+  await expect(candidate).toHaveValue('')
+  await expect(
+    page.getByRole('button', { name: '使用已有 Codex 會話', exact: true }),
+  ).toBeDisabled()
+  await candidate.selectOption('fixture-codex-two')
+  await page.getByRole('button', { name: '使用已有 Codex 會話', exact: true }).click()
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __connectorCalls?: unknown[] }).__connectorCalls,
+    ),
+  ).toEqual([
+    {
+      method: 'connect',
+      input: { characterId: '00000000-0000-4000-8000-000000000001', label: 'My computer' },
+    },
+    { method: 'discover' },
+    {
+      method: 'configure',
+      input: {
+        id: expect.any(String),
+        create: true,
+        candidateId: 'fixture-codex-two',
+        label: '本機 Codex',
+      },
+      start: true,
+    },
+  ])
+  await expect(page.getByRole('combobox', { name: '任務 Agent', exact: true })).toHaveValue(
+    'fixture-server-instance',
+  )
+  await expect(page.getByRole('button', { name: '讀取原生會話', exact: true })).toBeEnabled()
 })
 
-for (const normalizedOptions of [false, true])
-  test(`task controls preserve original IDs with ${normalizedOptions ? 'normalized options and raw decisions' : 'raw native decisions'}`, async ({
+test('a saved native instance survives a failed background start and continues under its real ID', async ({
+  page,
+}) => {
+  await page.goto('http://127.0.0.1:4178/components.html?connector=service-failure')
+  await page.getByRole('checkbox', { name: '我允許這個 Yuki 連接本機 Agent', exact: true }).check()
+  await page.getByRole('button', { name: '連接本機 Codex', exact: true }).click()
+  await page.getByRole('button', { name: '選擇資料夾', exact: true }).click()
+  await page.getByRole('button', { name: '使用此專案並啟動背景連接', exact: true }).click()
+  await expect(page.getByRole('status').filter({ hasText: '啟動背景連接：' })).toBeVisible()
+  await page.getByRole('button', { name: '保存並重新連接', exact: true }).click()
+  await expect(page.getByText('Codex 原生連線已建立', { exact: true })).toBeVisible()
+  const calls = await page.evaluate(
+    () =>
+      (window as Window & { __connectorCalls?: { method: string; input?: { id?: string } }[] })
+        .__connectorCalls,
+  )
+  const ids = calls?.filter((call) => call.method === 'configure').map((call) => call.input?.id)
+  expect(ids).toHaveLength(2)
+  expect(ids?.[0]).toMatch(/^[0-9a-f-]{36}$/)
+  expect(ids?.[1]).toBe(ids?.[0])
+})
+
+for (const [mode, message] of [
+  ['protocol-connector', '請更新 Yuki Desktop 與隨附連接器'],
+  ['protocol-server', '請更新 Yuki 伺服器以支援協議 3'],
+  ['protocol-unknown', '尚未提供；可更新 Yuki 後重新讀取。'],
+] as const) {
+  test(`connector protocol diagnostics identify the update target without blocking existing settings (${mode})`, async ({
     page,
   }) => {
-    await page.goto('http://127.0.0.1:4178/components.html?connector=unpaired')
-    await page.evaluate((normalizedOptions) => {
-      window.yuki.connector.state = async () => ({
-        ok: true,
-        value: {
-          available: true,
-          paired: true,
-          deviceId: 'device-original',
-          instances: [{ id: 'local-original', driver: 'codex', label: 'Codex', cwd: 'C:/project' }],
-          service: { installed: true, running: true },
-          admission: {
-            matched: true,
-            connected: true,
-            instances: [
-              { id: 'server-instance', localId: 'local-original', driver: 'codex', label: 'Codex' },
-            ],
-          },
-        },
-      })
-      window.yuki.connector.sessions = async () => ({
-        ok: true,
-        value: { sessions: [{ id: 'server-session', label: 'Original session' }] },
-      })
-      window.yuki.connector.operations = async () => ({
-        ok: true,
-        value: {
-          operations: [
-            {
-              id: 'original-operation',
-              instance_id: 'server-instance',
-              session_id: 'server-session',
-              execution_id: 'server-execution',
-              status: 'unknown',
-              work_id: 'original-work',
-            },
-          ],
-        },
-      })
-      window.yuki.connector.operation = async () => ({
-        ok: true,
-        value: {
-          id: 'original-operation',
-          instance_id: 'server-instance',
-          session_id: 'server-session',
-          execution_id: 'server-execution',
-          status: 'unknown',
-          pending: true,
-          uncertain: true,
-          events: [
-            {
-              cursor: 39,
-              kind: 'progress',
-              payload: {
-                item: {
-                  type: 'commandExecution',
-                  command: 'npm test',
-                  status: 'completed',
-                  exitCode: 0,
-                },
-              },
-            },
-            {
-              cursor: 40,
-              kind: 'progress',
-              payload: {
-                item: {
-                  type: 'fileChange',
-                  status: 'completed',
-                  changes: [{ path: 'src/example.ts' }],
-                },
-              },
-            },
-            {
-              cursor: 41,
-              kind: 'progress',
-              payload: {
-                native: { plan: [{ step: 'Verify original change', status: 'completed' }] },
-              },
-            },
-            {
-              cursor: 42,
-              permission_id: 'server-permission',
-              kind: 'permission',
-              payload: {
-                ...(normalizedOptions ? { options: ['accept', 'decline'] } : {}),
-                native_request: {
-                  availableDecisions: ['accept', 'decline'],
-                  id: 'native-private-id',
-                },
-              },
-            },
-          ],
-        },
-      })
-      window.yuki.connector.submit = async (_character, input) => {
-        document.body.dataset.lastTarget = JSON.stringify(input.agentTarget)
-        return {
-          ok: true,
-          value: { requestId: 'original-request', state: 'accepted', eventId: 7, problem: null },
-        }
-      }
-    }, normalizedOptions)
-    await page.getByRole('button', { name: '重新讀取狀態' }).click()
-    await page.getByLabel('任務 Agent').selectOption('server-instance')
-    await page.getByRole('button', { name: '讀取原生會話' }).click()
-    await page.getByLabel('原生會話').selectOption('server-session')
-    await page.getByLabel('原生任務要求').fill('Continue original task')
-    await page.getByRole('button', { name: '交給 Yuki 執行', exact: true }).click()
-    await expect(page.getByText(/要求已交給 Yuki/)).toBeVisible()
-    expect(await page.locator('body').getAttribute('data-last-target')).toContain('server-session')
-    await page.getByRole('button', { name: '查看原回執' }).click()
-    await expect(page.getByText(/結果尚未確認/)).toBeVisible()
-    await expect(page.getByText('npm test', { exact: true })).toBeVisible()
-    await expect(page.getByText('src/example.ts', { exact: true })).toBeVisible()
-    await expect(
-      page.getByText('Verify original change · completed', { exact: true }),
-    ).toBeVisible()
-    await expect(page.getByRole('button', { name: 'decline', exact: true })).toHaveCount(1)
-    await expect(page.getByRole('button', { name: 'accept', exact: true })).toHaveCount(1)
-    await page.getByRole('button', { name: 'decline', exact: true }).click()
-    const target = JSON.parse((await page.locator('body').getAttribute('data-last-target'))!)
-    expect(target).toMatchObject({
-      device_id: 'device-original',
-      instance_id: 'server-instance',
-      session_id: 'server-session',
-      execution_id: 'server-execution',
-      operation_id: 'original-operation',
-      permission_id: 'server-permission',
-      ...(normalizedOptions ? { option_id: 'decline' } : { response: { decision: 'decline' } }),
-    })
-    if (normalizedOptions) expect(target.response).toBeUndefined()
-    expect(JSON.stringify(target)).not.toContain('native-private-id')
-    await page.getByRole('button', { name: '停止觀察', exact: true }).click()
-    expect(JSON.parse((await page.locator('body').getAttribute('data-last-target'))!).intent).toBe(
-      'detach',
-    )
+    await page.goto(`http://127.0.0.1:4178/components.html?connector=${mode}`)
+    await expect(page.getByText(message, { exact: false }).first()).toBeVisible()
+    await page.getByRole('button', { name: '修改原設定', exact: true }).click()
+    await expect(page.getByRole('button', { name: '保存並重新連接', exact: true })).toBeEnabled()
+    await expect(page.getByRole('button', { name: '停止連接器', exact: true })).toBeEnabled()
+    expect(
+      await page.evaluate(
+        () => (window as Window & { __connectorCalls?: unknown[] }).__connectorCalls,
+      ),
+    ).toEqual([])
   })
+}
 
-for (const pendingState of ['draft', 'submitted'] as const)
-  test(`native task ${pendingState} keeps original request for verification`, async ({ page }) => {
-    await page.goto('http://127.0.0.1:4178/components.html?connector=unpaired')
-    await page.evaluate((pending) => {
-      window.yuki.connector.state = async () => ({
-        ok: true,
-        value: {
-          available: true,
-          paired: true,
-          deviceId: 'device',
-          instances: [{ id: 'local', label: 'Codex', driver: 'codex', cwd: 'C:/project' }],
-          service: { installed: true, running: true },
-          admission: {
-            matched: true,
-            connected: false,
-            instances: [{ id: 'instance', localId: 'local', label: 'Codex', driver: 'codex' }],
-          },
-        },
-      })
-      let submissions = 0
-      window.yuki.connector.submit = async () => {
-        document.body.dataset.submissions = String(++submissions)
-        return {
-          ok: true,
-          value: {
-            requestId: 'same-original-request',
-            state: pending,
-            eventId: null,
-            problem: 'transport_unknown',
-          },
-        }
-      }
-      window.yuki.client.verify = async (_character, requestId) => {
-        document.body.dataset.verifiedRequest = requestId
-        return {
-          ok: true,
-          value: {
-            requestId,
-            body: { request_id: requestId, text: 'original input', attachments: [] },
-            payloadHash: 'original',
-            createdAt: 0,
-            state: 'accepted',
-            eventId: 12,
-            problem: null,
-          },
-        }
-      }
-    }, pendingState)
-    await page.getByRole('button', { name: '重新讀取狀態' }).click()
-    await page.getByLabel('任務 Agent').selectOption('instance')
-    await page.getByLabel('原生任務要求').fill('original input')
-    const send = page.getByRole('button', { name: '交給 Yuki 執行', exact: true })
-    await send.click()
-    await expect(
-      page.getByText(pendingState === 'draft' ? /要求只保存在本機/ : /接納尚待查證/),
-    ).toBeVisible()
-    await expect(page.getByLabel('原生任務要求')).toHaveValue('original input')
-    await expect(page.getByText(/要求已交給 Yuki/)).toHaveCount(0)
-    await send.click()
-    await expect(page.getByText(/要求已交給 Yuki/)).toBeVisible()
-    await expect(page.getByLabel('原生任務要求')).toHaveValue('')
-    await expect(page.locator('body')).toHaveAttribute('data-submissions', '1')
-    await expect(page.locator('body')).toHaveAttribute(
-      'data-verified-request',
-      'same-original-request',
+test('native readiness remains distinct from a running service and an online server', async ({
+  page,
+}) => {
+  await page.goto('http://127.0.0.1:4178/components.html?connector=native-unavailable')
+  await expect(page.getByText('執行中', { exact: true })).toBeVisible()
+  await expect(page.getByText('已連線', { exact: true })).toBeVisible()
+  await expect(page.getByText(/Codex 尚未就緒：請先在原生 Codex 完成登入/)).toBeVisible()
+  await page.getByRole('button', { name: '檢查原生就緒', exact: true }).click()
+  await expect(
+    page.getByText('請先在原生 Codex 完成登入，再重新檢查。', { exact: true }),
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: '開啟原生程式位置', exact: true })).toBeEnabled()
+  await page.evaluate(async () => {
+    const state = await window.yuki.connector.state('00000000-0000-4000-8000-000000000001')
+    if (!state.ok || !state.value.available) throw Error('Expected the existing local installation')
+    window.yuki.connector.state = async () => ({
+      ok: true,
+      value: {
+        ...state.value,
+        admission: { matched: null, connected: false, problem: 'transport_unknown' },
+      },
+    })
+    ;(window as Window & { __connectorAdvance?: (phase: string) => void }).__connectorAdvance!(
+      'server-unreachable',
     )
   })
+  await expect(page.getByRole('status').filter({ hasText: '伺服器接納尚未確認：' })).toContainText(
+    '無法連到伺服器，已保留本機內容。',
+  )
+  await expect(page.getByRole('status').filter({ hasText: '伺服器接納尚未確認：' })).toContainText(
+    '可按「重新讀取狀態」再確認；本機服務仍可管理。',
+  )
+  await expect(page.getByText('尚未確認目前本人', { exact: true })).toBeVisible()
+  await expect(page.getByText('transport_unknown', { exact: false })).toHaveCount(0)
+  await expect(page.getByText('原安裝屬於另一個授權來源，原身份及回執會保留。')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '建立另一份獨立安裝', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '停止連接器', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '重新讀取狀態', exact: true })).toBeEnabled()
+})
+
+test('a previously authorized namespace continues discovery without another consent gate', async ({
+  page,
+}) => {
+  await page.goto('http://127.0.0.1:4178/components.html?connector=paired')
+  await expect(
+    page.getByRole('checkbox', { name: '我允許這個 Yuki 連接本機 Agent', exact: true }),
+  ).toHaveCount(0)
+  await page.getByRole('button', { name: '連接本機 Codex', exact: true }).click()
+  await expect(page.getByText(/已找到 Codex/)).toBeVisible()
+})
+
+test('an opened original receipt receives a late permission and terminal result while retaining both loaded event pages', async ({
+  page,
+}) => {
+  await page.goto('http://127.0.0.1:4178/components.html?connector=operation-detail')
+  expect(
+    await page.evaluate(
+      () =>
+        (window as Window & { __connectorOperationReads?: unknown[] }).__connectorOperationReads,
+    ),
+  ).toEqual([])
+  await page.getByRole('button', { name: '查看原回執', exact: true }).click()
+  await expect(page.getByText('第一頁原進度', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '讀取後續進度', exact: true }).click()
+  await expect(page.getByText('第二頁原進度', { exact: true })).toBeVisible()
+  await page.evaluate(() =>
+    (window as Window & { __connectorAdvance?: (phase: string, emit?: boolean) => void })
+      .__connectorAdvance!('permission'),
+  )
+  await expect(page.getByText('原任務的遲到權限要求', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'accept', exact: true })).toBeVisible()
+  await expect(page.getByText('第一頁原進度', { exact: true })).toHaveCount(1)
+  await expect(page.getByText('第二頁原進度', { exact: true })).toHaveCount(1)
+  await page.evaluate(() =>
+    (window as Window & { __connectorAdvance?: (phase: string, emit?: boolean) => void })
+      .__connectorAdvance!('terminal', false),
+  )
+  await page.getByRole('button', { name: '重新讀取原操作', exact: true }).click()
+  await expect(page.getByText('原任務的真終態結果', { exact: true })).toBeVisible()
+  await expect(page.getByText('第一頁原進度', { exact: true })).toHaveCount(1)
+  await expect(page.getByText('第二頁原進度', { exact: true })).toHaveCount(1)
+  const reads = await page.evaluate(
+    () =>
+      (window as Window & { __connectorOperationReads?: { id: string; cursor: number }[] })
+        .__connectorOperationReads,
+  )
+  expect(reads?.every((read) => read.id === 'original-operation')).toBe(true)
+  expect(reads?.some((read) => read.cursor === 200)).toBe(true)
+})

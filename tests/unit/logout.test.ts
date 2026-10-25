@@ -2,7 +2,6 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createHash } from 'node:crypto'
 vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false } }))
 const faults = vi.hoisted(() => ({ unlink: false }))
 vi.mock('node:fs/promises', async (original) => {
@@ -21,6 +20,7 @@ vi.mock('node:fs/promises', async (original) => {
 import { Connections } from '../../src/main/connections'
 import { LocalStore } from '../../src/main/store'
 import { Outbox } from '../../src/main/outbox'
+import { ExecutorInstallation } from '../../src/main/executor/installation'
 import type { Connection, Me, Meta } from '../../src/shared/api'
 const connection: Connection = {
   characterId: '00000000-0000-4000-8000-000000000001',
@@ -51,7 +51,7 @@ const me: Me = {
   request_scope: connection.personId,
   request_conversation_id: null,
   platform: 'app',
-  presence_id: 'fixture-presence',
+  presence_id: '00000000-0000-4000-8000-000000000099',
   thread_id: null,
   binding_id: connection.bindingId,
   display_name: '本人',
@@ -94,25 +94,6 @@ afterEach(async () => {
   faults.unlink = false
 })
 const data = (value: unknown) => Response.json({ data: value })
-
-it('keeps a legacy executor credential dormant when the app starts without a chat credential', async () => {
-  const { client } = setup()
-  const owner = client.box(connection.characterId).owner
-  const key = `executor:${createHash('sha256').update(JSON.stringify(owner)).digest('hex')}`
-  const original =
-    '{ "executorId": "original-executor", "token": "fixture-only", "localPaused": false }'
-  client.credentials.set(key, original)
-  client.credentials.remove(`device/${connection.characterId}/${connection.personId}`)
-  const fetcher = vi.fn(() => {
-    throw Error('must not start retired executor')
-  })
-  vi.stubGlobal('fetch', fetcher)
-  Connections.prototype.start.call(client, connection.characterId)
-  await new Promise((resolve) => setImmediate(resolve))
-  expect(fetcher).not.toHaveBeenCalled()
-  expect(client.credentials.get(key)).toBe(original)
-  expect(client.retiredHistory(connection.characterId)).toEqual([])
-})
 function server(options: { lost?: boolean; offline?: boolean } = {}) {
   let revoked = false
   const deletes: string[] = []
@@ -134,6 +115,61 @@ function server(options: { lost?: boolean; offline?: boolean } = {}) {
   })
   return { deletes }
 }
+it('pauses local dispatch and persists its original command even while public identity is offline', async () => {
+  const { client } = setup(),
+    box = client.box(connection.characterId),
+    installation = new ExecutorInstallation(client.credentials, box.owner),
+    executorId = '00000000-0000-4000-8000-000000000007'
+  installation.install(executorId, 'executor-only-test-token')
+  server({ offline: true })
+  await expect(
+    client.executorAction(connection.characterId, { kind: 'pause', executorId }),
+  ).rejects.toThrow('transport_unknown')
+  expect(installation.current()?.localPaused).toBe(true)
+  const pending = client.executorCommands(connection.characterId)
+  expect(pending).toHaveLength(1)
+  expect(pending[0]).toMatchObject({ state: 'submitted', command: { kind: 'pause', executorId } })
+  expect(JSON.stringify(pending)).not.toContain('executor-only-test-token')
+})
+
+it('starts an installed executor with only its own credential when no chat credential is present', async () => {
+  const { client } = setup(),
+    box = client.box(connection.characterId),
+    installation = new ExecutorInstallation(client.credentials, box.owner)
+  installation.install('00000000-0000-4000-8000-000000000007', 'executor-only-test-token')
+  client.credentials.remove(`device/${connection.characterId}/${connection.personId}`)
+  const paths: string[] = []
+  vi.stubGlobal('fetch', async (input: string, init: RequestInit) => {
+    const path = new URL(input).pathname
+    paths.push(path)
+    if (path.endsWith('/client/v1/meta')) {
+      expect(new Headers(init.headers).has('Authorization')).toBe(false)
+      return data(meta)
+    }
+    expect(path).toContain('/executor/v1/')
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer executor-only-test-token')
+    expect(new Headers(init.headers).has('X-Yuki-Entry')).toBe(false)
+    if (path.endsWith('/config'))
+      return data({
+        executor_id: installation.current()!.executorId,
+        grants: [],
+        grants_digest: 'empty',
+        paused: false,
+      })
+    if (path.endsWith('/heartbeat')) return data({ grants_digest: 'empty', paused: false })
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('event: sync\ndata: {"pending":[]}\n\n'))
+          init.signal?.addEventListener('abort', () => controller.close(), { once: true })
+        },
+      }),
+    )
+  })
+  Connections.prototype.start.call(client, connection.characterId)
+  await vi.waitFor(() => expect(client.executorState(connection.characterId).state).toBe('online'))
+  expect(paths.some((path) => path.endsWith('/client/v1/me'))).toBe(false)
+})
 
 it('logout drains a prior activity before revoking and keeps original drafts for the same Person', async () => {
   const { client, path } = setup(),
@@ -337,4 +373,112 @@ it('logout waits for an already-started re-pair and revokes the credential that 
   expect(summary.connection.deviceId).toBe(next)
   expect(targets).toEqual([`http://localhost/role/client/v1/devices/${next}`])
   await client.finishLogout(connection.characterId, next, 'keep')
+})
+it('a pending resume still checking public identity cannot enter a logout already revoking its device', async () => {
+  const { client, store } = setup(),
+    next = '00000000-0000-4000-8000-000000000006'
+  store.set('pending-pairings', [
+    {
+      characterId: connection.characterId,
+      baseUrl: connection.baseUrl,
+      name: connection.name,
+      deviceId: next,
+      persistentCredentials: false,
+    },
+  ])
+  client.credentials.set(`pending-device/${connection.characterId}/${next}`, 'pending-test-token')
+  let releaseMeta!: () => void,
+    metaEntered!: () => void,
+    releaseRevoke!: () => void,
+    revokeEntered!: () => void,
+    first = true
+  const metaGate = new Promise<void>((resolve) => {
+      releaseMeta = resolve
+    }),
+    checking = new Promise<void>((resolve) => {
+      metaEntered = resolve
+    }),
+    revokeGate = new Promise<void>((resolve) => {
+      releaseRevoke = resolve
+    }),
+    revoking = new Promise<void>((resolve) => {
+      revokeEntered = resolve
+    }),
+    targets: string[] = []
+  vi.stubGlobal('fetch', async (input: string, init: RequestInit) => {
+    if (input.endsWith('/meta')) {
+      if (first) {
+        first = false
+        metaEntered()
+        await metaGate
+      }
+      return data(meta)
+    }
+    expect(init.headers).toHaveProperty('Authorization', 'Bearer original-test-token')
+    if (input.endsWith('/me')) return data(me)
+    if (input.includes('/requests/')) return data({ found: false })
+    targets.push(input)
+    revokeEntered()
+    await revokeGate
+    return data({ device_id: connection.deviceId, revoked: true, replay: false })
+  })
+  const resume = client.resumePairing(connection.characterId, next),
+    rejected = expect(resume).rejects.toHaveProperty('code', 'logout_pending')
+  await checking
+  const logout = client.prepareLogout(connection.characterId)
+  await revoking
+  releaseMeta()
+  await rejected
+  expect(client.connection(connection.characterId).deviceId).toBe(connection.deviceId)
+  expect(client.credentials.get(`device/${connection.characterId}/${connection.personId}`)).toBe(
+    'original-test-token',
+  )
+  releaseRevoke()
+  expect((await logout).connection.deviceId).toBe(connection.deviceId)
+  expect(targets).toEqual([`http://localhost/role/client/v1/devices/${connection.deviceId}`])
+  await client.finishLogout(connection.characterId, connection.deviceId!, 'keep')
+})
+it('logout does not admit a re-pair already invalidated by update suspension', async () => {
+  const { client } = setup(),
+    next = '00000000-0000-4000-8000-000000000006'
+  let release!: () => void,
+    reading!: () => void,
+    first = true
+  const gate = new Promise<void>((resolve) => {
+      release = resolve
+    }),
+    entered = new Promise<void>((resolve) => {
+      reading = resolve
+    }),
+    targets: string[] = []
+  vi.stubGlobal('fetch', async (input: string, init: RequestInit) => {
+    if (input.endsWith('/meta')) return data(meta)
+    if (input.endsWith('/pair')) return data({ device_id: next, token: 'pending-test-token' })
+    if (input.endsWith('/me')) {
+      if (first) {
+        first = false
+        reading()
+        await gate
+      }
+      return data(me)
+    }
+    if (input.includes('/requests/')) return data({ found: false })
+    expect(init.headers).toHaveProperty('Authorization', 'Bearer original-test-token')
+    targets.push(input)
+    return data({ device_id: connection.deviceId, revoked: true, replay: false })
+  })
+  const pairing = client.pair(connection.baseUrl, 'a'.repeat(32), 'updated device'),
+    rejected = expect(pairing).rejects.toHaveProperty('code', 'precondition_failed')
+  await entered
+  const suspension = client.suspendForUpdate(),
+    logout = client.prepareLogout(connection.characterId)
+  release()
+  await rejected
+  await suspension.settled
+  expect((await logout).connection.deviceId).toBe(connection.deviceId)
+  expect(targets).toEqual([`http://localhost/role/client/v1/devices/${connection.deviceId}`])
+  expect(client.credentials.get(`device/${connection.characterId}/${connection.personId}`)).toBe(
+    'original-test-token',
+  )
+  await client.finishLogout(connection.characterId, connection.deviceId!, 'keep')
 })

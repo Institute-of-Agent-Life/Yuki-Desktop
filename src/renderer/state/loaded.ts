@@ -1,5 +1,13 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { ArtifactSource, EventsPage, Home, PublicEvent, Work } from '../../shared/api'
+import type {
+  ArtifactPage,
+  ArtifactSource,
+  EventsPage,
+  Home,
+  PublicEvent,
+  Work,
+  WorkPage,
+} from '../../shared/api'
 import type { SyncHint } from '../../shared/sync'
 import { parseMessage } from '../../shared/message'
 import { hidesPrivateData } from '../queries/client'
@@ -65,14 +73,17 @@ export function loadedItems(client: QueryClient, character: string): LoadedItem[
   ) => {
     if (!item.artifact_id || !item.version) return
     const id = `file/${item.artifact_id}/${item.version}`
-    files.set(id, {
-      kind: 'file',
+    files.set(
       id,
-      title: item.filename ?? item.name ?? item.artifact_id,
-      detail: item.artifact_id,
-      at: timestamp(at),
-      source: { artifactId: item.artifact_id, version: item.version },
-    })
+      files.get(id) ?? {
+        kind: 'file',
+        id,
+        title: item.filename ?? item.name ?? item.artifact_id,
+        detail: item.artifact_id,
+        at: timestamp(at),
+        source: { artifactId: item.artifact_id, version: item.version },
+      },
+    )
   }
   const denied = new Set(
     queries
@@ -92,7 +103,7 @@ export function loadedItems(client: QueryClient, character: string): LoadedItem[
     messages.set(id, {
       kind: 'message',
       id,
-      title: parseMessage(event.text).text || '附件訊息',
+      title: parseMessage(event.content).text || '附件訊息',
       detail:
         entries.get(conversationId)?.display_name ||
         (event.platform === 'app' ? '桌面對話' : event.platform.toUpperCase()),
@@ -117,6 +128,22 @@ export function loadedItems(client: QueryClient, character: string): LoadedItem[
       for (const event of page.items) addMessage(conversationId, event)
     } else if (kind === 'home') for (const work of (data as Home).works) addWork(work)
     else if (kind === 'work') addWork(data as Work)
+    else if (kind === 'works')
+      for (const page of (data as { pages: WorkPage[] }).pages)
+        for (const work of page.works) addWork(work)
+    else if (kind === 'artifacts')
+      for (const page of (data as { pages: ArtifactPage[] }).pages)
+        for (const item of page.items) {
+          const id = `file/${item.artifact_id}/${item.version}`
+          files.set(id, {
+            kind: 'file',
+            id,
+            title: item.name,
+            detail: `${item.artifact_id.slice(0, 8)} · ${item.version.slice(0, 8)} · ${item.published_path ?? item.media_type}`,
+            at: timestamp(item.created_at),
+            source: { artifactId: item.artifact_id, version: item.version },
+          })
+        }
   }
   for (const hint of sync?.works ?? []) {
     const cached = works.get(hint.work_id)

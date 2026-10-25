@@ -29,7 +29,24 @@ const connections: Connection[] = [
 Object.defineProperty(window, 'yuki', {
   value: {
     client: {
-      read: async (id: string) => {
+      read: async (id: string, route: { kind: string }) => {
+        if (route.kind === 'character-status')
+          return {
+            ok: true,
+            value: {
+              revision: 1,
+              observed_at: '2026-10-24T00:00:00Z',
+              mine: { live_conversations: [], works: {} },
+              environment: {
+                control: null,
+                display: 'unavailable',
+                generation: null,
+                help_requested: null,
+                state: 'unavailable',
+              },
+            },
+          }
+
         const connection = connections.find((item) => item.characterId === id)!
         const profile: Profile = {
           id,

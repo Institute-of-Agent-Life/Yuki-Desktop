@@ -27,7 +27,9 @@ export function App({ boot }: { boot: BootInfo }) {
   )
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [serverSettings, setServerSettings] = useState(false)
-  const openSettings = () => {
+  const [folderSettings, setFolderSettings] = useState(false)
+  const openSettings = (target?: 'folder') => {
+    setFolderSettings(target === 'folder')
     setServerSettings(false)
     setSettingsOpen(true)
   }
@@ -210,7 +212,7 @@ export function App({ boot }: { boot: BootInfo }) {
       const offset = command === 'next-character' ? 1 : -1
       select(connections[(at + offset + connections.length) % connections.length]!)
     }
-    if (settingsOpen && ['chat', 'works', 'about'].includes(command)) {
+    if (settingsOpen && ['chat', 'works', 'computer', 'files', 'about'].includes(command)) {
       requestNavigation(() => {
         workspace.setView(command as import('../shared/desktop').View)
         setSettingsOpen(false)
@@ -251,6 +253,7 @@ export function App({ boot }: { boot: BootInfo }) {
       key={connection?.characterId ?? 'desktop'}
       embedded={!!settingsInWorkspace}
       serverRequest={serverSettings}
+      folderRequest={folderSettings}
       boot={boot}
       preferences={preferences}
       save={save}
@@ -319,9 +322,9 @@ export function App({ boot }: { boot: BootInfo }) {
                           />
                         ) : undefined
                       }
-                      onSettings={() =>
+                      onSettings={(target) =>
                         requestNavigation(() => {
-                          openSettings()
+                          openSettings(target)
                         })
                       }
                       onPairAgain={() =>

@@ -9,6 +9,7 @@ import {
   dialog,
   ipcMain,
   nativeTheme,
+  nativeImage,
   Menu,
   net,
   powerMonitor,
@@ -17,12 +18,14 @@ import {
   shell,
   systemPreferences,
 } from 'electron'
+import type { ExecutorAction } from '../shared/executor'
+import { heldComputers } from './computer-exit'
 import { hostname } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { basename, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { createWindow, setWindowMode } from './windows'
+import { createWindow, setWindowMode, setKeyboardCapture } from './windows'
 import { applyWindowAppearance, platformMaterial } from './window-appearance'
 import { installMenu } from './menu'
 import { LocalStore } from './store'
@@ -35,12 +38,14 @@ import type {
   ArtifactSource,
   WorkCommand,
   WorkDraftQuestion,
+  ComputerCommand,
   Profile,
   SoulCommand,
   SoulEdit,
 } from '../shared/api'
 import { Connections } from './connections'
 import { ApiError } from './api/client'
+import { avatarInput } from './avatar-input'
 import { NativeShell } from './native'
 import { ClientNotifications } from './notifications'
 import { LoginItem } from './login-item'
@@ -139,7 +144,7 @@ else {
       app.getVersion(),
       (id, kind, data) => {
         win?.webContents.send('yuki:hint', id, kind, data)
-        if (['sync', 'conversation', 'work', 'character', 'work_steps'].includes(kind))
+        if (['sync', 'conversation', 'work', 'character', 'work_steps', 'computer'].includes(kind))
           void notifications.wake(id).catch(() => {})
       },
     )
@@ -151,6 +156,31 @@ else {
         win?.webContents.send('yuki:open-target', target)
       },
     )
+    connections.executorNative = (id) => ({
+      openURL: (url) => shell.openExternal(url),
+      openFile: (path) => shell.openPath(path),
+      notify: (title, body) => native.submitNotification(id, title, body),
+    })
+    connections.onExecutorActivity = (id, task, active) => {
+      const verbs: Record<string, string> = {
+        'folder.read': '讀取',
+        'folder.write': '寫入',
+        'open.file': '開啟檔案',
+        'open.url': '開啟網址',
+        notify: '提交通知',
+      }
+      const scopes = connections.executorState(id).installation?.scopes ?? []
+      const path = typeof task.params.path === 'string' ? task.params.path : ''
+      const scope = scopes
+        .filter((item) => path === item.alias || path.startsWith(`${item.alias}/`))
+        .sort((a, b) => b.alias.length - a.alias.length)[0]
+      native.activity(
+        id,
+        task.opId,
+        `${verbs[task.capability] ?? '處理本機操作'}${scope ? ` ${scope.alias}` : ''}`,
+        active,
+      )
+    }
     connections.onIdentity = (id, name) => native.characterName(id, name)
     const decorations = new Map<string, Promise<void>>()
     connections.onProfile = (id, profile) => {
@@ -172,7 +202,12 @@ else {
           process.env.ELECTRON_RENDERER_URL &&
           details.url.startsWith(process.env.ELECTRON_RENDERER_URL.replace(/^http/, 'ws') + '/')
         callback({
-          cancel: !development,
+          cancel:
+            !development &&
+            !(
+              details.webContentsId === win?.webContents.id &&
+              connections.computerTickets.consume(details.url)
+            ),
         })
       },
     )
@@ -248,6 +283,40 @@ else {
       askingToQuit = true
       void (async () => {
         if (!(await askToLeave())) return false
+        const held = await heldComputers(connections)
+        if (!held.length) return true
+        reveal?.()
+        const options = {
+          type: 'question' as const,
+          title: '你正在控制角色的電腦',
+          message: `${held.some((item) => item.offline) ? '你上次仍在控制' : '你正在控制'} ${held.map((item) => item.connection.name).join('、')} 的電腦`,
+          detail: `${held.some((item) => item.offline) ? '目前無法連線確認；交回時會核對伺服器目前的控制權。' : ''}保持控制時，需要用電腦的步驟會一直等待交回；其他步驟照常進行。`,
+          buttons: ['交回並結束', '保持控制並結束', '取消'],
+          defaultId: 0,
+          cancelId: 2,
+        }
+        const choice = win
+          ? await dialog.showMessageBox(win, options)
+          : await dialog.showMessageBox(options)
+        if (choice.response === 2) return false
+        if (choice.response === 1) return true
+        for (const item of held) {
+          const result = await connections.computerCommand(item.connection.characterId, {
+            action: 'return',
+            leaseId: item.leaseId,
+            note: '使用者交回控制並結束 App。',
+          })
+          if (result.state !== 'result' || result.problem) {
+            const failure = {
+              type: 'warning' as const,
+              message: '尚未確認交回，App 會保持開啟。',
+              detail: '請確認目前控制權或查證原請求，再決定是否結束。',
+            }
+            if (win) await dialog.showMessageBox(win, failure)
+            else await dialog.showMessageBox(failure)
+            return false
+          }
+        }
         return true
       })()
         .then(async (allowed) => {
@@ -317,8 +386,13 @@ else {
     action('connector-pair', (input: ConnectorPairing) => connector.pair(input))
     action('connector-service', (command: ConnectorServiceAction) => connector.service(command))
     action('connector-discover', () => connector.discover())
-    action('connector-configure', (input: ConnectorConfiguration) => connector.configure(input))
+    action('connector-configure', (input: ConnectorConfiguration, start?: boolean) =>
+      connector.configure(input, start),
+    )
     action('connector-diagnose', (id: string) => connector.diagnose(id))
+    action('connector-reveal-native', async (id: string) =>
+      shell.showItemInFolder(await connector.nativeExecutable(id)),
+    )
     const choosePath = async (directory: boolean) => {
       const options: Electron.OpenDialogOptions = {
         properties: directory ? ['openDirectory'] : ['openFile'],
@@ -410,6 +484,35 @@ else {
       name: string,
       run: (id: string, ...args: A) => T | Promise<T>,
     ) => action(name, (id: string, ...args: A) => connections.activity(id, () => run(id, ...args)))
+    clientAction('executor-state', (id) => connections.executorState(id))
+    clientAction('executor-clear-unavailable', (id) => connections.clearUnavailableExecutor(id))
+    clientAction('enable-executor', (id) => connections.enableExecutor(id, hostname()))
+    clientAction('executor-action', (id, command: ExecutorAction) =>
+      connections.executorAction(id, command),
+    )
+    clientAction('executor-commands', (id) => connections.executorCommands(id))
+    clientAction('verify-executor-command', (id, request: string) =>
+      connections.verifyExecutorCommand(id, request),
+    )
+    clientAction('remove-executor-folder', (id, digest: string) =>
+      connections.removeExecutorFolder(id, digest),
+    )
+    clientAction('pick-executor-folder', async (id, alias: string) => {
+      if (typeof alias !== 'string') throw new ApiError('validation_error')
+      const options = {
+        title: `允許 ${connections.connection(id).name} 使用資料夾`,
+        properties: ['openDirectory'] as 'openDirectory'[],
+      }
+      const selected = win
+        ? await dialog.showOpenDialog(win, options)
+        : await dialog.showOpenDialog(options)
+      if (selected.canceled || !selected.filePaths[0]) return null
+      return connections.executorFolder(
+        id,
+        selected.filePaths[0],
+        alias.trim() || basename(selected.filePaths[0]) || '資料夾',
+      )
+    })
     action('connections', () => connections.publicList())
     action('pending-pairings', () => connections.pendingPairings())
     action('resume-pairing', (id: string, device: string) => connections.resumePairing(id, device))
@@ -620,6 +723,37 @@ else {
       connections.avatarBytes(id, sha, size),
     )
     action('preview-avatar', (server: string) => connections.previewAvatar(server))
+    action('pick-avatar', async () => {
+      const picked = await dialog.showOpenDialog(win!, {
+        title: '選擇頭像圖片',
+        properties: ['openFile'],
+        filters: [
+          {
+            name: '圖片',
+            extensions: [
+              'png',
+              'jpg',
+              'jpeg',
+              'webp',
+              ...(process.platform === 'darwin' ? ['heic', 'heif'] : []),
+            ],
+          },
+        ],
+      })
+      return picked.canceled || !picked.filePaths[0] ? null : avatarInput(picked.filePaths[0])
+    })
+    action('drop-avatar', (path: string) => avatarInput(path))
+    action('paste-avatar', () => {
+      const image = clipboard.readImage()
+      if (image.isEmpty()) throw new ApiError('unsupported_image')
+      return { filename: '剪貼簿圖片.png', bytes: new Uint8Array(image.toPNG()) }
+    })
+    clientAction('avatar-command', (id: string, revision: number, bytes?: Uint8Array) =>
+      connections.avatarCommand(id, revision, bytes),
+    )
+    clientAction('avatar-draft', (id: string, request: string) =>
+      connections.characterCommands(id).avatarDraft(request),
+    )
     clientAction('character-command', (id: string, command: CharacterCommand) =>
       connections.characterCommand(id, command),
     )
@@ -627,6 +761,36 @@ else {
     clientAction('verify-character-command', (id: string, request: string) =>
       connections.verifyCharacterCommand(id, request),
     )
+    clientAction('computer-ticket', (id: string) => connections.computerTicket(id))
+    clientAction('save-computer-file', async (id: string, path: string) => {
+      const item = await connections.computerFile(id, path)
+      const target = await dialog.showSaveDialog(win!, {
+        defaultPath: item.filename ?? basename(path),
+      })
+      if (target.canceled || !target.filePath) return false
+      await item.cache.save(item.path, item.sha256, target.filePath)
+      return true
+    })
+    clientAction('computer-command', (id: string, command: ComputerCommand) =>
+      connections.computerCommand(id, command),
+    )
+    clientAction('computer-commands', (id: string) => connections.computerCommands(id).list())
+    clientAction('verify-computer-command', (id: string, request: string) =>
+      connections.verifyComputerCommand(id, request),
+    )
+    action('keyboard-capture', (captured: boolean) => setKeyboardCapture(win!, captured))
+    clientAction('save-screenshot', async (id: string, bytes: Uint8Array) => {
+      const connection = connections.connection(id)
+      const image = nativeImage.createFromBuffer(Buffer.from(bytes))
+      if (image.isEmpty()) throw new ApiError('validation_error')
+      const result = await dialog.showSaveDialog(win!, {
+        defaultPath: `${connection.name} 電腦截圖.png`,
+        filters: [{ name: 'PNG 圖片', extensions: ['png'] }],
+      })
+      if (result.canceled || !result.filePath) return false
+      await writeFile(result.filePath, image.toPNG())
+      return true
+    })
     clientAction('send', (id: string, text: string, uploads?: string[]) =>
       connections.send(id, text, uploads),
     )

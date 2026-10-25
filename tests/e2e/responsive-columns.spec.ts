@@ -1,3 +1,4 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import { pairUI, yukiFixture } from '../fixtures/backend'
@@ -98,7 +99,7 @@ test('real clamped columns move four visible pixels per key and stop an unfinish
     await page.mouse.up()
     await page.getByRole('button', { name: '檢視器', exact: true }).click()
     await expect(inspector(page)).toHaveAttribute('aria-valuenow', '392')
-    await captureViewport(app, page, test.info().outputPath('stopped-column-drag.png'))
+    await page.screenshot({ path: test.info().outputPath('stopped-column-drag.png') })
     success = true
   } finally {
     const page = await app.firstWindow().catch(() => undefined)
@@ -191,7 +192,9 @@ test('small emulated viewport survives capture and keeps actual settings control
     const minimum = await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0]!.getMinimumSize(),
     )
-    expect(await contentSize(app, page, 960, 492)).toBe('electron-device-emulation')
+    expect(await contentSize(app, page, 960, 492, { emulate: true })).toBe(
+      'electron-device-emulation',
+    )
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
     const frame = await captureViewport(
@@ -208,7 +211,9 @@ test('small emulated viewport survives capture and keeps actual settings control
     await page.getByRole('radio', { name: '深色', exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
     await page.getByRole('button', { name: '返回', exact: true }).click()
-    await expect(page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })).toBeInViewport({
+    await expect(
+      page.getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` }),
+    ).toBeInViewport({
       ratio: 1,
     })
     await contentSize(app, page, 1100, 760)

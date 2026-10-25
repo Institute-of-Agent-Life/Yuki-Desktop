@@ -1,7 +1,18 @@
+import { activeCharacterName } from '../fixtures/active-character'
+import { crashElectron } from '../fixtures/electron-process'
 import { expect, test } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import type { Home, Work } from '../../src/shared/api'
-import { currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
+import {
+  recordBusinessState,
+  ledgerEvents,
+  pairUI,
+  currentConnection,
+  waitForAcceptedMessage,
+  waitForMainEnded,
+  waitForWorkState,
+  yukiFixture,
+} from '../fixtures/backend'
 import { transportGate } from '../fixtures/transport'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
 
@@ -17,7 +28,10 @@ test('a real thirty second transport outage preserves the draft and converges an
     const pb = await b.firstWindow()
     await pairUI(pa, gate.base, await rig.code())
     await pairUI(pb, rig.base, await rig.code())
-    const composer = pa.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })
+    const composer = pa.getByRole('textbox', {
+      name: `和 ${await activeCharacterName(pa)} 說點什麼`,
+      exact: true,
+    })
     await composer.fill('斷線之前的原訊息')
     await pa.getByRole('button', { name: '送出', exact: true }).click()
     await expect(pb.getByText('斷線之前的原訊息', { exact: true })).toBeVisible()
@@ -31,12 +45,14 @@ test('a real thirty second transport outage preserves the draft and converges an
       .first()
     await expect(offline).toBeVisible()
     const missed = '另一台裝置在斷線期間送出的原事件'
-    await pb.getByRole('textbox', { name: /^和 .+ 說點什麼$/ }).fill(missed)
+    await pb
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(pb)} 說點什麼`, exact: true })
+      .fill(missed)
     await pb.getByRole('button', { name: '送出', exact: true }).click()
     await expect
       .poll(async () => {
-        const events = (await currentEvents(pb)).items
-        return events.filter((item) => item.text === missed).length
+        const events = await ledgerEvents(rig.base)
+        return events.filter((item) => item.content === missed).length
       })
       .toBe(1)
     await expect(pb.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible({
@@ -76,12 +92,12 @@ test('a real thirty second transport outage preserves the draft and converges an
     await pa.getByRole('button', { name: '送出', exact: true }).click()
     await expect(composer).toHaveValue('')
     await expect(pb.getByText(draft, { exact: true })).toBeVisible()
-    const facts = (await currentEvents(pa)).items
+    const facts = await ledgerEvents(rig.base)
     for (const text of ['斷線之前的原訊息', missed, draft]) {
-      const events = facts.filter((item) => item.text === text)
+      const events = facts.filter((item) => item.content === text)
       expect(events).toHaveLength(1)
       for (const page of [pa, pb])
-        await expect(page.locator(`article[data-event-id="${events[0]!.id}"]`)).toHaveCount(1)
+        await expect(page.locator(`article[data-event-id="${events[0]!.event_id}"]`)).toHaveCount(1)
     }
     const report = test.info().outputPath('transport-outage.json')
     await writeFile(
@@ -95,6 +111,13 @@ test('a real thirty second transport outage preserves the draft and converges an
     success = true
   } finally {
     gate.reconnect()
+    if (!success)
+      for (const [index, app] of [a, b].entries()) {
+        await recordBusinessState(await app.firstWindow(), `business-state-${index}.json`).catch(
+          console.error,
+        )
+        await crashElectron(app).catch(() => {})
+      }
     await Promise.all([a.close().catch(() => {}), b.close().catch(() => {})])
     await gate.close()
     await rig.close(success)
@@ -112,26 +135,49 @@ test('two actual devices submit different answers to one work and recover their 
     const pb = await b.firstWindow()
     await pairUI(pa, rig.base, await rig.code())
     await pairUI(pb, rig.base, await rig.code())
-    expect((await fetch(`${rig.base}/__test/work`, { method: 'POST' })).status).toBe(200)
-    const original = await pa.evaluate(async () => {
-      const connections = await window.yuki.client.connections()
-      if (!connections.ok || !connections.value[0]) throw Error('Missing paired connection')
-      const characterId = connections.value[0].characterId
-      const home = await window.yuki.client.read<Home>(characterId, { kind: 'home' })
-      if (!home.ok || home.value.works.length !== 1) throw Error('Expected one original work')
-      return { characterId, work: home.value.works[0]! }
-    })
+    await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
+    await pa
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(pa)} 說點什麼`, exact: true })
+      .fill('兩台裝置共同補充原工作')
+    await pa.getByRole('button', { name: '送出', exact: true }).click()
+    const connection = await currentConnection(pa)
+    const submitted = await waitForAcceptedMessage(
+      pa,
+      connection.characterId,
+      '兩台裝置共同補充原工作',
+    )
+    const receipt = await waitForMainEnded(pa, connection.characterId, submitted.requestId)
+    expect(receipt.event_id).toBe(submitted.eventId)
+    if (!receipt.work) throw Error('Original Work association is missing')
+    for (const page of [pa, pb])
+      await expect(
+        page
+          .getByRole('article')
+          .filter({ has: page.getByRole('heading', { name: '原工作整合測試', exact: true }) })
+          .getByText('等你回覆', { exact: true }),
+      ).toBeVisible({ timeout: 20000 })
+    const original = await pa.evaluate(
+      async ({ characterId, workId }) => {
+        const home = await window.yuki.client.read<Home>(characterId, { kind: 'home' })
+        if (!home.ok || home.value.works.length !== 1) throw Error('Expected one original work')
+        const work = home.value.works.find((item) => item.work_id === workId)
+        if (!work) throw Error('Original Work is missing from Home')
+        return { characterId, work }
+      },
+      { characterId: connection.characterId, workId: receipt.work.work_id },
+    )
     const answers = ['裝置A回答：台北，沿原工作繼續', '裝置B補充：還要保留原版本成果']
     const details = [pa, pb].map((page) =>
       page.getByRole('complementary', { name: '檢視器', exact: true }),
     )
     for (const [index, page] of [pa, pb].entries()) {
       await page.keyboard.press('ControlOrMeta+2')
-      await page.getByRole('button', { name: /等你回覆.*Desktop reference work/ }).click()
+      await page.getByRole('button', { name: /等你回覆.*原工作整合測試/ }).click()
       await details[index]!.getByRole('textbox').fill(answers[index]!)
     }
     // Keep the scripted provider in flight while both real API inputs reach the original mailbox.
-    expect((await fetch(`${rig.base}/__test/hold-work`, { method: 'POST' })).status).toBe(200)
+    await fetch(`${rig.base}/__test/model-delay/2`, { method: 'POST' })
+    await fetch(`${rig.base}/__test/lose-next-work-response/inputs`, { method: 'POST' })
     await Promise.all(
       details.map((detail) =>
         detail.getByRole('button', { name: '傳送給這項工作', exact: true }).click(),
@@ -148,7 +194,7 @@ test('two actual devices submit different answers to one work and recover their 
           { timeout: 20000 },
         )
         .toEqual([['result', null]])
-    expect((await fetch(`${rig.base}/__test/release-work`, { method: 'POST' })).status).toBe(200)
+    await waitForWorkState(pb, original.characterId, original.work.work_id, 'completed')
     for (const detail of details)
       await expect(detail.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
     const results = await Promise.all(
@@ -188,14 +234,14 @@ test('two actual devices submit different answers to one work and recover their 
     })
     expect(new Set(receipts.map((item) => item.eventId)).size).toBe(2)
     expect(new Set(receipts.map((item) => item.inputId)).size).toBe(2)
-    const events = (await currentEvents(pa)).items
+    const events = await ledgerEvents(rig.base)
     for (const [index, page] of [pa, pb].entries()) {
       await contentSize(index === 0 ? a : b, page, 1440, 900)
       await page.keyboard.press('ControlOrMeta+1')
       for (const answer of answers) {
-        const rows = events.filter((item) => item.text === answer)
+        const rows = events.filter((item) => item.content === answer)
         expect(rows).toHaveLength(1)
-        await expect(page.locator(`article[data-event-id="${rows[0]!.id}"]`)).toHaveCount(1)
+        await expect(page.locator(`article[data-event-id="${rows[0]!.event_id}"]`)).toHaveCount(1)
       }
       const dpr = await page.evaluate(() => devicePixelRatio)
       const theme = await page.locator('html').getAttribute('data-theme')
@@ -213,7 +259,13 @@ test('two actual devices submit different answers to one work and recover their 
     )
     success = true
   } finally {
-    await fetch(`${rig.base}/__test/release-work`, { method: 'POST' })
+    if (!success)
+      for (const [index, app] of [a, b].entries()) {
+        await recordBusinessState(await app.firstWindow(), `business-state-${index}.json`).catch(
+          console.error,
+        )
+        await crashElectron(app).catch(() => {})
+      }
     await Promise.all([a.close().catch(() => {}), b.close().catch(() => {})])
     await rig.close(success)
   }

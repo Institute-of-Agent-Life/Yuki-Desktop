@@ -19,6 +19,7 @@ files:
   - package.json
   - LICENSE
   - resources/icons/**/*.png
+  - resources/legal/novnc/*
   - '!**/*.map'
   - '!**/docs{,/**}'
   - '!assets{,/**}'

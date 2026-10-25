@@ -1,10 +1,11 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { launchShell } from '../fixtures/shell-app'
-import { currentConnection, pairUI } from '../fixtures/backend'
+import { pairUI } from '../fixtures/backend'
 import { nativeWindowsMenu } from '../fixtures/windows-application-menu'
 import { windowsFileDialogOwner } from '../fixtures/windows-file-dialog'
 import { nativeWindowsControls } from '../fixtures/windows-window-controls'
@@ -116,7 +117,6 @@ test('Windows application commands have a real native menu entry before pairing 
     const code = await fetch(base + '/__test/link-code', { method: 'POST' })
     expect(code.ok).toBe(true)
     await pairUI(page, base!, ((await code.json()) as { code: string }).code, '原生選單驗證', 20000)
-    const connection = await currentConnection(page)
     const boot = await page.evaluate(() => window.yuki.client.connections())
     expect(boot.ok).toBe(true)
     if (!boot.ok) throw Error(boot.code)
@@ -128,7 +128,7 @@ test('Windows application commands have a real native menu entry before pairing 
     }))
     const draft = 'menu-draft-' + randomUUID()
     await page
-      .getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true })
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` })
       .fill(draft)
     proof.draft = draft
     await geometry('conversation')
@@ -152,7 +152,7 @@ test('Windows application commands have a real native menu entry before pairing 
       receipt: await nativeWindowsMenu(owner, { path: ['顯示', '對話'] }),
     })
     await expect(
-      page.getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true }),
+      page.getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` }),
     ).toHaveValue(draft)
     const invalid = await page.evaluate(() => window.yuki.applicationMenu({ x: -1, y: 0 }))
     expect(invalid).toMatchObject({ ok: false, code: 'validation_error' })
@@ -206,7 +206,7 @@ test('Windows application commands have a real native menu entry before pairing 
     expect(owner.processId).not.toBe(native.pid)
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
     await expect(
-      page.getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true }),
+      page.getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` }),
     ).toHaveValue(draft)
     const cold = await page.evaluate(() => window.yuki.client.connections())
     expect(cold.ok).toBe(true)
@@ -294,7 +294,7 @@ test('Windows application commands have a real native menu entry before pairing 
     expect(zoomedActualY - zoomedExpectedY).toBeLessThanOrEqual(16)
     await expect(more()).toHaveAttribute('aria-expanded', 'false')
     await expect(
-      page.getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true }),
+      page.getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` }),
     ).toHaveValue(draft)
     await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0]!.webContents.setZoomFactor(1),

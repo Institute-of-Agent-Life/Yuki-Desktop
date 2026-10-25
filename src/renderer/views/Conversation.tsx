@@ -12,6 +12,7 @@ import type {
   Activity,
   Work,
   ArtifactSource,
+  CharacterStatus,
 } from '../../shared/api'
 import type { Preferences } from '../../shared/desktop'
 import type { SyncHint } from '../../shared/sync'
@@ -37,7 +38,8 @@ import { CommandPalette, type PaletteCommand } from '../components/CommandPalett
 import type { LoadedItem } from '../state/loaded'
 import { requestNavigation } from '../state/navigation'
 import { ConversationWork, WorkDetail, WorkList, WorkReply } from './Works'
-import { ArtifactInspector } from './Files'
+import { Files, ArtifactInspector } from './Files'
+import { Computer, ComputerInspector } from './Computer'
 import { About } from './About'
 
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
@@ -56,7 +58,7 @@ export function Conversation({
   connection: Connection
   platform: string
   preferences: Preferences
-  onSettings(): void
+  onSettings(target?: 'folder'): void
   onPairAgain(): void
   roleSwitcher?: React.ReactNode
   settings?: React.ReactNode
@@ -73,6 +75,7 @@ export function Conversation({
   const focusMode = useWorkspace((state) => state.focusMode)
   const [soulEditing, setSoulEditing] = useState(false)
   const [soulToolbar, setSoulToolbar] = useState<HTMLDivElement | null>(null)
+  const [computerToolbar, setComputerToolbar] = useState<HTMLDivElement | null>(null)
   useEffect(() => {
     if (settings || view !== 'about' || focusMode) setSoulEditing(false)
   }, [view, focusMode, settings])
@@ -126,17 +129,17 @@ export function Conversation({
   const earlierBusy = useRef(false)
   const needsEarlier = useRef(false)
   const activeRange = useRef('')
-  const prepend = useRef<{
-    range: string
-    eventId: string
-    top: number
-  } | null>(null)
+  const prepend = useRef<{ range: string; eventId: string; top: number } | null>(null)
   activeRange.current = `${conversation}/${anchor}`
   const latestSeen = useRef<{ range: string; event: number }>({ range: '', event: 0 })
   const home = useQuery({ queryKey: [id, 'home'], queryFn: () => read<Home>(id, { kind: 'home' }) })
   const profile = useQuery({
     queryKey: [id, 'character'],
     queryFn: () => read<Profile>(id, { kind: 'character' }),
+  })
+  const characterStatus = useQuery({
+    queryKey: [id, 'character-status'],
+    queryFn: () => read<CharacterStatus>(id, { kind: 'character-status' }),
   })
   useEffect(() => {
     if (!profile.data || profile.data.avatar || hidesPrivateData(profile.error)) return
@@ -202,6 +205,9 @@ export function Conversation({
     }
   })
   useEffect(() => {
+    if (view === 'files') {
+      workspace.patch({ preview: undefined, inspector: false })
+    }
     if (view !== 'chat') workspace.patch({ messageStage: undefined })
   }, [view])
   useEffect(() => {
@@ -224,6 +230,14 @@ export function Conversation({
     [events.error, home.error, profile.error].some(
       (error) => error instanceof ClientProblem && error.code === 'client_upgrade_required',
     )
+  const upgradeNotice = updateRequired && (
+    <Banner status="failed">
+      {problemText('client_upgrade_required')}
+      <Button variant="plain" onClick={() => onSettings()}>
+        查看 App 更新
+      </Button>
+    </Banner>
+  )
   const eventData = accessLost || hidesPrivateData(events.error) ? undefined : events.data,
     homeData = accessLost || hidesPrivateData(home.error) ? undefined : home.data,
     profileData = accessLost || hidesPrivateData(profile.error) ? undefined : profile.data
@@ -238,7 +252,12 @@ export function Conversation({
       'content',
       'activity',
       'work',
+      'steps',
       'character-commands',
+      'character-status',
+      'memory',
+      'automations',
+      'capabilities',
     ]) {
       const filter = { queryKey: [id, key] }
       for (const entry of query.getQueryCache().findAll({
@@ -579,7 +598,10 @@ export function Conversation({
   }
   const name = profileData?.display_name ?? connection.name,
     isMain = conversation === connection.conversationId
-  const inspectorTab = workspace.inspectorTab
+  const inspectorTab =
+    workspace.inspectorTab === 'computer' && !profileData?.viewer.is_owner
+      ? 'work'
+      : workspace.inspectorTab
   const openWork = (workId: string) => {
     workspace.patch({
       selectedWork: workId,
@@ -597,6 +619,14 @@ export function Conversation({
       inspectorTab: 'files',
     })
   }
+  const selectArtifact = (source: ArtifactSource) => {
+    workspace.patch({
+      artifact: source,
+      preview: undefined,
+      messageStage: undefined,
+      inspectorTab: 'files',
+    })
+  }
   const answerWork = (work: Work) => {
     setReplyWork(work)
     choose(connection.conversationId)
@@ -609,9 +639,13 @@ export function Conversation({
       )
     : []
   const visible = (eventData?.items ?? []).filter(
-    (item) => search === null || item.text.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
+    (item) =>
+      search === null || item.content.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
   )
-  const presence = characterPresence(online, homeData?.works)
+  const presence = characterPresence(
+    online,
+    accessLost || hidesPrivateData(characterStatus.error) ? undefined : characterStatus.data,
+  )
   const paletteNavigate = (run: () => void) => {
     setPalette(false)
     requestNavigation(() => {
@@ -631,14 +665,17 @@ export function Conversation({
       })
     else
       paletteNavigate(() => {
-        openArtifact(item.source)
-        if (stage) workspace.patch({ focusMode: true })
+        workspace.setView(stage ? 'chat' : 'files')
+        if (stage) {
+          openArtifact(item.source)
+          workspace.patch({ focusMode: true })
+        } else selectArtifact(item.source)
       })
   }
   const paletteCommands: PaletteCommand[] = [
-    ...(['chat', 'works', 'about'] as const).map((view, index) => ({
+    ...(['chat', 'works', 'files', 'about'] as const).map((view, index) => ({
       id: `command/${view}`,
-      title: ['開啟對話', '開啟工作', '開啟角色資料'][index]!,
+      title: ['開啟對話', '開啟工作', '開啟檔案與成果', '開啟角色資料'][index]!,
       run: () =>
         paletteNavigate(() =>
           view === 'chat' ? choose(connection.conversationId) : workspace.setView(view),
@@ -666,15 +703,50 @@ export function Conversation({
       run: () => paletteNavigate(() => workspace.toggle('focusMode')),
     },
     { id: 'command/settings', title: '開啟設定', run: () => paletteNavigate(onSettings) },
+    {
+      id: 'command/folder',
+      title: '授權本機資料夾',
+      run: () => paletteNavigate(() => onSettings('folder')),
+    },
+    ...(profileData?.viewer.is_owner && !accessLost
+      ? [
+          {
+            id: 'command/computer',
+            title: `觀看 ${name} 的電腦`,
+            run: (stage: boolean) =>
+              paletteNavigate(() => {
+                workspace.setView('computer')
+                if (stage) workspace.patch({ focusMode: true, inspector: true })
+              }),
+          },
+          {
+            id: 'command/wake',
+            title: `喚醒 ${name} 的電腦`,
+            run: (stage: boolean) =>
+              paletteNavigate(() => {
+                workspace.setView('computer')
+                if (stage) workspace.patch({ focusMode: true, inspector: true })
+                void window.yuki.client
+                  .computerCommand(id, { action: 'wake' })
+                  .then(unwrap)
+                  .then((result) => {
+                    if (alive.current && (result.problem || result.state !== 'result'))
+                      setMediaError(
+                        result.state !== 'result'
+                          ? '喚醒結果尚未確認，請在電腦頁查證原請求。'
+                          : problemText(result.problem!),
+                      )
+                  })
+                  .catch((error) => {
+                    if (alive.current)
+                      setMediaError(error instanceof Error ? error.message : '喚醒尚未確認。')
+                  })
+              }),
+          },
+        ]
+      : []),
   ]
-  const upgradeNotice = updateRequired && (
-    <Banner status="failed">
-      {problemText('client_upgrade_required')}
-      <Button variant="plain" onClick={onSettings}>
-        查看 App 更新
-      </Button>
-    </Banner>
-  )
+  const displayedWorks = new Set<string>()
   return (
     <CharacterVisuals.Provider value={{ id, name, profile: profileData, presence }}>
       <Workspace
@@ -694,6 +766,13 @@ export function Conversation({
             </>
           ) : soulEditing && view === 'about' && !focusMode ? (
             <div className={styles.soulToolbar} ref={setSoulToolbar} />
+          ) : undefined
+        }
+        toolbarTitle={
+          view === 'computer' && !focusMode && !accessLost && profileData?.viewer.is_owner ? (
+            <div className={styles.computerToolbar} ref={setComputerToolbar}>
+              <span className={styles.computerToolbarFallback}>{name} 的電腦</span>
+            </div>
           ) : undefined
         }
         roleSwitcher={roleSwitcher}
@@ -728,10 +807,49 @@ export function Conversation({
                   {item.platform.toUpperCase()} · {item.display_name}
                 </button>
               ))}
+            {!isMain && (
+              <Button
+                variant="plain"
+                onClick={() => {
+                  choose(connection.conversationId)
+                  if (settings) onSettingsBack?.()
+                }}
+              >
+                回到桌面對話
+              </Button>
+            )}
           </>
         }
         inspector={
-          messageStage && view === 'chat' && !accessLost ? (
+          inspectorTab === 'computer' &&
+          !(messageStage && view === 'chat') &&
+          !accessLost &&
+          profileData?.viewer.is_owner ? (
+            focusMode ? (
+              <Computer key={id} connection={connection} name={name} work={openWork} />
+            ) : (
+              <ComputerInspector
+                key={id}
+                id={id}
+                work={openWork}
+                preview={
+                  view !== 'computer' ? (
+                    <Computer
+                      connection={connection}
+                      name={name}
+                      work={openWork}
+                      compact={{
+                        expand: () =>
+                          requestNavigation(() =>
+                            workspace.patch({ inspector: true, focusMode: true }),
+                          ),
+                      }}
+                    />
+                  ) : undefined
+                }
+              />
+            )
+          ) : messageStage && view === 'chat' && !accessLost ? (
             <MessageStage
               id={id}
               reference={messageStage}
@@ -760,15 +878,27 @@ export function Conversation({
               key={`${artifact.artifactId}/${artifact.version}`}
               id={id}
               source={artifact}
+              library={() => workspace.setView('files')}
             />
           ) : inspectorTab === 'work' && selectedWork && !accessLost ? (
             <WorkDetail
               key={selectedWork}
               id={id}
               workId={selectedWork}
+              open={openWork}
               replyInChat={answerWork}
               commandEnter={preferences.sendKey === 'command-enter'}
               artifact={openArtifact}
+              computer={
+                profileData?.viewer.is_owner
+                  ? () => {
+                      requestNavigation(() => {
+                        workspace.setView('computer')
+                        workspace.patch({ inspector: true, focusMode: true })
+                      })
+                    }
+                  : undefined
+              }
             />
           ) : inspectorTab === 'files' && preview && !accessLost ? (
             <AttachmentPreview
@@ -779,7 +909,10 @@ export function Conversation({
           ) : inspectorTab === 'files' ? (
             <div className={styles.inspector}>
               <h3>尚未選取檔案</h3>
-              <p>從對話附件或工作成果選取一項，查看原版本。</p>
+              <p>從對話附件或檔案與成果選取一項，查看原版本。</p>
+              <Button variant="plain" onClick={() => workspace.setView('files')}>
+                開啟檔案與成果
+              </Button>
             </div>
           ) : (
             <div className={styles.inspector}>
@@ -806,7 +939,33 @@ export function Conversation({
       >
         {view !== 'chat' && !focusMode && upgradeNotice}
         {mediaError && view !== 'chat' && <Banner status="failed">{mediaError}</Banner>}
-        {view === 'works' && !focusMode ? (
+        {view === 'computer' && !focusMode ? (
+          accessLost || !profileData?.viewer.is_owner ? (
+            <Banner status="failed">
+              {accessLost ? problemText(connectionProblem) : '這項操作需要角色擁有者權限。'}
+            </Banner>
+          ) : (
+            <Computer
+              key={id}
+              connection={connection}
+              name={name}
+              work={openWork}
+              toolbar={computerToolbar}
+            />
+          )
+        ) : view === 'files' && !focusMode ? (
+          accessLost ? (
+            <Banner status="failed">{problemText(connectionProblem)}</Banner>
+          ) : (
+            <Files
+              id={id}
+              initial={artifact}
+              onSelect={selectArtifact}
+              jump={(ref) => void jumpTo(ref)}
+              work={openWork}
+            />
+          )
+        ) : view === 'works' && !focusMode ? (
           accessLost ? (
             <Banner status="failed">{problemText(connectionProblem)}</Banner>
           ) : (
@@ -826,11 +985,26 @@ export function Conversation({
                 toolbar={soulToolbar}
               />
             ) : (
-              <About key={id} id={id} profile={profileData} editSoul={() => setSoulEditing(true)} />
+              <About
+                key={id}
+                id={id}
+                server={connection.baseUrl}
+                profile={profileData}
+                jump={jumpTo}
+                editSoul={() => setSoulEditing(true)}
+              />
             )
           ) : (
             <EmptyState title="角色資料">{profile.error?.message ?? '正在讀取…'}</EmptyState>
           )
+        ) : view !== 'chat' && !focusMode ? (
+          <EmptyState
+            title={
+              view === 'settings' ? '設定' : view === 'computer' ? `${name} 的電腦` : '檔案與成果'
+            }
+          >
+            <span>正在接入此單元的伺服器介面。</span>
+          </EmptyState>
         ) : (
           <div
             ref={floatingRef}
@@ -865,7 +1039,7 @@ export function Conversation({
                     : '正在連接伺服器。草稿保存在這台電腦。'}
                 </Banner>
               )}
-              {(events.error || home.error || profile.error) && (
+              {!updateRequired && (events.error || home.error || profile.error) && (
                 <Banner status="failed">
                   {(events.error ?? home.error ?? profile.error)?.message}
                   <Button variant="plain" onClick={refresh}>
@@ -966,19 +1140,17 @@ export function Conversation({
                     onArtifact={openArtifact}
                   />
                   {!accessLost &&
-                    (homeData?.works ?? [])
-                      .filter((work) =>
-                        work.results.some(
-                          (result) =>
-                            result.event_id === event.event_id &&
-                            result.conversation_id === event.conversation_id,
-                        ),
-                      )
-                      .map((work) => (
+                    (event.work_ids ?? [])
+                      .filter((workId) => {
+                        if (displayedWorks.has(workId)) return false
+                        displayedWorks.add(workId)
+                        return true
+                      })
+                      .map((workId) => (
                         <ConversationWork
-                          key={work.work_id}
+                          key={workId}
                           id={id}
-                          work={work}
+                          work={workId}
                           open={openWork}
                           reply={answerWork}
                           artifact={openArtifact}
@@ -1227,7 +1399,7 @@ export function Message({
   const yuki = event.author_kind === 'yuki'
   const author = own ? '你' : yuki ? name : (event.sender_display_name ?? '參與者')
   const { timeLabel } = useDisplayTime()
-  const html = useMarkdown(parseMessage(event.text).text)
+  const html = useMarkdown(parseMessage(event.content).text)
   const [error, setError] = useState('')
   const action = (work: Promise<unknown>) =>
     void work.catch((error) => setError(error instanceof Error ? error.message : '操作未完成。'))
@@ -1244,7 +1416,7 @@ export function Message({
         action(
           window.yuki.client
             .contextMenu({
-              text: event.text,
+              text: event.content,
               ...(link ? { link: link.href } : {}),
             })
             .then(unwrap),
@@ -1264,7 +1436,7 @@ export function Message({
           <strong>{author}</strong>
           <time dateTime={event.created_at}>{timeLabel(event.created_at)}</time>
         </header>
-        <References characterId={characterId} text={event.text} onJump={onJump} />
+        <References characterId={characterId} text={event.content} onJump={onJump} />
         <div
           className={styles.markdown}
           onClick={(event) => {
@@ -1309,7 +1481,7 @@ export function Message({
             label="複製訊息"
             onClick={(click) => {
               click.stopPropagation()
-              action(window.yuki.client.copy(event.text).then(unwrap))
+              action(window.yuki.client.copy(event.content).then(unwrap))
             }}
           >
             <Copy size={15} />
@@ -1395,7 +1567,7 @@ function Reference({
         {event.isPending
           ? '正在讀取引用…'
           : !event.error && event.data
-            ? `引用：${parseMessage(event.data.text).text.slice(0, 120)}`
+            ? `引用：${parseMessage(event.data.content).text.slice(0, 120)}`
             : '引用的訊息無法讀取'}
       </span>
     </button>

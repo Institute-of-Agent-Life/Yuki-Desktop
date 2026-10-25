@@ -1,3 +1,9 @@
+.files {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  min-height: 0;
+  flex: 1;
+}
 .inspector {
   display: flex;
   flex-direction: column;
@@ -10,6 +16,74 @@
   font: 11px/16px var(--font-mono);
   overflow-wrap: anywhere;
 }
+.list {
+  overflow: auto;
+  min-height: 0;
+  padding: 16px;
+  border-right: var(--line) solid var(--separator);
+}
+.list > header {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.list [data-selected='true'] {
+  border-radius: 6px;
+  background: var(--fill-selected);
+}
+.stage {
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg-stage);
+  display: flex;
+  flex-direction: column;
+}
+.previewHeader {
+  height: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  border-bottom: var(--line) solid var(--separator);
+  background: var(--bg-content);
+}
+.previewHeader h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+.previewHeader > button {
+  flex-shrink: 0;
+}
+.stageBody {
+  overflow: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-bottom: 24px;
+}
+.info {
+  margin: 16px 20px 0;
+  padding: 12px 14px;
+  border: var(--line) solid var(--separator);
+  border-radius: 12px;
+  background: var(--bg-content);
+}
+.preview {
+  margin: 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
 .contentActions {
   display: flex;
   flex-wrap: wrap;
@@ -19,6 +93,38 @@
 .contentActions > button {
   margin-left: auto;
   order: 1;
+}
+.preview .document {
+  width: min(560px, 100%);
+  align-self: center;
+  background: var(--bg-content);
+  padding: 40px 44px;
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 var(--line) var(--separator),
+    0 4px 16px rgba(0, 0, 0, 0.06);
+}
+.info p {
+  font-size: 12px;
+  line-height: 18px;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+.info p > span {
+  display: inline-block;
+  width: 72px;
+  color: var(--text-secondary);
+}
+.info code {
+  font: 11px/16px var(--font-mono);
+}
+.info details {
+  margin-top: 16px;
+  font-size: 12px;
+}
+.info summary {
+  cursor: pointer;
+  font-weight: 500;
 }
 .actions {
   display: flex;
@@ -30,6 +136,25 @@
 .actions code {
   overflow-wrap: anywhere;
   font: 11px/16px var(--font-mono);
+}
+.reference {
+  display: block;
+  color: var(--accent);
+  padding: 6px 0;
+  text-align: left;
+}
+.version {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 11px;
+}
+.version > span {
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .image {
   max-width: 100%;
@@ -58,8 +183,62 @@
   user-select: none;
   text-align: right;
 }
+.comparison {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+.diff {
+  font: 12.5px/19px var(--font-mono);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  min-height: 160px;
+  flex: 1;
+}
+.diffPane {
+  overflow: auto;
+  min-width: 0;
+  min-height: 0;
+}
+.diffPane > header {
+  font: 12px/19px var(--font-ui);
+  padding-bottom: 8px;
+}
+.diffLine {
+  display: flex;
+  min-width: max-content;
+  min-height: 19px;
+}
+.diff code {
+  display: inline-block;
+  min-width: 36px;
+  color: var(--text-tertiary);
+  user-select: none;
+  text-align: right;
+  padding-right: 12px;
+}
+.diff pre {
+  margin: 0;
+  font: inherit;
+  white-space: pre;
+}
+.added {
+  background: color-mix(in srgb, var(--status-done) 12%, transparent);
+}
+.removed {
+  background: color-mix(in srgb, var(--status-failed) 12%, transparent);
+}
 @media (max-height: 599px) {
   .pdf {
     min-height: 240px;
   }
+}
+
+.date {
+  margin: 16px 8px 4px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
 }

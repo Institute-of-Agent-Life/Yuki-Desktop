@@ -1,12 +1,20 @@
 import { expect, test, type Page } from '@playwright/test'
 import { spawn } from 'node:child_process'
-import { copyFile, mkdtemp, realpath, rm, readFile } from 'node:fs/promises'
+import { copyFile, mkdtemp, realpath, rm, readFile, writeFile } from 'node:fs/promises'
 import { openSync, closeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { isolatedDesktop } from './isolated-desktop'
 import { createServer } from 'node:net'
-import type { Connection, EventsPage } from '../../src/shared/api'
+import type {
+  Connection,
+  EventsPage,
+  PublicEvent,
+  Home,
+  Work,
+  OriginalRequest,
+  Computer,
+} from '../../src/shared/api'
 import { parsePairing } from '../../src/shared/pairing'
 
 export async function currentConnection(page: Page): Promise<Connection> {
@@ -31,7 +39,237 @@ export async function currentEvents(page: Page): Promise<EventsPage> {
   })
 }
 
-export async function yukiFixture(options: { managedUpdates?: boolean } = {}) {
+/** Wait for this normal UI submission's actual accepted event and original UUID. */
+export async function waitForAcceptedMessage(page: Page, characterId: string, text: string) {
+  return page.evaluate(
+    ({ characterId, text }) =>
+      new Promise<{ requestId: string; eventId: number }>((resolve, reject) => {
+        let reading = false
+        let changed = false
+        const dispose = window.yuki.client.onHint((id, kind) => {
+          if (id === characterId && kind === 'outbox') void read()
+        })
+        async function read() {
+          if (reading) {
+            changed = true
+            return
+          }
+          reading = true
+          try {
+            do {
+              changed = false
+              const result = await window.yuki.client.outbox(characterId)
+              if (!result.ok) throw Error(result.code)
+              const message = result.value.find((item) => item.body.text === text)
+              if (message?.eventId) {
+                dispose()
+                resolve({ requestId: message.requestId, eventId: message.eventId })
+                return
+              }
+            } while (changed)
+          } catch (error) {
+            dispose()
+            reject(error)
+          } finally {
+            reading = false
+          }
+        }
+        void read()
+      }),
+    { characterId, text },
+  )
+}
+
+/** Follow commit hints, while completion remains the original Main receipt. */
+export async function waitForMainEnded(
+  page: Page,
+  characterId: string,
+  requestId: string,
+): Promise<OriginalRequest> {
+  return page.evaluate(
+    ({ characterId, requestId }) =>
+      new Promise<OriginalRequest>((resolve, reject) => {
+        let reading = false
+        let changed = false
+        const unsubscribe = window.yuki.client.onHint((id, kind) => {
+          if (id === characterId && kind !== 'connection') void read()
+        })
+        async function read() {
+          if (reading) {
+            changed = true
+            return
+          }
+          reading = true
+          try {
+            do {
+              changed = false
+              const result = await window.yuki.client.read<OriginalRequest>(characterId, {
+                kind: 'request',
+                requestId,
+              })
+              if (!result.ok) throw Error(result.code)
+              if (!result.value.found) throw Error(`Original request not found: ${requestId}`)
+              if (result.value.turn?.state === 'ended') {
+                unsubscribe()
+                resolve(result.value)
+                return
+              }
+            } while (changed)
+          } catch (error) {
+            unsubscribe()
+            reject(error)
+          } finally {
+            reading = false
+          }
+        }
+        void read()
+      }),
+    { characterId, requestId },
+  )
+}
+
+/** Observe the original Work through existing hints, without another execution. */
+export async function waitForWorkState(
+  page: Page,
+  characterId: string,
+  workId: string,
+  state: Work['state'],
+) {
+  return page.evaluate(
+    ({ characterId, workId, state }) =>
+      new Promise<Work>((resolve, reject) => {
+        let reading = false
+        let changed = false
+        const dispose = window.yuki.client.onHint((id, kind) => {
+          if (id === characterId && kind !== 'connection') void read()
+        })
+        async function read() {
+          if (reading) {
+            changed = true
+            return
+          }
+          reading = true
+          try {
+            do {
+              changed = false
+              const value = await window.yuki.client.read<Work>(characterId, {
+                kind: 'work',
+                workId,
+              })
+              if (!value.ok) throw Error(value.code)
+              if (value.value.state === state) {
+                dispose()
+                resolve(value.value)
+                return
+              }
+            } while (changed)
+          } catch (error) {
+            dispose()
+            reject(error)
+          } finally {
+            reading = false
+          }
+        }
+        void read()
+      }),
+    { characterId, workId, state },
+  )
+}
+
+type LedgerEvent = Pick<
+  PublicEvent,
+  | 'event_id'
+  | 'content'
+  | 'direction'
+  | 'author_kind'
+  | 'author_person_id'
+  | 'conversation_id'
+  | 'observed_at'
+  | 'attachments'
+  | 'asr'
+>
+
+export async function ledgerEvents(base: string): Promise<LedgerEvent[]> {
+  const response = await fetch(`${base}/__test/events`)
+  expect(response.ok).toBe(true)
+  const events: LedgerEvent[] = await response.json()
+  expect(Array.isArray(events)).toBe(true)
+  return events
+}
+
+/** Read the original business identities and receipts after an acceptance failure. */
+export async function recordBusinessState(page: Page, name: string, computer = false) {
+  const state = await page.evaluate(async (computer) => {
+    const connections = await window.yuki.client.connections()
+    if (!connections.ok) return connections
+    return Promise.all(
+      connections.value.map(async (connection) => {
+        const id = connection.characterId
+        const [home, outbox, commands, computerCommands] = await Promise.all([
+          window.yuki.client.read<Home>(id, { kind: 'home' }),
+          window.yuki.client.outbox(id),
+          window.yuki.client.workCommands(id),
+          computer ? window.yuki.client.computerCommands(id) : undefined,
+        ])
+        const requestIds = new Set([
+          ...(outbox.ok ? outbox.value.map((item) => item.requestId) : []),
+          ...(commands.ok ? commands.value.map((item) => item.requestId) : []),
+          ...(computerCommands?.ok ? computerCommands.value.map((item) => item.requestId) : []),
+        ])
+        const receipts = await Promise.all(
+          [...requestIds].map(async (requestId) => ({
+            requestId,
+            receipt: await window.yuki.client.read<OriginalRequest>(id, {
+              kind: 'request',
+              requestId,
+            }),
+          })),
+        )
+        const workIds = new Set([
+          ...(home.ok ? home.value.works.map((work) => work.work_id) : []),
+          ...(commands.ok ? commands.value.map((item) => item.command.workId) : []),
+          ...receipts.flatMap(({ receipt }) =>
+            receipt.ok && receipt.value.work ? [receipt.value.work.work_id] : [],
+          ),
+        ])
+        const works = await Promise.all(
+          [...workIds].map(async (workId) => ({
+            workId,
+            result: await window.yuki.client.read<Work>(id, { kind: 'work', workId }),
+          })),
+        )
+        return {
+          connection,
+          home,
+          outbox,
+          commands,
+          receipts,
+          works,
+          ...(computer
+            ? {
+                computer: await window.yuki.client.read<Computer>(id, { kind: 'computer' }),
+                computerCommands,
+              }
+            : {}),
+        }
+      }),
+    )
+  }, computer)
+  await writeFile(test.info().outputPath(name), JSON.stringify(state, null, 2))
+}
+
+export async function yukiFixture(
+  options: {
+    managedUpdates?: boolean
+    computer?: boolean
+    computerWork?: boolean
+    character?: boolean
+    prompts?: boolean | 'readonly'
+    executor?: boolean
+    native?: boolean
+    maxInputCharacters?: number
+  } = {},
+) {
   const backend = process.env.YUKI_BACKEND_TEST_ROOT,
     python = process.env.YUKI_BACKEND_TEST_PYTHON
   if (process.env.CI && (!backend || !python))
@@ -69,7 +307,17 @@ export async function yukiFixture(options: { managedUpdates?: boolean } = {}) {
           cwd: backend,
           env: {
             ...process.env,
+            ...(options.maxInputCharacters === undefined
+              ? {}
+              : { MAX_INPUT_CHARACTERS: String(options.maxInputCharacters) }),
             PYTHONPATH: [join(backend!, 'src'), backend!].join(delimiter),
+            YUKI_DESKTOP_COMPUTER_FIXTURE: options.computer || options.computerWork ? '1' : '0',
+            YUKI_DESKTOP_COMPUTER_WORK_FIXTURE: options.computerWork ? '1' : '0',
+            YUKI_DESKTOP_EXECUTOR_FIXTURE: options.executor ? '1' : '0',
+            YUKI_DESKTOP_NATIVE_FIXTURE: options.native ? '1' : '0',
+            YUKI_DESKTOP_CHARACTER_FIXTURE: options.character ? '1' : '0',
+            YUKI_DESKTOP_PROMPT_FIXTURE:
+              options.prompts === 'readonly' ? 'readonly' : options.prompts ? '1' : '0',
           },
           stdio: ['ignore', 'ignore', log],
         },
@@ -129,6 +377,13 @@ export async function yukiFixture(options: { managedUpdates?: boolean } = {}) {
       server = spawnServer()
       await ready()
     },
+    async crash() {
+      const stopped = new Promise<void>((resolve) => server.once('exit', () => resolve()))
+      server.kill('SIGKILL')
+      await stopped
+      server = spawnServer()
+      await ready()
+    },
     async close(success: boolean) {
       if (server.exitCode === null && server.signalCode === null) {
         const stopped = new Promise<void>((resolve) => server.once('exit', () => resolve()))
@@ -176,7 +431,8 @@ export async function pairUI(
         ? code
         : `yuki://pair?server=${encodeURIComponent(base)}&code=${encodeURIComponent(parsed?.code ?? code)}`,
     )
-    await page.getByRole('button', { name: '繼續', exact: true }).click()
+    const inspect = page.getByRole('button', { name: '繼續', exact: true })
+    if (await inspect.isVisible()) await inspect.click()
     if (label) await page.getByLabel('這台裝置的名稱').fill(label)
     await page.getByRole('button', { name: '確認並連接', exact: true }).click({ timeout })
     let pairedId = ''

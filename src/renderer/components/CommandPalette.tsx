@@ -203,7 +203,7 @@ export function CommandPalette({
                           <span className={styles.title}>{item.title}</span>
                           {item.detail && <span className={styles.detail}>{item.detail}</span>}
                         </span>
-                        {item.id === selected && <kbd>↩</kbd>}
+                        {item.id === selected && <kbd aria-hidden="true">↩</kbd>}
                       </button>
                     )
                   })}

@@ -2,12 +2,11 @@ import { expect, test } from '@playwright/test'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { isolatedDesktop } from '../fixtures/isolated-desktop'
+import { launchShell } from '../fixtures/shell-app'
 
 test('native startup, actual button and keyboard paths, preferences survive restart', async () => {
   const data = await mkdtemp(join(tmpdir(), 'yuki-desktop-test-'))
-  const desktop = await isolatedDesktop(data)
-  const launch = () => desktop.launch('shell')
+  const launch = () => launchShell(data)
   const started = performance.now()
   const timings: Record<string, number> = {}
   let success = false
@@ -57,9 +56,9 @@ test('native startup, actual button and keyboard paths, preferences survive rest
     await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
     timings.firstControlReadyMs = performance.now() - started
     await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
+    await expect(page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })).toBeFocused()
     await page.getByRole('button', { name: '手動輸入伺服器位址', exact: true }).click()
     await page.getByLabel('伺服器位址').fill('https://example.invalid/mika')
-    await expect(page.getByLabel('伺服器位址')).toBeFocused()
     await page.keyboard.press('ControlOrMeta+,')
     await expect(page.getByRole('region', { name: '設定', exact: true })).toBeVisible()
     await page.getByRole('tab', { name: '外觀', exact: true }).click()

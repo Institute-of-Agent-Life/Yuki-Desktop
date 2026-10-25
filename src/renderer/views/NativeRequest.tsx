@@ -5,10 +5,57 @@ import { Row } from './Settings'
 import styles from './Settings.module.css'
 
 type Event = NonNullable<ConnectorOperation['events']>[number]
-function record(value: unknown): Record<string, unknown> {
+type JsonValue = NonNullable<ConnectorTarget['response']>[string]
+function record(value: unknown): Record<string, JsonValue> {
   return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
+    ? (value as Record<string, JsonValue>)
     : {}
+}
+function permissionPath(value: JsonValue) {
+  const path = record(value)
+  if (path.type === 'path') return String(path.path)
+  if (path.type === 'glob_pattern') return `符合模式：${path.pattern}`
+  const special = record(path.value)
+  const names: Record<string, string> = {
+    root: '所有目錄',
+    minimal: '原生最小目錄範圍',
+    project_roots: '專案根目錄',
+    tmpdir: '系統暫存目錄',
+    slash_tmp: '/tmp',
+  }
+  return [special.kind === 'unknown' ? special.path : names[String(special.kind)], special.subpath]
+    .filter(Boolean)
+    .join('/')
+}
+function PermissionScope({ value }: { value: unknown }) {
+  const permissions = record(value)
+  const files = record(permissions.fileSystem)
+  const network = record(permissions.network)
+  const access: Record<string, string> = { read: '讀取', write: '寫入', deny: '禁止' }
+  return (
+    <div className={styles.link}>
+      {Array.isArray(files.entries) &&
+        files.entries.map((value, index) => {
+          const entry = record(value)
+          return (
+            <p key={index}>{`${access[String(entry.access)]}：${permissionPath(entry.path!)}`}</p>
+          )
+        })}
+      {(['read', 'write'] as const).map((kind) =>
+        Array.isArray(files[kind])
+          ? files[kind].map((path, index) => (
+              <p key={`${kind}/${index}`}>{`${access[kind]}：${path}`}</p>
+            ))
+          : null,
+      )}
+      {typeof files.globScanMaxDepth === 'number' && (
+        <p>路徑模式掃描深度：{files.globScanMaxDepth}</p>
+      )}
+      {typeof network.enabled === 'boolean' && (
+        <p>網路：{network.enabled ? '允許連線' : '不新增連線權限'}</p>
+      )}
+    </div>
+  )
 }
 export function NativeRequest({
   event,
@@ -30,6 +77,7 @@ export function NativeRequest({
       ? request.availableDecisions
       : []
   const permission = event.permission_id
+  const permissionsRequest = payload.native_method === 'item/permissions/requestApproval'
   const respond = (extra: Partial<ConnectorTarget>) =>
     onRespond({ permission_id: permission, ...extra })
   if (event.kind !== 'permission' && event.kind !== 'question') {
@@ -80,6 +128,38 @@ export function NativeRequest({
       {typeof request.command === 'string' && <p className={styles.link}>{request.command}</p>}
       {typeof request.reason === 'string' && <p className={styles.notice}>{request.reason}</p>}
       {typeof request.message === 'string' && <p className={styles.notice}>{request.message}</p>}
+      {typeof request.cwd === 'string' && <p className={styles.link}>工作目錄：{request.cwd}</p>}
+      {request.additionalPermissions != null && (
+        <>
+          <p className={styles.notice}>這次命令要求的額外權限</p>
+          <PermissionScope value={request.additionalPermissions} />
+        </>
+      )}
+      {permissionsRequest && (
+        <>
+          <PermissionScope value={request.permissions} />
+          <p className={styles.notice}>僅限這一回合（turn），回合結束後失效。</p>
+          <div className={styles.actions}>
+            <Button
+              variant="primary"
+              disabled={busy || !permission}
+              onClick={() =>
+                void respond({
+                  response: { permissions: record(request.permissions), scope: 'turn' },
+                })
+              }
+            >
+              允許本回合
+            </Button>
+            <Button
+              disabled={busy || !permission}
+              onClick={() => void respond({ response: { permissions: {}, scope: 'turn' } })}
+            >
+              拒絕權限要求
+            </Button>
+          </div>
+        </>
+      )}
       {questions.map((question) => {
         if (typeof question.id !== 'string') return null
         const id = question.id
@@ -166,7 +246,7 @@ export function NativeRequest({
           </Button>
         ))}
       </div>
-      {!questions.length && !rawOptions.length && !decisions.length && (
+      {!permissionsRequest && !questions.length && !rawOptions.length && !decisions.length && (
         <p className={styles.notice}>這項原生請求沒有提供可選回覆，請回原生程式處理。</p>
       )}
     </div>

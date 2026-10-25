@@ -100,6 +100,88 @@ it('keeps the received device token across a failed first me and resumes without
   expect(pairs).toBe(1)
   expect(connections.pendingPairings()).toEqual([])
 })
+it.each([false, true])(
+  'does not attach a forgotten pending device after its me returns (existing connection: %s)',
+  async (connected) => {
+    const connections = setup(connected),
+      original = connections.list(),
+      started = vi.spyOn(connections, 'start').mockImplementation(() => {})
+    if (connected) connections.credentials.set(`device/${id}/${person}`, 'original-device-only')
+    let release!: () => void,
+      reading!: () => void,
+      reads = 0
+    const blocked = new Promise<void>((resolve) => {
+        release = resolve
+      }),
+      entered = new Promise<void>((resolve) => {
+        reading = resolve
+      })
+    vi.stubGlobal('fetch', async (input: string) => {
+      const path = new URL(input).pathname
+      if (path.endsWith('/meta')) return Response.json({ data: meta })
+      if (path.endsWith('/pair'))
+        return Response.json({ data: { device_id: device, token: 'pending-device-only' } })
+      if (path.endsWith('/me')) {
+        if (++reads === (connected ? 2 : 1)) {
+          reading()
+          await blocked
+        }
+        return Response.json({ data: me })
+      }
+      throw Error('unexpected route')
+    })
+    const pairing = connections.pair('https://fixture.invalid', 'one-use-code', 'Fixture'),
+      rejected = expect(pairing).rejects.toHaveProperty('code', 'precondition_failed')
+    await entered
+    connections.forgetPairing(id, device)
+    release()
+    await rejected
+    expect(connections.list()).toEqual(original)
+    expect(connections.pendingPairings()).toEqual([])
+    expect(connections.credentials.get(`pending-device/${id}/${device}`)).toBeUndefined()
+    expect(connections.credentials.get(`device/${id}/${person}`)).toBe(
+      connected ? 'original-device-only' : undefined,
+    )
+    expect(started).not.toHaveBeenCalled()
+  },
+)
+it('keeps the original connection when update suspension invalidates an in-flight pairing', async () => {
+  const connections = setup(true),
+    original = connections.list(),
+    started = vi.spyOn(connections, 'start').mockImplementation(() => {})
+  connections.credentials.set(`device/${id}/${person}`, 'original-device-only')
+  let release!: () => void, reading!: () => void
+  const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    }),
+    entered = new Promise<void>((resolve) => {
+      reading = resolve
+    })
+  vi.stubGlobal('fetch', async (input: string) => {
+    const path = new URL(input).pathname
+    if (path.endsWith('/meta')) return Response.json({ data: meta })
+    if (path.endsWith('/pair'))
+      return Response.json({ data: { device_id: device, token: 'pending-device-only' } })
+    if (path.endsWith('/me')) {
+      reading()
+      await blocked
+      return Response.json({ data: me })
+    }
+    throw Error('unexpected route')
+  })
+  const pairing = connections.pair('https://fixture.invalid', 'one-use-code', 'Fixture'),
+    rejected = expect(pairing).rejects.toHaveProperty('code', 'precondition_failed')
+  await entered
+  const suspension = connections.suspendForUpdate()
+  release()
+  await rejected
+  await suspension.settled
+  expect(connections.list()).toEqual(original)
+  expect(connections.credentials.get(`device/${id}/${person}`)).toBe('original-device-only')
+  expect(connections.pendingPairings()).toMatchObject([{ characterId: id, deviceId: device }])
+  expect(connections.credentials.get(`pending-device/${id}/${device}`)).toBe('pending-device-only')
+  expect(started).not.toHaveBeenCalled()
+})
 it('does not let an old in-flight request rearm a second polling chain after reconnect', async () => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   const connections = setup(true)

@@ -1,13 +1,16 @@
-import type { Work } from './api'
+import type { CharacterStatus } from './api'
 export function characterPresence(
   connection: 'connecting' | 'online' | 'offline',
-  works: Work[] = [],
+  facts?: CharacterStatus,
 ) {
   if (connection !== 'online')
     return { color: 'offline' as const, text: connection === 'connecting' ? '連線中' : '離線' }
-  const waiting = works.filter((work) => work.state === 'waiting_user').length
+  if (facts?.environment.help_requested)
+    return { color: 'waiting' as const, text: '需要你幫忙' }
+  const waiting = facts?.mine.works.waiting_user ?? 0
   if (waiting) return { color: 'waiting' as const, text: `${waiting} 項工作等你回覆` }
-  const running = works.filter((work) => work.state === 'running').length
+  const running = facts?.mine.works.running ?? 0
   if (running) return { color: 'running' as const, text: `正在處理 ${running} 項工作` }
+  if (facts?.mine.live_conversations.length) return { color: 'running' as const, text: '正在處理' }
   return { color: 'done' as const, text: '已連線' }
 }

@@ -1,5 +1,12 @@
 import type { ReactNode } from 'react'
-import { ArrowLeft, BriefcaseBusiness, MessageCircle, Settings2, Snowflake } from 'lucide-react'
+import {
+  ArrowLeft,
+  BriefcaseBusiness,
+  Folder,
+  MessageCircle,
+  Settings2,
+  Snowflake,
+} from 'lucide-react'
 import { Button } from '../components/Controls'
 import { Workspace } from '../components/Workspace'
 import { useWorkspace } from '../state/workspace'
@@ -25,8 +32,22 @@ export function DisconnectedHome({
   roleSwitcher?: ReactNode
 }) {
   const view = useWorkspace((state) => state.view)
-  const title = view === 'works' ? '工作' : view === 'about' ? '關於 Yuki Desktop' : '對話'
-  const Icon = view === 'works' ? BriefcaseBusiness : view === 'about' ? Snowflake : MessageCircle
+  const title =
+    view === 'works'
+      ? '工作'
+      : view === 'files'
+        ? '檔案與成果'
+        : view === 'about'
+          ? '關於 Yuki Desktop'
+          : '對話'
+  const Icon =
+    view === 'works'
+      ? BriefcaseBusiness
+      : view === 'files'
+        ? Folder
+        : view === 'about'
+          ? Snowflake
+          : MessageCircle
   return (
     <Workspace
       name="Yuki Desktop"
@@ -65,16 +86,20 @@ export function DisconnectedHome({
         <h1 id="disconnected-heading">
           {view === 'works'
             ? '工作會顯示在這裡'
-            : view === 'about'
-              ? 'Yuki Desktop'
-              : '你的 Yuki 工作區'}
+            : view === 'files'
+              ? '檔案與成果會顯示在這裡'
+              : view === 'about'
+                ? 'Yuki Desktop'
+                : '你的 Yuki 工作區'}
         </h1>
         <p className={styles.description}>
           {view === 'works'
             ? '連接你的 Bot 後，可以查看真實工作、補充要求，並跟進原本的進度與結果。'
-            : view === 'about'
-              ? '與自己的 Bot 對話、查看工作，也可以讓她使用本機的編程 Agent。角色資料會在連接後顯示。'
-              : 'Bot 可以稍後再設定。你現在就能使用工作區、本機設定和說明；連接後即可開始對話。'}
+            : view === 'files'
+              ? '連接你的 Bot 後，可以瀏覽檔案與成果的原版本、比較內容，並返回原始訊息或工作。'
+              : view === 'about'
+                ? '與自己的 Bot 對話、查看工作，也可以讓她使用本機的編程 Agent。角色資料會在連接後顯示。'
+                : 'Bot 可以稍後再設定。你現在就能使用工作區、本機設定和說明；連接後即可開始對話。'}
         </p>
         <div className={styles.actions}>
           <Button variant="primary" large onClick={connect}>

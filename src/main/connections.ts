@@ -8,6 +8,7 @@ import type {
   ArtifactSource,
   Connection,
   PendingPairing,
+  ComputerCommand,
   CharacterCommand,
   EventsPage,
   Me,
@@ -28,14 +29,24 @@ import { readStream } from './api/stream'
 import { Credentials } from './credentials'
 import { Outbox } from './outbox'
 import { WorkCommands } from './outbox/work-commands'
+import { ComputerCommands } from './outbox/computer-commands'
 import { CharacterCommands } from './outbox/character-commands'
 import { Soul } from './outbox/soul'
 import { LinkCodes } from './outbox/link-codes'
 import { localSummary, retiredSummary, exportRetired } from './outbox/local-summary'
+import { ComputerTickets } from './computer-tickets'
 import type { LocalStore } from './store'
 import { Uploads } from './media/uploads'
 import { ContentCache } from './media/content'
 import { previewMime } from '../shared/media'
+import type { ExecutorAction } from '../shared/executor'
+import { ExecutorCommands } from './outbox/executor-commands'
+import { ExecutorInstallation } from './executor/installation'
+import { ExecutorSetup } from './executor/setup'
+import { LocalExecutorRuntime } from './executor/runtime'
+import type { NativeSubmissions } from './executor/effects'
+import type { ExecutorTask } from './executor/runner'
+import type { components } from '../shared/contract.gen'
 
 const uuid = (value: string) => {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value))
@@ -63,6 +74,17 @@ export class Connections {
   }
   onProfile?: (id: string, profile: Profile) => void
   onIdentity?: (id: string, name: string) => void
+  executorNative?: (id: string) => NativeSubmissions
+  onExecutorActivity?: (id: string, task: ExecutorTask, active: boolean) => void
+  private readonly executorStores = new Map<
+    Outbox,
+    {
+      installation: ExecutorInstallation
+      commands: ExecutorCommands
+      setup: ExecutorSetup
+      runtime: LocalExecutorRuntime
+    }
+  >()
   readonly credentials: Credentials
   private readonly outboxes = new Map<string, Outbox>()
   private readonly streams = new Map<string, AbortController>()
@@ -72,11 +94,13 @@ export class Connections {
   private readonly states = new Map<string, unknown>()
   private readonly uploadStores = new Map<Outbox, Uploads>()
   private readonly commandStores = new Map<Outbox, WorkCommands>()
+  private readonly computerStores = new Map<Outbox, ComputerCommands>()
   private readonly characterStores = new Map<Outbox, CharacterCommands>()
   private readonly avatarReads = new Map<string, Promise<Uint8Array>>()
   private readonly soulStores = new Map<Outbox, Soul>()
   private readonly linkCodeStores = new Map<Outbox, LinkCodes>()
   private readonly soulReads = new Set<Promise<unknown>>()
+  readonly computerTickets = new ComputerTickets()
   private closed = false
   private readonly frozen = new Set<string>()
   private readonly epochs = new Map<string, number>()
@@ -101,32 +125,6 @@ export class Connections {
   list() {
     return this.store.get<Connection[]>('connections') ?? []
   }
-  pendingPairings() {
-    return this.store.get<PendingPairing[]>('pending-pairings') ?? []
-  }
-  forgetPairing(characterId: string, deviceId: string) {
-    this.credentials.remove(`pending-device/${characterId}/${deviceId}`)
-    this.store.set(
-      'pending-pairings',
-      this.pendingPairings().filter(
-        (item) => item.characterId !== characterId || item.deviceId !== deviceId,
-      ),
-    )
-  }
-  async resumePairing(characterId: string, deviceId: string) {
-    const pending = this.pendingPairings().find(
-      (item) => item.characterId === characterId && item.deviceId === deviceId,
-    )
-    if (!pending) throw new ApiError('not_found')
-    if (
-      this.frozen.has(characterId) ||
-      this.list().some((item) => item.characterId === characterId && item.logout)
-    )
-      throw new ApiError('logout_pending')
-    const meta = await this.meta(pending.baseUrl)
-    if (meta.character.id !== characterId) throw new ApiError('different_character')
-    return this.trackActivity(characterId, () => this.completePairing(pending, meta))
-  }
   activity<T>(id: string, run: () => T | Promise<T>): Promise<T> {
     if (this.frozen.has(id) || this.connection(id).logout)
       return Promise.reject(new ApiError('logout_pending'))
@@ -147,6 +145,8 @@ export class Connections {
   private freeze(id: string) {
     this.epochs.set(id, (this.epochs.get(id) ?? 0) + 1)
     this.frozen.add(id)
+    for (const [box, context] of this.executorStores)
+      if (box.owner.characterId === id) context.runtime.disconnect()
     this.streams.get(id)?.abort()
     this.streams.delete(id)
     clearTimeout(this.retries.get(id))
@@ -163,15 +163,13 @@ export class Connections {
       this.uploadStores.get(box)?.settled(),
       this.commandStores.get(box)?.settle(),
       this.characterStores.get(box)?.settle(),
+      this.computerStores.get(box)?.settled(),
       this.soulStores.get(box)?.settled(),
       this.linkCodeStores.get(box)?.settled(),
+      this.executorStores.get(box)?.commands.settled(),
+      this.executorStores.get(box)?.setup.settled(),
+      this.executorStores.get(box)?.runtime.settled(),
     ])
-  }
-  retiredHistory(id: string) {
-    return retiredSummary(this.box(id))
-  }
-  exportRetiredHistory(id: string) {
-    return exportRetired(this.box(id))
   }
   logoutSummary(id: string): LogoutSummary {
     const connection = this.connection(id)
@@ -279,10 +277,13 @@ export class Connections {
       uuid(connection.bindingId) + '.sqlite3',
     )
     if (box) {
+      if (choice === 'delete') this.executorStores.get(box)?.installation.remove()
+      this.executorStores.delete(box)
       box.db.close()
       this.outboxes.delete(key)
       this.uploadStores.delete(box)
       this.commandStores.delete(box)
+      this.computerStores.delete(box)
       this.characterStores.delete(box)
       this.soulStores.delete(box)
       this.linkCodeStores.delete(box)
@@ -418,6 +419,15 @@ export class Connections {
     }
     return commands
   }
+  computerCommands(id: string) {
+    const box = this.box(id)
+    let commands = this.computerStores.get(box)
+    if (!commands) {
+      commands = new ComputerCommands(box)
+      this.computerStores.set(box, commands)
+    }
+    return commands
+  }
   characterCommands(id: string) {
     const box = this.box(id)
     let commands = this.characterStores.get(box)
@@ -435,6 +445,139 @@ export class Connections {
       this.soulStores.set(box, soul)
     }
     return soul
+  }
+  private executors(id: string) {
+    const box = this.box(id)
+    let context = this.executorStores.get(box)
+    if (!context) {
+      const installation = new ExecutorInstallation(this.credentials, box.owner)
+      const commands = new ExecutorCommands(box, installation)
+      const runtime = new LocalExecutorRuntime(
+        box,
+        installation,
+        this.executorNative?.(id) ?? {
+          async openURL() {
+            throw new ApiError('unavailable')
+          },
+          async openFile() {
+            throw new ApiError('unavailable')
+          },
+          async notify() {
+            throw new ApiError('unavailable')
+          },
+        },
+        async () => {
+          await this.identify(id)
+          const current = this.connection(id)
+          if (this.closed || this.frozen.has(id) || current.logout)
+            throw new ApiError('logout_pending')
+          if (current.personId !== box.owner.personId || current.bindingId !== box.owner.bindingId)
+            throw new ApiError('outbox_owner_mismatch')
+        },
+        () => {
+          if (!this.closed) this.emit(id, 'executor-local', {})
+        },
+        (task, active) => this.onExecutorActivity?.(id, task, active),
+      )
+      context = {
+        installation,
+        commands,
+        setup: new ExecutorSetup(commands, installation),
+        runtime,
+      }
+      this.executorStores.set(box, context)
+    }
+    return context
+  }
+  executorState(id: string) {
+    return this.executors(id).runtime.state()
+  }
+  executorCommands(id: string) {
+    return this.executors(id).commands.list()
+  }
+  async enableExecutor(id: string, label: string) {
+    await this.credentials.preparePersistence()
+    const context = this.executors(id)
+    await context.setup.enable(this.client(id), label, process.platform)
+    await context.runtime.start(this.connection(id).baseUrl, this.version)
+    this.emit(id, 'executor', {})
+    return context.runtime.state()
+  }
+  async executorFolder(id: string, path: string, alias: string) {
+    await this.identify(id)
+    await this.box(id).verifyOwner(this.client(id))
+    const scope = await this.executors(id).installation.choose(path, alias)
+    this.emit(id, 'executor-local', {})
+    return scope
+  }
+  removeExecutorFolder(id: string, digest: string) {
+    const context = this.executors(id)
+    context.installation.removeScope(digest)
+    this.emit(id, 'executor-local', {})
+    return context.runtime.state()
+  }
+  async clearUnavailableExecutor(id: string) {
+    await this.identify(id)
+    const context = this.executors(id),
+      client = this.client(id)
+    await this.box(id).verifyOwner(client)
+    const current = context.installation.current()
+    if (current) {
+      const listed = await client.get<{ executor_id: string }[]>('executors')
+      if (listed.some((row) => row.executor_id === current.executorId))
+        throw new ApiError('precondition_failed')
+    }
+    context.runtime.disconnect()
+    await context.runtime.settled()
+    context.installation.remove()
+    context.setup.removed()
+    this.emit(id, 'executor-local', {})
+    return context.runtime.state()
+  }
+  async executorAction(id: string, action: ExecutorAction) {
+    if (!['grants', 'pause', 'resume', 'delete'].includes(action?.kind))
+      throw new ApiError('validation_error')
+    const context = this.executors(id),
+      installed = context.installation.current()
+    if (action.kind === 'grants') {
+      if (installed?.executorId !== action.executorId) throw new ApiError('executor_not_local')
+      context.installation.consent(action.grants)
+    }
+    if (installed?.executorId === action.executorId && ['pause', 'resume'].includes(action.kind)) {
+      context.installation.pause(action.kind === 'pause')
+      this.emit(id, 'executor-local', {})
+      void context.runtime.refresh().catch(() => {})
+    }
+    const request = context.commands.prepare(action)
+    return this.verifyExecutorCommand(id, request.requestId)
+  }
+  async verifyExecutorCommand(id: string, requestId: string) {
+    await this.identify(id)
+    const context = this.executors(id)
+    const item = await context.commands.run(this.client(id), uuid(requestId))
+    if (item.state === 'result' && !item.problem) {
+      const command = item.command
+      if (
+        command.kind === 'delete' &&
+        (context.installation.current()?.executorId === command.executorId ||
+          context.setup.owns(command.executorId))
+      ) {
+        context.runtime.disconnect()
+        context.installation.remove()
+        context.setup.removed()
+      } else void context.runtime.refresh().catch(() => {})
+    }
+    this.emit(id, 'executor', {})
+    this.emit(id, 'executor-local', {})
+    return item
+  }
+  private async startExecutor(id: string) {
+    if (this.closed || this.frozen.has(id) || this.connection(id).logout) return
+    const context = this.executors(id)
+    if (!context.installation.current() && context.setup.pending)
+      await context.setup.resume(this.client(id))
+    if (context.installation.current())
+      await context.runtime.start(this.connection(id).baseUrl, this.version)
   }
   soulDocument(id: string) {
     if (this.closed) return Promise.reject(new ApiError('unavailable'))
@@ -464,6 +607,14 @@ export class Connections {
     await this.identify(id)
     const result = await this.soul(id).run(this.client(id), uuid(requestId))
     this.emit(id, 'soul-command', {})
+    return result
+  }
+  async avatarCommand(id: string, expectedRevision: number, bytes?: Uint8Array) {
+    await this.identify(id)
+    const commands = this.characterCommands(id)
+    const item = commands.prepareAvatar(expectedRevision, bytes)
+    const result = await commands.run(this.client(id), item.requestId, true)
+    this.emit(id, 'character-command', {})
     return result
   }
   avatarBytes(id: string, sha: string, size: number) {
@@ -553,59 +704,39 @@ export class Connections {
     this.emit(id, 'link-code', {})
     return result
   }
-  async authorizeConnector(id: string) {
-    const result = await this.issueLinkCode(id, 'connector')
-    if (!result.code) throw new ApiError('connector_authorization_unconfirmed')
-    return { server: this.connection(id).baseUrl, code: result.code }
-  }
-  async agentRead<T>(id: string, path: string): Promise<T> {
-    await this.identify(id)
-    const client = this.client(id)
-    await this.box(id).verifyOwner(client)
-    const agents = new ApiClient(
-      client.base,
-      client.token,
-      undefined,
-      this.version,
-      fetch,
-      'agents/v1',
-    )
-    const response = await agents.response(path)
-    return (await response.json()) as T
-  }
-  async connectorAdmission(id: string, server: string, deviceId: string) {
-    if (normalizeServer(server) !== this.connection(id).baseUrl)
-      return { matched: false, connected: false, problem: 'connector_other_server' }
-    const catalog = await this.agentRead<{
-      devices: { id: string; online: boolean }[]
-      instances: {
-        id: string
-        device_id: string
-        label: string
-        driver: string
-        local_id?: string
-      }[]
-    }>(id, 'devices')
-    const device = catalog.devices.find((item) => item.id === deviceId)
-    return {
-      matched: !!device,
-      connected: device?.online ?? false,
-      ...(!device ? { problem: 'connector_other_person' } : {}),
-      instances: catalog.instances
-        .filter((item) => item.device_id === deviceId)
-        .map((item) => ({
-          id: item.id,
-          label: item.label,
-          driver: item.driver,
-          localId: item.local_id,
-        })),
-    }
-  }
   async verifyCharacterCommand(id: string, requestId: string) {
     await this.identify(id)
     const result = await this.characterCommands(id).run(this.client(id), uuid(requestId), true)
     this.emit(id, 'character-command', {})
     return result
+  }
+  async computerCommand(id: string, command: ComputerCommand) {
+    const client = this.client(id)
+    await this.box(id).verifyOwner(client)
+    const commands = this.computerCommands(id)
+    const item = commands.prepare(command)
+    const result = await commands.run(client, item.requestId)
+    this.emit(id, 'computer-command', {})
+    return result
+  }
+  async verifyComputerCommand(id: string, requestId: string) {
+    await this.identify(id)
+    const result = await this.computerCommands(id).run(this.client(id), uuid(requestId), true)
+    this.emit(id, 'computer-command', {})
+    return result
+  }
+  async computerTicket(id: string) {
+    await this.box(id).verifyOwner(this.client(id))
+    return this.computerTickets.issue(this.client(id))
+  }
+  async computerFile(id: string, path: string) {
+    await this.box(id).verifyOwner(this.client(id))
+    const cache = new ContentCache(join(this.contentCache(id).root, 'computer'))
+    const item = await cache.download(
+      this.client(id),
+      `computer/files/content?${new URLSearchParams({ path })}`,
+    )
+    return { ...item, cache }
   }
   async workCommand(id: string, command: WorkCommand, question?: WorkDraftQuestion) {
     uuid(command.workId)
@@ -847,7 +978,6 @@ export class Connections {
     }
     return pending
   }
-
   async pair(server: string, code: string, label: string) {
     const epochs = new Map(this.epochs),
       baseUrl = normalizeServer(server),
@@ -859,10 +989,16 @@ export class Connections {
     )
       throw new ApiError('logout_pending')
     return this.trackActivity(meta.character.id, () =>
-      this.pairVerified(baseUrl, meta, code, label),
+      this.pairVerified(baseUrl, meta, code, label, epochs.get(meta.character.id) ?? 0),
     )
   }
-  private async pairVerified(baseUrl: string, meta: Meta, code: string, label: string) {
+  private async pairVerified(
+    baseUrl: string,
+    meta: Meta,
+    code: string,
+    label: string,
+    epoch: number,
+  ) {
     await this.credentials.preparePersistence()
     const paired = await new ApiClient(baseUrl, undefined, undefined, this.version).post<{
       device_id: string
@@ -879,77 +1015,57 @@ export class Connections {
       ),
     }
     this.store.set('pending-pairings', [...this.pendingPairings(), pending])
-    return this.completePairing(pending, meta)
-  }
-  private async completePairing(pending: PendingPairing, meta: Meta) {
-    const baseUrl = pending.baseUrl,
-      token = this.credentials.get(`pending-device/${pending.characterId}/${pending.deviceId}`)
-    if (!token) throw new ApiError('credentials_unavailable')
-    let me = await new ApiClient(baseUrl, token, undefined, this.version).get<Me>('me')
-    const characterId = uuid(meta.character.id)
-    const existing = this.list().find((item) => item.characterId === characterId)
-    if (existing) {
-      try {
-        // A merged Person's new token may default to another App binding. Prove
-        // access to the original owner namespace before touching its local data.
-        me = await new ApiClient(baseUrl, token, existing.bindingId, this.version).get<Me>('me')
-        const binding = me.bindings.find(
-          (item) => item.binding_id === existing.bindingId && item.platform === 'app',
-        )
-        if (
-          !binding ||
-          binding.source_person_id !== existing.personId ||
-          me.request_person_id !== existing.personId ||
-          me.conversation_id !== existing.conversationId
-        )
-          throw new ApiError('different_person')
-      } catch (error) {
-        if (
-          error instanceof ApiError &&
-          ['not_found', 'different_person', 'outbox_owner_mismatch'].includes(error.code)
-        ) {
-          await new ApiClient(baseUrl, token, undefined, this.version).response(
-            `devices/${pending.deviceId}`,
-            { method: 'DELETE' },
-          )
-          this.forgetPairing(pending.characterId, pending.deviceId)
-          throw new ApiError('different_person')
-        }
-        throw error
-      }
-    }
-    const persistentCredentials = this.credentials.set(
-      `device/${characterId}/${me.request_person_id}`,
-      token,
-    )
-    const connection: Connection = {
-      characterId,
-      baseUrl,
-      name: meta.character.display_name,
-      personId: uuid(me.request_person_id),
-      bindingId: uuid(me.binding_id),
-      conversationId: uuid(me.conversation_id),
-      persistentCredentials,
-      deviceId: pending.deviceId,
-    }
-    this.store.set('connections', [
-      ...this.list().filter((item) => item.characterId !== characterId),
-      connection,
-    ])
-    this.forgetPairing(pending.characterId, pending.deviceId)
-    this.onIdentity?.(characterId, meta.character.display_name)
-    this.start(characterId)
-    return connection
+    return this.completePairing(pending, meta, epoch)
   }
   async read<T>(id: string, route: ApiRead, offlineCache = true): Promise<T> {
+    if (route.kind === 'executors' || route.kind === 'executor-operations') offlineCache = false
     let path: string
-    if (route.kind === 'me' || route.kind === 'character') path = route.kind
-    else if (route.kind === 'home') path = 'home'
+    if (
+      route.kind === 'me' ||
+      route.kind === 'character' ||
+      route.kind === 'computer' ||
+      route.kind === 'executors'
+    )
+      path = route.kind
+    else if (route.kind === 'executor-operations')
+      path = `executors/${uuid(route.executorId)}/operations?${new URLSearchParams({ limit: '50', ...(route.cursor ? { cursor: route.cursor } : {}) })}`
+    else if (route.kind === 'character-status') path = 'character/status'
+    else if (route.kind === 'proactive-route') path = 'me/proactive-route'
+    else if (route.kind === 'memory') {
+      if (!['me', 'self'].includes(route.about)) throw new ApiError('validation_error')
+      const params = new URLSearchParams({ about: route.about, limit: '50' })
+      if (route.cursor) params.set('cursor', route.cursor)
+      path = `memory/facts?${params}`
+    } else if (route.kind === 'memory-fact') {
+      if (!Number.isSafeInteger(route.factId) || route.factId < 1)
+        throw new ApiError('validation_error')
+      path = `memory/facts/${route.factId}`
+    } else if (route.kind === 'automations') {
+      if (!['mine', 'self'].includes(route.scope)) throw new ApiError('validation_error')
+      path = `automations?scope=${route.scope}`
+    } else if (route.kind === 'capabilities') path = 'character/capabilities'
+    else if (route.kind === 'computer-files') {
+      const params = new URLSearchParams({ path: route.path })
+      if (route.cursor) params.set('cursor', route.cursor)
+      path = `computer/files?${params}`
+    } else if (route.kind === 'home') path = 'home?works=active'
     else if (route.kind === 'request') path = `requests/${uuid(route.requestId)}`
     else if (route.kind === 'work') path = `works/${uuid(route.workId)}`
     else if (route.kind === 'activity')
       path = `activity?conversation_id=${uuid(route.conversationId)}`
-    else if (route.kind === 'events') {
+    else if (route.kind === 'works') {
+      const params = new URLSearchParams({ group: route.group, origin: route.origin, limit: '50' })
+      if (route.before) params.set('before', route.before)
+      path = `works?${params}`
+    } else if (route.kind === 'steps') {
+      const params = new URLSearchParams({ limit: '100' })
+      if (route.after) params.set('after', route.after)
+      path = `works/${uuid(route.workId)}/steps?${params}`
+    } else if (route.kind === 'artifacts') {
+      const params = new URLSearchParams({ kind: route.category, limit: '50' })
+      if (route.cursor) params.set('cursor', route.cursor)
+      path = `artifacts?${params}`
+    } else if (route.kind === 'events') {
       const query = new URLSearchParams({ limit: route.limit === 1 ? '1' : '50' })
       if (route.after !== undefined) query.set('after', String(route.after))
       if (route.before !== undefined) query.set('before', String(route.before))
@@ -959,7 +1075,7 @@ export class Connections {
     try {
       await this.identify(id)
       const value = await this.client(id).get<T>(path)
-      if (!['me', 'request'].includes(route.kind)) box.cache(path, value)
+      if (!['me', 'request', 'proactive-route'].includes(route.kind)) box.cache(path, value)
       if (route.kind === 'character') {
         this.rememberName(id, (value as Profile).display_name)
         this.onProfile?.(id, value as Profile)
@@ -967,13 +1083,28 @@ export class Connections {
       return value
     } catch (error) {
       if (error instanceof ApiError) {
+        if (
+          error.code === 'owner_required' &&
+          route.kind === 'automations' &&
+          route.scope === 'self'
+        )
+          box.db.prepare('DELETE FROM read_cache WHERE key=?').run(path)
+        if (error.code === 'owner_required' && route.kind.startsWith('computer')) {
+          box.db
+            .prepare("DELETE FROM read_cache WHERE key='computer' OR key GLOB 'computer/*'")
+            .run()
+          await new ContentCache(join(this.contentCache(id).root, 'computer')).clear()
+        }
         if (['unauthenticated', 'not_found', 'outbox_owner_mismatch'].includes(error.code)) {
           box.clearCache()
           await this.contentCache(id).clear()
         }
         if (['transport_unknown', 'unavailable'].includes(error.code)) {
           this.emit(id, 'connection', { state: 'offline', code: error.code })
-          const cached = offlineCache ? box.cached<T>(path) : undefined
+          const cached =
+            offlineCache && !route.kind.startsWith('computer') && route.kind !== 'proactive-route'
+              ? box.cached<T>(path)
+              : undefined
           if (cached !== undefined) {
             if (route.kind === 'character') this.onProfile?.(id, cached as Profile)
             return cached
@@ -1011,7 +1142,13 @@ export class Connections {
       () => uploadIds.forEach((item) => uploads.remove(item)),
       agentTarget,
     )
-    const result = offline ? item : await box.send(client, item.requestId)
+    let result = item
+    if (!offline) {
+      const key = `${id}/${item.requestId}`
+      const pending = box.send(client, item.requestId).finally(() => this.checking.delete(key))
+      this.checking.set(key, pending)
+      result = await pending
+    }
     this.emit(id, 'outbox', {})
     return result
   }
@@ -1032,6 +1169,11 @@ export class Connections {
   start(id: string) {
     if (this.frozen.has(id) || this.connection(id).logout) return
     this.identified.delete(id)
+    void this.startExecutor(id).catch((error) => {
+      this.emit(id, 'executor-local', {
+        problem: error instanceof ApiError ? error.code : 'unknown',
+      })
+    })
     try {
       if (!this.credentials.get(`device/${id}/${this.connection(id).personId}`)) return
     } catch {
@@ -1080,7 +1222,16 @@ export class Connections {
             .list()
             .filter((item) => item.state !== 'result')
             .map((item) => this.verifyWorkCommand(id, item.requestId).catch(() => {})),
-        ]).finally(() => this.retry(id, Math.min(delay * 2, 60000), controller))
+          ...this.executors(id)
+            .commands.list()
+            .filter((item) => item.state !== 'result')
+            .map((item) => this.verifyExecutorCommand(id, item.requestId).catch(() => {})),
+        ])
+          .then(() => {
+            if (!controller.signal.aborted && this.streams.get(id) === controller && !this.closed)
+              return this.startExecutor(id).catch(() => {})
+          })
+          .finally(() => this.retry(id, Math.min(delay * 2, 60000), controller))
       }, delay),
     )
   }
@@ -1093,36 +1244,50 @@ export class Connections {
       try {
         await this.identify(id)
         const client = this.client(id)
-        await readStream(client, controller.signal, (kind, data) => {
-          if (controller.signal.aborted || this.streams.get(id) !== controller) return
-          if (kind === 'sync') {
-            delay = 1000
-            this.emit(id, 'connection', { state: 'online' })
-          }
-          if (['sync', 'conversation', 'work'].includes(kind)) {
-            for (const item of this.linkCodes(id)
-              .list()
-              .filter((item) => item.state !== 'result'))
-              void this.verifyLinkCode(id, item.requestId).catch(() => {})
-            for (const item of this.soul(id)
-              .list()
-              .filter((item) => item.state !== 'result'))
-              void this.verifySoulCommand(id, item.requestId).catch(() => {})
-            for (const item of this.characterCommands(id)
-              .list()
-              .filter((item) => item.state !== 'result'))
-              void this.verifyCharacterCommand(id, item.requestId).catch(() => {})
-            for (const item of this.commands(id)
-              .list()
-              .filter((item) => item.state !== 'result'))
-              void this.verifyWorkCommand(id, item.requestId).catch(() => {})
-            for (const item of this.box(id)
-              .list()
-              .filter((item) => item.state !== 'result'))
-              void this.verify(id, item.requestId).catch(() => {})
-          }
-          this.emit(id, kind, data)
-        })
+        await readStream(
+          client,
+          controller.signal,
+          (kind, data) => {
+            if (controller.signal.aborted || this.streams.get(id) !== controller) return
+            if (kind === 'sync') {
+              delay = 1000
+              this.emit(id, 'connection', { state: 'online' })
+              void this.startExecutor(id).catch((error) => {
+                this.emit(id, 'executor-local', {
+                  problem: error instanceof ApiError ? error.code : 'unknown',
+                })
+              })
+            }
+            if (['sync', 'conversation', 'work'].includes(kind)) {
+              for (const item of this.linkCodes(id)
+                .list()
+                .filter((item) => item.state !== 'result'))
+                void this.verifyLinkCode(id, item.requestId).catch(() => {})
+              for (const item of this.soul(id)
+                .list()
+                .filter((item) => item.state !== 'result'))
+                void this.verifySoulCommand(id, item.requestId).catch(() => {})
+              for (const item of this.characterCommands(id)
+                .list()
+                .filter((item) => item.state !== 'result'))
+                void this.verifyCharacterCommand(id, item.requestId).catch(() => {})
+              for (const item of this.computerCommands(id)
+                .list()
+                .filter((item) => item.state !== 'result'))
+                void this.verifyComputerCommand(id, item.requestId).catch(() => {})
+              for (const item of this.commands(id)
+                .list()
+                .filter((item) => item.state !== 'result'))
+                void this.verifyWorkCommand(id, item.requestId).catch(() => {})
+              for (const item of this.box(id)
+                .list()
+                .filter((item) => item.state !== 'result'))
+                void this.verify(id, item.requestId).catch(() => {})
+            }
+            this.emit(id, kind, data)
+          },
+          'stream?works=active',
+        )
         if (!controller.signal.aborted) this.emit(id, 'connection', { state: 'offline' })
       } catch (error) {
         this.identified.delete(id)
@@ -1141,6 +1306,9 @@ export class Connections {
             'client_upgrade_required',
           ].includes(code)
         ) {
+          if (code !== 'unauthenticated')
+            for (const [box, context] of this.executorStores)
+              if (box.owner.characterId === id) context.runtime.disconnect()
           break
         }
       }
@@ -1173,6 +1341,7 @@ export class Connections {
   }
   close() {
     this.closed = true
+    this.executorStores.forEach((context) => context.runtime.disconnect())
     this.streams.forEach((controller) => controller.abort())
     this.retries.forEach((timer) => clearTimeout(timer))
     // Reads already in flight settle before their database is closed.
@@ -1185,13 +1354,186 @@ export class Connections {
       ...this.checking.values(),
       ...[...this.uploadStores.values()].map((uploads) => uploads.settled()),
       ...[...this.commandStores.values()].map((commands) => commands.settle()),
+      ...[...this.computerStores.values()].map((commands) => commands.settled()),
       ...[...this.characterStores.values()].map((commands) => commands.settle()),
       ...[...this.soulStores.values()].map((soul) => soul.settled()),
       ...[...this.linkCodeStores.values()].map((codes) => codes.settled()),
+      ...[...this.executorStores.values()].map((context) => context.commands.settled()),
+      ...[...this.executorStores.values()].map((context) => context.setup.settled()),
+      ...[...this.executorStores.values()].map((context) => context.runtime.settled()),
     ]).then(() =>
       this.outboxes.forEach((box) => {
-        if (box.db.open) box.db.close()
+        if (box.db.open && !this.executorStores.get(box)?.runtime.hasWork) box.db.close()
       }),
     )
+  }
+
+  async connectorAdmission(id: string, server: string, deviceId: string) {
+    if (normalizeServer(server) !== this.connection(id).baseUrl)
+      return { matched: false, connected: false, problem: 'connector_other_server' }
+    const catalog = await this.agentRead<components['schemas']['NativeDirectory']>(id, 'devices')
+    const device = catalog.devices.find((item) => item.id === deviceId)
+    return {
+      matched: !!device,
+      connected: device?.online ?? false,
+      ...(catalog.connector_protocol !== undefined
+        ? { serverProtocol: catalog.connector_protocol }
+        : {}),
+      ...(!device ? { problem: 'connector_other_person' } : {}),
+      instances: catalog.instances
+        .filter((item) => item.device_id === deviceId)
+        .map((item) => ({
+          id: item.id,
+          label: item.label,
+          driver: item.driver,
+          localId: item.local_id,
+          online: item.online,
+          status: item.status,
+          errorType: item.error_type,
+        })),
+    }
+  }
+
+  async agentRead<T>(id: string, path: string): Promise<T> {
+    await this.identify(id)
+    const client = this.client(id)
+    await this.box(id).verifyOwner(client)
+    const agents = new ApiClient(
+      client.base,
+      client.token,
+      undefined,
+      this.version,
+      fetch,
+      'agents/v1',
+    )
+    const response = await agents.response(path)
+    return (await response.json()) as T
+  }
+
+  async authorizeConnector(id: string) {
+    const result = await this.issueLinkCode(id, 'connector')
+    if (!result.code) throw new ApiError('connector_authorization_unconfirmed')
+    return { server: this.connection(id).baseUrl, code: result.code }
+  }
+
+  private async completePairing(pending: PendingPairing, meta: Meta, epoch: number) {
+    const baseUrl = pending.baseUrl,
+      pendingKey = `pending-device/${pending.characterId}/${pending.deviceId}`,
+      token = this.credentials.get(pendingKey)
+    if (!token) throw new ApiError('credentials_unavailable')
+    let me = await new ApiClient(baseUrl, token, undefined, this.version).get<Me>('me')
+    const characterId = uuid(meta.character.id)
+    const existing = this.list().find((item) => item.characterId === characterId)
+    if (existing) {
+      try {
+        // A merged Person's new token may default to another App binding. Prove
+        // access to the original owner namespace before touching its local data.
+        me = await new ApiClient(baseUrl, token, existing.bindingId, this.version).get<Me>('me')
+        const binding = me.bindings.find(
+          (item) => item.binding_id === existing.bindingId && item.platform === 'app',
+        )
+        if (
+          !binding ||
+          binding.source_person_id !== existing.personId ||
+          me.request_person_id !== existing.personId ||
+          me.conversation_id !== existing.conversationId
+        )
+          throw new ApiError('different_person')
+      } catch (error) {
+        if (
+          error instanceof ApiError &&
+          ['not_found', 'different_person', 'outbox_owner_mismatch'].includes(error.code)
+        ) {
+          await new ApiClient(baseUrl, token, undefined, this.version).response(
+            `devices/${pending.deviceId}`,
+            { method: 'DELETE' },
+          )
+          this.forgetPairing(pending.characterId, pending.deviceId)
+          throw new ApiError('different_person')
+        }
+        throw error
+      }
+    }
+    // Logout drains admitted pairings, then revokes the device that actually became current.
+    const currentEpoch = this.epochs.get(characterId) ?? 0,
+      drainingLogout = this.logouts.has(characterId) && currentEpoch === epoch + 1
+    if (
+      this.closed ||
+      (!drainingLogout && (this.frozen.has(characterId) || currentEpoch !== epoch)) ||
+      !this.pendingPairings().some(
+        (item) =>
+          item.characterId === characterId &&
+          item.deviceId === pending.deviceId &&
+          item.baseUrl === baseUrl,
+      ) ||
+      this.credentials.get(pendingKey) !== token
+    )
+      throw new ApiError('precondition_failed')
+    const persistentCredentials = this.credentials.set(
+      `device/${characterId}/${me.request_person_id}`,
+      token,
+    )
+    const connection: Connection = {
+      characterId,
+      baseUrl,
+      name: meta.character.display_name,
+      personId: uuid(me.request_person_id),
+      bindingId: uuid(me.binding_id),
+      conversationId: uuid(me.conversation_id),
+      persistentCredentials,
+      deviceId: pending.deviceId,
+    }
+    this.store.set('connections', [
+      ...this.list().filter((item) => item.characterId !== characterId),
+      connection,
+    ])
+    this.forgetPairing(pending.characterId, pending.deviceId)
+    this.onIdentity?.(characterId, meta.character.display_name)
+    this.start(characterId)
+    return connection
+  }
+
+  exportRetiredHistory(id: string) {
+    return exportRetired(this.box(id))
+  }
+
+  retiredHistory(id: string) {
+    return retiredSummary(this.box(id))
+  }
+
+  async resumePairing(characterId: string, deviceId: string) {
+    const pending = this.pendingPairings().find(
+      (item) => item.characterId === characterId && item.deviceId === deviceId,
+    )
+    if (!pending) throw new ApiError('not_found')
+    if (
+      this.frozen.has(characterId) ||
+      this.list().some((item) => item.characterId === characterId && item.logout)
+    )
+      throw new ApiError('logout_pending')
+    const epoch = this.epochs.get(characterId) ?? 0,
+      meta = await this.meta(pending.baseUrl)
+    if (meta.character.id !== characterId) throw new ApiError('different_character')
+    if (
+      (this.epochs.get(characterId) ?? 0) !== epoch ||
+      this.frozen.has(characterId) ||
+      this.list().some((item) => item.characterId === characterId && item.logout)
+    )
+      throw new ApiError('logout_pending')
+    return this.trackActivity(characterId, () => this.completePairing(pending, meta, epoch))
+  }
+
+  forgetPairing(characterId: string, deviceId: string) {
+    this.credentials.remove(`pending-device/${characterId}/${deviceId}`)
+    this.store.set(
+      'pending-pairings',
+      this.pendingPairings().filter(
+        (item) => item.characterId !== characterId || item.deviceId !== deviceId,
+      ),
+    )
+  }
+
+  pendingPairings() {
+    return this.store.get<PendingPairing[]>('pending-pairings') ?? []
   }
 }

@@ -15,6 +15,7 @@ vi.mock('electron', async () => {
   class Window extends EventEmitter {
     bounds: Rect
     minimum: number[]
+    visible = false
     destroyed = false
     background = ''
     webContents = Object.assign(new EventEmitter(), {
@@ -23,14 +24,20 @@ vi.mock('electron', async () => {
       getURL: () => 'app://desktop/index.html',
       send() {},
     })
-    constructor(options: Rect & { minWidth: number; minHeight: number }) {
+    constructor(options: Rect & { minWidth?: number; minHeight?: number }) {
       super()
       this.bounds = { x: options.x, y: options.y, width: options.width, height: options.height }
-      this.minimum = [options.minWidth, options.minHeight]
+      this.minimum = [options.minWidth ?? 0, options.minHeight ?? 0]
       os.windows.push(this as unknown as BrowserWindow)
     }
     getBounds() {
       return { ...this.bounds }
+    }
+    getContentBounds() {
+      return { ...this.bounds, width: this.bounds.width - 16, height: this.bounds.height - 39 }
+    }
+    setContentSize(width: number, height: number) {
+      this.setBounds({ ...this.bounds, width: width + 16, height: height + 39 })
     }
     getMinimumSize() {
       return [...this.minimum]
@@ -50,6 +57,9 @@ vi.mock('electron', async () => {
     isDestroyed() {
       return this.destroyed
     }
+    isVisible() {
+      return this.visible
+    }
     isMinimized() {
       return false
     }
@@ -68,7 +78,9 @@ vi.mock('electron', async () => {
     setBackgroundMaterial() {}
     setVibrancy() {}
     setTitleBarOverlay() {}
-    show() {}
+    show() {
+      this.visible = true
+    }
     async loadURL() {}
     destroy() {
       this.destroyed = true
@@ -98,7 +110,7 @@ afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
 })
-function localStore() {
+function localStore(ready = true) {
   const values = new Map<string, unknown>()
   const set = vi.fn((key: string, value: unknown) => values.set(key, value))
   const store = {
@@ -106,7 +118,9 @@ function localStore() {
     set,
     preferences: () => defaultPreferences,
   } as unknown as LocalStore
-  return { values, set, window: createWindow(store) }
+  const window = createWindow(store)
+  if (ready) window.emit('ready-to-show')
+  return { values, set, window }
 }
 describe.each(['darwin', 'win32', 'linux'] as const)('window movement on %s', (platform) => {
   beforeEach(() => {
@@ -127,7 +141,7 @@ describe.each(['darwin', 'win32', 'linux'] as const)('window movement on %s', (p
     window.setPosition(1920, 0)
     await vi.advanceTimersByTimeAsync(150)
     expect(window.getBounds()).toEqual(os.work)
-    expect(window.getMinimumSize()).toEqual([960, 492])
+    expect(window.getMinimumSize()).toEqual([0, 0])
     expect(values.get('window')).toEqual(os.work)
     expect(vi.getTimerCount()).toBe(0)
   })
@@ -137,7 +151,7 @@ describe.each(['darwin', 'win32', 'linux'] as const)('window movement on %s', (p
     os.work = { x: 0, y: 0, width: 911, height: 464 }
     screen.emit('display-removed')
     expect(window.getBounds()).toEqual(os.work)
-    expect(window.getMinimumSize()).toEqual([911, 464])
+    expect(window.getMinimumSize()).toEqual([0, 0])
     expect(values.get('window')).toEqual(os.work)
     expect(vi.getTimerCount()).toBe(0)
     await vi.advanceTimersByTimeAsync(1000)
@@ -170,9 +184,33 @@ describe.each(['darwin', 'win32', 'linux'] as const)('window movement on %s', (p
     expect(values.get('window')).toEqual(actual)
     expect(bounds).not.toHaveBeenCalled()
     expect(minimum).not.toHaveBeenCalled()
-    window.emit('ready-to-show')
+    window.setPosition(900, 80)
+    bounds.mockClear()
+    await vi.advanceTimersByTimeAsync(150)
+    expect(window.getBounds()).toEqual({ ...actual, x: 900, y: 80 })
+    expect(values.get('window')).toEqual({ ...actual, x: 900, y: 80 })
     expect(bounds).not.toHaveBeenCalled()
+    expect(minimum).not.toHaveBeenCalled()
   })
+})
+
+it('persists the shown Windows placement without writing hidden creation bounds first', async () => {
+  const windowsProcess = Object.create(process) as NodeJS.Process
+  Object.defineProperty(windowsProcess, 'platform', { value: 'win32', configurable: true })
+  vi.stubGlobal('process', windowsProcess)
+  const { window, values, set } = localStore(false)
+  const target = window.getBounds()
+  expect(window.isVisible()).toBe(false)
+  // Native creation can report a projected frame before ready-to-show calibrates it.
+  window.setBounds({ ...target, width: target.width + 2, height: target.height + 1 })
+  await vi.advanceTimersByTimeAsync(150)
+  expect(set).not.toHaveBeenCalled()
+  expect(values.has('window')).toBe(false)
+  window.emit('ready-to-show')
+  expect(window.isVisible()).toBe(true)
+  expect(window.getBounds()).toEqual(target)
+  expect(values.get('window')).toEqual(target)
+  expect(vi.getTimerCount()).toBe(0)
 })
 
 it('closing a Windows window releases its native theme observers while the App remains alive', () => {

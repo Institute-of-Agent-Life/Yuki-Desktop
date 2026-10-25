@@ -1,30 +1,37 @@
+import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { launchShell } from '../fixtures/shell-app'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import { pairUI } from '../fixtures/backend'
 import { completeWindowsFileDialog, windowsFileDialogOwner } from '../fixtures/windows-file-dialog'
 
 test('Windows native diagnostics export uses the real file dialog and excludes paired conversation data', async () => {
   test.skip(process.platform !== 'win32', 'Requires an actual Windows interactive desktop')
+  const base = process.env.YUKI_DESKTOP_NATIVE_BACKEND_URL?.replace(/\/+$/, '')
+  test.skip(!base, 'Requires an explicitly selected isolated loopback Yuki reference server')
   test.setTimeout(120000)
   expect(process.env.YUKI_ELECTRON_EXECUTABLE).toBeTruthy()
-  const rig = await yukiFixture(),
-    base = rig.base,
-    code = await rig.code(),
-    data = rig.root
+  expect(['127.0.0.1', 'localhost', '[::1]']).toContain(new URL(base!).hostname)
+  const link = await fetch(`${base}/__test/link-code`, { method: 'POST' })
+  expect(link.ok).toBe(true)
+  const code = ((await link.json()) as { code: string }).code
+  const data = await mkdtemp(join(tmpdir(), 'yuki-windows-files-'))
   const app = await launchShell(join(data, 'profile'))
-  let success = false
   try {
     const page = await app.firstWindow()
     await pairUI(page, base!, code, '原生檔案驗證', 20000)
-    const composer = page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ })
+    const composer = page.getByRole('textbox', {
+      name: `和 ${await activeCharacterName(page)} 說點什麼`,
+      exact: true,
+    })
     const message = `診斷應省略的訊息-${randomUUID()}`
     const draft = `診斷應省略的草稿-${randomUUID()}`
     await composer.fill(message)
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(page.getByText('Desktop reference reply', { exact: true }).last()).toBeVisible()
+    await expect(page.getByText('Desktop reference reply', { exact: true })).toBeVisible()
     await composer.fill(draft)
     const connections = await page.evaluate(() => window.yuki.client.connections())
     if (!connections.ok) throw Error(connections.code)
@@ -107,9 +114,8 @@ test('Windows native diagnostics export uses the real file dialog and excludes p
       test.info().outputPath('windows-native-diagnostics.json'),
       JSON.stringify({ receipt, runtime, diagnostic }, null, 2) + '\n',
     )
-    success = true
   } finally {
     await app.close()
-    await rig.close(success)
+    console.log(`Windows file-dialog evidence profile: ${data}`)
   }
 })
