@@ -47,9 +47,11 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
       - name: Prepare the actual backend test environment
-        run: uv sync --directory .cache/backend --frozen --all-extras --python 3.12
+        run: uv sync --directory .cache/backend --frozen --all-extras --managed-python --python 3.12
       - name: Select the actual backend fixture
         run: node -e "const fs=require('node:fs'),p=require('node:path');const root=p.resolve('.cache/backend');const py=p.join(root,'.venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');fs.appendFileSync(process.env.GITHUB_ENV,'YUKI_BACKEND_TEST_ROOT='+root+'\nYUKI_BACKEND_TEST_PYTHON='+py+'\nYUKI_E2E_OUTPUT='+p.join(process.env.RUNNER_TEMP,'yuki-desktop-e2e')+'\n')"
+      - name: Verify actual backend Python SQLite extension support
+        run: node -e "require('node:child_process').execFileSync(process.env.YUKI_BACKEND_TEST_PYTHON,['-c','import sqlite3, sys; db = sqlite3.connect(sys.argv[1]); db.enable_load_extension(True); db.enable_load_extension(False); db.close(); print(sys.executable); print(sqlite3.sqlite_version)',':memory:'],{stdio:'inherit'})"
       - run: npm ci
       - name: Bundle the platform's standalone Connector
         run: node build-tools/prepare-connector.mjs --backend .cache/backend

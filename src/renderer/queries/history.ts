@@ -28,7 +28,7 @@ export function useHistory(characterId: string, conversationId: string, before: 
       if (items.length) floors.current.set(range, items[0]!.event_id)
       if (next.generation !== page.generation || next.revision !== page.revision)
         return readHistoryRange(read, before ?? Number.MAX_SAFE_INTEGER, items[0]?.event_id)
-      return { ...next, items }
+      return { ...next, latest_event_id: page.latest_event_id, items }
     },
   }
 }
@@ -60,7 +60,8 @@ export async function readHistoryRange(
       current = next
       items = [...next.items, ...items]
     }
-    if (!changed) return { ...current, items: uniqueEvents(items) }
+    if (!changed)
+      return { ...current, latest_event_id: first.latest_event_id, items: uniqueEvents(items) }
   }
 }
 

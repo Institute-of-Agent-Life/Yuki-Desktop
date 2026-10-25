@@ -642,8 +642,10 @@ export function Conversation({
   }
   const entry = homeData?.entries.find((item) => item.conversation_id === conversation)
   const pending = isMain
-    ? (outbox.data ?? []).filter(
-        (item) => (item.state !== 'result' || item.problem) && !item.eventId,
+    ? (outbox.data ?? []).filter((item) =>
+        item.eventId
+          ? anchor === null && eventData && item.eventId > eventData.latest_event_id
+          : item.state !== 'result' || item.problem,
       )
     : []
   const visible = (eventData?.items ?? []).filter(
