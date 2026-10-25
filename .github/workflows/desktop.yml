@@ -44,6 +44,8 @@ jobs:
           cache-dependency-glob: |
             .cache/backend/uv.lock
             .cache/backend/packages/yuki-agent-connector/uv.lock
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
       - name: Prepare the actual backend test environment
         run: uv sync --directory .cache/backend --frozen --all-extras --python 3.12
       - name: Select the actual backend fixture
