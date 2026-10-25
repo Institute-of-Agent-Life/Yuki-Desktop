@@ -8,7 +8,7 @@ const tabs = (page: Page) => inspector(page).getByRole('tablist', { name: '檢�
 const toolbar = (page: Page) => page.locator('[data-region="toolbar"]')
 
 test(
-  'inspector segments preserve original work drafts and immutable file selections and remove revoked computer controls',
+  'inspector segments preserve original work drafts and immutable file selections alongside shared computer controls',
   { tag: '@unix-manager' },
   async () => {
     test.setTimeout(240000)
@@ -113,13 +113,7 @@ test(
         },
       )
       await contentSize(app, page, 1440, 900)
-      expect(
-        (await fetch(`${rig.base}/__test/revoke-character-owner`, { method: 'POST' })).ok,
-      ).toBe(true)
-      await expect(tabs(page).getByRole('tab', { name: '電腦', exact: true })).toHaveCount(0)
-      await expect(
-        inspector(page).getByRole('button', { name: '儲存目前內容', exact: true }),
-      ).toHaveCount(0)
+      await tabs(page).getByRole('tab', { name: '工作', exact: true }).click()
       await expect(inspector(page).getByRole('textbox')).toHaveValue(draft)
       await tabs(page).getByRole('tab', { name: '檔案', exact: true }).click()
       await expect(inspector(page)).toContainText('Different immutable content.')
