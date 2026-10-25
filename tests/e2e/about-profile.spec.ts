@@ -87,7 +87,11 @@ test('an owner can open avatar editing only when the actual server provides it',
 
 test('a reader sees the shared avatar status without owner controls', async ({ page }) => {
   await page.goto('http://127.0.0.1:4178/about-profile.html?avatar=supported')
-  await expect(page.getByText('角色頭像由角色擁有者管理。')).toBeVisible()
+  await expect(
+    page.getByText(
+      '目前帳號沒有角色資料管理權限。請由管理員授予角色擁有者權限後，在這裡選擇圖片上傳。',
+    ),
+  ).toBeVisible()
   await expect(page.getByRole('button', { name: '更換頭像', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '更換角色頭像', exact: true })).toHaveCount(0)
 })

@@ -5,9 +5,12 @@ import type { Connection, Me, LinkCodeReply, CharacterCommandItem } from '../../
 import { Banner, Button, Sheet, Spinner } from '../components/Controls'
 import { hidesPrivateData, unwrap, problemText } from '../queries/client'
 import { useDisplayTime } from '../state/time'
-import { Row } from './Settings'
+import { Row } from './SettingsRow'
 import styles from './Settings.module.css'
 import { LogoutFlow } from './LogoutFlow'
+
+const purposeLabel = (purpose: string) =>
+  purpose === 'chat' ? '聊天登入' : purpose === 'connector' ? '本機 Agent 連接器' : purpose
 
 export function DeviceSecurity({
   connection,
@@ -203,12 +206,15 @@ export function DeviceSecurity({
               {notice}
             </p>
           )}
+          <p className={styles.notice}>
+            這裡列出你的登入與 Agent 授權。同一台電腦可以有不同用途的連線；撤銷只作用於選定的授權。
+          </p>
           <div className={styles.group}>
             {data?.devices.map((device) => (
               <Row
                 key={device.device_id}
-                title={`${device.label || '未命名裝置'}${device.device_id === connection.deviceId ? '（此裝置）' : ''}`}
-                description={`建立於 ${date(device.created_at)}${device.revoked_at ? ` · 已撤銷 ${date(device.revoked_at)}` : ''}`}
+                title={`${device.label || '未命名裝置'}${device.device_id === connection.deviceId ? '（目前桌面登入）' : ''}`}
+                description={`${purposeLabel(device.purpose)} · 建立於 ${date(device.created_at)}${device.revoked_at ? ` · 已撤銷 ${date(device.revoked_at)}` : ''}`}
               >
                 {device.revoked_at ? (
                   <span className={styles.notice}>已撤銷</span>

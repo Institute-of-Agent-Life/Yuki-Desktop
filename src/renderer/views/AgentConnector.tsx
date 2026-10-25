@@ -4,24 +4,27 @@ import type { Connection } from '../../shared/api'
 import type {
   ConnectorCandidate,
   ConnectorDiagnostic,
+  ConnectorDriver,
   ConnectorServiceAction,
 } from '../../shared/connector'
 import { Banner, Button, Spinner, TextField } from '../components/Controls'
 import { ClientProblem, problemText, unwrap } from '../queries/client'
-import { Row } from './Settings'
+import { Row } from './SettingsRow'
 import { ConnectorTasks } from './ConnectorTasks'
 import styles from './Settings.module.css'
 
 const problems: Record<string, string> = {
   connector_owner_mismatch:
     '這個連接器屬於其他伺服器或本人。原授權不會被覆寫；可以建立另一份獨立安裝。',
-  native_login_required: '請先在原生 Codex 完成登入，再重新檢查。',
+  native_login_required: '請先在原生 Agent 完成登入，再重新檢查。',
   native_not_installed: '原安裝位置已不存在，請重新選擇原生程式。',
-  FileNotFoundError: '原生程式或專案路徑已不存在，請重新尋找 Codex，並檢查原專案資料夾。',
-  native_owner_unavailable: '無法接通原生 Codex，請開啟它並重試。',
+  FileNotFoundError: '原生程式或原會話的工作位置已不存在，請核對原安裝或會話。',
+  native_owner_unavailable: '無法接通原生 Agent，請開啟它並重試。',
+  native_diagnostic_failed:
+    '原生診斷命令未完成或此版本不支援，登入狀態尚未確認。請查看原生程式的診斷結果。',
   connector_server_unreachable: '無法連到 Yuki 伺服器。請確認連線後重試。',
   connector_runtime_unavailable: '這個版本沒有附帶執行環境，請安裝完整的 Yuki Desktop 發行包。',
-  connector_configuration_failed: '設定未保存，請重新選擇實際 Codex 程式與專案資料夾。',
+  connector_configuration_failed: '設定未保存，請重新選擇實際的原生程式。',
   connector_authorization_failed: '電腦授權未完成，請確認目前的 Yuki 連線後重新授權。',
   connector_server_error:
     '伺服器未接納連接器，請確認同一個 Yuki 網址已提供 /agents/v1/ HTTPS 與 WebSocket 入口。',
@@ -29,10 +32,17 @@ const problems: Record<string, string> = {
   connector_other_person: '這份安裝屬於另一位本人。請保留原身份與回執，建立獨立安裝。',
   connector_runtime_platform: '這份連接器不適用於目前系統，請安裝對應平台的 Desktop 發行包。',
   connector_not_installed: '連接器原位置已不存在，請重新準備隨附連接器或選用原安裝。',
+  connector_existing_runtime_unavailable:
+    '已發現原連接器資料，但無法找到它實際使用的執行環境。請在進階設定指定原安裝；原資料與服務會保留。',
   connector_failed: '連接器操作未完成。請重新讀取原狀態，再繼續處理顯示的步驟。',
   connector_instance_missing:
     '這份原生設定已不存在，請重新讀取原設定；新增請明確選擇「改為新增」。',
+  connector_update_required:
+    '原連接器版本尚未支援這項原生工具功能，請先更新連接器；原身份與操作記錄會保留。',
 }
+const driverName = (driver: string) =>
+  driver === 'codex' ? 'Codex' : driver === 'claude' ? 'Claude' : driver
+
 const stages: Record<string, string> = {
   prepare: '準備執行環境',
   authorize: '目前本人授權',
@@ -66,7 +76,7 @@ export function AgentConnector({
   const [candidates, setCandidates] = useState<ConnectorCandidate[]>([])
   const [candidateId, setCandidateId] = useState('')
   const [command, setCommand] = useState('')
-  const [cwd, setCwd] = useState('')
+  const [driver, setDriver] = useState<ConnectorDriver>('codex')
   const [instanceId, setInstanceId] = useState('')
   const [create, setCreate] = useState(true)
   const [instanceLabel, setInstanceLabel] = useState('本機 Codex')
@@ -76,6 +86,10 @@ export function AgentConnector({
   const [manualServer, setManualServer] = useState('')
   const [manualCode, setManualCode] = useState('')
   const available = state.data?.available ? state.data : undefined
+  const existing = state.data?.available === false ? state.data.existing : undefined
+  const original = available?.instances.find((item) => item.id === instanceId)
+  const nativeName = driverName(original?.driver ?? driver)
+  const supportsDiscovery = !original || ['codex', 'claude'].includes(original.driver)
   const authorized = available?.paired && available.admission?.matched === true
   const serverProtocol = available?.admission?.serverProtocol
   const perform = async (operation: () => Promise<unknown>) => {
@@ -116,65 +130,111 @@ export function AgentConnector({
     [connection?.characterId, query],
   )
   const discoverCandidates = async () => {
-    const found = unwrap(await window.yuki.connector.discover())
+    const found = unwrap(await window.yuki.connector.discover(driver))
     setCandidates(found)
     setCandidateId(found.length === 1 ? found[0]!.id : '')
     if (!found.length)
-      setNotice('沒有找到已安裝的 Codex。請先開啟原生 Codex，或選擇它的實際執行檔。')
+      setNotice(
+        `沒有找到已安裝的 ${driverName(driver)}。請先安裝並登入，或在進階設定選擇實際執行檔。`,
+      )
+    return found
   }
-  const save = (start: boolean, existingSession = false) => {
+  const configure = async (start: boolean, discoveredId = candidateId) => {
     const id = instanceId || crypto.randomUUID()
     setInstanceId(id)
-    return perform(async () => {
-      const result = unwrap(
-        await window.yuki.connector.configure(
-          {
-            id,
-            create,
-            ...(candidateId ? { candidateId } : { command }),
-            label: instanceLabel,
-            ...(!existingSession && cwd ? { cwd } : {}),
-          },
-          start,
-        ),
-      )
-      setInstanceId(result.instanceId)
-      setCreate(false)
-      setNotice(
-        start
-          ? existingSession
-            ? '原設定已保存，背景連接已啟動。請在下方讀取並選擇原生會話。'
-            : '原設定已保存，背景連接已啟動。伺服器與 Codex 狀態以實際接納結果為準。'
-          : '原設定已保存。啟動背景連接即可套用；不會重新派發原任務。',
-      )
-    })
+    const result = unwrap(
+      await window.yuki.connector.configure(
+        {
+          id,
+          create,
+          ...(discoveredId ? { candidateId: discoveredId } : { command }),
+          ...(create ? { driver } : {}),
+          label: instanceLabel,
+        },
+        start,
+      ),
+    )
+    setInstanceId(result.instanceId)
+    setCreate(false)
+    setNotice(
+      start
+        ? '原設定已保存，背景連接已啟動。你可以交代任務，或讀取已有會話。'
+        : '原設定已保存。啟動背景連接即可套用；不會重新派發原任務。',
+    )
   }
+  const save = (start: boolean) => perform(() => configure(start))
   return (
     <>
       <p className={styles.notice}>
-        連接器使用你已安裝、已登入的原生 Agent。登入、會話和原生權限仍由原程式管理；關閉 Desktop
-        不會停止獨立連接器。
+        讓 {connection?.name ?? 'Yuki'} 使用這台電腦上已登入的 Codex 或
+        Claude。先建立連接即可交代任務， 不需要預先選專案；原生帳號、會話與權限仍由原程式管理。
       </p>
+      <Row title="原生工具">
+        <select
+          aria-label="原生工具類型"
+          value={original?.driver ?? driver}
+          disabled={busy || !!original}
+          onChange={(event) => {
+            const next = event.target.value as ConnectorDriver
+            if (instanceLabel === `本機 ${driverName(driver)}`)
+              setInstanceLabel(`本機 ${driverName(next)}`)
+            setDriver(next)
+            setCandidates([])
+            setCandidateId('')
+            setCommand('')
+          }}
+        >
+          <option value="codex">Codex</option>
+          <option value="claude">Claude</option>
+          {original && original.driver !== 'codex' && original.driver !== 'claude' && (
+            <option value={original.driver}>{driverName(original.driver)}（原設定）</option>
+          )}
+        </select>
+      </Row>
       {error && <Banner status="failed">{error}</Banner>}
       {notice && <Banner status="done">{notice}</Banner>}
       {state.isError && (
-        <Banner status="unknown">無法讀取原連接器，請確認執行環境仍在原位置。</Banner>
+        <Banner status="unknown">
+          {state.error instanceof ClientProblem
+            ? (problems[state.error.code] ?? problemText(state.error.code))
+            : '無法讀取原連接器，請確認執行環境仍在原位置。'}
+        </Banner>
       )}
       {state.isPending && <Spinner />}
+      {existing && (
+        <div className={styles.group}>
+          <Row title="已發現原有 Agent 連接" description={existing.state.server}>
+            <Button
+              loading={busy}
+              onClick={() =>
+                void perform(async () => {
+                  unwrap(await window.yuki.connector.useInstallation(existing.installation))
+                })
+              }
+            >
+              使用已有連接
+            </Button>
+          </Row>
+          <p className={styles.notice}>沿用原安裝、授權與操作記錄，不會重新配對或啟停原服務。</p>
+        </div>
+      )}
       {state.data &&
+        !existing?.state.paired &&
         (!available?.paired || (available.admission?.matched && !available.instances.length)) && (
           <form
             onSubmit={(event) => {
               event.preventDefault()
               if (connection && (authorized || consent))
                 void perform(async () => {
-                  unwrap(
+                  const connected = unwrap(
                     await window.yuki.connector.connect({
                       characterId: connection.characterId,
                       label,
                     }),
                   )
-                  await discoverCandidates()
+                  const found = await discoverCandidates()
+                  if (connected.available && !connected.instances.length && found.length === 1)
+                    await configure(true, found[0]!.id)
                 })
             }}
           >
@@ -209,7 +269,7 @@ export function AgentConnector({
                     loading={busy}
                     disabled={!authorized && !consent}
                   >
-                    連接本機 Codex
+                    連接本機 {driverName(driver)}
                   </Button>
                 </div>
               </>
@@ -228,20 +288,12 @@ export function AgentConnector({
             </Banner>
           )}
           <div className={styles.group}>
-            <Row title="連接器版本" description={available.runtime}>
-              <span>
-                {available.version} · 協議 {available.protocol ?? '未提供'}
-              </span>
-            </Row>
-            <Row title="原安裝資料" description={available.dataDirectory}>
-              <span>{available.deviceId ?? '尚未配對'}</span>
-            </Row>
             {available.paired && (
               <Row title="授權來源" description={available.server}>
                 <span>{available.admission?.matched ? '目前本人' : '尚未確認目前本人'}</span>
               </Row>
             )}
-            <Row title="背景服務" description={available.service.executable}>
+            <Row title="背景服務">
               <span>
                 {!available.service.installed
                   ? '尚未安裝'
@@ -254,9 +306,6 @@ export function AgentConnector({
             </Row>
             <Row title="伺服器接納">
               <span>{available.admission?.connected ? '已連線' : '尚未確認連線'}</span>
-            </Row>
-            <Row title="伺服器連接器協議">
-              <span>{serverProtocol ?? '尚未提供；可更新 Yuki 後重新讀取。'}</span>
             </Row>
           </div>
           {available.protocol !== undefined &&
@@ -285,9 +334,7 @@ export function AgentConnector({
           )}
           {available.managed === false && (
             <>
-              <p className={styles.notice}>
-                可明確改用隨附版本，沿用原資料、身份和回執；原 Python 安裝不會被修改。
-              </p>
+              <p className={styles.notice}>可改用桌面隨附的版本，沿用原安裝的授權與操作記錄。</p>
               <Button
                 loading={busy}
                 onClick={() =>
@@ -317,7 +364,7 @@ export function AgentConnector({
           )}
           {available.paired && (
             <>
-              <h3>本機 Agent 與專案</h3>
+              <h3>已連接的原生工具</h3>
               <div className={styles.group}>
                 {available.instances.map((instance) => {
                   const remote = available.admission?.instances?.find(
@@ -327,16 +374,16 @@ export function AgentConnector({
                     <Row
                       key={instance.id}
                       title={instance.label}
-                      description={`${instance.command ?? instance.driver} · ${instance.cwd ?? ''}`}
+                      description={driverName(instance.driver)}
                     >
                       <span>
                         {!remote
-                          ? '伺服器尚未接納此 Codex'
+                          ? '伺服器尚未接納此 Agent'
                           : remote.status !== 'available'
-                            ? `Codex 尚未就緒：${problems[remote.errorType ?? ''] ?? remote.errorType ?? remote.status ?? '未提供原因'}`
+                            ? `${driverName(instance.driver)} 尚未就緒：${problems[remote.errorType ?? ''] ?? remote.errorType ?? remote.status ?? '未提供原因'}`
                             : remote.online
-                              ? 'Codex 原生連線已建立'
-                              : 'Codex 目前離線；上次已就緒'}
+                              ? `${driverName(instance.driver)} 原生連線已建立`
+                              : `${driverName(instance.driver)} 目前離線；上次已就緒`}
                       </span>
                       <Button
                         disabled={busy}
@@ -345,8 +392,10 @@ export function AgentConnector({
                           setCreate(false)
                           setInstanceLabel(instance.label)
                           setCommand(instance.command ?? '')
-                          setCwd(instance.cwd ?? '')
+                          if (instance.driver === 'codex' || instance.driver === 'claude')
+                            setDriver(instance.driver)
                           setCandidateId('')
+                          setCandidates([])
                         }}
                       >
                         修改原設定
@@ -388,14 +437,49 @@ export function AgentConnector({
                   void save(true)
                 }}
               >
-                <div className={styles.actions}>
-                  <Button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void perform(discoverCandidates)}
-                  >
-                    尋找已安裝的 Codex
-                  </Button>
+                {supportsDiscovery && (
+                  <div className={styles.actions}>
+                    <Button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void perform(discoverCandidates)}
+                    >
+                      尋找已安裝的 {nativeName}
+                    </Button>
+                  </div>
+                )}
+                {candidates.length > 1 && (
+                  <Row title={`${nativeName} 安裝`}>
+                    <select
+                      aria-label={`${nativeName} 安裝`}
+                      value={candidateId}
+                      onChange={(event) => setCandidateId(event.target.value)}
+                    >
+                      <option value="">自行選擇執行檔</option>
+                      {candidates.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Row>
+                )}
+                {candidates.length === 1 && candidateId && (
+                  <Row title={`已找到 ${nativeName}`}>
+                    <span>{candidates[0]!.label}</span>
+                  </Row>
+                )}
+                <Row title="顯示名稱">
+                  <TextField
+                    aria-label="Agent 顯示名稱"
+                    value={instanceLabel}
+                    onChange={(event) => setInstanceLabel(event.target.value)}
+                    required
+                  />
+                </Row>
+                <details>
+                  <summary>進階：手動選擇原生程式</summary>
+                  <p className={styles.link}>{command || '尚未手動選擇程式'}</p>
                   <Button
                     type="button"
                     disabled={busy}
@@ -411,65 +495,14 @@ export function AgentConnector({
                   >
                     選擇原生執行檔
                   </Button>
-                </div>
-                {candidates.length > 1 && (
-                  <Row title="Codex 安裝">
-                    <select
-                      aria-label="Codex 安裝"
-                      value={candidateId}
-                      onChange={(event) => setCandidateId(event.target.value)}
-                    >
-                      <option value="">自行選擇執行檔</option>
-                      {candidates.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.label} · {item.command}
-                        </option>
-                      ))}
-                    </select>
-                  </Row>
-                )}
-                {candidates.length === 1 && candidateId && (
-                  <Row title="已找到 Codex" description={candidates[0]!.command}>
-                    <span>{candidates[0]!.label}</span>
-                  </Row>
-                )}
-                {!candidateId && <p className={styles.link}>{command || '尚未選擇程式'}</p>}
-                <Row title="顯示名稱">
-                  <TextField
-                    aria-label="Agent 顯示名稱"
-                    value={instanceLabel}
-                    onChange={(event) => setInstanceLabel(event.target.value)}
-                    required
-                  />
-                </Row>
-                <Row title="專案資料夾" description={cwd || '尚未選擇'}>
-                  <Button
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      void perform(async () => {
-                        const path = unwrap(await window.yuki.connector.chooseProject())
-                        if (path) setCwd(path)
-                      })
-                    }
-                  >
-                    選擇資料夾
-                  </Button>
-                </Row>
+                </details>
                 <div className={styles.actions}>
                   <Button
                     type="submit"
                     loading={busy}
-                    disabled={!cwd || (!candidateId && !command)}
-                  >
-                    {instanceId ? '保存並重新連接' : '使用此專案並啟動背景連接'}
-                  </Button>
-                  <Button
-                    type="button"
                     disabled={busy || (!candidateId && !command)}
-                    onClick={() => void save(true, true)}
                   >
-                    使用已有 Codex 會話
+                    {instanceId ? '保存並重新連接' : `連接此 ${nativeName} 並啟動背景連接`}
                   </Button>
                   {instanceId && (
                     <Button type="button" disabled={busy} onClick={() => void save(false)}>
@@ -482,7 +515,7 @@ export function AgentConnector({
                       onClick={() => {
                         setInstanceId('')
                         setCreate(true)
-                        setInstanceLabel('本機 Codex')
+                        setInstanceLabel(`本機 ${driverName(driver)}`)
                         setCommand('')
                         setCandidateId('')
                       }}
@@ -513,7 +546,7 @@ export function AgentConnector({
               </div>
               <p className={styles.notice}>
                 背景連接在關閉 Desktop
-                後繼續工作。停止或移除連接器只中斷遠端連線，不等於取消原生任務。
+                後繼續工作。停止連接器會中斷連線；原生執行是否持續依各工具生命週期處理，停止前請查看原任務狀態。
               </p>
               {connection && available.admission?.matched && (
                 <ConnectorTasks
@@ -527,7 +560,22 @@ export function AgentConnector({
         </>
       )}
       <details>
-        <summary>進階：接入原有安裝</summary>
+        <summary>進階：安裝與原有連接</summary>
+        {available && (
+          <div className={styles.group}>
+            <Row title="連接器版本" description={available.runtime}>
+              <span>
+                {available.version} · 協議 {available.protocol ?? '未提供'}
+              </span>
+            </Row>
+            <Row title="原安裝資料" description={available.dataDirectory}>
+              <span>{available.deviceId ?? '尚未配對'}</span>
+            </Row>
+            <Row title="伺服器連接器協議">
+              <span>{serverProtocol ?? '尚未提供；可更新 Yuki 後重新讀取。'}</span>
+            </Row>
+          </div>
+        )}
         <p className={styles.notice}>
           選擇原連接器使用的 Python 和資料目錄。保留原身份、設定與
           journal，不複製憑據，也不替換此安裝的 Python。
@@ -612,11 +660,17 @@ export function AgentConnector({
           disabled={busy}
           onClick={() =>
             void perform(async () => {
-              unwrap(await window.yuki.client.external('https://developers.openai.com/codex/cli/'))
+              unwrap(
+                await window.yuki.client.external(
+                  driver === 'claude'
+                    ? 'https://code.claude.com/docs/en/setup'
+                    : 'https://developers.openai.com/codex/cli/',
+                ),
+              )
             })
           }
         >
-          Codex 安裝說明
+          {driverName(driver)} 安裝說明
         </Button>
         {onUpdates && <Button onClick={onUpdates}>Desktop 更新與安裝包</Button>}
       </div>

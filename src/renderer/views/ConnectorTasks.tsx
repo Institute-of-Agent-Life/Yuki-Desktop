@@ -10,7 +10,7 @@ import type {
 } from '../../shared/connector'
 import { Banner, Button, TextField } from '../components/Controls'
 import { hidesPrivateData, unwrap } from '../queries/client'
-import { Row } from './Settings'
+import { Row } from './SettingsRow'
 import styles from './Settings.module.css'
 import { NativeRequest } from './NativeRequest'
 
@@ -27,6 +27,7 @@ export function ConnectorTasks({
   const [cursor, setCursor] = useState<string | null>()
   const [session, setSession] = useState('')
   const [text, setText] = useState('')
+  const [cwd, setCwd] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -78,9 +79,6 @@ export function ConnectorTasks({
         }
       }),
     [connection.characterId, query],
-  )
-  const local = state.instances.find(
-    (item) => item.id === instances.find((item) => item.id === instance)?.localId,
   )
   const perform = async (action: () => Promise<void>) => {
     setBusy(true)
@@ -135,7 +133,7 @@ export function ConnectorTasks({
           : {}),
       ...(operation?.execution_id ? { execution_id: operation.execution_id } : {}),
       ...(operation ? { operation_id: operation.id } : {}),
-      ...(!operation && !session && local?.cwd ? { cwd: local.cwd } : {}),
+      ...(!operation && !session && cwd ? { cwd } : {}),
       ...extra,
     }
     const input = {
@@ -183,8 +181,8 @@ export function ConnectorTasks({
     <>
       <h3>原生任務</h3>
       <p className={styles.notice}>
-        在選定的專案或會話交代任務、查看進度並回覆問題。停止觀察會保留原任務；取消會向原生 Agent
-        請求中止本次執行，已啟動的獨立背景程式可能繼續運行。結果以原生回執為準。
+        直接交代任務，或選擇已有會話繼續處理。工作位置可以省略，權限沿用原生設定。停止觀察會保留原任務；取消會向原生
+        Agent 請求中止本次執行，已啟動的獨立背景程式可能繼續運行。結果以原生回執為準。
       </p>
       {error && <Banner status="failed">{error}</Banner>}
       {message && (
@@ -215,6 +213,7 @@ export function ConnectorTasks({
             setSession('')
             setCursor(undefined)
             setSelectedId(undefined)
+            setCwd('')
           }}
         >
           <option value="">選擇 Agent</option>
@@ -241,7 +240,7 @@ export function ConnectorTasks({
           value={session}
           onChange={(event) => setSession(event.target.value)}
         >
-          <option value="">在設定的專案建立新會話</option>
+          <option value="">建立新會話（使用原生預設）</option>
           {sessions.map((item) => (
             <option key={item.id} value={item.id}>
               {item.label ?? item.id}
@@ -251,9 +250,31 @@ export function ConnectorTasks({
         </select>
       </Row>
       {!session && (
-        <p className={styles.link}>
-          {local?.cwd ?? '請先設定此 Agent 的專案資料夾，或選擇原有會話。'}
-        </p>
+        <details>
+          <summary>工作位置（可選）</summary>
+          <p className={styles.notice}>
+            省略時使用原生預設。選擇已有會話時，保留該會話原本的工作位置。
+          </p>
+          <Row title="本次任務工作位置">
+            <TextField
+              aria-label="本次任務工作位置"
+              value={cwd}
+              onChange={(event) => setCwd(event.target.value)}
+              placeholder="可省略"
+            />
+            <Button
+              disabled={busy}
+              onClick={() =>
+                void perform(async () => {
+                  const selected = unwrap(await window.yuki.connector.chooseProject())
+                  if (selected) setCwd(selected)
+                })
+              }
+            >
+              選擇資料夾
+            </Button>
+          </Row>
+        </details>
       )}
       <Row title="給 Yuki 的要求">
         <TextField
@@ -264,7 +285,7 @@ export function ConnectorTasks({
       </Row>
       <div className={styles.actions}>
         <Button
-          disabled={busy || !instance || !text.trim() || (!session && !local?.cwd)}
+          disabled={busy || !instance || !text.trim()}
           onClick={() => void perform(() => submit('prompt'))}
         >
           交給 Yuki 執行

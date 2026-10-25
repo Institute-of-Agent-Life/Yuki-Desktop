@@ -49,6 +49,10 @@ let draft: SoulDraft = {
   remote: document,
 }
 let attempts = 0
+let conversationDraft = ''
+let reconnects = 0
+let failReconnect = false
+let submissions = 0
 const reads: string[] = []
 const contentReads: AttachmentSource[] = []
 const lateWorkReads: { kind: 'work' | 'steps'; workId: string }[] = []
@@ -247,6 +251,7 @@ const client: Pick<
 }
 Object.assign(window, {
   yuki: {
+    connector: { state: async () => ({ ok: true, value: { available: false, bundled: true } }) },
     client: {
       ...client,
       read: async (_id: string, route: ApiRead) => {
@@ -313,7 +318,9 @@ Object.assign(window, {
           if (route.kind === 'computer-files')
             return { ok: true, value: { path: '', items: [], next_cursor: null } }
         }
-        if (mode === 'historical-work' || mode === 'late-work-combined') {
+        if (
+          ['historical-work', 'late-work-combined', 'connection-reconnect'].includes(mode ?? '')
+        ) {
           if (route.kind === 'home') return { ok: true, value: { ...home, works: [] } }
           if (route.kind === 'events')
             return {
@@ -381,7 +388,23 @@ Object.assign(window, {
       workQuestionDrafts: async () => ({ ok: true, value: [] }),
       workDraft: async () => ({ ok: true, value: '' }),
       selected: async () => ({ ok: true, value: null }),
-      draft: async () => ({ ok: true, value: '' }),
+      draft: async (_id: string, value?: string) => {
+        if (value !== undefined) conversationDraft = value
+        return { ok: true, value: conversationDraft }
+      },
+      reconnect: async () => {
+        reconnects++
+        if (failReconnect) {
+          failReconnect = false
+          return { ok: false, code: 'fixture_reconnect_failed' }
+        }
+        for (const listener of hintListeners) listener('role', 'connection', { state: 'online' })
+        return { ok: true, value: undefined }
+      },
+      submit: async () => {
+        submissions++
+        return { ok: false, code: 'fixture_only' }
+      },
       outbox: async () => ({ ok: true, value: [] }),
       uploads: async () => ({ ok: true, value: [] }),
       letterDecoration: async () => ({ ok: true, value: null }),
@@ -400,6 +423,9 @@ Object.assign(window, {
     snapshot: () => ({
       draft,
       attempts,
+      conversationDraft,
+      reconnects,
+      submissions,
       reads,
       contentReads,
       lateWorkReads,
@@ -418,6 +444,16 @@ Object.assign(window, {
     settleLateEffect: () => {
       lateReceipt = true
       for (const listener of hintListeners) listener('role', 'refresh', {})
+    },
+    connection: (state: 'online' | 'offline') => {
+      for (const listener of hintListeners)
+        listener('role', 'connection', {
+          state,
+          ...(state === 'offline' ? { code: 'transport_unknown' } : {}),
+        })
+    },
+    failNextReconnect: () => {
+      failReconnect = true
     },
   },
 })
@@ -460,7 +496,7 @@ function Case() {
         <output data-testid="selected-work">{selected}</output>
       </>
     )
-  if (mode === 'historical-work' || mode === 'late-work-combined')
+  if (['historical-work', 'late-work-combined', 'connection-reconnect'].includes(mode ?? ''))
     return (
       <main className={appStyles.app}>
         <Conversation
@@ -504,6 +540,22 @@ function Case() {
                 openTarget: null,
               }}
               embedded
+              agentRequest={new URLSearchParams(location.search).get('agent') === 'true'}
+              connection={
+                new URLSearchParams(location.search).get('logout') === 'true'
+                  ? {
+                      characterId: 'role',
+                      name: 'Yuki',
+                      baseUrl: 'https://example.invalid',
+                      personId: 'person',
+                      bindingId: 'binding',
+                      conversationId: 'conversation',
+                      deviceId: 'desktop-device',
+                      persistentCredentials: true,
+                      logout: { drafts: 1, pending: 0, attachments: 0 },
+                    }
+                  : undefined
+              }
               preferences={preferences}
               save={async (patch) => setPreferences((current) => ({ ...current, ...patch }))}
               back={() => {}}

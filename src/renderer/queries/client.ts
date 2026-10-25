@@ -82,14 +82,6 @@ const messages: Record<string, string> = {
   local_file_missing: '尚未存到本機，或已存的檔案已移動。',
   open_failed: '系統無法開啟此檔案，請先存到本機並選擇開啟程式。',
   microphone_denied: '麥克風權限未開啟，請到系統設定允許 Yuki 使用麥克風。',
-  executor_offline: '這台電腦尚未連線，操作未建立。',
-  executor_paused: '這台電腦已暫停，新的操作尚未開始。',
-  executor_not_installed: '請先允許角色使用這台電腦。',
-  executor_not_local: '只能在這台電腦上新增它的本機授權。',
-  executor_credentials_unavailable: '這台電腦的原連線憑據已遺失。請先移除原電腦紀錄，再重新允許。',
-  scope_alias_conflict: '這個名稱已用於另一個資料夾，請換一個名稱。',
-  scope_unavailable: '此資料夾的本機授權已失效，請重新選擇。',
-  not_a_directory: '請選擇一個資料夾。',
 }
 export function problemText(code: string): string {
   return messages[code] ?? `操作未完成（${code}）。`

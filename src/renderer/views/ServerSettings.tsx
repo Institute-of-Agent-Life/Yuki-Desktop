@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Connection, Me, ProactiveRoute, CharacterCommandItem } from '../../shared/api'
 import { Banner, Button, Sheet, TextField } from '../components/Controls'
 import { unwrap, problemText, hidesPrivateData } from '../queries/client'
-import { Row } from './Settings'
+import { Row } from './SettingsRow'
 import styles from './Settings.module.css'
 
 export function ServerSettings({

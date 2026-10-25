@@ -44,6 +44,10 @@ test('a real thirty second transport outage preserves the draft and converges an
       .filter({ hasText: '無法連到伺服器，已保留本機內容。' })
       .first()
     await expect(offline).toBeVisible()
+    await expect(pa.getByRole('button', { name: '重新連線', exact: true })).toBeVisible()
+    await pa.getByRole('button', { name: '重新連線', exact: true }).click()
+    await expect(composer).toHaveValue(draft)
+    await expect(pa.getByText('斷線之前的原訊息', { exact: true })).toHaveCount(1)
     const missed = '另一台裝置在斷線期間送出的原事件'
     await pb
       .getByRole('textbox', { name: `和 ${await activeCharacterName(pb)} 說點什麼`, exact: true })

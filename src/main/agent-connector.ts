@@ -1,5 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { extname, isAbsolute } from 'node:path'
+import { basename, extname, isAbsolute, join } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { stat } from 'node:fs/promises'
@@ -10,6 +10,7 @@ import type {
   ConnectorCandidate,
   ConnectorConfiguration,
   ConnectorDiagnostic,
+  ConnectorDriver,
   ConnectorPairing,
   ConnectorServiceAction,
   ConnectorState,
@@ -116,12 +117,55 @@ export class AgentConnector {
       throw error
     }
   }
+  private async defaultInstallation(): Promise<ConnectorInstallation | null> {
+    const bundle = await this.installations.bundled()
+    if (!bundle || !gte(bundle.version, '0.3.5')) return null
+    // The CLI knows the platform's default directory. This reads configuration
+    // and OS service facts; it never pairs, installs, opens a journal or starts it.
+    const status = JSON.parse(await this.runner(bundle, ['status', '--json']))
+    if (!status.paired) return null
+    const dataDirectory = status.data_directory
+    let executable = status.service.executable
+    if (
+      typeof dataDirectory !== 'string' ||
+      !isAbsolute(dataDirectory) ||
+      typeof executable !== 'string' ||
+      !isAbsolute(executable) ||
+      !/^python(?:w|3(?:\.\d+)?)?(?:\.exe)?$/i.test(basename(executable))
+    )
+      throw new ApiError('connector_existing_runtime_unavailable')
+    if (basename(executable).toLowerCase() === 'pythonw.exe')
+      executable = join(dirname(executable), 'python.exe')
+    if (!(await stat(executable)).isFile())
+      throw new ApiError('connector_existing_runtime_unavailable')
+    return this.inspectInstallation({ executable, dataDirectory })
+  }
   async state(
     characterId?: string,
     installation: ConnectorInstallation | null = this.installations.selected() ?? null,
   ): Promise<ConnectorState> {
     const bundle = await this.installations.manifest()
-    if (!installation) return { available: false, bundled: !!bundle }
+    if (!installation) {
+      const existing = await this.defaultInstallation()
+      return {
+        available: false,
+        bundled: !!bundle,
+        ...(existing
+          ? {
+              existing: {
+                installation: {
+                  executable: existing.runtime.executable,
+                  dataDirectory: existing.dataDirectory,
+                },
+                state: (await this.state(characterId, existing)) as Extract<
+                  ConnectorState,
+                  { available: true }
+                >,
+              },
+            }
+          : {}),
+      }
+    }
     const status = JSON.parse(await this.run(['status', '--json'], undefined, installation))
     const state: Extract<ConnectorState, { available: true }> = {
       available: true,
@@ -196,6 +240,14 @@ export class AgentConnector {
     dataDirectory: string
   }): Promise<ConnectorState> {
     const selected = this.installations.selected() ?? null
+    const installation = await this.inspectInstallation(input)
+    this.installations.selectIfCurrent(installation, selected)
+    return this.state()
+  }
+  private async inspectInstallation(input: {
+    executable: string
+    dataDirectory: string
+  }): Promise<ConnectorInstallation> {
     if (!isAbsolute(input.executable) || !isAbsolute(input.dataDirectory))
       throw new ApiError('validation_error')
     const runtime = {
@@ -214,19 +266,24 @@ export class AgentConnector {
       typeof status.version === 'string'
         ? status.version
         : (await this.runner(runtime, ['--version'])).trim()
-    this.installations.selectIfCurrent(
-      {
-        managed: false,
-        dataDirectory: input.dataDirectory,
-        runtime: { ...runtime, version, protocol: status.protocol ?? 0 },
-      },
-      selected,
-    )
-    return this.state()
+    return {
+      managed: false,
+      dataDirectory: input.dataDirectory,
+      runtime: { ...runtime, version, protocol: status.protocol ?? 0 },
+    }
   }
   async connect(input: { characterId: string; label: string }): Promise<ConnectorState> {
     let installation = this.installations.selected() ?? null
-    const current = await this.state(input.characterId, installation)
+    if (!installation) {
+      const existing = await this.defaultInstallation()
+      if (existing) {
+        this.installations.selectIfCurrent(existing, null)
+        installation = this.installations.selected() ?? null
+      }
+    }
+    const current: ConnectorState = installation
+      ? await this.state(input.characterId, installation)
+      : { available: false }
     if (current.available && current.paired) {
       if (current.admission?.matched !== true)
         throw new ApiError(current.admission?.problem ?? 'connector_owner_mismatch')
@@ -276,13 +333,24 @@ export class AgentConnector {
     return this.state(undefined, installation)
   }
   async discover(
+    driver: ConnectorDriver = 'codex',
     installation: ConnectorInstallation | null = this.installations.selected() ?? null,
   ): Promise<ConnectorCandidate[]> {
-    const values = JSON.parse(await this.run(['discover', '--json'], undefined, installation))
+    if (!['codex', 'claude'].includes(driver)) throw new ApiError('validation_error')
+    if (driver === 'claude' && installation && !gte(installation.runtime.version, '0.3.5'))
+      throw new ApiError('connector_update_required')
+    const values = JSON.parse(
+      await this.run(
+        ['discover', '--json', ...(driver === 'codex' ? [] : ['--driver', driver])],
+        undefined,
+        installation,
+      ),
+    )
     return values.map((item: ConnectorCandidate) => ({
       id: item.id,
       label: item.label,
       command: item.command,
+      driver,
     }))
   }
   async configure(input: ConnectorConfiguration, start = false) {
@@ -291,11 +359,14 @@ export class AgentConnector {
     const { create, ...configuration } = input
     const instanceId = input.id ?? randomUUID()
     const original = current.available && current.instances.find((item) => item.id === instanceId)
+    const driver = original ? original.driver : (input.driver ?? 'codex')
+    if (!['codex', 'claude', 'acp'].includes(driver))
+      throw new ApiError('validation_error', 'configure')
     if (!original && !(create ?? !input.id))
       throw new ApiError('connector_instance_missing', 'configure')
     let command = input.command ?? (original ? original.command : undefined)
     if (input.candidateId) {
-      const candidate = (await this.discover(installation)).find(
+      const candidate = (await this.discover(driver as ConnectorDriver, installation)).find(
         (item) => item.id === input.candidateId,
       )
       if (!candidate) throw new ApiError('native_not_installed', 'configure')
@@ -324,7 +395,7 @@ export class AgentConnector {
             '--id',
             instanceId,
             '--driver',
-            'codex',
+            driver,
             '--label',
             input.label,
             '--command',
@@ -340,7 +411,13 @@ export class AgentConnector {
     await this.stage('configure', () =>
       this.run(
         ['instance', 'configure'],
-        JSON.stringify({ ...configuration, id: instanceId, command, cwd }),
+        JSON.stringify({
+          ...configuration,
+          driver,
+          id: instanceId,
+          command,
+          ...(!original || input.cwd !== undefined ? { cwd } : {}),
+        }),
         installation,
       ),
     )

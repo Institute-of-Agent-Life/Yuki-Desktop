@@ -100,9 +100,9 @@ it('preserves retired avatar, unsupported original requests and local operation 
       payloadHash: 'original-hash',
       state: 'submitted',
     })
-    expect(retiredSummary(recovered).reduce((sum, item) => sum + item.count, 0)).toBe(1)
+    expect(retiredSummary(recovered).reduce((sum, item) => sum + item.count, 0)).toBe(4)
     expect(exportRetired(recovered)).toBe(before)
-    expect(localSummary(recovered)).toEqual({ drafts: 0, pending: 4, attachments: 0 })
+    expect(localSummary(recovered)).toEqual({ drafts: 0, pending: 2, attachments: 0 })
     expect(recovered.db.prepare('SELECT command FROM character_commands').get()).toEqual({
       command,
     })

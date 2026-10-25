@@ -27,9 +27,9 @@ export function App({ boot }: { boot: BootInfo }) {
   )
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [serverSettings, setServerSettings] = useState(false)
-  const [folderSettings, setFolderSettings] = useState(false)
-  const openSettings = (target?: 'folder') => {
-    setFolderSettings(target === 'folder')
+  const [agentSettings, setAgentSettings] = useState(false)
+  const openSettings = (target?: 'agent') => {
+    setAgentSettings(target === 'agent')
     setServerSettings(false)
     setSettingsOpen(true)
   }
@@ -253,7 +253,7 @@ export function App({ boot }: { boot: BootInfo }) {
       key={connection?.characterId ?? 'desktop'}
       embedded={!!settingsInWorkspace}
       serverRequest={serverSettings}
-      folderRequest={folderSettings}
+      agentRequest={agentSettings}
       boot={boot}
       preferences={preferences}
       save={save}

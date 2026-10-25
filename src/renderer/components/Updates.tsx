@@ -3,7 +3,7 @@ import type { Preferences } from '../../shared/desktop'
 import { useUpdates } from '../state/updates'
 import { unwrap } from '../queries/client'
 import { Banner, Button, Segmented, Sheet, Spinner } from './Controls'
-import { Row } from '../views/Settings'
+import { Row } from '../views/SettingsRow'
 
 const failures = {
   'no-release': '目前還沒有可用的更新發布。',

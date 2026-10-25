@@ -20,7 +20,7 @@ const original: Connection = {
 }
 const merged = '00000000-0000-4000-8000-000000000005'
 const meta: Meta = {
-  api_revision: 6,
+  api_revision: 7,
   capabilities: ['character', 'soul'],
   server_version: 'test',
   character: {
@@ -387,6 +387,7 @@ it.each([
   [{ ...meta, api_revision: 2 }, 'server_upgrade_required'],
   [{ ...meta, api_revision: 3 }, 'server_upgrade_required'],
   [{ ...meta, api_revision: 4 }, 'server_upgrade_required'],
+  [{ ...meta, api_revision: 6 }, 'server_upgrade_required'],
   [{ ...meta, min_client: { desktop: '2.0.0', android: null } }, 'client_upgrade_required'],
 ] as const)(
   'checks instance identity and compatibility before sending credentials or changing outbox',

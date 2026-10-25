@@ -52,20 +52,30 @@ export class ConnectorInstallations {
       throw error
     }
   }
-  async install(
-    separate = false,
-    adopt = false,
-    selected: ConnectorInstallation | null = this.selected() ?? null,
-  ): Promise<ConnectorInstallation> {
-    const previous = separate ? undefined : (selected ?? undefined)
+  async bundled(): Promise<ConnectorRuntime | undefined> {
     const manifest = await this.manifest()
-    if (!manifest) throw new ApiError('connector_runtime_unavailable')
+    if (!manifest) return undefined
+    await this.validate(manifest)
+    return {
+      directory: this.bundledRuntime,
+      executable: resolve(this.bundledRuntime, manifest.executable),
+      arguments: manifest.arguments,
+      version: manifest.version,
+      protocol: manifest.protocol,
+      build: createHash('sha256').update(JSON.stringify(manifest)).digest('hex'),
+    }
+  }
+  private async validate(manifest: RuntimeManifest) {
     if (manifest.platform !== process.platform || manifest.arch !== process.arch)
       throw new ApiError('connector_runtime_platform')
-    if (previous && !previous.managed && !adopt)
-      throw new ApiError('connector_external_installation')
     const source = this.bundledRuntime
-    // The manifest is part of the signed Desktop payload. Validate bytes before executing them.
+    const executable = resolve(source, manifest.executable)
+    if (
+      isAbsolute(manifest.executable) ||
+      relative(source, executable) === '..' ||
+      relative(source, executable).startsWith('..' + sep)
+    )
+      throw new ApiError('connector_runtime_invalid')
     for (const file of manifest.files) {
       const path = resolve(source, file.path)
       if (
@@ -82,6 +92,20 @@ export class ConnectorInstallations {
         if (hash.digest('hex') !== file.sha256) throw new ApiError('connector_runtime_invalid')
       }
     }
+  }
+  async install(
+    separate = false,
+    adopt = false,
+    selected: ConnectorInstallation | null = this.selected() ?? null,
+  ): Promise<ConnectorInstallation> {
+    const previous = separate ? undefined : (selected ?? undefined)
+    const manifest = await this.manifest()
+    if (!manifest) throw new ApiError('connector_runtime_unavailable')
+    if (previous && !previous.managed && !adopt)
+      throw new ApiError('connector_external_installation')
+    const source = this.bundledRuntime
+    // The manifest is part of the signed Desktop payload. Validate bytes before executing them.
+    await this.validate(manifest)
     const build = createHash('sha256').update(JSON.stringify(manifest)).digest('hex')
     const runtimeDirectory = join(this.root, 'runtimes', `${manifest.version}-${build}`)
     try {

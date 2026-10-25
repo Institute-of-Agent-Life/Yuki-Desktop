@@ -1,6 +1,12 @@
 import type { Outbox } from './index'
 
-const retiredTables = ['avatar_commands', 'avatar_command_acknowledgements'] as const
+const retiredTables = [
+  'avatar_commands',
+  'avatar_command_acknowledgements',
+  'executor_commands',
+  'executor_setup',
+  'local_executor_operations',
+] as const
 
 function retiredTablesPresent(box: Outbox) {
   return retiredTables.flatMap((table) => {
@@ -79,12 +85,11 @@ export function localSummary(box: Outbox) {
     'character_commands',
     'soul_commands',
     'link_code_commands',
-    'executor_commands',
   ].reduce((total, table) => total + count(table, "state NOT IN ('result','draft')"), 0)
   drafts += count('requests', "state='draft'") + count('work_commands', "state='draft'")
   return {
     drafts,
-    pending: pending + count('local_executor_operations', '1'),
+    pending,
     attachments: count('uploads', 'active=1'),
   }
 }
