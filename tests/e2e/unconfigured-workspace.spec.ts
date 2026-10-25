@@ -17,7 +17,7 @@ async function expectUnconfigured(page: Page) {
 
 async function serverSettings(page: Page) {
   await navigate(page, '設定')
-  await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
+  await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
 }
 
 async function sizeWorkspace(app: ElectronApplication, page: Page) {
@@ -193,7 +193,7 @@ test('a late repair of an original role does not interrupt local Bot configurati
     })
     await expect(page.locator('[data-character-session]')).toHaveCount(0)
     const chooseOriginal = async () => {
-      await page.getByRole('button', { name: '切換角色', exact: true }).click()
+      await page.getByRole('button', { name: '切換 Yuki', exact: true }).click()
       await page.getByRole('menuitemradio').filter({ hasText: original.name }).click()
     }
     const input = page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })
@@ -215,7 +215,7 @@ test('a late repair of an original role does not interrupt local Bot configurati
     await page.getByRole('button', { name: '確認並連接', exact: true }).click()
     await expect.poll(() => proxy.held.has(pairPath)).toBe(true)
     await page.keyboard.press('ControlOrMeta+,')
-    await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
+    await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
     await page
       .getByRole('tabpanel')
       .getByRole('button', { name: '本機部署與管理', exact: true })

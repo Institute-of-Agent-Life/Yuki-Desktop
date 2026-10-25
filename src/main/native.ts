@@ -17,7 +17,6 @@ export class NativeShell {
   private fallbackIcon: NativeImage | undefined
   private readonly notices = new Map<Notification, string>()
   private selected: string | undefined
-  private readonly executorActivity = new Map<string, Map<string, string>>()
   private readonly desired = new Map<string, { key: string; name: string }>()
   private readonly decorations = new Map<
     string,
@@ -32,7 +31,7 @@ export class NativeShell {
   }
   characterName(id: string, name: string) {
     this.desired.set(id, { key: this.desired.get(id)?.key ?? 'identity', name })
-    this.updateActivity()
+    this.updateMenu()
   }
   prepareCharacter(id: string, profile: Profile) {
     const key = `${profile.revision}/${profile.avatar_revision}/${profile.avatar?.sha256 ?? 'letter'}`
@@ -66,34 +65,13 @@ export class NativeShell {
     if (!this.selected || !this.tray) return
     const decoration = this.decorations.get(this.selected)
     if (decoration || this.fallbackIcon) this.tray.setImage(decoration?.tray ?? this.fallbackIcon!)
-    this.updateActivity()
+    this.updateMenu()
   }
-  activity(characterId: string, opId: string, description: string, active: boolean) {
-    const operations = this.executorActivity.get(characterId) ?? new Map<string, string>()
-    if (active) operations.set(opId, description)
-    else operations.delete(opId)
-    if (operations.size) this.executorActivity.set(characterId, operations)
-    else this.executorActivity.delete(characterId)
-    this.updateActivity()
-    if (active) {
-      const name = this.desired.get(characterId)?.name ?? 'Yuki'
-      void this.submitNotification(characterId, name, `${name} 正在${description}`).catch(() => {})
-    }
-  }
-  private updateActivity() {
+  private updateMenu() {
     if (!this.tray) return
-    const activities = [...this.executorActivity].flatMap(([id, operations]) =>
-      [...operations.values()].map(
-        (description) => `${this.desired.get(id)?.name ?? 'Yuki'} 正在${description}`,
-      ),
-    )
-    this.tray.setToolTip(
-      activities.join('\n') || this.desired.get(this.selected ?? '')?.name || 'Yuki',
-    )
+    this.tray.setToolTip(this.desired.get(this.selected ?? '')?.name || 'Yuki')
     this.tray.setContextMenu(
       Menu.buildFromTemplate([
-        ...activities.map((label) => ({ label, enabled: false })),
-        ...(activities.length ? [{ type: 'separator' as const }] : []),
         ...[...this.desired].map(([characterId, { name }]) => ({
           label: `開啟 ${name}`,
           click: () => this.open({ characterId, view: 'chat' }),
@@ -123,7 +101,7 @@ export class NativeShell {
       this.fallbackIcon = icon
       this.tray = new Tray(icon)
       this.tray.setToolTip('Yuki')
-      this.updateActivity()
+      this.updateMenu()
       this.tray.on('click', this.reveal)
       this.tray.on('double-click', this.reveal)
       this.updateDecoration()
@@ -156,29 +134,6 @@ export class NativeShell {
     notification.once('failed', () => this.notices.delete(notification))
     notification.show()
   }
-  async submitNotification(characterId: string, title: string, body: string): Promise<boolean> {
-    if (!Notification.isSupported()) return false
-    const name = this.desired.get(characterId)?.name ?? 'Yuki'
-    const notification = new Notification({
-      title: title === name ? name : `${name} · ${title}`,
-      body,
-      icon:
-        this.decorations.get(characterId)?.notification ??
-        join(app.getAppPath(), 'resources/icons/app/128x128.png'),
-    })
-    this.notices.set(notification, characterId)
-    notification.once('click', () => {
-      this.reveal()
-      this.open({ characterId, view: 'chat' })
-    })
-    notification.once('failed', () => this.notices.delete(notification))
-    notification.once('close', () => this.notices.delete(notification))
-    notification.show()
-    // Completion means the native API accepted submission. Focus mode and
-    // later delivery failures cannot prove that the person saw a notification.
-    return true
-  }
-
   close() {
     this.tray?.destroy()
     this.tray = undefined
@@ -186,11 +141,8 @@ export class NativeShell {
     this.notices.clear()
     this.decorations.clear()
     this.desired.clear()
-    this.executorActivity.clear()
   }
   forget(id: string) {
-    this.executorActivity.delete(id)
-    this.updateActivity()
     for (const [notice, owner] of this.notices)
       if (owner === id) {
         notice.close()
@@ -201,7 +153,7 @@ export class NativeShell {
     if (this.selected === id) {
       this.selected = undefined
       if (this.tray && this.fallbackIcon) this.tray.setImage(this.fallbackIcon)
-      this.tray?.setToolTip('Yuki')
     }
+    this.updateMenu()
   }
 }

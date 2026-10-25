@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ConnectorOperation, ConnectorTarget } from '../../shared/connector'
 import { Button, TextField } from '../components/Controls'
-import { Row } from './Settings'
+import { Row } from './SettingsRow'
 import styles from './Settings.module.css'
 
 type Event = NonNullable<ConnectorOperation['events']>[number]

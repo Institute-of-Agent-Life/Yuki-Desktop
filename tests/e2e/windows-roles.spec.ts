@@ -3,10 +3,9 @@ import { activeCharacterName } from '../fixtures/active-character'
 import { contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
 import { join } from 'node:path'
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
-import type { Connection } from '../../src/shared/api'
 import { ledgerEvents, pairUI } from '../fixtures/backend'
 import { launchShell } from '../fixtures/shell-app'
 import { windowsFileDialogOwner, completeWindowsFileDialog } from '../fixtures/windows-file-dialog'
@@ -18,30 +17,18 @@ async function connections(page: Page) {
     return result.value
   })
 }
-async function localState(page: Page, role: Connection) {
-  return page.evaluate(async (id) => {
-    const result = await window.yuki.client.executorState(id)
-    if (!result.ok) throw Error(result.code)
-    return result.value
-  }, role.characterId)
-}
-async function localSettings(page: Page) {
-  await page.keyboard.press('Control+,')
-  await page.getByRole('tab', { name: '本機連接', exact: true }).click()
-}
-
 async function add(page: Page) {
   await page.keyboard.press('ControlOrMeta+,')
-  await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
-  await page.getByRole('button', { name: '加入另一個角色', exact: true }).click()
+  await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
+  await page.getByRole('button', { name: '連接另一個 Yuki', exact: true }).click()
   await expect(page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })).toBeVisible()
 }
 async function switchRole(page: Page, name: string) {
-  await page.getByRole('button', { name: '切換角色', exact: true }).click()
+  await page.getByRole('button', { name: '切換 Yuki', exact: true }).click()
   await page.getByRole('menuitemradio', { name: new RegExp(name) }).click()
 }
 
-test('Windows native roles keep original chats, prompt and avatar drafts, grants and cold credentials isolated', async () => {
+test('Windows native roles keep original chats, prompt and avatar drafts and cold credentials isolated', async () => {
   test.skip(process.platform !== 'win32', 'Requires an actual Windows interactive desktop')
   const bases = [
     process.env.YUKI_DESKTOP_NATIVE_BACKEND_URL,
@@ -49,7 +36,7 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
   ].map((value) => value?.replace(/\/+$/, ''))
   test.skip(
     bases.some((base) => !base),
-    'Requires two fresh independent reference servers with character, prompt and executor fixtures',
+    'Requires two fresh independent reference servers with character and prompt fixtures',
   )
   test.setTimeout(240000)
   expect(process.env.YUKI_ELECTRON_EXECUTABLE).toBeTruthy()
@@ -102,7 +89,7 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
     await page.getByRole('radio', { name: '淺色', exact: true }).click()
     await page.getByRole('button', { name: '返回', exact: true }).click()
-    await expect(page.getByRole('button', { name: '切換角色', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '切換 Yuki', exact: true })).toHaveCount(0)
     const native = await app.evaluate(({ app, BrowserWindow, screen }) => {
       const window = BrowserWindow.getAllWindows()[0]!
       return {
@@ -133,38 +120,6 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
     const firstOwner = (await connections(page))[0]!
     expect(firstOwner.persistentCredentials).toBe(true)
     await send(page, firstMessage)
-    await localSettings(page)
-    await page
-      .getByRole('button', {
-        name: `允許 ${await activeCharacterName(page)} 使用這台電腦`,
-        exact: true,
-      })
-      .click()
-    await expect.poll(async () => (await localState(page, firstOwner)).state).toBe('online')
-    const folder = join(data, 'role-one-inbox')
-    await mkdir(folder)
-    const folderOwner = await windowsFileDialogOwner(app)
-    await page.getByRole('button', { name: '新增資料夾…', exact: true }).click()
-    await page
-      .getByRole('textbox', { name: '資料夾別名（可選）', exact: true })
-      .fill('角色一收件匣')
-    await page.getByRole('button', { name: '選擇資料夾…', exact: true }).click()
-    const folderReceipt = await completeWindowsFileDialog(folderOwner, folder, 'folder')
-    expect(folderReceipt).toMatchObject({
-      Action: 'folder',
-      ProcessId: mainPid,
-      FilenameControl: 1152,
-      Method: 'native-win32-controls',
-    })
-    expect(folderReceipt.SessionId).toBeGreaterThan(0)
-    await expect
-      .poll(async () =>
-        (await localState(page, firstOwner)).installation?.scopes.map((scope) => scope.alias),
-      )
-      .toEqual(['角色一收件匣'])
-    proof.folderReceipt = folderReceipt
-    await page.getByRole('button', { name: '返回', exact: true }).click()
-
     await page
       .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼`, exact: true })
       .fill('只有第一角色的草稿')
@@ -224,31 +179,6 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
       .poll(() => page.evaluate(() => document.documentElement.style.getPropertyValue('--accent')))
       .toBe('#b0466b')
 
-    await localSettings(page)
-    expect((await localState(page, secondOwner)).installation).toBeNull()
-    await page.getByRole('button', { name: '允許 Mika 使用這台電腦', exact: true }).click()
-    await expect.poll(async () => (await localState(page, secondOwner)).state).toBe('online')
-    await page.getByRole('switch', { name: '允許顯示通知', exact: true }).click()
-    await page.getByRole('switch', { name: '暫停本機連接', exact: true }).click()
-    await expect
-      .poll(async () => (await localState(page, secondOwner)).installation?.paused)
-      .toBe(true)
-    const firstGrant = await localState(page, firstOwner),
-      secondGrant = await localState(page, secondOwner)
-    expect(firstGrant.installation!.paused).toBe(false)
-    expect(firstGrant.installation!.scopes.map((scope) => scope.alias)).toEqual(['角色一收件匣'])
-    expect(firstGrant.installation!.consents.some((grant) => grant.capability === 'notify')).toBe(
-      false,
-    )
-    expect(secondGrant.installation!.scopes).toEqual([])
-    expect(secondGrant.installation!.consents.some((grant) => grant.capability === 'notify')).toBe(
-      true,
-    )
-    expect(secondGrant.installation!.executorId).not.toBe(firstGrant.installation!.executorId)
-    expect(JSON.stringify([firstGrant, secondGrant])).not.toContain(folder)
-    stages.push({ stage: 'independent-native-folder-and-consents', firstGrant, secondGrant })
-    await save()
-    await page.getByRole('button', { name: '返回', exact: true }).click()
     await switchRole(page, firstName)
     await expect(
       page.getByRole('textbox', {
@@ -309,7 +239,7 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
       FilenameControl: 1148,
       Method: 'native-win32-controls',
     })
-    expect(avatarReceipt.SessionId).toBe(folderReceipt.SessionId)
+    expect(avatarReceipt.SessionId).toBeGreaterThan(0)
     proof.avatarReceipt = avatarReceipt
     await save()
     await expect(page.getByRole('button', { name: '選擇其他圖片…', exact: true })).toBeVisible()
@@ -348,11 +278,11 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
     await expect(page.getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })).toHaveValue(
       '只有 Mika 的草稿',
     )
-    await page.getByRole('button', { name: '切換角色', exact: true }).click()
+    await page.getByRole('button', { name: '切換 Yuki', exact: true }).click()
     await page.keyboard.press('Home')
     await expect(page.getByRole('menuitemradio', { name: new RegExp(firstName) })).toBeFocused()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: '切換角色', exact: true })).toBeFocused()
+    await expect(page.getByRole('button', { name: '切換 Yuki', exact: true })).toBeFocused()
     await page.screenshot({ path: join(test.info().outputDir, 'mika-role-switch.png') })
 
     const beforeCrash = await connections(page)
@@ -406,14 +336,8 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
       expect(
         (await connections(page)).find((item) => item.characterId === owner.characterId),
       ).toEqual(owner)
-    expect((await localState(page, firstOwner)).installation!.scopes).toEqual(
-      firstGrant.installation!.scopes,
-    )
-    expect((await localState(page, firstOwner)).installation!.paused).toBe(false)
-    expect((await localState(page, secondOwner)).installation!.scopes).toEqual([])
-    expect((await localState(page, secondOwner)).installation!.paused).toBe(true)
     stages.push({
-      stage: 'same-dpapi-owners-and-independent-grants-after-crash',
+      stage: 'same-dpapi-owners-after-crash',
       nativePid: mainPid,
     })
     await save()
@@ -448,11 +372,11 @@ test('Windows native roles keep original chats, prompt and avatar drafts, grants
           await expect(
             page.getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true }),
           ).toBeVisible()
-          if (!(await page.getByRole('button', { name: '切換角色', exact: true }).isVisible()))
+          if (!(await page.getByRole('button', { name: '切換 Yuki', exact: true }).isVisible()))
             await page.getByRole('button', { name: '側邊欄', exact: true }).click()
-          await page.getByRole('button', { name: '切換角色', exact: true }).click()
-          await expect(page.getByRole('menu', { name: '角色', exact: true })).toBeVisible()
-          const menu = page.getByRole('menu', { name: '角色', exact: true })
+          await page.getByRole('button', { name: '切換 Yuki', exact: true }).click()
+          await expect(page.getByRole('menu', { name: 'Yuki', exact: true })).toBeVisible()
+          const menu = page.getByRole('menu', { name: 'Yuki', exact: true })
           await expect(menu.getByRole('img', { name: firstName, exact: true })).toHaveCSS(
             'background-color',
             mode === 'dark' ? 'rgb(127, 164, 255)' : 'rgb(58, 107, 214)',

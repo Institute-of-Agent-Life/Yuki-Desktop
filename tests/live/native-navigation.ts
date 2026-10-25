@@ -3,5 +3,5 @@ import { navigate } from '../fixtures/navigation'
 
 export async function agents(page: Page) {
   await navigate(page, '設定')
-  await page.getByRole('tab', { name: '編程 Agent', exact: true }).click()
+  await page.getByRole('tab', { name: '本機 Agent', exact: true }).click()
 }

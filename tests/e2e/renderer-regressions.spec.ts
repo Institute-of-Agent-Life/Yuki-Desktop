@@ -1,5 +1,140 @@
 import { expect, test } from '@playwright/test'
 
+for (const recovery of ['online', 'refresh'] as const) {
+  test(`a failed manual reconnect does not leave a stale error after automatic ${recovery} recovery`, async ({
+    page,
+  }) => {
+    await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=connection-reconnect')
+    const input = page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+    await expect(page.locator('article[data-event-id="31"]')).toHaveCount(1)
+    await input.fill('重連失敗與恢復都保留的草稿')
+    await page.evaluate(() => {
+      const fixture = (
+        window as unknown as {
+          regression: { connection(state: string): void; failNextReconnect(): void }
+        }
+      ).regression
+      fixture.connection('offline')
+      fixture.failNextReconnect()
+    })
+    await page.getByRole('button', { name: '重新連線', exact: true }).click()
+    await expect(
+      page.getByRole('status').filter({ hasText: 'fixture_reconnect_failed' }),
+    ).toBeVisible()
+    await page.evaluate((recovery) => {
+      const fixture = (
+        window as unknown as {
+          regression: { connection(state: string): void; settleLateEffect(): void }
+        }
+      ).regression
+      if (recovery === 'online') fixture.connection('online')
+      else fixture.settleLateEffect()
+    }, recovery)
+    await expect(
+      page.getByRole('status').filter({ hasText: 'fixture_reconnect_failed' }),
+    ).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '重新連線', exact: true })).toHaveCount(0)
+    await expect(input).toHaveValue('重連失敗與恢復都保留的草稿')
+    await expect(page.locator('article[data-event-id="31"]')).toHaveCount(1)
+    expect(
+      await page.evaluate(() =>
+        (
+          window as unknown as {
+            regression: { snapshot(): { reconnects: number; submissions: number } }
+          }
+        ).regression.snapshot(),
+      ),
+    ).toMatchObject({ reconnects: 1, submissions: 0 })
+  })
+}
+
+test('logout recovery has priority over a retained direct Agent settings request', async ({
+  page,
+}) => {
+  await page.goto(
+    'http://127.0.0.1:4178/renderer-regressions.html?case=settings&agent=true&logout=true',
+  )
+  await expect(page.getByRole('tab', { name: '裝置與安全', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await expect(page.getByRole('tab', { name: '本機 Agent', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'false',
+  )
+  await expect(page.getByRole('dialog', { name: '處理本機內容', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '保留並登出', exact: true })).toBeVisible()
+})
+
+test('manual reconnect is available with cached messages and preserves the draft without submitting again', async ({
+  page,
+}) => {
+  await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=connection-reconnect')
+  const input = page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+  await expect(page.locator('article[data-event-id="31"]')).toHaveCount(1)
+  await expect(page.locator('article[data-event-id="32"]')).toHaveCount(1)
+  await input.fill('手動重連仍保留的原草稿')
+  const snapshot = () =>
+    page.evaluate(() =>
+      (
+        window as unknown as {
+          regression: {
+            snapshot(): {
+              reconnects: number
+              submissions: number
+              conversationDraft: string
+              reads: string[]
+            }
+          }
+        }
+      ).regression.snapshot(),
+    )
+  await page.evaluate(() =>
+    (
+      window as unknown as { regression: { connection(state: string): void } }
+    ).regression.connection('offline'),
+  )
+  const reconnect = page.getByRole('button', { name: '重新連線', exact: true })
+  await expect(reconnect).toBeVisible()
+  await expect(page.locator('article[data-event-id="31"]')).toHaveCount(1)
+  const before = await snapshot()
+  await reconnect.click()
+  await expect(reconnect).toHaveCount(0)
+  await expect
+    .poll(async () => (await snapshot()).reads.length)
+    .toBeGreaterThan(before.reads.length)
+  expect(await snapshot()).toMatchObject({
+    reconnects: 1,
+    submissions: 0,
+    conversationDraft: '手動重連仍保留的原草稿',
+  })
+  await expect(input).toHaveValue('手動重連仍保留的原草稿')
+  await expect(page.locator('article[data-event-id="31"]')).toHaveCount(1)
+  await expect(page.locator('article[data-event-id="32"]')).toHaveCount(1)
+})
+
+test('the conversation scroll area starts below the toolbar at wide and narrow content widths', async ({
+  page,
+}) => {
+  for (const width of [1440, 960, 480]) {
+    await page.setViewportSize({ width, height: 650 })
+    await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=connection-reconnect')
+    const log = page.getByRole('log', { name: '對話訊息', exact: true })
+    await expect(page.locator('article[data-event-id="31"]')).toHaveCount(1)
+    await page.evaluate(() =>
+      (
+        window as unknown as { regression: { connection(state: string): void } }
+      ).regression.connection('online'),
+    )
+    await expect(page.getByRole('button', { name: '重新連線', exact: true })).toHaveCount(0)
+    const toolbar = await page.locator('[data-region="toolbar"]:visible').boundingBox()
+    const scroll = await log.boundingBox()
+    expect(scroll!.y).toBeGreaterThanOrEqual(toolbar!.y + toolbar!.height - 1)
+    expect(await log.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1)
+    await page.screenshot({ path: test.info().outputPath(`scroll-area-${width}.png`) })
+  }
+})
+
 test('consecutive messages keep separate bubbles and preserve the actual participant', async ({
   page,
 }) => {
@@ -216,7 +351,7 @@ test('an attachment without invented availability is clickable and original fail
   ).toEqual([{ conversationId: 'conversation', eventId: 31, index: 0 }])
 })
 
-test('settings use the available column and keep both local integration entries before Bot setup', async ({
+test('settings use the available column and expose one native Agent entry before Bot setup', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
@@ -231,12 +366,27 @@ test('settings use the available column and keep both local integration entries 
     Math.abs(bounds!.x + bounds!.width - contentBounds!.x - contentBounds!.width),
   ).toBeLessThanOrEqual(1)
   expect(await pane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
-  await expect(page.getByRole('tab', { name: '本機連接', exact: true })).toBeVisible()
-  await expect(page.getByRole('tab', { name: '編程 Agent', exact: true })).toBeVisible()
-  await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
+  await expect(page.getByRole('tab', { name: '本機 Agent', exact: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '本機連接', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('tab', { name: '編程 Agent', exact: true })).toHaveCount(0)
+  await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
   await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
   await expect(page.getByTestId('settings-action')).toHaveText('connect')
   await page.getByRole('button', { name: '本機部署與管理', exact: true }).click()
   await expect(page.getByTestId('settings-action')).toHaveText('deploy')
   await page.screenshot({ path: test.info().outputPath('settings-full-column.png') })
+})
+
+test('a direct Agent settings request opens the single native connection entry without requiring Bot pairing', async ({
+  page,
+}) => {
+  await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=settings&agent=true')
+  await expect(page.getByRole('tab', { name: '本機 Agent', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await expect(
+    page.getByText('先連接一位 Yuki，再授權這台電腦。你可以直接離開此頁。'),
+  ).toBeVisible()
+  await expect(page.getByRole('tab', { name: 'Yuki 連接', exact: true })).toBeEnabled()
 })

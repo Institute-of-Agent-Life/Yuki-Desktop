@@ -80,6 +80,7 @@
 }
 .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
   min-height: 48px;
@@ -89,10 +90,11 @@
   border-top: var(--line) solid var(--separator);
 }
 .label {
-  min-width: 0;
-  flex: 1;
+  min-width: min(100%, 160px);
+  flex: 1 1 180px;
   font-size: 13px;
   line-height: 20px;
+  overflow-wrap: anywhere;
 }
 .label small {
   display: block;
@@ -102,8 +104,22 @@
   margin-top: 2px;
   overflow-wrap: anywhere;
 }
-.row > button,
-.row > select {
+.rowValue {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1 1 220px;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.rowValue > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.rowValue > button {
   flex-shrink: 0;
 }
 .row select {
@@ -162,13 +178,6 @@
 @media (max-width: 1000px) {
   .pane {
     padding: 8px 24px 24px;
-  }
-  .row {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .label {
-    min-width: 160px;
   }
 }
 

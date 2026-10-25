@@ -251,7 +251,7 @@ test('offline logout retains credentials; a committed self-revocation with a los
     await security(page)
     proxy.faults.offline = true
     await page.getByRole('button', { name: '登出…', exact: true }).click()
-    const confirm = page.getByRole('dialog', { name: '登出這個角色？', exact: true })
+    const confirm = page.getByRole('dialog', { name: '登出這個 Yuki？', exact: true })
     await confirm.getByRole('button', { name: '撤銷憑據並繼續', exact: true }).click()
     await expect(confirm.getByRole('button', { name: '撤銷憑據並繼續', exact: true })).toBeEnabled()
     expect(await selected(page)).toMatchObject({ deviceId: original.deviceId, needsPairing: false })

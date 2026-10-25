@@ -55,8 +55,8 @@ test('two equally named real roles send to their own original Main and recover s
     await pairUI(page, first.base, await first.code())
     await send(page, '第一個角色的原始訊息')
     await page.keyboard.press('ControlOrMeta+,')
-    await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
-    await page.getByRole('button', { name: '加入另一個角色', exact: true }).click()
+    await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
+    await page.getByRole('button', { name: '連接另一個 Yuki', exact: true }).click()
     await pairUI(page, second.base, await second.code())
     await expect(
       page.getByText('第一個角色的原始訊息', { exact: true }).filter({ visible: true }),

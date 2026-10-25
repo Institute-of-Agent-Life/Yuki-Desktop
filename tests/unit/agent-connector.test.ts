@@ -1017,3 +1017,143 @@ it('explicit adoption re-registers only the original service and preserves its d
   const { readFile } = await import('node:fs/promises')
   expect(await readFile(join(data, 'journal.sqlite3'), 'utf8')).toBe('original durable receipts')
 })
+
+it.each(['preview', 'use', 'connect'])(
+  '%s of the default independent installation preserves its runtime, identity and receipts without pairing or service operations',
+  async (action) => {
+    const root = await mkdtemp(join(tmpdir(), 'connector-existing-'))
+    temporary.push(root)
+    const data = join(root, 'original-data'),
+      legacy = join(root, 'original-runtime')
+    await mkdir(data)
+    await mkdir(legacy)
+    const executable = join(legacy, 'python.exe')
+    await writeFile(executable, 'fixture, never launched')
+    await writeFile(join(legacy, 'pythonw.exe'), 'fixture, never launched')
+    await writeFile(join(data, 'config.json'), 'original credentials and native configuration')
+    await writeFile(join(data, 'journal.sqlite3'), 'original operation receipts')
+    const run = vi.fn(async (_selected: unknown, args: readonly string[]) => {
+      expect(args).toContain('status')
+      return JSON.stringify({
+        ...publicStatus,
+        version: args.includes('--data-dir') ? '0.3.0' : '0.3.5',
+        runtime: args.includes('--data-dir') ? executable : runtime.executable,
+        data_directory: data,
+        service: { installed: true, running: true, executable: join(legacy, 'pythonw.exe') },
+      })
+    })
+    const options = {
+      root: join(root, 'desktop'),
+      bundledRuntime: join(root, 'bundle'),
+      store: store(),
+      authorize: vi.fn(),
+      admission: vi.fn(async () => ({ matched: true, connected: true })),
+    }
+    const connector = new AgentConnector(options, run)
+    vi.spyOn(connector.installations, 'bundled').mockResolvedValue({ ...runtime, version: '0.3.5' })
+    const install = vi.spyOn(connector.installations, 'install')
+    const preview = await connector.state('role')
+    expect(preview).toMatchObject({
+      available: false,
+      existing: {
+        installation: { executable, dataDirectory: data },
+        state: {
+          managed: false,
+          version: '0.3.0',
+          deviceId: 'original-device',
+          instances: publicStatus.instances,
+          admission: { matched: true, connected: true },
+        },
+      },
+    })
+    expect(connector.installations.selected()).toBeUndefined()
+    if (action !== 'preview') {
+      const selected =
+        action === 'use'
+          ? await connector.useInstallation({ executable, dataDirectory: data })
+          : await connector.connect({ characterId: 'role', label: 'PC' })
+      expect(selected).toMatchObject({ available: true, managed: false, dataDirectory: data })
+      expect(connector.installations.selected()).toMatchObject({
+        managed: false,
+        dataDirectory: data,
+        runtime: { executable, version: '0.3.0' },
+      })
+    }
+    expect(install).not.toHaveBeenCalled()
+    expect(options.authorize).not.toHaveBeenCalled()
+    expect(
+      run.mock.calls.every(([, args]) => !args.includes('service') && !args.includes('pair')),
+    ).toBe(true)
+    expect(await readFile(join(data, 'config.json'), 'utf8')).toBe(
+      'original credentials and native configuration',
+    )
+    expect(await readFile(join(data, 'journal.sqlite3'), 'utf8')).toBe(
+      'original operation receipts',
+    )
+  },
+)
+
+it('an existing paired directory with an unknown service runtime cannot silently create another device', async () => {
+  const run = vi.fn(async () =>
+    JSON.stringify({ ...publicStatus, data_directory: tmpdir(), service: { installed: false } }),
+  )
+  const { connector, options } = fixture(run)
+  options.store.set('agent-connector-installation', undefined)
+  vi.spyOn(connector.installations, 'bundled').mockResolvedValue({ ...runtime, version: '0.3.5' })
+  const install = vi.spyOn(connector.installations, 'install')
+  await expect(connector.connect({ characterId: 'role', label: 'PC' })).rejects.toHaveProperty(
+    'code',
+    'connector_existing_runtime_unavailable',
+  )
+  expect(install).not.toHaveBeenCalled()
+  expect(options.authorize).not.toHaveBeenCalled()
+})
+
+it('Claude discovery uses the same connector and old runtimes require an explicit update', async () => {
+  const run = vi.fn(async (_runtime: unknown, args: readonly string[]) => {
+    expect(args.slice(2)).toEqual(['discover', '--json', '--driver', 'claude'])
+    return JSON.stringify([
+      { id: 'claude-native', label: 'Claude Code', command: runtime.executable },
+    ])
+  })
+  const { connector } = fixture(run)
+  await expect(connector.discover('claude')).rejects.toHaveProperty(
+    'code',
+    'connector_update_required',
+  )
+  connector.installations.select({
+    managed: false,
+    dataDirectory: tmpdir(),
+    runtime: { ...runtime, version: '0.3.5' },
+  })
+  expect(await connector.discover('claude')).toEqual([
+    { id: 'claude-native', label: 'Claude Code', command: runtime.executable, driver: 'claude' },
+  ])
+})
+
+it('editing an original Claude instance preserves its driver without revalidating a missing default task directory', async () => {
+  const run = vi.fn(async (_runtime: unknown, args: readonly string[], input?: string) => {
+    if (args.includes('status'))
+      return JSON.stringify({
+        ...publicStatus,
+        instances: [
+          {
+            id: 'claude',
+            label: 'Claude',
+            driver: 'claude',
+            command: runtime.executable,
+            cwd: join(tmpdir(), 'original-project-no-longer-exists'),
+          },
+        ],
+      })
+    expect(args).toContain('configure')
+    expect(JSON.parse(input!)).toMatchObject({ id: 'claude', driver: 'claude' })
+    expect(JSON.parse(input!)).not.toHaveProperty('cwd')
+    return '{}'
+  })
+  const { connector } = fixture(run)
+  expect(
+    await connector.configure({ id: 'claude', driver: 'codex', label: 'Original Claude' }),
+  ).toEqual({ instanceId: 'claude' })
+  expect(run.mock.calls.some(([, args]) => args.includes('add'))).toBe(false)
+})

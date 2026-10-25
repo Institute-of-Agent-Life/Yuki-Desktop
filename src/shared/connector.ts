@@ -2,6 +2,7 @@ import type { ApiReply, OutboxItem } from './api'
 import type { components } from './contract.gen'
 
 export type ConnectorServiceAction = 'install' | 'start' | 'stop' | 'uninstall'
+export type ConnectorDriver = 'codex' | 'claude'
 export interface ConnectorInstance {
   id: string
   label: string
@@ -25,31 +26,40 @@ export interface ConnectorAdmission {
   }[]
 }
 export type ConnectorState =
-  | { available: false; bundled?: boolean }
   | {
-      available: true
-      managed?: boolean
-      paired: boolean
-      deviceId?: string
-      server?: string
-      version?: string
-      protocol?: number
-      runtime?: string
-      dataDirectory?: string
-      updateAvailable?: boolean
-      instances: ConnectorInstance[]
-      service: {
-        installed: boolean
-        running: boolean | null
-        executable?: string
-        arguments?: string[]
+      available: false
+      bundled?: boolean
+      existing?: {
+        installation: { executable: string; dataDirectory: string }
+        state: ConnectorAvailableState
       }
-      admission?: ConnectorAdmission
     }
+  | ConnectorAvailableState
+export interface ConnectorAvailableState {
+  available: true
+  managed?: boolean
+  paired: boolean
+  deviceId?: string
+  server?: string
+  version?: string
+  protocol?: number
+  runtime?: string
+  dataDirectory?: string
+  updateAvailable?: boolean
+  instances: ConnectorInstance[]
+  service: {
+    installed: boolean
+    running: boolean | null
+    executable?: string
+    arguments?: string[]
+  }
+  admission?: ConnectorAdmission
+}
 export interface ConnectorCandidate {
   id: string
   label: string
   command: string
+  driver: ConnectorDriver
 }
 export interface ConnectorConfiguration {
   id?: string
@@ -58,6 +68,7 @@ export interface ConnectorConfiguration {
   command?: string
   label: string
   cwd?: string
+  driver?: ConnectorDriver
 }
 export interface ConnectorDiagnostic {
   id: string
@@ -103,7 +114,7 @@ export interface ConnectorBridge {
   connect(input: { characterId: string; label: string }): Promise<ApiReply<ConnectorState>>
   pair(input: ConnectorPairing): Promise<ApiReply<ConnectorState>>
   service(action: ConnectorServiceAction): Promise<ApiReply<ConnectorState>>
-  discover(): Promise<ApiReply<ConnectorCandidate[]>>
+  discover(driver?: ConnectorDriver): Promise<ApiReply<ConnectorCandidate[]>>
   configure(
     input: ConnectorConfiguration,
     start?: boolean,

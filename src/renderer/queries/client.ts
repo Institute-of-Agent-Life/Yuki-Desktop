@@ -50,7 +50,7 @@ const messages: Record<string, string> = {
   connector_authorization_unconfirmed:
     '電腦授權碼的結果尚未確認。請先查原授權狀態，需要新碼時重新授權。',
   feature_unavailable: '目前連線的後端尚未提供這項功能。',
-  logout_pending: '請先完成這個角色的登出與本機資料選擇。',
+  logout_pending: '請先完成這個 Yuki 的登出與本機資料選擇。',
   unsupported_image: '無法讀取這張圖片，請選擇 PNG、JPEG 或 WebP 圖片。',
   image_dimensions: '圖片尺寸不符，請重新裁切為 1024 × 1024 像素。',
   invalid_server: '請輸入完整的 http 或 https 伺服器位址。',
@@ -70,9 +70,9 @@ const messages: Record<string, string> = {
   internal_failure: '這次處理發生錯誤，原訊息與回執已保留。',
   owner_required: '這項操作需要角色擁有者權限。',
   outbox_owner_mismatch: '原入口已不屬於這位本人，已停止送出。',
-  different_person: '這個角色已連接另一位本人。請先處理原連線的本機資料。',
+  different_person: '這個 Yuki 的原連線屬於另一位本人。請先處理原連線的本機資料。',
   server_upgrade_required: `伺服器需要升級（api_revision ≥ ${REQUIRED_API_REVISION}）。`,
-  different_character: '這個位址已是另一個角色，請確認原角色的新位址。',
+  different_character: '這個位址是另一個 Yuki，請確認原 Yuki 的新位址。',
   client_upgrade_required: '這個伺服器需要新版桌面 App，請先更新。',
   validation_error: '請檢查輸入內容。',
   control_held: '電腦目前由另一台裝置接手。',
@@ -82,14 +82,6 @@ const messages: Record<string, string> = {
   local_file_missing: '尚未存到本機，或已存的檔案已移動。',
   open_failed: '系統無法開啟此檔案，請先存到本機並選擇開啟程式。',
   microphone_denied: '麥克風權限未開啟，請到系統設定允許 Yuki 使用麥克風。',
-  executor_offline: '這台電腦尚未連線，操作未建立。',
-  executor_paused: '這台電腦已暫停，新的操作尚未開始。',
-  executor_not_installed: '請先允許角色使用這台電腦。',
-  executor_not_local: '只能在這台電腦上新增它的本機授權。',
-  executor_credentials_unavailable: '這台電腦的原連線憑據已遺失。請先移除原電腦紀錄，再重新允許。',
-  scope_alias_conflict: '這個名稱已用於另一個資料夾，請換一個名稱。',
-  scope_unavailable: '此資料夾的本機授權已失效，請重新選擇。',
-  not_a_directory: '請選擇一個資料夾。',
 }
 export function problemText(code: string): string {
   return messages[code] ?? `操作未完成（${code}）。`

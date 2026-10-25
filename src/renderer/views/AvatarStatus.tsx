@@ -39,7 +39,9 @@ export function AvatarStatus({
           {profile.viewer.is_owner ? (
             <Button onClick={edit}>更換頭像</Button>
           ) : (
-            <p>角色頭像由角色擁有者管理。</p>
+            <p>
+              目前帳號沒有角色資料管理權限。請由管理員授予角色擁有者權限後，在這裡選擇圖片上傳。
+            </p>
           )}
         </>
       ) : (

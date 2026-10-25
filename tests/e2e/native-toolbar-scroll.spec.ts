@@ -78,6 +78,9 @@ test('native conversation wheel scrolling applies toolbar material and preserves
     proof.eventId = eventId
     const toolbar = page.locator('[data-region="toolbar"]:visible')
     const log = page.getByRole('log', { name: '對話訊息', exact: true })
+    const scrollBounds = await log.boundingBox()
+    const toolbarBounds = await toolbar.boundingBox()
+    expect(scrollBounds!.y).toBeGreaterThanOrEqual(toolbarBounds!.y + toolbarBounds!.height - 1)
     const style = () =>
       toolbar.evaluate((element) => {
         const edge = getComputedStyle(element, '::before')

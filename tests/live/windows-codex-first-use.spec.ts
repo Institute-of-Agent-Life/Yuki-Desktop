@@ -212,35 +212,19 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
     const connect = page.getByRole('button', { name: '連接本機 Codex', exact: true })
     await connect.click()
     await expect(page.getByText('目前本人', { exact: true })).toBeVisible({ timeout: 60_000 })
-    await expect(connect).toBeEnabled({ timeout: 60_000 })
     selected = await installation(app, profile)
     const candidates = page.getByRole('combobox', { name: 'Codex 安裝', exact: true })
     if (await candidates.count()) {
-      const value = await candidates
-        .locator('option')
-        .evaluateAll(
-          (options, command) =>
-            options
-              .filter((option) => option.textContent?.includes(command))
-              .map((option) => (option as HTMLOptionElement).value),
-          binary!,
-        )
-      expect(value).toHaveLength(1)
-      await candidates.selectOption(value[0]!)
-    } else await expect(page.getByText(binary!, { exact: true })).toBeVisible()
-    // Explicit OS-boundary adapter only; current IPC/configuration still run normally.
-    await app.evaluate(({ dialog }, project) => {
-      const original = dialog.showOpenDialog
-      dialog.showOpenDialog = async (...args: Parameters<typeof original>) => {
-        const options = args[args.length - 1] as Electron.OpenDialogOptions
-        if (!options.properties?.includes('openDirectory'))
-          throw Error('Expected the actual project chooser')
-        dialog.showOpenDialog = original
-        return { canceled: false, filePaths: [project] }
-      }
-    }, project)
-    await page.getByRole('button', { name: '選擇資料夾', exact: true }).click()
-    await page.getByRole('button', { name: '使用此專案並啟動背景連接', exact: true }).click()
+      const found = await page.evaluate(async () => {
+        const result = await window.yuki.connector.discover('codex')
+        if (!result.ok) throw Error(result.code)
+        return result.value
+      })
+      const matching = found.filter((item) => resolve(item.command) === resolve(binary!))
+      expect(matching).toHaveLength(1)
+      await candidates.selectOption(matching[0]!.id)
+      await page.getByRole('button', { name: '連接此 Codex 並啟動背景連接', exact: true }).click()
+    }
     await expect
       .poll(async () => (await state(page, connection.characterId)).admission?.connected, {
         timeout: 30_000,
@@ -259,12 +243,13 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
     expect(connected.instances).toHaveLength(1)
     const local = connected.instances[0]!
     expect(resolve(local.command!)).toBe(resolve(binary!))
-    expect(resolve(local.cwd!)).toBe(resolve(project))
     const admitted = connected.admission!.instances!.find((item) => item.localId === local.id)!
     expect(admitted).toMatchObject({ online: true, status: 'available' })
     await expect(page.getByText('Codex 原生連線已建立', { exact: true })).toBeVisible()
     await page.screenshot({ path: test.info().outputPath('first-use-ready.png') })
     await page.getByRole('combobox', { name: '任務 Agent', exact: true }).selectOption(admitted.id)
+    await page.getByText('工作位置（可選）', { exact: true }).click()
+    await page.getByRole('textbox', { name: '本次任務工作位置', exact: true }).fill(project)
     const prompt = `${marker}. This is an isolated live acceptance. Work only in ${project}. Before execution, request the native command runner's normal one-command write approval for exactly this command and cwd: ${command}. The script needs to write only inside ${project}. After approval, execute that exact PowerShell command once with this cwd. Copy it verbatim; the existing script writes a marker and waits for a test release file before reading it back. Continue waiting on that same original command as needed. Keep approval limited to this command and directory, without session-wide or persistent policy amendments. Do not run other commands, inspect files outside this directory, access the network, alter configuration or services. After the command returns the marker, finish with exactly ${marker}.`
     await page.getByRole('textbox', { name: '原生任務要求', exact: true }).fill(prompt)
     await page.getByRole('button', { name: '交給 Yuki 執行', exact: true }).click()

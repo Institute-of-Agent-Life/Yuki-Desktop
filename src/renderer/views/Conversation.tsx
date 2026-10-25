@@ -58,7 +58,7 @@ export function Conversation({
   connection: Connection
   platform: string
   preferences: Preferences
-  onSettings(target?: 'folder'): void
+  onSettings(target?: 'agent'): void
   onPairAgain(): void
   roleSwitcher?: React.ReactNode
   settings?: React.ReactNode
@@ -100,6 +100,7 @@ export function Conversation({
   }, [id, target])
   const [online, setOnline] = useState<'connecting' | 'online' | 'offline'>('connecting'),
     [connectionProblem, setConnectionProblem] = useState('')
+  const [reconnectError, setReconnectError] = useState('')
   const [references, setReferences] = useState<MessageReference[]>([]),
     [selection, setSelection] = useState<number>()
   const [replyWork, setReplyWork] = useState<Work>()
@@ -308,14 +309,20 @@ export function Conversation({
       inspectorTab: 'files',
     })
   }
-  useEffect(() => {
-    const wake = () => {
-      void window.yuki.client.reconnect()
+  const reconnect = useCallback(async () => {
+    setReconnectError('')
+    try {
+      unwrap(await window.yuki.client.reconnect())
       refresh()
+    } catch (error) {
+      setReconnectError(error instanceof Error ? error.message : '無法重新連線。')
     }
+  }, [refresh])
+  useEffect(() => {
+    const wake = () => void reconnect()
     window.addEventListener('online', wake)
     return () => window.removeEventListener('online', wake)
-  }, [refresh])
+  }, [reconnect])
   useEffect(() => {
     let active = true
     void window.yuki.client.draft(id).then((result) => {
@@ -362,8 +369,12 @@ export function Conversation({
           const state = data as { state: 'online' | 'offline'; code?: string }
           setOnline(state.state)
           setConnectionProblem(state.code ?? '')
+          if (state.state === 'online') setReconnectError('')
         } else {
-          if (kind !== 'outbox') setOnline('online')
+          if (kind !== 'outbox') {
+            setOnline('online')
+            setReconnectError('')
+          }
           refresh()
         }
       }),
@@ -704,9 +715,9 @@ export function Conversation({
     },
     { id: 'command/settings', title: '開啟設定', run: () => paletteNavigate(onSettings) },
     {
-      id: 'command/folder',
-      title: '授權本機資料夾',
-      run: () => paletteNavigate(() => onSettings('folder')),
+      id: 'command/agent',
+      title: '連接本機 Agent',
+      run: () => paletteNavigate(() => onSettings('agent')),
     },
     ...(profileData?.viewer.is_owner && !accessLost
       ? [
@@ -1032,24 +1043,34 @@ export function Conversation({
               {upgradeNotice}
               {mediaError && <Banner status="failed">{mediaError}</Banner>}
               {historyError && <Banner status="failed">{historyError}</Banner>}
-              {online !== 'online' && !updateRequired && (
-                <Banner>
-                  {connectionProblem
-                    ? problemText(connectionProblem)
-                    : '正在連接伺服器。草稿保存在這台電腦。'}
-                </Banner>
-              )}
-              {!updateRequired && (events.error || home.error || profile.error) && (
-                <Banner status="failed">
-                  {(events.error ?? home.error ?? profile.error)?.message}
-                  <Button variant="plain" onClick={refresh}>
-                    重新連線
-                  </Button>
-                  <Button variant="plain" onClick={onPairAgain}>
-                    重新配對
-                  </Button>
-                </Banner>
-              )}
+              {!updateRequired &&
+                (online !== 'online' ||
+                  events.error ||
+                  home.error ||
+                  profile.error ||
+                  reconnectError) && (
+                  <Banner
+                    status={
+                      reconnectError || events.error || home.error || profile.error
+                        ? 'failed'
+                        : 'offline'
+                    }
+                  >
+                    {reconnectError ||
+                      (events.error ?? home.error ?? profile.error)?.message ||
+                      (connectionProblem
+                        ? problemText(connectionProblem)
+                        : '正在連接伺服器。草稿保存在這台電腦。')}
+                    <Button variant="plain" onClick={() => void reconnect()}>
+                      重新連線
+                    </Button>
+                    {(events.error || home.error || profile.error) && (
+                      <Button variant="plain" onClick={onPairAgain}>
+                        重新配對
+                      </Button>
+                    )}
+                  </Banner>
+                )}
               {search !== null && (
                 <div className={styles.search}>
                   <input

@@ -3,7 +3,7 @@ import type { Preferences } from '../../shared/desktop'
 import { useUpdates } from '../state/updates'
 import { unwrap } from '../queries/client'
 import { Banner, Button, Segmented, Sheet, Spinner } from './Controls'
-import { Row } from '../views/Settings'
+import { Row } from '../views/SettingsRow'
 
 const failures = {
   'no-release': '目前還沒有可用的更新發布。',
@@ -160,7 +160,7 @@ export function UpdatePending() {
       <p>
         {state?.phase === 'preparing'
           ? '正在等候原本的本機操作收尾，完成後才會重新啟動。'
-          : '準備完成後會重新啟動。角色在伺服器的工作會繼續保留。'}
+          : '準備完成後會重新啟動。伺服器上的工作會繼續保留。'}
       </p>
     </Sheet>
   )

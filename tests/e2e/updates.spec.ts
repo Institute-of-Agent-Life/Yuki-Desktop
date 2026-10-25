@@ -12,17 +12,15 @@ interface FixtureState {
   checks: number
   downloads: number
   installs: number
-  physical: number
   rejectInstall: boolean
   holdDownload: boolean
   failDownload: boolean
   cancelled: number
   releaseDownload?: () => void
-  release?: () => void
   lifecycle: string[]
 }
 async function mockInstaller(app: ElectronApplication) {
-  await app.evaluate(({ app, shell, dialog }) => {
+  await app.evaluate(({ app, dialog }) => {
     const { createRequire } = process.getBuiltinModule('node:module')
     const require = createRequire(`${app.getAppPath()}/package.json`)
     const sdk = require('electron-updater') as typeof import('electron-updater')
@@ -32,7 +30,6 @@ async function mockInstaller(app: ElectronApplication) {
       checks: 0,
       downloads: 0,
       installs: 0,
-      physical: 0,
       rejectInstall: true,
       holdDownload: false,
       failDownload: false,
@@ -105,12 +102,6 @@ async function mockInstaller(app: ElectronApplication) {
         else app.quit() // Exercise the actual graceful exit; never run an installer.
       }
     }
-    shell.openExternal = async () => {
-      state.physical++
-      await new Promise<void>((resolve) => {
-        state.release = resolve
-      })
-    }
   })
 }
 async function snapshot(app: ElectronApplication) {
@@ -118,7 +109,6 @@ async function snapshot(app: ElectronApplication) {
     const state = (globalThis as unknown as { __updateFixture: FixtureState }).__updateFixture
     return {
       installs: state.installs,
-      physical: state.physical,
       checks: state.checks,
       lifecycle: state.lifecycle,
     }
@@ -146,13 +136,13 @@ async function download(page: Page) {
   await expect(page.getByRole('button', { name: '重新啟動以更新', exact: true })).toBeVisible()
 }
 
-test('actual update buttons wait for a started native operation, recover a rejected install and retain original data on restart', async () => {
+test('actual update buttons recover a rejected install and retain the original connection and draft on restart', async () => {
   test.skip(
     !process.env.YUKI_DESKTOP_EXECUTABLE,
     'Requires a packaged executable; development mode never updates.',
   )
   test.setTimeout(120000)
-  const rig = await yukiFixture({ executor: true })
+  const rig = await yukiFixture()
   let app = await rig.launch('update-boundary'),
     success = false
   try {
@@ -172,63 +162,10 @@ test('actual update buttons wait for a started native operation, recover a rejec
       .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼`, exact: true })
       .fill('更新前要保留的草稿')
     await page.keyboard.press('ControlOrMeta+,')
-    await page.getByRole('tab', { name: '本機連接', exact: true }).click()
-    await page
-      .getByRole('button', {
-        name: `允許 ${await activeCharacterName(page)} 使用這台電腦`,
-        exact: true,
-      })
-      .click()
-    await page.getByRole('switch', { name: '允許開啟網址', exact: true }).click()
-    await expect(page.getByRole('switch', { name: '允許開啟網址', exact: true })).toBeChecked()
-    const local = await page.evaluate(async (id) => {
-      const value = await window.yuki.client.executorState(id)
-      if (!value.ok || !value.value.installation) throw Error('executor unavailable')
-      return value.value.installation
-    }, owner.characterId)
     await download(page)
-    const invoke = fetch(rig.base + '/__test/executor/invoke', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        person_id: owner.personId,
-        tool_call_key: 'fixture:update-live-native',
-        arguments: {
-          executor_id: local.executorId,
-          capability: 'open.url',
-          params: { url: 'https://example.test/update-boundary' },
-        },
-      }),
-    })
-    await expect.poll(async () => (await snapshot(app)).physical).toBe(1)
     await page.getByRole('button', { name: '重新啟動以更新', exact: true }).click()
-    await expect.poll(async () => (await updateState(page)).phase).toBe('preparing')
-    expect((await snapshot(app)).installs).toBe(0)
-    await expect(page.getByRole('dialog', { name: '正在準備更新' })).toBeVisible()
-    await app.evaluate(() => {
-      ;(globalThis as unknown as { __updateFixture: FixtureState }).__updateFixture.release!()
-    })
-    await invoke
     await expect.poll(async () => (await snapshot(app)).installs).toBe(1)
     await expect.poll(async () => (await updateState(page)).phase).toBe('error')
-    const operations = async () =>
-      (await (await fetch(rig.base + '/__test/executor/state')).json()) as {
-        operations: { op_id: string; state: string }[]
-      }
-    await expect
-      .poll(async () => (await operations()).operations.map((op) => op.state))
-      .toEqual(['succeeded'])
-    const originalOperation = (await operations()).operations[0]!.op_id
-    await page.getByRole('tab', { name: '本機連接', exact: true }).click()
-    await expect
-      .poll(() =>
-        page.evaluate(async (id) => {
-          const value = await window.yuki.client.executorState(id)
-          return value.ok ? value.value.state : 'error'
-        }, owner.characterId),
-      )
-      .toBe('online')
-    await expect(page.getByRole('switch', { name: '允許開啟網址', exact: true })).toBeChecked()
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await expect(
       page.getByRole('textbox', {
@@ -236,7 +173,6 @@ test('actual update buttons wait for a started native operation, recover a rejec
         exact: true,
       }),
     ).toHaveValue('更新前要保留的草稿')
-    expect((await snapshot(app)).physical).toBe(1)
     await app.evaluate(() => {
       ;(globalThis as unknown as { __updateFixture: FixtureState }).__updateFixture.rejectInstall =
         false
@@ -257,20 +193,17 @@ test('actual update buttons wait for a started native operation, recover a rejec
         exact: true,
       }),
     ).toHaveValue('更新前要保留的草稿')
-    const current = await page.evaluate(async (id) => {
-      const value = await window.yuki.client.executorState(id)
-      return value.ok ? value.value.installation?.executorId : undefined
-    }, owner.characterId)
-    expect(current).toBe(local.executorId)
-    expect((await operations()).operations.map((op) => op.op_id)).toEqual([originalOperation])
+    const current = await page.evaluate(async () => {
+      const value = await window.yuki.client.connections()
+      if (!value.ok) throw Error(value.code)
+      return value.value[0]!
+    })
+    expect(current.characterId).toBe(owner.characterId)
+    expect(current.personId).toBe(owner.personId)
+    expect(current.bindingId).toBe(owner.bindingId)
     success = true
   } finally {
     if (!success) await crashElectron(app).catch(() => {})
-    await app
-      .evaluate(() => {
-        ;(globalThis as unknown as { __updateFixture?: FixtureState }).__updateFixture?.release?.()
-      })
-      .catch(() => {})
     await app.close().catch(() => {})
     await rig.close(success)
   }

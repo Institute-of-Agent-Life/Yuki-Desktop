@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createHash } from 'node:crypto'
 vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false } }))
 const faults = vi.hoisted(() => ({ unlink: false }))
 vi.mock('node:fs/promises', async (original) => {
@@ -20,7 +21,6 @@ vi.mock('node:fs/promises', async (original) => {
 import { Connections } from '../../src/main/connections'
 import { LocalStore } from '../../src/main/store'
 import { Outbox } from '../../src/main/outbox'
-import { ExecutorInstallation } from '../../src/main/executor/installation'
 import type { Connection, Me, Meta } from '../../src/shared/api'
 const connection: Connection = {
   characterId: '00000000-0000-4000-8000-000000000001',
@@ -33,7 +33,7 @@ const connection: Connection = {
   persistentCredentials: false,
 }
 const meta: Meta = {
-  api_revision: 6,
+  api_revision: 7,
   capabilities: ['character', 'soul'],
   server_version: 'test',
   character: {
@@ -115,61 +115,44 @@ function server(options: { lost?: boolean; offline?: boolean } = {}) {
   })
   return { deletes }
 }
-it('pauses local dispatch and persists its original command even while public identity is offline', async () => {
-  const { client } = setup(),
-    box = client.box(connection.characterId),
-    installation = new ExecutorInstallation(client.credentials, box.owner),
-    executorId = '00000000-0000-4000-8000-000000000007'
-  installation.install(executorId, 'executor-only-test-token')
-  server({ offline: true })
-  await expect(
-    client.executorAction(connection.characterId, { kind: 'pause', executorId }),
-  ).rejects.toThrow('transport_unknown')
-  expect(installation.current()?.localPaused).toBe(true)
-  const pending = client.executorCommands(connection.characterId)
-  expect(pending).toHaveLength(1)
-  expect(pending[0]).toMatchObject({ state: 'submitted', command: { kind: 'pause', executorId } })
-  expect(JSON.stringify(pending)).not.toContain('executor-only-test-token')
-})
-
-it('starts an installed executor with only its own credential when no chat credential is present', async () => {
-  const { client } = setup(),
-    box = client.box(connection.characterId),
-    installation = new ExecutorInstallation(client.credentials, box.owner)
-  installation.install('00000000-0000-4000-8000-000000000007', 'executor-only-test-token')
-  client.credentials.remove(`device/${connection.characterId}/${connection.personId}`)
-  const paths: string[] = []
-  vi.stubGlobal('fetch', async (input: string, init: RequestInit) => {
-    const path = new URL(input).pathname
-    paths.push(path)
-    if (path.endsWith('/client/v1/meta')) {
-      expect(new Headers(init.headers).has('Authorization')).toBe(false)
-      return data(meta)
-    }
-    expect(path).toContain('/executor/v1/')
-    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer executor-only-test-token')
-    expect(new Headers(init.headers).has('X-Yuki-Entry')).toBe(false)
-    if (path.endsWith('/config'))
-      return data({
-        executor_id: installation.current()!.executorId,
-        grants: [],
-        grants_digest: 'empty',
-        paused: false,
-      })
-    if (path.endsWith('/heartbeat')) return data({ grants_digest: 'empty', paused: false })
-    return new Response(
-      new ReadableStream({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode('event: sync\ndata: {"pending":[]}\n\n'))
-          init.signal?.addEventListener('abort', () => controller.close(), { once: true })
-        },
-      }),
+it.each(['keep', 'delete'] as const)(
+  'retired executor history does not block logout and only explicit %s controls its local cleanup',
+  async (choice) => {
+    const { client } = setup(),
+      box = client.box(connection.characterId),
+      key = 'executor:' + createHash('sha256').update(JSON.stringify(box.owner)).digest('hex')
+    box.db.exec(`
+      CREATE TABLE executor_commands(request_id TEXT, state TEXT, result TEXT);
+      CREATE TABLE executor_setup(id INTEGER, create_request TEXT);
+      CREATE TABLE local_executor_operations(op_id TEXT, phase TEXT, result_json TEXT);
+      INSERT INTO executor_commands VALUES('original-command','submitted',NULL);
+      INSERT INTO executor_setup VALUES(1,'original-command');
+      INSERT INTO local_executor_operations VALUES('original-op','started','{"state":"unknown"}');
+    `)
+    client.credentials.set(key, 'original-retired-token')
+    const original = client.exportRetiredHistory(connection.characterId)
+    server()
+    const summary = await client.prepareLogout(connection.characterId)
+    expect(summary).toMatchObject({ drafts: 0, pending: 0, attachments: 0 })
+    expect(client.retiredHistory(connection.characterId)).toHaveLength(3)
+    expect(client.exportRetiredHistory(connection.characterId)).toBe(original)
+    const file = box.db.name
+    await client.finishLogout(connection.characterId, connection.deviceId!, choice)
+    expect(existsSync(file)).toBe(choice === 'keep')
+    expect(client.credentials.get(key)).toBe(
+      choice === 'keep' ? 'original-retired-token' : undefined,
     )
-  })
-  Connections.prototype.start.call(client, connection.characterId)
-  await vi.waitFor(() => expect(client.executorState(connection.characterId).state).toBe('online'))
-  expect(paths.some((path) => path.endsWith('/client/v1/me'))).toBe(false)
-})
+    if (choice === 'keep') {
+      const recovered = new Outbox(file, box.owner)
+      resources[resources.length - 1]!.other = recovered
+      expect(
+        recovered.db.prepare('SELECT result_json FROM local_executor_operations').get(),
+      ).toEqual({
+        result_json: '{"state":"unknown"}',
+      })
+    }
+  },
+)
 
 it('logout drains a prior activity before revoking and keeps original drafts for the same Person', async () => {
   const { client, path } = setup(),

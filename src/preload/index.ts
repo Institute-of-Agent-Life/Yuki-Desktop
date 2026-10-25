@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { BootInfo, Command, DesktopBridge } from '../shared/desktop'
+import type { ConnectorDriver } from '../shared/connector'
 
 const bridge: DesktopBridge = {
   connector: {
@@ -10,7 +11,7 @@ const bridge: DesktopBridge = {
     connect: (input) => ipcRenderer.invoke('yuki:connector-connect', input),
     pair: (input) => ipcRenderer.invoke('yuki:connector-pair', input),
     service: (action) => ipcRenderer.invoke('yuki:connector-service', action),
-    discover: () => ipcRenderer.invoke('yuki:connector-discover'),
+    discover: (driver?: ConnectorDriver) => ipcRenderer.invoke('yuki:connector-discover', driver),
     configure: (input, start) => ipcRenderer.invoke('yuki:connector-configure', input, start),
     diagnose: (id) => ipcRenderer.invoke('yuki:connector-diagnose', id),
     revealNative: (id) => ipcRenderer.invoke('yuki:connector-reveal-native', id),
@@ -38,17 +39,6 @@ const bridge: DesktopBridge = {
     },
   },
   client: {
-    executorState: (id) => ipcRenderer.invoke('yuki:executor-state', id),
-    clearUnavailableExecutor: (id) => ipcRenderer.invoke('yuki:executor-clear-unavailable', id),
-    enableExecutor: (id) => ipcRenderer.invoke('yuki:enable-executor', id),
-    executorAction: (id, action) => ipcRenderer.invoke('yuki:executor-action', id, action),
-    executorCommands: (id) => ipcRenderer.invoke('yuki:executor-commands', id),
-    verifyExecutorCommand: (id, request) =>
-      ipcRenderer.invoke('yuki:verify-executor-command', id, request),
-    pickExecutorFolder: (id, alias) => ipcRenderer.invoke('yuki:pick-executor-folder', id, alias),
-    removeExecutorFolder: (id, digest) =>
-      ipcRenderer.invoke('yuki:remove-executor-folder', id, digest),
-
     pendingPairings: () => ipcRenderer.invoke('yuki:pending-pairings'),
     resumePairing: (id, device) => ipcRenderer.invoke('yuki:resume-pairing', id, device),
     forgetPairing: (id, device) => ipcRenderer.invoke('yuki:forget-pairing', id, device),

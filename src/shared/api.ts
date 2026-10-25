@@ -1,10 +1,9 @@
 import type { components as ServerComponents } from './contract.gen'
 import type { components } from './contract.gen'
 import type { NavigationTarget } from './desktop'
-import type { ExecutorAction, ExecutorCommandItem, LocalExecutorState } from './executor'
 import type { MessageReference } from './message'
 
-export const REQUIRED_API_REVISION = 6
+export const REQUIRED_API_REVISION = 7
 
 export type Meta = ServerComponents['schemas']['Meta']
 export type Me = components['schemas']['Me']
@@ -214,16 +213,8 @@ export interface ArtifactSource {
 }
 export type ApiRead =
   | {
-      kind:
-        | 'me'
-        | 'home'
-        | 'character'
-        | 'character-status'
-        | 'computer'
-        | 'proactive-route'
-        | 'executors'
+      kind: 'me' | 'home' | 'character' | 'character-status' | 'computer' | 'proactive-route'
     }
-  | { kind: 'executor-operations'; executorId: string; cursor?: string }
   | { kind: 'memory'; about: 'me' | 'self'; cursor?: string }
   | { kind: 'memory-fact'; factId: number }
   | { kind: 'automations'; scope: 'mine' | 'self' }
@@ -342,23 +333,6 @@ export interface ConversationBridge {
     link?: string
     save?: boolean
   }): Promise<ApiReply<'save' | null>>
-  executorState(characterId: string): Promise<ApiReply<LocalExecutorState>>
-  clearUnavailableExecutor(characterId: string): Promise<ApiReply<LocalExecutorState>>
-  enableExecutor(characterId: string): Promise<ApiReply<LocalExecutorState>>
-  executorAction(
-    characterId: string,
-    action: ExecutorAction,
-  ): Promise<ApiReply<ExecutorCommandItem>>
-  executorCommands(characterId: string): Promise<ApiReply<ExecutorCommandItem[]>>
-  verifyExecutorCommand(
-    characterId: string,
-    requestId: string,
-  ): Promise<ApiReply<ExecutorCommandItem>>
-  pickExecutorFolder(
-    characterId: string,
-    alias: string,
-  ): Promise<ApiReply<{ alias: string; digest: string } | null>>
-  removeExecutorFolder(characterId: string, digest: string): Promise<ApiReply<LocalExecutorState>>
   computerTicket(characterId: string): Promise<ApiReply<string>>
   saveComputerFile(characterId: string, path: string): Promise<ApiReply<boolean>>
   computerCommand(
