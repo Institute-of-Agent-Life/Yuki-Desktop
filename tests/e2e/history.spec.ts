@@ -2,6 +2,7 @@ import { activeCharacterName } from '../fixtures/active-character'
 import { expect, test } from '@playwright/test'
 import { referencedMessage } from '../../src/shared/message'
 import {
+  currentConnection,
   ledgerEvents,
   pairUI,
   waitForAcceptedMessage,
@@ -17,73 +18,38 @@ test('paginates real history without moving the visible message and jumps to the
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
+    const connection = await currentConnection(page)
     const composer = page.getByRole('textbox', {
       name: `和 ${await activeCharacterName(page)} 說點什麼`,
     })
     await composer.fill('原始歷史錨點')
     await page.getByRole('button', { name: '送出', exact: true }).click()
+    const originalSubmission = await waitForAcceptedMessage(
+      page,
+      connection.characterId,
+      '原始歷史錨點',
+    )
     const original = page
       .getByRole('article')
       .filter({ has: page.getByText('原始歷史錨點', { exact: true }) })
     await expect(original).toHaveAttribute('data-event-id', /^\d+$/)
     const originalId = Number(await original.getAttribute('data-event-id'))
+    expect(originalId).toBe(originalSubmission.eventId)
     await original.getByRole('button', { name: '引用回覆' }).click()
-    // Populate history through the product's normal API/outbox, never by setting UI state.
-    const submission = await page.evaluate(async () => {
-      const connections = await window.yuki.client.connections()
-      if (!connections.ok || !connections.value[0]) throw new Error('Missing paired connection')
-      const id = connections.value[0].characterId
-      const results = await Promise.all(
-        Array.from({ length: 61 }, (_, index) =>
-          window.yuki.client.send(
-            id,
-            `歷史測試 ${String(index).padStart(2, '0')}\n${'真實帳本的一段較長文字。'.repeat(4)}`,
-          ),
-        ),
-      )
-      for (const result of results) if (!result.ok) throw new Error(result.code)
-      const submitted = results.map((result) => {
-        if (!result.ok) throw Error(result.code)
-        return result.value
-      })
-      const receipts = await Promise.all(
-        submitted
-          .filter((item) => item.eventId === null)
-          .map((item) => window.yuki.client.verify(id, item.requestId)),
-      )
-      for (const receipt of receipts) if (!receipt.ok) throw Error(receipt.code)
-      return {
-        id,
-        conversationId: connections.value[0].conversationId,
-        requests: submitted.map((item) => item.requestId),
-      }
-    })
-    const readSeeded = () =>
-      page.evaluate(async ({ id, requests }) => {
-        const journal = await window.yuki.client.outbox(id)
-        if (!journal.ok) throw Error(journal.code)
-        return journal.value
-          .filter((item) => requests.includes(item.requestId))
-          .map((item) => ({
-            requestId: item.requestId,
-            eventId: item.eventId,
-            text: item.body.text,
-          }))
-      }, submission)
-    await expect
-      .poll(async () => {
-        const items = await readSeeded()
-        return { count: items.length, accepted: items.every((item) => item.eventId !== null) }
-      })
-      .toEqual({ count: 61, accepted: true })
-    const seeded = await readSeeded()
+    // The existing fixture commits real ingress events without starting 61 unrelated Main turns.
+    const response = await fetch(`${rig.base}/__test/history?count=61`, { method: 'POST' })
+    expect(response.status).toBe(200)
+    const seeded = (await response.json()) as { conversation_id: string; event_ids: number[] }
+    expect(seeded.conversation_id).toBe(connection.conversationId)
+    expect(seeded.event_ids).toHaveLength(61)
+    expect(new Set(seeded.event_ids).size).toBe(61)
     await composer.fill('引用很早以前的原事件')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     const finalSubmission = await waitForAcceptedMessage(
       page,
-      submission.id,
+      connection.characterId,
       referencedMessage(
-        [{ conversationId: submission.conversationId, eventId: originalId }],
+        [{ conversationId: connection.conversationId, eventId: originalId }],
         '引用很早以前的原事件',
       ),
     )
@@ -94,20 +60,23 @@ test('paginates real history without moving the visible message and jumps to the
       .filter({ has: page.getByText('引用很早以前的原事件', { exact: true }) })
     await expect(latest).toHaveAttribute('data-event-id', String(finalSubmission.eventId))
     const latestId = finalSubmission.eventId
-    const ended = await waitForMainEnded(page, submission.id, finalSubmission.requestId)
+    const ended = await waitForMainEnded(page, connection.characterId, finalSubmission.requestId)
     expect(ended.event_id).toBe(latestId)
     expect(Array.isArray(ended.result_event_ids)).toBe(true)
     for (const eventId of ended.result_event_ids!)
       await expect(page.locator(`article[data-event-id="${eventId}"]`)).toBeVisible()
-    expect(new Set(seeded.map((item) => item.requestId)).size).toBe(61)
-    expect(new Set(seeded.map((item) => item.eventId)).size).toBe(61)
     const ledger = await ledgerEvents(rig.base)
-    for (const item of seeded) {
-      expect(item.eventId).toBeGreaterThan(originalId)
-      expect(item.eventId).toBeLessThan(latestId)
-      expect(
-        ledger.filter((event) => event.event_id === item.eventId).map((event) => event.content),
-      ).toEqual([item.text])
+    for (const [index, eventId] of seeded.event_ids.entries()) {
+      expect(eventId).toBeGreaterThan(originalId)
+      expect(eventId).toBeLessThan(latestId)
+      const events = ledger.filter((event) => event.event_id === eventId)
+      expect(events).toHaveLength(1)
+      expect(events[0]).toMatchObject({
+        author_person_id: connection.personId,
+        conversation_id: connection.conversationId,
+        direction: 'inbound',
+        content: `歷史訊息 ${index + 1}`,
+      })
     }
     // Reload clears renderer history; only the latest API page is initially requested.
     await page.reload()
