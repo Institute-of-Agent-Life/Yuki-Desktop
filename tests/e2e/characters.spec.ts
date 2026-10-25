@@ -1,20 +1,21 @@
 import { navigate, sidebar } from '../fixtures/navigation'
 import { activeCharacterName } from '../fixtures/active-character'
 import { captureViewport, contentSize } from '../fixtures/visual'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 
-async function add(page: Page) {
+async function add(page: Page, app?: ElectronApplication) {
   await page.keyboard.press('ControlOrMeta+,')
-  await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
-  await page.getByRole('button', { name: '加入另一個角色', exact: true }).click()
+  await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
+  if (app) await captureViewport(app, page, test.info().outputPath('yuki-connections.png'))
+  await page.getByRole('button', { name: '連接另一個 Yuki', exact: true }).click()
   await expect(page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })).toBeVisible()
 }
 async function switchRole(page: Page, name: string) {
   await sidebar(page)
-  await page.getByRole('button', { name: '切換角色', exact: true }).click()
+  await page.getByRole('button', { name: '切換 Yuki', exact: true }).click()
   await page.getByRole('menuitemradio', { name: new RegExp(name) }).click()
 }
 
@@ -35,7 +36,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await page.getByRole('radio', { name: '淺色', exact: true }).click()
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await contentSize(app, page, 1440, 900)
-    await expect(page.getByRole('button', { name: '切換角色', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '切換 Yuki', exact: true })).toHaveCount(0)
     await page
       .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼`, exact: true })
       .fill('只有第一角色的草稿')
@@ -49,7 +50,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
       .getByRole('tab', { name: '檔案', exact: true })
       .click()
     await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
-    await add(page)
+    await add(page, app)
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await add(page)
     await pairUI(page, second.base, await second.code())
@@ -171,11 +172,12 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await expect(page.getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })).toHaveValue(
       '只有 Mika 的草稿',
     )
-    await page.getByRole('button', { name: '切換角色', exact: true }).click()
+    await page.getByRole('button', { name: '切換 Yuki', exact: true }).click()
+    await captureViewport(app, page, test.info().outputPath('switch-yuki-menu.png'))
     await page.keyboard.press('Home')
     await expect(page.getByRole('menuitemradio', { name: new RegExp(firstName) })).toBeFocused()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: '切換角色', exact: true })).toBeFocused()
+    await expect(page.getByRole('button', { name: '切換 Yuki', exact: true })).toBeFocused()
     await captureViewport(app, page, join(test.info().outputDir, 'mika-role-switch.png'))
     await app.close()
     app = await first.launch('multiple-roles')
@@ -268,11 +270,11 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
           await expect(
             page.getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true }),
           ).toBeVisible()
-          if (!(await page.getByRole('button', { name: '切換角色', exact: true }).isVisible()))
+          if (!(await page.getByRole('button', { name: '切換 Yuki', exact: true }).isVisible()))
             await page.getByRole('button', { name: '側邊欄', exact: true }).click()
-          await page.getByRole('button', { name: '切換角色', exact: true }).click()
-          await expect(page.getByRole('menu', { name: '角色', exact: true })).toBeVisible()
-          const menu = page.getByRole('menu', { name: '角色', exact: true })
+          await page.getByRole('button', { name: '切換 Yuki', exact: true }).click()
+          await expect(page.getByRole('menu', { name: 'Yuki', exact: true })).toBeVisible()
+          const menu = page.getByRole('menu', { name: 'Yuki', exact: true })
           await expect(menu.getByRole('img', { name: firstName, exact: true })).toHaveCSS(
             'background-color',
             mode === 'dark' ? 'rgb(127, 164, 255)' : 'rgb(58, 107, 214)',

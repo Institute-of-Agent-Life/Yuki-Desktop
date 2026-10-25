@@ -19,12 +19,12 @@ async function connections(page: Page) {
 }
 async function add(page: Page) {
   await page.keyboard.press('ControlOrMeta+,')
-  await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
-  await page.getByRole('button', { name: '加入另一個角色', exact: true }).click()
+  await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
+  await page.getByRole('button', { name: '連接另一個 Yuki', exact: true }).click()
   await expect(page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })).toBeVisible()
 }
 async function switchRole(page: Page, name: string) {
-  await page.getByRole('button', { name: '切換角色', exact: true }).click()
+  await page.getByRole('button', { name: '切換 Yuki', exact: true }).click()
   await page.getByRole('menuitemradio', { name: new RegExp(name) }).click()
 }
 
@@ -89,7 +89,7 @@ test('Windows native roles keep original chats, prompt and avatar drafts and col
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
     await page.getByRole('radio', { name: '淺色', exact: true }).click()
     await page.getByRole('button', { name: '返回', exact: true }).click()
-    await expect(page.getByRole('button', { name: '切換角色', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '切換 Yuki', exact: true })).toHaveCount(0)
     const native = await app.evaluate(({ app, BrowserWindow, screen }) => {
       const window = BrowserWindow.getAllWindows()[0]!
       return {
@@ -278,11 +278,11 @@ test('Windows native roles keep original chats, prompt and avatar drafts and col
     await expect(page.getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })).toHaveValue(
       '只有 Mika 的草稿',
     )
-    await page.getByRole('button', { name: '切換角色', exact: true }).click()
+    await page.getByRole('button', { name: '切換 Yuki', exact: true }).click()
     await page.keyboard.press('Home')
     await expect(page.getByRole('menuitemradio', { name: new RegExp(firstName) })).toBeFocused()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: '切換角色', exact: true })).toBeFocused()
+    await expect(page.getByRole('button', { name: '切換 Yuki', exact: true })).toBeFocused()
     await page.screenshot({ path: join(test.info().outputDir, 'mika-role-switch.png') })
 
     const beforeCrash = await connections(page)
@@ -372,11 +372,11 @@ test('Windows native roles keep original chats, prompt and avatar drafts and col
           await expect(
             page.getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true }),
           ).toBeVisible()
-          if (!(await page.getByRole('button', { name: '切換角色', exact: true }).isVisible()))
+          if (!(await page.getByRole('button', { name: '切換 Yuki', exact: true }).isVisible()))
             await page.getByRole('button', { name: '側邊欄', exact: true }).click()
-          await page.getByRole('button', { name: '切換角色', exact: true }).click()
-          await expect(page.getByRole('menu', { name: '角色', exact: true })).toBeVisible()
-          const menu = page.getByRole('menu', { name: '角色', exact: true })
+          await page.getByRole('button', { name: '切換 Yuki', exact: true }).click()
+          await expect(page.getByRole('menu', { name: 'Yuki', exact: true })).toBeVisible()
+          const menu = page.getByRole('menu', { name: 'Yuki', exact: true })
           await expect(menu.getByRole('img', { name: firstName, exact: true })).toHaveCSS(
             'background-color',
             mode === 'dark' ? 'rgb(127, 164, 255)' : 'rgb(58, 107, 214)',

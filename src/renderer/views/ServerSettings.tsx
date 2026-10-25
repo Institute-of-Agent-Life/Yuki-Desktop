@@ -131,8 +131,8 @@ export function ServerSettings({
   return (
     <>
       <div className={styles.group}>
-        <Row title="其他角色">
-          <Button onClick={onAddCharacter}>加入另一個角色</Button>
+        <Row title="其他 Yuki" description="連接同一台或不同伺服器上已部署的獨立 Yuki 後端實例。">
+          <Button onClick={onAddCharacter}>連接另一個 Yuki</Button>
         </Row>
         <Row title="伺服器位址" description={connection.baseUrl}>
           <Button
@@ -279,7 +279,9 @@ export function ServerSettings({
           </>
         }
       >
-        <p>先確認這是同一個角色與原本的本人入口，再更新連線位址。待確認內容會以原請求繼續查證。</p>
+        <p>
+          先確認這是同一個 Yuki 與原本的本人入口，再更新連線位址。待確認內容會以原請求繼續查證。
+        </p>
         <TextField
           aria-label="新伺服器位址"
           value={address ?? ''}

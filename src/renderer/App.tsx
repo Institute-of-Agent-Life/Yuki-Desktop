@@ -91,7 +91,7 @@ export function App({ boot }: { boot: BootInfo }) {
         ? result.value.find((item) => item.characterId === target.characterId)
         : (available.find((item) => item.characterId === selection.current) ?? available[0])
       if (!first && target) {
-        setNavigationError('原角色的連線已移除。')
+        setNavigationError('原 Yuki 的連線已移除。')
         return
       }
       if (first) {

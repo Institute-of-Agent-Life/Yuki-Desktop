@@ -12,8 +12,8 @@ export function installMenu(window: () => BrowserWindow | undefined) {
   app.setAboutPanelOptions({ applicationName: 'Yuki', applicationVersion: app.getVersion() })
   const send = (command: Command) => () => window()?.webContents.send('yuki:command', command)
   const view: MenuItemConstructorOptions[] = [
-    { label: '上一個角色', accelerator: 'CmdOrCtrl+Shift+[', click: send('previous-character') },
-    { label: '下一個角色', accelerator: 'CmdOrCtrl+Shift+]', click: send('next-character') },
+    { label: '上一個 Yuki', accelerator: 'CmdOrCtrl+Shift+[', click: send('previous-character') },
+    { label: '下一個 Yuki', accelerator: 'CmdOrCtrl+Shift+]', click: send('next-character') },
     { type: 'separator' },
     { label: '對話', accelerator: 'CmdOrCtrl+1', click: send('chat') },
     { label: '工作', accelerator: 'CmdOrCtrl+2', click: send('works') },

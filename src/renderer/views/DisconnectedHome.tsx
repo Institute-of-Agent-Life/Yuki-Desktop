@@ -109,7 +109,7 @@ export function DisconnectedHome({
             在本機部署 Yuki
           </Button>
         </div>
-        <p className={styles.hint}>隨時可以從設定中的「伺服器與角色」繼續配置 Bot。</p>
+        <p className={styles.hint}>隨時可以從設定中的「Yuki 連接」繼續配置連線。</p>
         <Button variant="plain" onClick={help}>
           使用說明
         </Button>

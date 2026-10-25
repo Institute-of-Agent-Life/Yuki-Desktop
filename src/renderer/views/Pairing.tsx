@@ -191,7 +191,7 @@ export function Pairing({
           {step === 'welcome'
             ? '和她聊聊，一起把事情做好。選擇你想從哪裡開始。'
             : step === 'confirm'
-              ? '確認角色與伺服器，再允許這台裝置連接。'
+              ? '確認 Yuki 與伺服器，再允許這台裝置連接。'
               : '貼上配對連結或收到的完整配對資訊。'}
         </p>
         {error && <Banner status="failed">{error}</Banner>}

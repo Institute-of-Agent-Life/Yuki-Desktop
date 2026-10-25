@@ -213,7 +213,7 @@ export function LocalBot({
           {state?.configured && (
             <>
               <p>
-                已有設定與資料，繼續使用原角色和本人入口。
+                已有設定與資料，繼續使用原 Yuki 和本人入口。
                 {state.running ? '服務正在執行。' : '服務尚未啟動。'}
               </p>
               <small>{state.installation?.address}</small>

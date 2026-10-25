@@ -307,7 +307,7 @@ export function DeviceSecurity({
           </>
         }
       >
-        <p>「{revoke?.label || '未命名裝置'}」會失去這個角色的連線權限。之後需要重新配對。</p>
+        <p>「{revoke?.label || '未命名裝置'}」會失去這個 Yuki 的連線權限。之後需要重新配對。</p>
       </Sheet>
       <Sheet
         title="連接另一台裝置"

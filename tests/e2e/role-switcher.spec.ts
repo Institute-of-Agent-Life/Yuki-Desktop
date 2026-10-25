@@ -4,9 +4,9 @@ test('an unselected role menu focuses its first actual item without selecting a 
   page,
 }) => {
   await page.goto('http://127.0.0.1:4178/role-switcher.html')
-  const toggle = page.getByRole('button', { name: '切換角色', exact: true })
+  const toggle = page.getByRole('button', { name: '切換 Yuki', exact: true })
   await toggle.press('Enter')
-  const menu = page.getByRole('menu', { name: '角色', exact: true }),
+  const menu = page.getByRole('menu', { name: 'Yuki', exact: true }),
     first = menu.getByRole('menuitemradio', { name: /First role/ }),
     second = menu.getByRole('menuitemradio', { name: /Second role/ })
   await expect(first).toBeFocused()
@@ -29,9 +29,9 @@ test('a role menu still prefers its existing selected item and Escape preserves 
   page,
 }) => {
   await page.goto('http://127.0.0.1:4178/role-switcher.html?selected=second')
-  const toggle = page.getByRole('button', { name: '切換角色', exact: true })
+  const toggle = page.getByRole('button', { name: '切換 Yuki', exact: true })
   await toggle.press('Enter')
-  const menu = page.getByRole('menu', { name: '角色', exact: true }),
+  const menu = page.getByRole('menu', { name: 'Yuki', exact: true }),
     selected = menu.getByRole('menuitemradio', { name: /Second role/ })
   await expect(selected).toBeFocused()
   await expect(selected).toHaveAttribute('aria-checked', 'true')

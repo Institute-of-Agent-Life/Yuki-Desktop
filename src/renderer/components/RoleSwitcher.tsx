@@ -95,7 +95,7 @@ export function RoleSwitcher({
   return (
     <div ref={root} className={styles.switcher} onClick={(event) => event.stopPropagation()}>
       <IconButton
-        label="切換角色"
+        label="切換 Yuki"
         aria-haspopup="menu"
         aria-expanded={open && active}
         onClick={() => setOpen((value) => !value)}
@@ -105,7 +105,7 @@ export function RoleSwitcher({
       {open && active && (
         <div
           role="menu"
-          aria-label="角色"
+          aria-label="Yuki"
           className={styles.menu}
           onBlur={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)

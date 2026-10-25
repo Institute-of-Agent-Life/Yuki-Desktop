@@ -28,7 +28,8 @@ const problems: Record<string, string> = {
   connector_authorization_failed: '電腦授權未完成，請確認目前的 Yuki 連線後重新授權。',
   connector_server_error:
     '伺服器未接納連接器，請確認同一個 Yuki 網址已提供 /agents/v1/ HTTPS 與 WebSocket 入口。',
-  connector_other_server: '這份安裝連接另一個 Yuki 網址。請保留原安裝，為目前角色建立獨立安裝。',
+  connector_other_server:
+    '這份安裝連接另一個 Yuki 網址。請保留原安裝，為目前的 Yuki 建立獨立安裝。',
   connector_other_person: '這份安裝屬於另一位本人。請保留原身份與回執，建立獨立安裝。',
   connector_runtime_platform: '這份連接器不適用於目前系統，請安裝對應平台的 Desktop 發行包。',
   connector_not_installed: '連接器原位置已不存在，請重新準備隨附連接器或選用原安裝。',

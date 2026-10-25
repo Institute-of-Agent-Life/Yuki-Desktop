@@ -29,7 +29,7 @@ const categories = [
   { id: 'notify', label: '通知', icon: Bell },
   { id: 'agents', label: '本機 Agent', icon: Terminal },
   { id: 'security', label: '裝置與安全', icon: ShieldCheck },
-  { id: 'server', label: '伺服器與角色', icon: Server },
+  { id: 'server', label: 'Yuki 連接', icon: Server },
   { id: 'advanced', label: '進階', icon: Wrench },
 ] as const
 type Category = (typeof categories)[number]['id']
@@ -326,13 +326,13 @@ export function Settings({
                 onLoggedOut={onLoggedOut}
               />
             ) : (
-              <p className={styles.notice}>配對角色後可管理本人的裝置。</p>
+              <p className={styles.notice}>連接 Yuki 後可管理本人的裝置。</p>
             )
           ) : category === 'server' ? (
             <>
               <div className={styles.group}>
                 {!connection && (
-                  <Row title="連接 Yuki">
+                  <Row title="連接 Yuki" description="連接已部署的 Yuki 後端實例。">
                     <Button onClick={onAddCharacter}>連接已有 Yuki</Button>
                   </Row>
                 )}
@@ -349,7 +349,7 @@ export function Settings({
                   onAddCharacter={onAddCharacter}
                 />
               ) : (
-                <p className={styles.notice}>連接角色後，這裡會顯示伺服器與角色設定。</p>
+                <p className={styles.notice}>連接 Yuki 後，這裡會顯示伺服器與連接設定。</p>
               )}
             </>
           ) : (

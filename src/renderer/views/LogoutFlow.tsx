@@ -89,7 +89,7 @@ export function LogoutFlow({
         {connection.logout ? '繼續登出' : '登出…'}
       </Button>
       <Sheet
-        title="登出這個角色？"
+        title="登出這個 Yuki？"
         open={confirm}
         onClose={() => {
           if (!busy) setConfirm(false)

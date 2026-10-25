@@ -12,7 +12,7 @@ import type {
 } from '../../src/shared/api'
 async function settings(page: Page) {
   await page.keyboard.press('ControlOrMeta+,')
-  await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
+  await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
   await expect(
     page.getByRole('region', { name: '設定', exact: true }).getByText('已連線', { exact: true }),
   ).toBeVisible()
@@ -117,7 +117,7 @@ test('new server address proves real identity before bearer and resumes the orig
     await page.getByRole('textbox', { name: '新伺服器位址' }).fill(wrong.base)
     await page.getByRole('button', { name: '確認並連線', exact: true }).click()
     await expect(
-      page.getByText('這個位址已是另一個角色，請確認原角色的新位址。', { exact: true }),
+      page.getByText('這個位址是另一個 Yuki，請確認原 Yuki 的新位址。', { exact: true }),
     ).toBeVisible()
     expect((await connection(page)).baseUrl).toBe(old.base)
     expect(wrong.calls).toEqual([
@@ -216,7 +216,7 @@ test('new server address proves real identity before bearer and resumes the orig
 })
 async function settingsWithoutWaiting(page: Page) {
   await page.keyboard.press('ControlOrMeta+,')
-  await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
+  await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
 }
 
 test('two actual devices keep proactive route CAS and recover the original lost response after a cold App restart', async () => {

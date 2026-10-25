@@ -369,7 +369,7 @@ test('settings use the available column and expose one native Agent entry before
   await expect(page.getByRole('tab', { name: '本機 Agent', exact: true })).toBeVisible()
   await expect(page.getByRole('tab', { name: '本機連接', exact: true })).toHaveCount(0)
   await expect(page.getByRole('tab', { name: '編程 Agent', exact: true })).toHaveCount(0)
-  await page.getByRole('tab', { name: '伺服器與角色', exact: true }).click()
+  await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
   await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
   await expect(page.getByTestId('settings-action')).toHaveText('connect')
   await page.getByRole('button', { name: '本機部署與管理', exact: true }).click()
@@ -388,5 +388,5 @@ test('a direct Agent settings request opens the single native connection entry w
   await expect(
     page.getByText('先連接一位 Yuki，再授權這台電腦。你可以直接離開此頁。'),
   ).toBeVisible()
-  await expect(page.getByRole('tab', { name: '伺服器與角色', exact: true })).toBeEnabled()
+  await expect(page.getByRole('tab', { name: 'Yuki 連接', exact: true })).toBeEnabled()
 })
