@@ -109,13 +109,9 @@ export function SoulEditor({
         if (!alive.current || sequence !== loadSequence.current) return
         if (
           error instanceof ClientProblem &&
-          [
-            'owner_required',
-            'unauthenticated',
-            'not_found',
-            'outbox_owner_mismatch',
-            'different_character',
-          ].includes(error.code)
+          ['unauthenticated', 'not_found', 'outbox_owner_mismatch', 'different_character'].includes(
+            error.code,
+          )
         )
           setDenied(true)
         setError(error instanceof Error ? error.message : '無法讀取 SOUL.md。')

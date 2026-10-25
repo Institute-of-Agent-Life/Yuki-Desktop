@@ -21,8 +21,7 @@ export function LocalBot({
   const [directory, setDirectory] = useState(''),
     [characterName, setCharacterName] = useState('Yuki'),
     [personName, setPersonName] = useState('')
-  const [port, setPort] = useState('8080'),
-    [manageCharacter, setManageCharacter] = useState(true)
+  const [port, setPort] = useState('8080')
   const [protocol, setProtocol] =
     useState<LocalBotConfiguration['model']['protocol']>('chat_completions')
   const [baseUrl, setBaseUrl] = useState(''),
@@ -109,7 +108,6 @@ export function LocalBot({
                   port: Number(port),
                   characterName,
                   personName,
-                  manageCharacter,
                   model: { protocol, base_url: baseUrl, api_key: key, model },
                 }),
               )
@@ -190,14 +188,6 @@ export function LocalBot({
                 value={key}
                 onChange={(event) => setKey(event.target.value)}
               />
-              <label>
-                <input
-                  type="checkbox"
-                  checked={manageCharacter}
-                  onChange={(event) => setManageCharacter(event.target.checked)}
-                />
-                允許我編輯這位角色的資料與 SOUL
-              </label>
               <label htmlFor="local-port">本機連接埠</label>
               <TextField
                 id="local-port"

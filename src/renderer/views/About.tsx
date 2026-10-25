@@ -25,7 +25,7 @@ import {
   Spinner,
   TextField,
 } from '../components/Controls'
-import { ClientProblem, hidesPrivateData, problemText, unwrap } from '../queries/client'
+import { hidesPrivateData, problemText, unwrap } from '../queries/client'
 import styles from './About.module.css'
 import { CharacterAvatar } from '../components/CharacterAvatar'
 import { AvatarEditor, AvatarPending } from './AvatarEditor'
@@ -114,7 +114,7 @@ export function About({
         <header className={styles.hero}>
           <div className={styles.portrait}>
             <CharacterAvatar size={200} />
-            {profile.viewer.is_owner && avatarSupported && (
+            {avatarSupported && (
               <button
                 ref={avatarPress}
                 data-press="icon"
@@ -133,14 +133,14 @@ export function About({
           <div className={styles.introduction}>
             <div className={styles.name}>
               <h1>{profile.display_name}</h1>
-              {profile.viewer.is_owner && !editing && (
+              {!editing && (
                 <Button variant="plain" aria-label="編輯角色資料" onClick={() => setEditing(true)}>
                   <Pencil size={14} />
                   編輯
                 </Button>
               )}
             </div>
-            {editing && profile.viewer.is_owner ? (
+            {editing ? (
               <ProfileEditor
                 key={profile.id}
                 profile={profile}
@@ -154,15 +154,11 @@ export function About({
                 <h2 className={styles.sectionTitle}>角色資料</h2>
                 <p>{profile.bio || '尚未設定角色簡介。'}</p>
                 <p className={styles.description}>
-                  {profile.viewer.is_owner
-                    ? '你是這個角色的擁有者，可以修改名稱、簡介與提示詞。'
-                    : '你目前可以查看角色資料。名稱、簡介與提示詞由角色擁有者管理。'}
+                  名稱、簡介、頭像與提示詞由連接這個 Yuki 的使用者共享。
                 </p>
-                {profile.viewer.is_owner && (
-                  <div className={styles.heroActions}>
-                    <Button onClick={editSoul}>編輯提示詞</Button>
-                  </div>
-                )}
+                <div className={styles.heroActions}>
+                  <Button onClick={editSoul}>編輯提示詞</Button>
+                </div>
               </>
             )}
           </div>
@@ -179,13 +175,12 @@ export function About({
         />
         <AvatarPending
           id={id}
-          owner={profile.viewer.is_owner}
           open={(item) => {
             setAvatarRestore(item)
             setAvatarEditing(true)
           }}
         />
-        {avatarEditing && avatarSupported && profile.viewer.is_owner && (
+        {avatarEditing && avatarSupported && (
           <AvatarEditor
             id={id}
             profile={profile}
@@ -273,7 +268,7 @@ export function About({
               jump={jump}
             />
           ) : tab === 'arrangements' ? (
-            <Arrangements id={id} owner={profile.viewer.is_owner} run={run} busy={busy} />
+            <Arrangements id={id} run={run} busy={busy} />
           ) : (
             <CapabilityList id={id} />
           )}
@@ -584,20 +579,9 @@ function Memories({
   )
 }
 
-function Arrangements({
-  id,
-  owner,
-  run,
-  busy,
-}: {
-  id: string
-  owner: boolean
-  run: Run
-  busy: boolean
-}) {
+function Arrangements({ id, run, busy }: { id: string; run: Run; busy: boolean }) {
   const { date } = useDisplayTime()
-  const [selectedScope, setScope] = useState<'mine' | 'self'>('mine')
-  const scope = owner ? selectedScope : 'mine'
+  const [scope, setScope] = useState<'mine' | 'self'>('mine')
   const [remove, setRemove] = useState<Automation>()
   const items = useQuery({
     queryKey: [id, 'automations', scope],
@@ -612,21 +596,18 @@ function Arrangements({
     })
   return (
     <>
-      {owner && (
-        <Segmented
-          label="安排歸屬"
-          value={scope}
-          onChange={setScope}
-          items={[
-            { value: 'mine', label: '你的安排' },
-            { value: 'self', label: '她的安排' },
-          ]}
-        />
-      )}
+      <Segmented
+        label="安排歸屬"
+        value={scope}
+        onChange={setScope}
+        items={[
+          { value: 'mine', label: '你的安排' },
+          { value: 'self', label: '她的安排' },
+        ]}
+      />
       {items.isPending && <Spinner />}
       {items.error && <Banner status="failed">{items.error.message}</Banner>}
       {!hidesPrivateData(items.error) &&
-        !(items.error instanceof ClientProblem && items.error.code === 'owner_required') &&
         items.data?.items.map((item) => (
           <article key={item.automation_id} className={styles.row}>
             <div className={styles.arrangement}>

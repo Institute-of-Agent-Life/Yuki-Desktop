@@ -33,8 +33,13 @@ test('Windows native character data keeps original memory receipts across crashe
   expect(process.env.YUKI_ELECTRON_EXECUTABLE).toBeTruthy()
   expect(['127.0.0.1', 'localhost', '[::1]']).toContain(new URL(base!).hostname)
   const data = await mkdtemp(join(tmpdir(), 'yuki-windows-character-data-'))
-  const post = async (path: string) => {
-    const response = await fetch(`${base}/__test/${path}`, { method: 'POST' })
+  const post = async (path: string, body?: unknown) => {
+    const response = await fetch(`${base}/__test/${path}`, {
+      method: 'POST',
+      ...(body === undefined
+        ? {}
+        : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+    })
     expect(response.ok, await response.clone().text()).toBe(true)
     return response
   }
@@ -337,13 +342,23 @@ test('Windows native character data keeps original memory receipts across crashe
       path: test.info().outputPath('about-capabilities.png'),
       animations: 'disabled',
     })
-    await post('revoke-character-owner')
+    await post('revoke-character-device', { device_id: owner.deviceId })
+    const denied = await pa.evaluate(async (id) => {
+      const result = await window.yuki.client.read(id, { kind: 'character' })
+      return result.ok ? 'unexpected-success' : result.code
+    }, owner.characterId)
+    expect(denied).toBe('unauthenticated')
     await expect(pa.getByRole('button', { name: '編輯角色資料' })).toHaveCount(0)
-    await pa.getByRole('tab', { name: '安排', exact: true }).click()
-    await expect(pa.getByRole('tab', { name: '她的安排', exact: true })).toHaveCount(0)
+    await pb.getByRole('button', { name: '編輯角色資料' }).click()
+    await pb.getByRole('textbox', { name: '簡介', exact: true }).fill('另一台有效裝置仍可編輯')
+    await pb.getByRole('button', { name: '儲存', exact: true }).click()
+    await expect(pb.getByText('另一台有效裝置仍可編輯', { exact: true })).toBeVisible()
+    await pb.getByRole('tab', { name: '安排', exact: true }).click()
+    await pb.getByRole('tab', { name: '她的安排', exact: true }).click()
+    await expect(pb.getByRole('button', { name: '刪除安排', exact: true })).toHaveCount(0)
     expect(errors).toEqual([])
     stages.push({
-      stage: 'profile-cas-keeps-identity-and-owner-revocation-refreshes-controls',
+      stage: 'profile-cas-keeps-identity-and-device-revocation-preserves-other-access',
       after,
     })
     proof.complete = true

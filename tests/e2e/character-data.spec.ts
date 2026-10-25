@@ -263,10 +263,26 @@ test('real Electron edits original memory and arrangements, handles two-device c
       path: test.info().outputPath('about-capabilities.png'),
       animations: 'disabled',
     })
-    await fetch(`${rig.base}/__test/revoke-character-owner`, { method: 'POST' })
+    const revoked = await fetch(`${rig.base}/__test/revoke-character-device`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_id: connection.deviceId }),
+    })
+    expect(revoked.status).toBe(200)
+    expect(await revoked.json()).toMatchObject({ device_id: connection.deviceId, revoked: true })
+    const denied = await pa.evaluate(async (id) => {
+      const result = await window.yuki.client.read<Profile>(id, { kind: 'character' })
+      return result.ok ? 'unexpected-success' : result.code
+    }, connection.characterId)
+    expect(denied).toBe('unauthenticated')
     await expect(pa.getByRole('button', { name: '編輯角色資料' })).toHaveCount(0)
-    await pa.getByRole('tab', { name: '安排', exact: true }).click()
-    await expect(pa.getByRole('tab', { name: '她的安排', exact: true })).toHaveCount(0)
+    await pb.getByRole('button', { name: '編輯角色資料' }).click()
+    await pb.getByRole('textbox', { name: '簡介', exact: true }).fill('另一台有效裝置仍可編輯')
+    await pb.getByRole('button', { name: '儲存', exact: true }).click()
+    await expect(pb.getByText('另一台有效裝置仍可編輯', { exact: true })).toBeVisible()
+    await pb.getByRole('tab', { name: '安排', exact: true }).click()
+    await pb.getByRole('tab', { name: '她的安排', exact: true }).click()
+    await expect(pb.getByRole('button', { name: '刪除安排', exact: true })).toHaveCount(0)
     expect(errors).toEqual([])
     success = true
   } finally {

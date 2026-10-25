@@ -1,6 +1,6 @@
 {
   "name": "yuki-desktop",
-  "version": "1.0.0-beta.5",
+  "version": "1.0.0-beta.6",
   "private": true,
   "description": "與持續存在的 Yuki 對話、共事與接續工作",
   "desktopName": "yuki.desktop",
@@ -76,7 +76,7 @@
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "electron": "42.11.15",
-    "electron-builder": "26.15.3",
+    "electron-builder": "26.15.6",
     "electron-vite": "6.0.0",
     "eslint": "9.39.5",
     "js-yaml": "4.3.2",

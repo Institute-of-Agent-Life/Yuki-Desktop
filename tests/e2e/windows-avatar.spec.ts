@@ -59,7 +59,6 @@ test('Windows native avatar selection preserves EXIF, crop, second-device conver
     if (!connections.ok) throw Error(connections.code)
     const connection = connections.value[0]!
     const original = await profile(pa, connection.characterId)
-    expect(original.viewer.is_owner).toBe(true)
     expect(original.avatar).toBeNull()
     const runtime = await a.evaluate(({ app, BrowserWindow, screen }) => {
       const window = BrowserWindow.getAllWindows()[0]!

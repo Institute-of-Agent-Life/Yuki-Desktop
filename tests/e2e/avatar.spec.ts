@@ -350,9 +350,9 @@ test('a committed upload with a lost response cold-recovers its original UUID on
   }
 })
 
-test('losing character ownership removes editing while valid devices can read; revoking the device clears private avatar caches', async () => {
+test('revoking one real device clears its private avatar cache while another valid device can keep editing', async () => {
   test.setTimeout(150000)
-  const rig = await yukiFixture()
+  const rig = await yukiFixture({ character: true })
   const a = await rig.launch('avatar-permission-a')
   const b = await rig.launch('avatar-permission-b')
   let success = false
@@ -371,45 +371,15 @@ test('losing character ownership removes editing while valid devices can read; r
     const current = await profile(pa, connection.characterId)
     for (const page of [pa, pb]) await expect.poll(() => sidebarColor(page)).toEqual([232, 53, 74])
     await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
-    const revoked = await fetch(`${rig.base}/__test/revoke-owner`, { method: 'POST' })
+    const revoked = await fetch(`${rig.base}/__test/revoke-character-device`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_id: connection.deviceId }),
+    })
     expect(revoked.status).toBe(200)
-    await expect
-      .poll(async () => (await profile(pa, connection.characterId)).viewer.is_owner)
-      .toBe(false)
+    expect(await revoked.json()).toMatchObject({ device_id: connection.deviceId, revoked: true })
     await expect(editor(pa)).not.toBeVisible()
     await expect(pa.getByRole('button', { name: '更換頭像', exact: true })).toHaveCount(0)
-    const forbidden = await pa.evaluate(
-      async ({ id, revision }) => {
-        const result = await window.yuki.client.avatarCommand(id, revision)
-        if (!result.ok) throw Error(result.code)
-        return result.value
-      },
-      { id: connection.characterId, revision: current.avatar_revision },
-    )
-    expect(forbidden).toMatchObject({ state: 'result', problem: 'owner_required' })
-    for (const page of [pa, pb]) {
-      const readable = await page.evaluate(
-        async ({ id, sha }) => {
-          const result = await window.yuki.client.avatarBytes(id, sha, 64)
-          return result.ok ? result.value.byteLength : result.code
-        },
-        { id: connection.characterId, sha: current.avatar!.sha256 },
-      )
-      expect(typeof readable).toBe('number')
-      await expect.poll(() => sidebarColor(page)).toEqual([232, 53, 74])
-    }
-    const result = await pb.evaluate(
-      async ({ id, deviceId }) => {
-        const result = await window.yuki.client.characterCommand(id, {
-          kind: 'device-revoke',
-          deviceId,
-        })
-        if (!result.ok) throw Error(result.code)
-        return result.value
-      },
-      { id: connection.characterId, deviceId: connection.deviceId! },
-    )
-    expect(result).toMatchObject({ state: 'result', problem: null })
     const noAccess = await pa.evaluate(
       async ({ id, sha }) => {
         const result = await window.yuki.client.avatarBytes(id, sha, 64)
@@ -420,6 +390,28 @@ test('losing character ownership removes editing while valid devices can read; r
     expect(noAccess).toBe('unauthenticated')
     await expect(pa.locator('[data-region="sidebar"] img')).toHaveCount(0)
     await expect.poll(() => sidebarColor(pb)).toEqual([232, 53, 74])
+    const readable = await pb.evaluate(
+      async ({ id, sha }) => {
+        const result = await window.yuki.client.avatarBytes(id, sha, 64)
+        return result.ok ? result.value.byteLength : result.code
+      },
+      { id: connection.characterId, sha: current.avatar!.sha256 },
+    )
+    expect(typeof readable).toBe('number')
+    await about(pb)
+    await expect(pb.getByRole('button', { name: '更換頭像', exact: true })).toBeVisible()
+    const changed = await pb.evaluate(
+      async ({ id, revision }) => {
+        const result = await window.yuki.client.avatarCommand(id, revision)
+        if (!result.ok) throw Error(result.code)
+        return result.value
+      },
+      { id: connection.characterId, revision: current.avatar_revision },
+    )
+    expect(changed).toMatchObject({ state: 'result', problem: null })
+    expect((await profile(pb, connection.characterId)).avatar_revision).not.toBe(
+      current.avatar_revision,
+    )
     const cached = await a.evaluate(
       ({ app }, path) => {
         const require = process

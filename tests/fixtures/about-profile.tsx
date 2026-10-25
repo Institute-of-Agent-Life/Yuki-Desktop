@@ -30,7 +30,20 @@ Object.defineProperty(window, 'yuki', {
   value: {
     onCommand: () => () => {},
     client: {
-      characterCommands: async () => ({ ok: true, value: [] }),
+      characterCommands: async () => ({
+        ok: true,
+        value:
+          parameters.get('pending') === 'avatar'
+            ? [
+                {
+                  requestId: 'original-avatar-request',
+                  command: { kind: 'avatar', action: 'reset', expectedRevision: 0 },
+                  state: 'submitted',
+                  problem: null,
+                },
+              ]
+            : [],
+      }),
       read: async (_id: string, route: { kind: string; about?: string }) => {
         const full = parameters.get('collections') === 'full'
         if (route.kind === 'capabilities')
@@ -109,7 +122,6 @@ createRoot(document.getElementById('root')!).render(
             name={profile.display_name}
             avatar={<CharacterAvatar />}
             status="已連接"
-            owner={profile.viewer.is_owner}
             platform="win32"
             floating={false}
           >

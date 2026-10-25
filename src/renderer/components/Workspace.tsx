@@ -31,7 +31,6 @@ interface Props {
   roleSwitcher?: ReactNode
   status: string
   presence?: 'running' | 'waiting' | 'done' | 'offline'
-  owner: boolean
   platform: string
   children: ReactNode
   inspector?: ReactNode
@@ -110,11 +109,10 @@ export function Workspace(props: Props) {
   }
   const inspectorTabs = [
     { value: 'work' as const, label: '工作' },
-    ...(props.owner ? [{ value: 'computer' as const, label: '電腦' }] : []),
+    { value: 'computer' as const, label: '電腦' },
     { value: 'files' as const, label: '檔案' },
   ]
-  const selectedTab =
-    state.inspectorTab === 'computer' && !props.owner ? 'work' : state.inspectorTab
+  const selectedTab = state.inspectorTab
   useEffect(() => {
     const resize = () => setWidth(window.innerWidth)
     window.addEventListener('resize', resize)
@@ -232,10 +230,7 @@ export function Workspace(props: Props) {
       {props.entries}
       <div className={styles.group}>工作與成果</div>
       {views
-        .filter(
-          ([view]) =>
-            view !== 'chat' && view !== 'settings' && (view !== 'computer' || props.owner),
-        )
+        .filter(([view]) => view !== 'chat' && view !== 'settings')
         .map(([view, label, Icon]) => (
           <button
             className={styles.nav}

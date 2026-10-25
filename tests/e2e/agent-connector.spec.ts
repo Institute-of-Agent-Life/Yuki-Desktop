@@ -150,6 +150,50 @@ test('an existing independent installation is selected without pairing, upgradin
   ])
 })
 
+test('an original connection no longer admitted by Yuki offers an explicit new connection without reusing its authorization', async ({
+  page,
+}) => {
+  await page.goto('http://127.0.0.1:4178/components.html?connector=existing')
+  await expect(page.getByRole('button', { name: '使用已有連接', exact: true })).toBeVisible()
+  await page.evaluate(() => {
+    const read = window.yuki.connector.state
+    window.yuki.connector.state = async (id) => {
+      const result = await read(id)
+      if (!result.ok || result.value.available || !result.value.existing) return result
+      return {
+        ok: true,
+        value: {
+          ...result.value,
+          existing: {
+            ...result.value.existing,
+            state: {
+              ...result.value.existing.state,
+              admission: {
+                matched: false,
+                connected: false,
+                problem: 'connector_other_person',
+              },
+            },
+          },
+        },
+      }
+    }
+    ;(window as Window & { __connectorAdvance?: (phase: string) => void }).__connectorAdvance!(
+      'not-admitted',
+    )
+  })
+  await page.getByRole('button', { name: '建立新連接', exact: true }).click()
+  await expect(page.getByRole('button', { name: '連接本機 Codex', exact: true })).toBeDisabled()
+  await expect(
+    page.getByRole('checkbox', { name: '我允許這個 Yuki 連接本機 Agent', exact: true }),
+  ).not.toBeChecked()
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __connectorCalls?: unknown[] }).__connectorCalls,
+    ),
+  ).toEqual([{ method: 'install', input: true }])
+})
+
 test('Claude uses the same connection flow and new or existing sessions do not require a chosen project', async ({
   page,
 }) => {
@@ -334,8 +378,8 @@ test('native readiness remains distinct from a running service and an online ser
   )
   await expect(page.getByText('尚未確認目前本人', { exact: true })).toBeVisible()
   await expect(page.getByText('transport_unknown', { exact: false })).toHaveCount(0)
-  await expect(page.getByText('原安裝屬於另一個授權來源，原身份及回執會保留。')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '建立另一份獨立安裝', exact: true })).toHaveCount(0)
+  await expect(page.getByText('目前的 Yuki 未接納原連接，原身份與回執會保留。')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '建立新連接', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '停止連接器', exact: true })).toBeEnabled()
   await expect(page.getByRole('button', { name: '重新讀取狀態', exact: true })).toBeEnabled()
 })

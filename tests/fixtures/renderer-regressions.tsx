@@ -522,7 +522,6 @@ function Case() {
         <Workspace
           name="Yuki Desktop"
           status="尚未連接 Bot"
-          owner={false}
           platform="linux"
           floating={false}
           settings={

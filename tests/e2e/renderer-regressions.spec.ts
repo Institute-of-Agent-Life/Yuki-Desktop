@@ -258,39 +258,52 @@ test('work overview and detail preserve real catalog pagination and original ste
   ).toEqual(expect.arrayContaining(['works', 'work', 'steps']))
 })
 
-test('a completed work stays with its original message when the active home is empty', async ({
-  page,
-}) => {
-  const errors: string[] = []
-  page.on('pageerror', (error) => errors.push(error.message))
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=historical-work')
-  const log = page.getByRole('log', { name: '對話訊息' })
-  const original = log.locator('[data-event-id="31"]')
-  await expect(original).toContainText('The original message still owns its completed work')
-  const card = log.getByRole('article').filter({
-    has: page.getByRole('heading', { name: 'Completed work from the original message' }),
+for (const width of [1440, 960])
+  test(`a completed work stays with its original message and its inspector closes below the toolbar at ${width}px`, async ({
+    page,
+  }) => {
+    const errors: string[] = []
+    page.on('pageerror', (error) => errors.push(error.message))
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=historical-work')
+    const log = page.getByRole('log', { name: '對話訊息' })
+    const original = log.locator('[data-event-id="31"]')
+    await expect(original).toContainText('The original message still owns its completed work')
+    const card = log.getByRole('article').filter({
+      has: page.getByRole('heading', { name: 'Completed work from the original message' }),
+    })
+    await expect(card).toHaveCount(1)
+    await expect(log.locator('[data-event-id="32"]')).toContainText(
+      'The original result remains a separate message',
+    )
+    await expect(card.getByText('已完成', { exact: true })).toBeVisible()
+    const originalBounds = await original.boundingBox()
+    const cardBounds = await card.boundingBox()
+    expect(cardBounds!.y).toBeGreaterThanOrEqual(originalBounds!.y + originalBounds!.height)
+    const resultBounds = await log.locator('[data-event-id="32"]').boundingBox()
+    expect(resultBounds!.y).toBeGreaterThanOrEqual(cardBounds!.y + cardBounds!.height)
+    const draft = page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+    await draft.fill('關閉工作詳情仍保留的草稿')
+    await card.getByRole('button', { name: '查看詳情', exact: true }).click()
+    const inspector = page.getByRole('complementary', { name: '檢視器' })
+    await expect(inspector).toHaveCSS('position', width === 960 ? 'absolute' : 'relative')
+    await expect(
+      inspector.getByRole('heading', { name: 'Completed work from the original message' }),
+    ).toBeVisible()
+    await expect(inspector.getByText('Original terminal step', { exact: true })).toBeVisible()
+    await expect(inspector.getByText('Original result', { exact: true })).toBeVisible()
+    const close = inspector.getByRole('button', { name: '關閉檢視器', exact: true })
+    const closeBounds = await close.boundingBox()
+    const toolbar = await page.locator('[data-region="toolbar"]').boundingBox()
+    expect(closeBounds!.y).toBeGreaterThanOrEqual(toolbar!.y + toolbar!.height)
+    await page.screenshot({ path: test.info().outputPath('completed-work-original-message.png') })
+    await close.click()
+    await expect(inspector).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '檢視器', exact: true })).toBeFocused()
+    await expect(original).toBeVisible()
+    await expect(draft).toHaveValue('關閉工作詳情仍保留的草稿')
+    expect(errors).toEqual([])
   })
-  await expect(card).toHaveCount(1)
-  await expect(log.locator('[data-event-id="32"]')).toContainText(
-    'The original result remains a separate message',
-  )
-  await expect(card.getByText('已完成', { exact: true })).toBeVisible()
-  const originalBounds = await original.boundingBox()
-  const cardBounds = await card.boundingBox()
-  expect(cardBounds!.y).toBeGreaterThanOrEqual(originalBounds!.y + originalBounds!.height)
-  const resultBounds = await log.locator('[data-event-id="32"]').boundingBox()
-  expect(resultBounds!.y).toBeGreaterThanOrEqual(cardBounds!.y + cardBounds!.height)
-  await card.getByRole('button', { name: '查看詳情', exact: true }).click()
-  const inspector = page.getByRole('complementary', { name: '檢視器' })
-  await expect(
-    inspector.getByRole('heading', { name: 'Completed work from the original message' }),
-  ).toBeVisible()
-  await expect(inspector.getByText('Original terminal step', { exact: true })).toBeVisible()
-  await expect(inspector.getByText('Original result', { exact: true })).toBeVisible()
-  expect(errors).toEqual([])
-  await page.screenshot({ path: test.info().outputPath('completed-work-original-message.png') })
-})
 
 test('the result page can show its work when the original trigger has not been loaded', async ({
   page,

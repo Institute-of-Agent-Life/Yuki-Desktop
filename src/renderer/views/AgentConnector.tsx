@@ -14,6 +14,8 @@ import { ConnectorTasks } from './ConnectorTasks'
 import styles from './Settings.module.css'
 
 const problems: Record<string, string> = {
+  unknown: '本機連接器操作未確認，請重新讀取狀態。',
+  connector_runtime_invalid: '隨附連接器的檔案不完整，請重新安裝完整的 Yuki Desktop 發行包。',
   connector_owner_mismatch:
     '這個連接器屬於其他伺服器或本人。原授權不會被覆寫；可以建立另一份獨立安裝。',
   native_login_required: '請先在原生 Agent 完成登入，再重新檢查。',
@@ -30,7 +32,7 @@ const problems: Record<string, string> = {
     '伺服器未接納連接器，請確認同一個 Yuki 網址已提供 /agents/v1/ HTTPS 與 WebSocket 入口。',
   connector_other_server:
     '這份安裝連接另一個 Yuki 網址。請保留原安裝，為目前的 Yuki 建立獨立安裝。',
-  connector_other_person: '這份安裝屬於另一位本人。請保留原身份與回執，建立獨立安裝。',
+  connector_other_person: '伺服器目前未提供這份原連接。原身份與回執會保留，可以建立新連接。',
   connector_runtime_platform: '這份連接器不適用於目前系統，請安裝對應平台的 Desktop 發行包。',
   connector_not_installed: '連接器原位置已不存在，請重新準備隨附連接器或選用原安裝。',
   connector_existing_runtime_unavailable:
@@ -88,6 +90,7 @@ export function AgentConnector({
   const [manualCode, setManualCode] = useState('')
   const available = state.data?.available ? state.data : undefined
   const existing = state.data?.available === false ? state.data.existing : undefined
+  const installation = available ?? existing?.state
   const original = available?.instances.find((item) => item.id === instanceId)
   const nativeName = driverName(original?.driver ?? driver)
   const supportsDiscovery = !original || ['codex', 'claude'].includes(original.driver)
@@ -219,6 +222,21 @@ export function AgentConnector({
           <p className={styles.notice}>沿用原安裝、授權與操作記錄，不會重新配對或啟停原服務。</p>
         </div>
       )}
+      {installation?.paired && installation.admission?.matched === false && (
+        <>
+          <Banner status="unknown">目前的 Yuki 未接納原連接，原身份與回執會保留。</Banner>
+          <Button
+            loading={busy}
+            onClick={() =>
+              void perform(async () => {
+                unwrap(await window.yuki.connector.install(true))
+              })
+            }
+          >
+            建立新連接
+          </Button>
+        </>
+      )}
       {state.data &&
         !existing?.state.paired &&
         (!available?.paired || (available.admission?.matched && !available.instances.length)) && (
@@ -345,21 +363,6 @@ export function AgentConnector({
                 }
               >
                 改用隨附版本，保留原資料
-              </Button>
-            </>
-          )}
-          {available.paired && available.admission?.matched === false && (
-            <>
-              <Banner status="unknown">原安裝屬於另一個授權來源，原身份及回執會保留。</Banner>
-              <Button
-                loading={busy}
-                onClick={() =>
-                  void perform(async () => {
-                    unwrap(await window.yuki.connector.install(true))
-                  })
-                }
-              >
-                建立另一份獨立安裝
               </Button>
             </>
           )}

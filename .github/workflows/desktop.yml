@@ -93,6 +93,9 @@ jobs:
       - name: Verify the real signed Mac runtime on a disposable copy
         if: runner.os == 'macOS'
         run: node build-tools/check-mac-runtime-signing.mjs dist
+      - name: Verify the actual NSIS installation and installed Connector resources
+        if: runner.os == 'Windows'
+        run: node build-tools/check-windows-install.mjs dist
       - run: npm run check:package
       - run: node build-tools/prepare-upload.mjs dist/upload dist
       - uses: actions/upload-artifact@v4

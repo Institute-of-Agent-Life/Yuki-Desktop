@@ -36,13 +36,7 @@ export function AvatarStatus({
       ) : supported ? (
         <>
           <p>更換後，連接這個 Yuki 的裝置會同步顯示新的角色頭像。</p>
-          {profile.viewer.is_owner ? (
-            <Button onClick={edit}>更換頭像</Button>
-          ) : (
-            <p>
-              目前帳號沒有角色資料管理權限。請由管理員授予角色擁有者權限後，在這裡選擇圖片上傳。
-            </p>
-          )}
+          <Button onClick={edit}>更換頭像</Button>
         </>
       ) : (
         <p>這個 Yuki 目前尚未提供更換角色頭像的功能。</p>
