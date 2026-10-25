@@ -11,11 +11,11 @@ test('records through MediaRecorder, persists the original ASR transcript and co
     ]),
     success = false
   try {
+    let page = await app.firstWindow()
+    await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
     await app.evaluate(({ systemPreferences }) => {
       systemPreferences.askForMediaAccess = async () => true
     })
-    let page = await app.firstWindow()
-    await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
     const code = await rig.code(),
       link = `yuki://pair?${new URLSearchParams({ server: rig.base, code })}`
     await app.evaluate(({ app }, link) => app.emit('open-url', { preventDefault() {} }, link), link)
