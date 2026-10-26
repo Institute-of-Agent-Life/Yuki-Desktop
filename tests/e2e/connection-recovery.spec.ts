@@ -5,6 +5,7 @@ import { writeFile } from 'node:fs/promises'
 import type { Home, Work } from '../../src/shared/api'
 import {
   recordBusinessState,
+  currentEvents,
   ledgerEvents,
   pairUI,
   currentConnection,
@@ -13,6 +14,7 @@ import {
   waitForWorkState,
   yukiFixture,
 } from '../fixtures/backend'
+import { forwardProxy } from '../fixtures/forward-proxy'
 import { transportGate } from '../fixtures/transport'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
 
@@ -34,6 +36,11 @@ test('a real thirty second transport outage preserves the draft and converges an
     })
     await composer.fill('斷線之前的原訊息')
     await pa.getByRole('button', { name: '送出', exact: true }).click()
+    const connection = await currentConnection(pa)
+    const original = await waitForAcceptedMessage(pa, connection.characterId, '斷線之前的原訊息')
+    await expect(pa.locator(`article[data-event-id="${original.eventId}"]`)).toContainText(
+      '斷線之前的原訊息',
+    )
     await expect(pb.getByText('斷線之前的原訊息', { exact: true })).toBeVisible()
     const draft = '三十秒連線中斷仍保留的草稿'
     await composer.fill(draft)
@@ -124,6 +131,84 @@ test('a real thirty second transport outage preserves the draft and converges an
       }
     await Promise.all([a.close().catch(() => {}), b.close().catch(() => {})])
     await gate.close()
+    await rig.close(success)
+  }
+})
+
+test('an accepted original message remains visible until history catches up without reviving deleted events', async () => {
+  const rig = await yukiFixture()
+  const proxy = await forwardProxy(rig.base, '/held-history')
+  const app = await rig.launch('accepted-before-history')
+  let success = false
+  let historyPath: string | undefined
+  try {
+    const page = await app.firstWindow()
+    await pairUI(page, proxy.base, await rig.code())
+    const connection = await currentConnection(page)
+    const name = await activeCharacterName(page)
+    const initial = await currentEvents(page)
+    await expect(page.locator(`article[data-event-id="${initial.latest_event_id}"]`)).toHaveCount(1)
+    historyPath = proxy.calls.find(({ path }) =>
+      new URL(path, rig.base).pathname.endsWith(
+        `/conversations/${connection.conversationId}/events`,
+      ),
+    )?.path
+    expect(historyPath).toBeDefined()
+    proxy.faults.holdResponses.add(historyPath!)
+    const heldHistory = proxy.waitForHeldResponse(historyPath!)
+    const text = '已接納但尚未同步到歷史的原訊息'
+    await page.getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true }).fill(text)
+    await page.getByRole('button', { name: '送出', exact: true }).click()
+    const original = await waitForAcceptedMessage(page, connection.characterId, text)
+    await heldHistory
+    const canonical = page.locator(`article[data-event-id="${original.eventId}"]`)
+    await expect(canonical).toHaveCount(0)
+    await expect(page.getByText(text, { exact: true })).toHaveCount(1)
+    const receipt = await waitForMainEnded(page, connection.characterId, original.requestId)
+    expect(receipt.event_id).toBe(original.eventId)
+    const verified = await page.evaluate(
+      ({ characterId, requestId }) => window.yuki.client.verify(characterId, requestId),
+      { characterId: connection.characterId, requestId: original.requestId },
+    )
+    expect(verified).toMatchObject({
+      ok: true,
+      value: { state: 'result', eventId: original.eventId, requestId: original.requestId },
+    })
+    await expect(page.getByText(text, { exact: true })).toHaveCount(1)
+    proxy.releaseResponses(historyPath!)
+    await expect(canonical).toContainText(text)
+    await expect(page.getByText(text, { exact: true })).toHaveCount(1)
+    expect(
+      proxy.calls.filter(
+        ({ method, requestId }) => method === 'POST' && requestId === original.requestId,
+      ),
+    ).toHaveLength(1)
+    expect(
+      (await ledgerEvents(rig.base)).filter((event) => event.event_id === original.eventId),
+    ).toHaveLength(1)
+    for (const eventId of [original.eventId, ...(receipt.result_event_ids ?? [])]) {
+      const removed = await fetch(`${rig.base}/__test/events/${eventId}`, { method: 'DELETE' })
+      expect(removed.status).toBe(200)
+    }
+    await page.reload()
+    await expect(page.locator(`article[data-event-id="${initial.latest_event_id}"]`)).toHaveCount(1)
+    const history = await currentEvents(page)
+    expect(Math.max(...history.items.map((event) => event.event_id))).toBeLessThan(original.eventId)
+    expect(history.latest_event_id).toBeGreaterThanOrEqual(original.eventId)
+    await expect(page.getByText(text, { exact: true })).toHaveCount(0)
+    const outbox = await page.evaluate(
+      (id) => window.yuki.client.outbox(id),
+      connection.characterId,
+    )
+    expect(outbox).toMatchObject({
+      ok: true,
+      value: [{ requestId: original.requestId, eventId: original.eventId, state: 'result' }],
+    })
+    success = true
+  } finally {
+    if (historyPath) proxy.releaseResponses(historyPath)
+    await app.close()
+    await proxy.close()
     await rig.close(success)
   }
 })

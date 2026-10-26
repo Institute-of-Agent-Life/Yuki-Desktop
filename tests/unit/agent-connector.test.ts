@@ -29,6 +29,12 @@ const runtime = {
   protocol: 3,
   build: 'original',
 }
+const reader = {
+  ...runtime,
+  executable: join(tmpdir(), 'bundled-python.exe'),
+  version: '0.3.5',
+  build: 'bundled-reader',
+}
 const publicStatus = {
   version: '0.3.2',
   protocol: 3,
@@ -67,6 +73,7 @@ function fixture(
     admission: vi.fn(async () => ({ matched: true, connected: false })),
   }
   const connector = new AgentConnector(options, run)
+  vi.spyOn(connector.installations, 'bundled').mockResolvedValue(reader)
   connector.installations.select({
     managed: false,
     dataDirectory: join(tmpdir(), 'original-data'),
@@ -121,6 +128,44 @@ it('status only projects public fields and never starts a service or changes own
   expect(JSON.stringify(result)).not.toMatch(/private-token|API_KEY|private-owner/)
   expect(run).toHaveBeenCalledTimes(1)
 })
+it('management reads require the bundled reader instead of falling back to the selected CLI', async () => {
+  const { connector, run, options } = fixture()
+  vi.mocked(connector.installations.bundled).mockResolvedValue(undefined)
+  await expect(connector.state()).rejects.toHaveProperty('code', 'connector_runtime_unavailable')
+  await expect(connector.discover()).rejects.toHaveProperty('code', 'connector_runtime_unavailable')
+  options.store.set('agent-connector-installation', undefined)
+  expect(await connector.state()).toEqual({ available: false, bundled: false })
+  expect(run).not.toHaveBeenCalled()
+})
+it('a pending management read keeps the captured data and admission when another installation is selected', async () => {
+  let entered!: () => void, release!: () => void
+  const reading = new Promise<void>((resolve) => (entered = resolve))
+  const released = new Promise<void>((resolve) => (release = resolve))
+  const run = vi.fn(async (selected: unknown, args: readonly string[]) => {
+    expect(selected).toBe(reader)
+    expect(args[1]).toBe(join(tmpdir(), 'original-data'))
+    entered()
+    await released
+    return JSON.stringify(publicStatus)
+  })
+  const { connector, options } = fixture(run)
+  const original = connector.installations.selected()!
+  const pending = connector.state('original-character')
+  await reading
+  const other = { ...original, dataDirectory: join(tmpdir(), 'other-owner-data') }
+  connector.installations.select(other)
+  release()
+  expect(await pending).toMatchObject({
+    dataDirectory: original.dataDirectory,
+    deviceId: publicStatus.device_id,
+  })
+  expect(options.admission).toHaveBeenCalledExactlyOnceWith(
+    'original-character',
+    publicStatus.server,
+    publicStatus.device_id,
+  )
+  expect(connector.installations.selected()).toEqual(other)
+})
 it('matching original pair is reused and another person cannot overwrite it', async () => {
   const { connector, options, run } = fixture()
   await connector.connect({ characterId: 'character', label: 'PC' })
@@ -165,6 +210,7 @@ it('first connection prepares its runtime and pairs only the explicitly selected
     admission: vi.fn(async () => ({ matched: true, connected: false })),
   }
   const connector = new AgentConnector(options, run)
+  vi.spyOn(connector.installations, 'bundled').mockResolvedValue(reader)
   const install = vi.spyOn(connector.installations, 'install').mockImplementation(async () => {
     const installation = {
       managed: true,
@@ -208,6 +254,27 @@ it('configuration returns the real saved instance ID without inferring an identi
   })
   expect(run.mock.calls.some((call) => call[1].includes('service'))).toBe(false)
 })
+it('an unsupported write stays on the old runtime and reports its failure without trying the reader', async () => {
+  const run = vi.fn(async (selected: unknown, args: readonly string[]) => {
+    if (args.includes('status')) {
+      expect(selected).toBe(reader)
+      return JSON.stringify(publicStatus)
+    }
+    expect(selected).toBe(runtime)
+    expect(args.slice(2)).toEqual(['instance', 'configure'])
+    throw new ApiError('connector_failed')
+  })
+  const { connector } = fixture(run)
+  const original = connector.installations.selected()
+  await expect(
+    connector.configure({ id: 'original-profile', label: 'Home Codex' }),
+  ).rejects.toMatchObject({
+    code: 'connector_failed',
+    reason: 'configure',
+  })
+  expect(run).toHaveBeenCalledTimes(2)
+  expect(connector.installations.selected()).toEqual(original)
+})
 it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
   'actual standalone CLI keeps the preallocated creation ID through partial failure, human/JSON output and later edits',
   async () => {
@@ -241,7 +308,7 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
     const connector = new AgentConnector(
       {
         root: join(root, 'managed'),
-        bundledRuntime: join(root, 'absent'),
+        bundledRuntime: actualBundle,
         store: store(),
         authorize: vi.fn(),
         admission: vi.fn(),
@@ -335,7 +402,7 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
     const connector = new AgentConnector(
       {
         root: join(root, 'managed'),
-        bundledRuntime: join(root, 'absent'),
+        bundledRuntime: actualBundle,
         store: store(),
         authorize: vi.fn(),
         admission: vi.fn(),
@@ -582,6 +649,7 @@ it.each(['install', 'start', 'stop', 'uninstall'] as const)(
       ['--data-dir', join(tmpdir(), 'original-data'), 'service', action],
       ['--data-dir', join(tmpdir(), 'original-data'), 'status', '--json'],
     ])
+    expect(run.mock.calls.map((call) => call[0])).toEqual([runtime, reader])
   },
 )
 it('a failed service action reports its concrete stage without replacing the selected installation', async () => {
@@ -696,9 +764,10 @@ it('an older external-installation probe does not replace a selection confirmed 
   const candidate = join(tmpdir(), 'pending-external'),
     other = join(tmpdir(), 'confirmed-other')
   const run = vi.fn(async (_runtime: unknown, args: readonly string[]) => {
-    if (args[1] === candidate) {
+    if (args.includes('--version')) {
       entered()
       await released
+      return '0.3.0\n'
     }
     return JSON.stringify(publicStatus)
   })
@@ -711,8 +780,25 @@ it('an older external-installation probe does not replace a selection confirmed 
   const confirmed = { managed: false, dataDirectory: other, runtime }
   connector.installations.select(confirmed)
   release()
-  expect(await pending).toMatchObject({ dataDirectory: other })
+  expect(await pending).toMatchObject({ dataDirectory: candidate })
+  expect(run.mock.calls.at(-1)?.[1][1]).toBe(candidate)
   expect(connector.installations.selected()).toEqual(confirmed)
+})
+it('a failed management read cannot select an unverified external data directory', async () => {
+  const run = vi.fn(async (selected: unknown, args: readonly string[]) => {
+    if (args.includes('--version')) return '0.3.0\n'
+    expect(selected).toBe(reader)
+    throw new ApiError('connector_failed')
+  })
+  const { connector } = fixture(run)
+  const original = connector.installations.selected()
+  await expect(
+    connector.useInstallation({
+      executable: runtime.executable,
+      dataDirectory: join(tmpdir(), 'unverified-external-data'),
+    }),
+  ).rejects.toHaveProperty('code', 'connector_failed')
+  expect(connector.installations.selected()).toEqual(original)
 })
 it('a separate installation leaves the other role configuration, journal and running service untouched', async () => {
   const root = await mkdtemp(join(tmpdir(), 'connector-separate-'))
@@ -772,23 +858,25 @@ it('a separate installation leaves the other role configuration, journal and run
 })
 
 it.each(['0.3.1', '0.3.3'])(
-  'reads the original %s runtime command without unsupported discovery flags or upgrading it',
+  'resolves the original %s installation through the bundled reader without upgrading it',
   async (version) => {
     const executable = join(tmpdir(), 'actual-codex.exe')
-    const run = vi.fn(async (_runtime: unknown, args: readonly string[]) => {
-      expect(args.slice(2)).toEqual(['status', '--json'])
-      return JSON.stringify({
-        ...publicStatus,
-        version,
-        instances: [{ ...publicStatus.instances[0], command: executable }],
-      })
+    const run = vi.fn(async (selected: unknown, args: readonly string[]) => {
+      expect(selected).toBe(reader)
+      expect(args.slice(2)).toEqual(['discover', '--instance', args[4], '--json'])
+      if (args[4] !== 'original-profile') throw new ApiError('connector_instance_missing')
+      return JSON.stringify({ instance_id: 'original-profile', command: executable })
     })
     const { connector } = fixture(run)
+    connector.installations.select({
+      ...connector.installations.selected()!,
+      runtime: { ...runtime, version },
+    })
     const installation = connector.installations.selected()
     expect(await connector.nativeExecutable('original-profile')).toBe(executable)
     await expect(connector.nativeExecutable('another-instance')).rejects.toHaveProperty(
       'code',
-      'native_not_installed',
+      'connector_instance_missing',
     )
     expect(run.mock.calls).toHaveLength(2)
     expect(connector.installations.selected()).toEqual(installation)
@@ -811,7 +899,7 @@ it('resolves the original instance source after an upgrade without opening its s
   const { connector } = fixture(run)
   const installation = connector.installations.selected()
   expect(await connector.nativeExecutable('original-profile')).toBe(current)
-  expect(run.mock.calls).toHaveLength(2)
+  expect(run.mock.calls).toHaveLength(1)
   expect(connector.installations.selected()).toEqual(installation)
 })
 
@@ -830,7 +918,7 @@ it('propagates a missing original installation instead of revealing the stale co
     'code',
     'native_not_installed',
   )
-  expect(run.mock.calls).toHaveLength(2)
+  expect(run.mock.calls).toHaveLength(1)
 })
 
 it('never reveals a resolved executable returned for another instance', async () => {
@@ -857,15 +945,9 @@ it('keeps the original installation while its native executable read is pending'
   const reading = new Promise<void>((resolve) => (entered = resolve))
   const released = new Promise<void>((resolve) => (release = resolve))
   const run = vi.fn(async (_runtime: unknown, args: readonly string[]) => {
-    if (args.includes('status')) {
-      entered()
-      await released
-      return JSON.stringify({
-        ...publicStatus,
-        version: '0.3.4',
-        instances: [{ ...publicStatus.instances[0], command: join(tmpdir(), 'old-codex.exe') }],
-      })
-    }
+    expect(args).toContain('discover')
+    entered()
+    await released
     return JSON.stringify({
       instance_id: 'original-profile',
       command: join(tmpdir(), 'original-current-codex.exe'),
@@ -879,10 +961,7 @@ it('keeps the original installation while its native executable read is pending'
   connector.installations.select(second)
   release()
   expect(await pending).toBe(join(tmpdir(), 'original-current-codex.exe'))
-  expect(run.mock.calls.map((call) => call[1][1])).toEqual([
-    first.dataDirectory,
-    first.dataDirectory,
-  ])
+  expect(run.mock.calls.map((call) => call[1][1])).toEqual([first.dataDirectory])
   expect(connector.installations.selected()).toEqual(second)
 })
 
@@ -932,17 +1011,24 @@ it('actual launch ignores a same-name executable in an empty-PATH working direct
   expect(output).toBe('selected-absolute-runtime')
 })
 
-it('imports the actual pre-upgrade CLI status without requiring newly added fields', async () => {
+it('reads a pre-upgrade installation through the bundled reader and keeps the actual runtime identity', async () => {
   const old = {
     paired: true,
     device_id: 'original-device',
-    instances: publicStatus.instances,
-    service: publicStatus.service,
+    instances: [{ id: 'original-profile', label: 'Home Codex', driver: 'codex' }],
+    service: { installed: true, running: true },
   }
-  const run = vi.fn(async (_runtime: unknown, args: readonly string[]) =>
-    args.includes('--version') ? '0.3.0\n' : JSON.stringify(old),
-  )
-  const { connector } = fixture(run)
+  const command = join(tmpdir(), 'original-native-codex.exe')
+  const run = vi.fn(async (selected: unknown, args: readonly string[]) => {
+    if (selected === reader)
+      return JSON.stringify({
+        ...publicStatus,
+        version: reader.version,
+        instances: [{ ...publicStatus.instances[0], command }],
+      })
+    return args.includes('--version') ? '0.3.0\n' : JSON.stringify(old)
+  })
+  const { connector, options } = fixture(run)
   const value = await connector.useInstallation({
     executable: runtime.executable,
     dataDirectory: join(tmpdir(), 'legacy-original-data'),
@@ -953,7 +1039,19 @@ it('imports the actual pre-upgrade CLI status without requiring newly added fiel
     version: '0.3.0',
     deviceId: 'original-device',
     runtime: runtime.executable,
+    protocol: undefined,
+    server: publicStatus.server,
+    instances: [{ ...publicStatus.instances[0], command }],
   })
+  await connector.state('character')
+  expect(options.admission).toHaveBeenCalledExactlyOnceWith(
+    'character',
+    publicStatus.server,
+    'original-device',
+  )
+  expect(
+    run.mock.calls.filter(([selected]) => selected !== reader).map(([, args]) => args),
+  ).toEqual([['--version']])
   expect(run.mock.calls.map((call) => call[1])).toContainEqual(['--version'])
   expect(run.mock.calls.some((call) => call[1].includes('pair'))).toBe(false)
 })
@@ -1028,17 +1126,33 @@ it.each(['preview', 'use', 'connect'])(
     await mkdir(data)
     await mkdir(legacy)
     const executable = join(legacy, 'python.exe')
+    const native = {
+      ...publicStatus.instances[0],
+      command: join(legacy, 'original-codex.exe'),
+      cwd: join(root, 'original-project'),
+      env: { ORIGINAL_ENV: 'native-owner-value' },
+      args: ['--original-argument'],
+      socket: 'original-socket',
+      endpoint: 'original-endpoint',
+    }
+    const config = JSON.stringify({ device_id: 'original-device', instances: [native] })
     await writeFile(executable, 'fixture, never launched')
     await writeFile(join(legacy, 'pythonw.exe'), 'fixture, never launched')
-    await writeFile(join(data, 'config.json'), 'original credentials and native configuration')
+    await writeFile(join(data, 'config.json'), config)
     await writeFile(join(data, 'journal.sqlite3'), 'original operation receipts')
-    const run = vi.fn(async (_selected: unknown, args: readonly string[]) => {
+    const run = vi.fn(async (selected: unknown, args: readonly string[]) => {
+      if (args.includes('--version')) {
+        expect(selected).toMatchObject({ executable })
+        return '0.3.0\n'
+      }
+      expect(selected).toBe(reader)
       expect(args).toContain('status')
       return JSON.stringify({
         ...publicStatus,
-        version: args.includes('--data-dir') ? '0.3.0' : '0.3.5',
-        runtime: args.includes('--data-dir') ? executable : runtime.executable,
+        version: reader.version,
+        runtime: reader.executable,
         data_directory: data,
+        instances: [native],
         service: { installed: true, running: true, executable: join(legacy, 'pythonw.exe') },
       })
     })
@@ -1050,7 +1164,7 @@ it.each(['preview', 'use', 'connect'])(
       admission: vi.fn(async () => ({ matched: true, connected: true })),
     }
     const connector = new AgentConnector(options, run)
-    vi.spyOn(connector.installations, 'bundled').mockResolvedValue({ ...runtime, version: '0.3.5' })
+    vi.spyOn(connector.installations, 'bundled').mockResolvedValue(reader)
     const install = vi.spyOn(connector.installations, 'install')
     const preview = await connector.state('role')
     expect(preview).toMatchObject({
@@ -1060,13 +1174,17 @@ it.each(['preview', 'use', 'connect'])(
         state: {
           managed: false,
           version: '0.3.0',
+          protocol: undefined,
           deviceId: 'original-device',
-          instances: publicStatus.instances,
+          instances: [{ id: native.id, command: native.command, cwd: native.cwd }],
           admission: { matched: true, connected: true },
         },
       },
     })
     expect(connector.installations.selected()).toBeUndefined()
+    expect(JSON.stringify(preview)).not.toMatch(
+      /native-owner-value|original-argument|original-socket|original-endpoint/,
+    )
     if (action !== 'preview') {
       const selected =
         action === 'use'
@@ -1084,14 +1202,53 @@ it.each(['preview', 'use', 'connect'])(
     expect(
       run.mock.calls.every(([, args]) => !args.includes('service') && !args.includes('pair')),
     ).toBe(true)
-    expect(await readFile(join(data, 'config.json'), 'utf8')).toBe(
-      'original credentials and native configuration',
-    )
+    expect(await readFile(join(data, 'config.json'), 'utf8')).toBe(config)
     expect(await readFile(join(data, 'journal.sqlite3'), 'utf8')).toBe(
       'original operation receipts',
     )
   },
 )
+
+it('connecting a discovered old installation keeps its original owner while another selection is confirmed', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'connector-connect-selection-'))
+  temporary.push(root)
+  const executable = join(root, 'python.exe')
+  await writeFile(executable, 'fixture, never launched')
+  let entered!: () => void, release!: () => void
+  const reading = new Promise<void>((resolve) => (entered = resolve))
+  const released = new Promise<void>((resolve) => (release = resolve))
+  const run = vi.fn(async (selected: unknown, args: readonly string[]) => {
+    if (args.includes('--version')) {
+      expect(selected).toMatchObject({ executable })
+      entered()
+      await released
+      return '0.3.0\n'
+    }
+    expect(selected).toBe(reader)
+    expect(args).toEqual(['status', '--json'])
+    return JSON.stringify({
+      ...publicStatus,
+      data_directory: root,
+      service: { installed: true, running: true, executable },
+    })
+  })
+  const { connector, options } = fixture(run)
+  options.store.set('agent-connector-installation', undefined)
+  const pending = connector.connect({ characterId: 'original-character', label: 'PC' })
+  await reading
+  const other = { managed: false, dataDirectory: join(tmpdir(), 'confirmed-other'), runtime }
+  connector.installations.select(other)
+  release()
+  expect(await pending).toMatchObject({ dataDirectory: root, deviceId: publicStatus.device_id })
+  expect(connector.installations.selected()).toEqual(other)
+  expect(options.admission).toHaveBeenCalledExactlyOnceWith(
+    'original-character',
+    publicStatus.server,
+    publicStatus.device_id,
+  )
+  expect(options.authorize).not.toHaveBeenCalled()
+  expect(run.mock.calls.map(([, args]) => args)).toEqual([['status', '--json'], ['--version']])
+})
 
 it('an existing paired directory with an unknown service runtime cannot silently create another device', async () => {
   const run = vi.fn(async () =>
@@ -1099,7 +1256,6 @@ it('an existing paired directory with an unknown service runtime cannot silently
   )
   const { connector, options } = fixture(run)
   options.store.set('agent-connector-installation', undefined)
-  vi.spyOn(connector.installations, 'bundled').mockResolvedValue({ ...runtime, version: '0.3.5' })
   const install = vi.spyOn(connector.installations, 'install')
   await expect(connector.connect({ characterId: 'role', label: 'PC' })).rejects.toHaveProperty(
     'code',
@@ -1109,26 +1265,20 @@ it('an existing paired directory with an unknown service runtime cannot silently
   expect(options.authorize).not.toHaveBeenCalled()
 })
 
-it('Claude discovery uses the same connector and old runtimes require an explicit update', async () => {
-  const run = vi.fn(async (_runtime: unknown, args: readonly string[]) => {
+it('Claude discovery uses the bundled reader while leaving the original runtime selected', async () => {
+  const run = vi.fn(async (selected: unknown, args: readonly string[]) => {
+    expect(selected).toBe(reader)
     expect(args.slice(2)).toEqual(['discover', '--json', '--driver', 'claude'])
     return JSON.stringify([
       { id: 'claude-native', label: 'Claude Code', command: runtime.executable },
     ])
   })
   const { connector } = fixture(run)
-  await expect(connector.discover('claude')).rejects.toHaveProperty(
-    'code',
-    'connector_update_required',
-  )
-  connector.installations.select({
-    managed: false,
-    dataDirectory: tmpdir(),
-    runtime: { ...runtime, version: '0.3.5' },
-  })
+  const original = connector.installations.selected()
   expect(await connector.discover('claude')).toEqual([
     { id: 'claude-native', label: 'Claude Code', command: runtime.executable, driver: 'claude' },
   ])
+  expect(connector.installations.selected()).toEqual(original)
 })
 
 it('editing an original Claude instance preserves its driver without revalidating a missing default task directory', async () => {

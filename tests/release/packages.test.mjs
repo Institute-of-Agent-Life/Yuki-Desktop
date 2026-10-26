@@ -16,6 +16,7 @@ import { auditInstaller } from '../../build-tools/audit-installer.mjs'
 import { releaseChannel } from '../../build-tools/builder-config.mjs'
 import { inspectPrebuild } from '../../build-tools/native-prebuild.mjs'
 import { installLinuxLauncher } from '../../build-tools/linux-launcher.mjs'
+import { checkInstalledWindowsRuntime } from '../../build-tools/check-windows-install.mjs'
 import { getConfig, validateConfiguration } from 'app-builder-lib/out/util/config/config.js'
 import { DebugLogger } from 'builder-util'
 
@@ -323,6 +324,8 @@ async function packagedFixture(root) {
   await createPackage(source, archive)
   const runtimeFiles = {
     'python/python.exe': 'isolated Python fixture',
+    'python/Lib/site-packages/pip/_vendor/distlib/t64-arm.exe': 'ARM64 console launcher fixture',
+    'python/Lib/site-packages/pip/_vendor/distlib/w64-arm.exe': 'ARM64 window launcher fixture',
     'legal/Yuki-LICENSE': 'license fixture',
     'legal/dependency-lock.toml': 'locked fixture',
   }
@@ -330,7 +333,10 @@ async function packagedFixture(root) {
     Object.entries(runtimeFiles).map(([path, body]) => ['agent-connector/' + path, body]),
   )
   extra['agent-connector/manifest.json'] = JSON.stringify({
+    version: '0.3.5',
+    protocol: 3,
     executable: 'python/python.exe',
+    arguments: ['-I', '-B', '-m', 'yuki_agent_connector'],
     files: Object.entries(runtimeFiles).map(([path, body]) => ({
       path,
       sha256: createHash('sha256').update(body).digest('hex'),
@@ -480,7 +486,7 @@ test('runtime resources preserve dependency files and reject changed bytes or ex
     assert.throws(() => checkPackage(directory), /Changed Connector file/)
   }))
 
-test('installer payload uses current ARM64 codecs and still checks every runtime file', async () =>
+test('static payload inspection supports ARM64 codecs; real NSIS installation is verified separately', async () =>
   fixture(async (root) => {
     const { directory } = await packagedFixture(root)
     const tool = await getPath7za()
@@ -501,6 +507,63 @@ test('installer payload uses current ARM64 codecs and still checks every runtime
     await pack()
     await assert.rejects(auditInstaller(installer), /Unexpected Connector runtime content/)
   }))
+
+test('installed resources run their own Connector status against a fresh unpaired directory', async () =>
+  fixture(async (root) => {
+    const { directory } = await packagedFixture(root)
+    const dataDirectory = join(root, 'unpaired-connector')
+    const calls = []
+    const checked = await checkInstalledWindowsRuntime(
+      directory,
+      dataDirectory,
+      async (file, args) => {
+        calls.push({ file, args })
+        return {
+          stdout: JSON.stringify({
+            version: '0.3.5',
+            protocol: 3,
+            paired: false,
+            instances: [],
+            data_directory: dataDirectory,
+          }),
+        }
+      },
+    )
+    assert.equal(checked.version, '0.3.5')
+    assert.deepEqual(calls, [
+      {
+        file: join(directory, 'agent-connector/python/python.exe'),
+        args: [
+          '-I',
+          '-B',
+          '-m',
+          'yuki_agent_connector',
+          '--data-dir',
+          dataDirectory,
+          'status',
+          '--json',
+        ],
+      },
+    ])
+  }))
+
+for (const launcher of ['t64-arm.exe', 'w64-arm.exe'])
+  test(`installed resources reject an NSIS-skipped ${launcher} before executing any runtime`, async () =>
+    fixture(async (root) => {
+      const { directory } = await packagedFixture(root)
+      await rm(
+        join(directory, 'agent-connector/python/Lib/site-packages/pip/_vendor/distlib', launcher),
+      )
+      let called = false
+      await assert.rejects(
+        checkInstalledWindowsRuntime(directory, join(root, 'unpaired-connector'), async () => {
+          called = true
+          throw Error('Missing installed resources must fail before running a process')
+        }),
+        /Unexpected Connector runtime content/,
+      )
+      assert.equal(called, false)
+    }))
 test('local Bot resources reject an accidental private env file', async () =>
   fixture(async (root) => {
     const { directory } = await packagedFixture(root)

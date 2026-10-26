@@ -17,38 +17,7 @@ test('continues the original work through an actual reply and confirms cancellat
   test.setTimeout(120000)
   const rig = await yukiFixture(),
     app = await rig.launch('work-device')
-  let second: Awaited<ReturnType<typeof rig.launch>> | undefined
   let success = false
-  let third: { characterId: string; requestId: string; eventId: number; workId: string } | undefined
-  const recordThirdWork = async (page: Page, device: string) => {
-    if (!third) return
-    const facts = await page.evaluate(async (identity) => {
-      const id = identity.characterId
-      const commands = await window.yuki.client.workCommands(id)
-      const related = commands.ok
-        ? commands.value.filter((item) => item.command.workId === identity.workId)
-        : []
-      const requestIds = new Set([identity.requestId, ...related.map((item) => item.requestId)])
-      const [work, steps, requests] = await Promise.all([
-        window.yuki.client.read<Work>(id, { kind: 'work', workId: identity.workId }),
-        window.yuki.client.read<WorkSteps>(id, { kind: 'steps', workId: identity.workId }),
-        Promise.all(
-          [...requestIds].map(async (requestId) => ({
-            requestId,
-            result: await window.yuki.client.read<OriginalRequest>(id, {
-              kind: 'request',
-              requestId,
-            }),
-          })),
-        ),
-      ])
-      return { identity, commands, related, work, steps, requests }
-    }, third)
-    await writeFile(
-      test.info().outputPath(`third-work-state-${device}.json`),
-      JSON.stringify(facts, null, 2),
-    )
-  }
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
@@ -170,6 +139,56 @@ test('continues the original work through an actual reply and confirms cancellat
       animations: 'disabled',
       path: test.info().outputPath('work-cancelled.png'),
     })
+    success = true
+  } finally {
+    const page = await app.firstWindow()
+    await recordBusinessState(page, 'work-state-a.json').catch(console.error)
+    await app.close()
+    await rig.close(success)
+  }
+})
+
+test('rejects the original stale cancellation after another device completes the same work', async () => {
+  test.setTimeout(120000)
+  const rig = await yukiFixture(),
+    app = await rig.launch('work-device')
+  let second: Awaited<ReturnType<typeof rig.launch>> | undefined
+  let success = false
+  let third: { characterId: string; requestId: string; eventId: number; workId: string } | undefined
+  const recordThirdWork = async (page: Page, device: string) => {
+    if (!third) return
+    const facts = await page.evaluate(async (identity) => {
+      const id = identity.characterId
+      const commands = await window.yuki.client.workCommands(id)
+      const related = commands.ok
+        ? commands.value.filter((item) => item.command.workId === identity.workId)
+        : []
+      const requestIds = new Set([identity.requestId, ...related.map((item) => item.requestId)])
+      const [work, steps, requests] = await Promise.all([
+        window.yuki.client.read<Work>(id, { kind: 'work', workId: identity.workId }),
+        window.yuki.client.read<WorkSteps>(id, { kind: 'steps', workId: identity.workId }),
+        Promise.all(
+          [...requestIds].map(async (requestId) => ({
+            requestId,
+            result: await window.yuki.client.read<OriginalRequest>(id, {
+              kind: 'request',
+              requestId,
+            }),
+          })),
+        ),
+      ])
+      return { identity, commands, related, work, steps, requests }
+    }, third)
+    await writeFile(
+      test.info().outputPath(`third-work-state-${device}.json`),
+      JSON.stringify(facts, null, 2),
+    )
+  }
+  try {
+    const page = await app.firstWindow()
+    await pairUI(page, rig.base, await rig.code())
+    const connection = await currentConnection(page)
+    const name = connection.name
     await navigate(page, '對話')
     await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
     await page
@@ -179,15 +198,19 @@ test('continues the original work through an actual reply and confirms cancellat
     await navigate(page, '工作')
     const thirdMessage = await waitForAcceptedMessage(
       page,
-      original.characterId,
+      connection.characterId,
       '兩台裝置同時處理的工作',
     )
-    const thirdReceipt = await waitForMainEnded(page, original.characterId, thirdMessage.requestId)
+    const thirdReceipt = await waitForMainEnded(
+      page,
+      connection.characterId,
+      thirdMessage.requestId,
+    )
     expect(thirdReceipt.event_id).toBe(thirdMessage.eventId)
     if (!thirdReceipt.event_id || !thirdReceipt.work)
       throw Error('Original third Work association is missing')
     third = {
-      characterId: original.characterId,
+      characterId: connection.characterId,
       requestId: thirdMessage.requestId,
       eventId: thirdReceipt.event_id,
       workId: thirdReceipt.work.work_id,
@@ -196,8 +219,10 @@ test('continues the original work through an actual reply and confirms cancellat
       test.info().outputPath('third-work-identity.json'),
       JSON.stringify(third, null, 2),
     )
+    const row = page.getByRole('button', { name: /等你回覆.*原工作整合測試/ })
     await expect(row).toBeVisible({ timeout: 20000 })
     await row.click()
+    const detail = page.getByRole('complementary', { name: '檢視器' })
     await detail.getByRole('button', { name: '取消工作', exact: true }).click()
     second = await rig.launch('another-work-device')
     const other = await second.firstWindow()
@@ -238,7 +263,7 @@ test('continues the original work through an actual reply and confirms cancellat
         page.evaluate(async (id) => {
           const commands = await window.yuki.client.workCommands(id)
           return commands.ok ? commands.value.at(-1)?.problem : 'unreadable'
-        }, original.characterId),
+        }, connection.characterId),
       )
       .toBe('version_conflict')
     success = true

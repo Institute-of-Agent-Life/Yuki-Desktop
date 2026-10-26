@@ -55,7 +55,7 @@ export class ConnectorInstallations {
   async bundled(): Promise<ConnectorRuntime | undefined> {
     const manifest = await this.manifest()
     if (!manifest) return undefined
-    await this.validate(manifest)
+    // Read-only management uses installed app code; install() verifies new runtime copies.
     return {
       directory: this.bundledRuntime,
       executable: resolve(this.bundledRuntime, manifest.executable),
@@ -76,21 +76,27 @@ export class ConnectorInstallations {
       relative(source, executable).startsWith('..' + sep)
     )
       throw new ApiError('connector_runtime_invalid')
-    for (const file of manifest.files) {
-      const path = resolve(source, file.path)
-      if (
-        isAbsolute(file.path) ||
-        relative(source, path) === '..' ||
-        relative(source, path).startsWith('..' + sep)
-      )
-        throw new ApiError('connector_runtime_invalid')
-      if (file.link !== undefined) {
-        if ((await readlink(path)) !== file.link) throw new ApiError('connector_runtime_invalid')
-      } else {
-        const hash = createHash('sha256')
-        for await (const chunk of createReadStream(path)) hash.update(chunk)
-        if (hash.digest('hex') !== file.sha256) throw new ApiError('connector_runtime_invalid')
+    try {
+      for (const file of manifest.files) {
+        const path = resolve(source, file.path)
+        if (
+          isAbsolute(file.path) ||
+          relative(source, path) === '..' ||
+          relative(source, path).startsWith('..' + sep)
+        )
+          throw new ApiError('connector_runtime_invalid')
+        if (file.link !== undefined) {
+          if ((await readlink(path)) !== file.link) throw new ApiError('connector_runtime_invalid')
+        } else {
+          const hash = createHash('sha256')
+          for await (const chunk of createReadStream(path)) hash.update(chunk)
+          if (hash.digest('hex') !== file.sha256) throw new ApiError('connector_runtime_invalid')
+        }
       }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+        throw new ApiError('connector_runtime_invalid')
+      throw error
     }
   }
   async install(

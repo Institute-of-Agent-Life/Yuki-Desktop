@@ -532,7 +532,6 @@ function Gallery() {
       floating={false}
       name={new URLSearchParams(window.location.search).get('name') ?? '角色'}
       status="元件驗證"
-      owner
       platform="linux"
       inspector={<p>檢視器內容</p>}
     >

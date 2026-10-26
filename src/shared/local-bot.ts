@@ -8,7 +8,6 @@ export interface LocalBotInstallation {
   characterName: string
   personName: string
   personRequestId: string
-  ownerRequestId?: string
   pairRequestId: string
   personId?: string
 }
@@ -26,7 +25,6 @@ export interface LocalBotConfiguration {
   port: number
   characterName: string
   personName: string
-  manageCharacter: boolean
   model: {
     protocol: 'chat_completions' | 'responses' | 'anthropic_messages' | 'gemini'
     base_url: string

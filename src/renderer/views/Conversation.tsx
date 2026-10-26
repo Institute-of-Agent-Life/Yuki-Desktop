@@ -609,10 +609,7 @@ export function Conversation({
   }
   const name = profileData?.display_name ?? connection.name,
     isMain = conversation === connection.conversationId
-  const inspectorTab =
-    workspace.inspectorTab === 'computer' && !profileData?.viewer.is_owner
-      ? 'work'
-      : workspace.inspectorTab
+  const inspectorTab = workspace.inspectorTab
   const openWork = (workId: string) => {
     workspace.patch({
       selectedWork: workId,
@@ -645,8 +642,10 @@ export function Conversation({
   }
   const entry = homeData?.entries.find((item) => item.conversation_id === conversation)
   const pending = isMain
-    ? (outbox.data ?? []).filter(
-        (item) => (item.state !== 'result' || item.problem) && !item.eventId,
+    ? (outbox.data ?? []).filter((item) =>
+        item.eventId
+          ? anchor === null && eventData && item.eventId > eventData.latest_event_id
+          : item.state !== 'result' || item.problem,
       )
     : []
   const visible = (eventData?.items ?? []).filter(
@@ -719,7 +718,7 @@ export function Conversation({
       title: '連接本機 Agent',
       run: () => paletteNavigate(() => onSettings('agent')),
     },
-    ...(profileData?.viewer.is_owner && !accessLost
+    ...(!accessLost
       ? [
           {
             id: 'command/computer',
@@ -780,7 +779,7 @@ export function Conversation({
           ) : undefined
         }
         toolbarTitle={
-          view === 'computer' && !focusMode && !accessLost && profileData?.viewer.is_owner ? (
+          view === 'computer' && !focusMode && !accessLost ? (
             <div className={styles.computerToolbar} ref={setComputerToolbar}>
               <span className={styles.computerToolbarFallback}>{name} 的電腦</span>
             </div>
@@ -791,7 +790,6 @@ export function Conversation({
         avatar={<CharacterAvatar />}
         status={presence.text}
         presence={presence.color}
-        owner={profileData?.viewer.is_owner ?? false}
         platform={platform}
         inspectorTitle={messageStage && view === 'chat' ? '原訊息' : undefined}
         onSettings={onSettings}
@@ -832,10 +830,7 @@ export function Conversation({
           </>
         }
         inspector={
-          inspectorTab === 'computer' &&
-          !(messageStage && view === 'chat') &&
-          !accessLost &&
-          profileData?.viewer.is_owner ? (
+          inspectorTab === 'computer' && !(messageStage && view === 'chat') && !accessLost ? (
             focusMode ? (
               <Computer key={id} connection={connection} name={name} work={openWork} />
             ) : (
@@ -900,16 +895,12 @@ export function Conversation({
               replyInChat={answerWork}
               commandEnter={preferences.sendKey === 'command-enter'}
               artifact={openArtifact}
-              computer={
-                profileData?.viewer.is_owner
-                  ? () => {
-                      requestNavigation(() => {
-                        workspace.setView('computer')
-                        workspace.patch({ inspector: true, focusMode: true })
-                      })
-                    }
-                  : undefined
-              }
+              computer={() => {
+                requestNavigation(() => {
+                  workspace.setView('computer')
+                  workspace.patch({ inspector: true, focusMode: true })
+                })
+              }}
             />
           ) : inspectorTab === 'files' && preview && !accessLost ? (
             <AttachmentPreview
@@ -951,10 +942,8 @@ export function Conversation({
         {view !== 'chat' && !focusMode && upgradeNotice}
         {mediaError && view !== 'chat' && <Banner status="failed">{mediaError}</Banner>}
         {view === 'computer' && !focusMode ? (
-          accessLost || !profileData?.viewer.is_owner ? (
-            <Banner status="failed">
-              {accessLost ? problemText(connectionProblem) : '這項操作需要角色擁有者權限。'}
-            </Banner>
+          accessLost ? (
+            <Banner status="failed">{problemText(connectionProblem)}</Banner>
           ) : (
             <Computer
               key={id}
@@ -986,7 +975,7 @@ export function Conversation({
           accessLost ? (
             <Banner status="failed">{problemText(connectionProblem)}</Banner>
           ) : profileData ? (
-            soulEditing && profileData.viewer.is_owner ? (
+            soulEditing ? (
               <SoulEditor
                 key={id}
                 id={id}

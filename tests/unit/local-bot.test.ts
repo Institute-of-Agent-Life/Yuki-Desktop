@@ -70,7 +70,6 @@ it.skipIf(process.env.YUKI_TEST_DOCKER !== '1')(
       port,
       characterName: '本機測試角色',
       personName: '本機本人',
-      manageCharacter: true,
       model: {
         protocol: 'chat_completions',
         base_url: 'http://host.docker.internal:19999/v1',

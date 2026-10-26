@@ -1,10 +1,15 @@
-import { afterEach, expect, it } from 'vitest'
-import { QueryClient } from '@tanstack/react-query'
+import { afterEach, expect, it, vi } from 'vitest'
+import { createElement } from 'react'
+import { renderToString } from 'react-dom/server'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Home, PublicEvent, EventsPage, Work } from '../../src/shared/api'
 import { loadedItems } from '../../src/renderer/state/loaded'
-import { readHistoryRange } from '../../src/renderer/queries/history'
+import { readHistoryRange, useHistory } from '../../src/renderer/queries/history'
 const clients: QueryClient[] = []
-afterEach(() => clients.splice(0).forEach((client) => client.clear()))
+afterEach(() => {
+  clients.splice(0).forEach((client) => client.clear())
+  vi.unstubAllGlobals()
+})
 const a = '00000000-0000-4000-8000-000000000001',
   b = '00000000-0000-4000-8000-000000000002',
   conversation = '00000000-0000-4000-8000-000000000003'
@@ -187,4 +192,41 @@ it('history pagination never stamps an old deleted body with a newer page revisi
   expect(result.items.map((item) => item.event_id)).toEqual([1, 3])
   expect(cursors).toEqual([Number.MAX_SAFE_INTEGER, 2, Number.MAX_SAFE_INTEGER, 3])
   expect(result.items.some((item) => item.content === 'deleted original')).toBe(false)
+})
+
+it('a history range keeps its read head when an append advances an older page watermark', async () => {
+  const responses = [
+    { ...page(3, [event(100, 'read head')], 100), latest_event_id: 100 },
+    { ...page(3, [event(99, 'earlier event')], null), latest_event_id: 101 },
+  ]
+  const result = await readHistoryRange(
+    async () => {
+      const response = responses.shift()
+      if (!response) throw Error('unexpected additional read')
+      return response
+    },
+    Number.MAX_SAFE_INTEGER,
+    99,
+  )
+  expect(result.latest_event_id).toBe(100)
+  expect(result.items.map((item) => item.event_id)).toEqual([99, 100])
+  expect(result).toMatchObject({ has_more: false, next_before: null })
+})
+
+it('loading an earlier page keeps the current head while its server watermark advances', async () => {
+  const current = { ...page(3, [event(100, 'read head')], 100), latest_event_id: 100 }
+  const earlier = { ...page(3, [event(99, 'earlier event')], null), latest_event_id: 101 }
+  vi.stubGlobal('window', {
+    yuki: { client: { read: async () => ({ ok: true, value: earlier }) } },
+  })
+  let loadEarlier!: ReturnType<typeof useHistory>['earlier']
+  function Probe() {
+    loadEarlier = useHistory(a, conversation, null).earlier
+    return null
+  }
+  renderToString(createElement(QueryClientProvider, { client: setup() }, createElement(Probe)))
+  const result = await loadEarlier(current)
+  expect(result.latest_event_id).toBe(100)
+  expect(result.items.map((item) => item.event_id)).toEqual([99, 100])
+  expect(result).toMatchObject({ has_more: false, next_before: null })
 })

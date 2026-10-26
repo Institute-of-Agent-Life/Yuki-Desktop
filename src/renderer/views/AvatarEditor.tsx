@@ -37,11 +37,9 @@ function avatarItem(item: CharacterCommandItem): AvatarCommandItem {
 
 export function AvatarPending({
   id,
-  owner,
   open,
 }: {
   id: string
-  owner: boolean
   open: (item: AvatarCommandItem) => void
 }) {
   const query = useQueryClient()
@@ -78,11 +76,9 @@ export function AvatarPending({
             >
               查證頭像更新
             </Button>
-            {owner && (
-              <Button disabled={busy} onClick={() => open(avatarItem(item))}>
-                查看這次更新
-              </Button>
-            )}
+            <Button disabled={busy} onClick={() => open(avatarItem(item))}>
+              查看這次更新
+            </Button>
           </div>
         ))}
       {error && <Banner status="failed">{error}</Banner>}
@@ -183,9 +179,6 @@ export function AvatarEditor({
     }
     // An open editor retains the avatar revision it began with.
   }, [id, load, restore?.requestId])
-  useEffect(() => {
-    if (!profile.viewer.is_owner) close()
-  }, [profile.viewer.is_owner, close])
   useEffect(() => {
     if (!image) return
     const output = cropCanvas(image, transform.zoom, transform.pan, pixels)

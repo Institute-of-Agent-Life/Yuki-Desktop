@@ -173,7 +173,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
       '只有 Mika 的草稿',
     )
     await page.getByRole('button', { name: '切換 Yuki', exact: true }).click()
-    await captureViewport(app, page, test.info().outputPath('switch-yuki-menu.png'))
+    await expect(page.getByRole('menuitemradio', { checked: true })).toBeFocused()
     await page.keyboard.press('Home')
     await expect(page.getByRole('menuitemradio', { name: new RegExp(firstName) })).toBeFocused()
     await page.keyboard.press('Escape')

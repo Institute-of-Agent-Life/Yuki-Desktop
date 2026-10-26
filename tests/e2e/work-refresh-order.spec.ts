@@ -31,6 +31,14 @@ test('a real terminal Work hint survives an older running detail response in the
       dispose(): void
     }
   }
+  type ReadProbe = {
+    reads: { status?: number; body?: { data?: Work }; error?: string }[]
+    pending: Promise<unknown>[]
+    ready: Promise<void>
+    heldCount: number
+    release(): void
+    restore(): void
+  }
   try {
     const pa = await a.firstWindow(),
       pb = await b.firstWindow()
@@ -100,39 +108,79 @@ test('a real terminal Work hint survives an older running detail response in the
     running = await waitForWorkState(pa, identity.characterId, identity.workId, 'running')
     await b.evaluate((_electron, path) => {
       const original = globalThis.fetch
-      const reads: { status?: number; body?: { data?: Work } }[] = []
+      const reads: ReadProbe['reads'] = []
       const pending: Promise<unknown>[] = []
+      let ready!: () => void
+      let release!: () => void
+      const captured = new Promise<void>((resolve) => {
+        ready = resolve
+      })
+      const delivery = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const probe: ReadProbe = {
+        reads,
+        pending,
+        ready: captured,
+        heldCount: 0,
+        release,
+        restore: () => {
+          globalThis.fetch = original
+        },
+      }
       globalThis.fetch = async (...args) => {
         const input = args[0]
         const url = new URL(
           typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
         )
-        const entry = url.pathname.endsWith(path) ? {} : undefined
-        if (entry) reads.push(entry)
-        const response = await original(...args)
-        if (entry)
-          pending.push(
-            response
-              .clone()
-              .json()
-              .then((body) => Object.assign(entry, { status: response.status, body })),
-          )
-        return response
+        if (!url.pathname.endsWith(path)) return original(...args)
+        const entry: ReadProbe['reads'][number] = {}
+        reads.push(entry)
+        const first = reads.length === 1
+        const received = original(...args)
+        const observed = received.then(async (response) => {
+          const bytes = first ? await response.arrayBuffer() : undefined
+          const body = first
+            ? JSON.parse(new TextDecoder().decode(bytes))
+            : await response.clone().json()
+          Object.assign(entry, { status: response.status, body })
+          return { response, bytes }
+        })
+        pending.push(
+          observed.then(
+            () => undefined,
+            (error) => {
+              entry.error = String(error)
+              if (first) ready()
+            },
+          ),
+        )
+        if (!first) return received
+        const { response, bytes } = await observed
+        // Hold only application delivery after the real HTTP body has finished.
+        probe.heldCount++
+        ready()
+        await delivery
+        return new Response(bytes, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+        })
       }
-      Object.assign(globalThis, {
-        __workReadProbe: {
-          reads,
-          pending,
-          restore: () => {
-            globalThis.fetch = original
-          },
-        },
-      })
+      Object.assign(globalThis, { __workReadProbe: probe })
     }, workPath)
-    proxy.faults.holdResponseSuffixes.add(workPath)
     proxy.resumeActive(streamPath)
-    await expect.poll(() => proxy.held.has(workPath)).toBe(true)
-    heldCount = proxy.held.get(workPath)!.length
+    const captured = await b.evaluate(async () => {
+      const probe = (globalThis as typeof globalThis & { __workReadProbe: ReadProbe })
+        .__workReadProbe
+      await probe.ready
+      return { read: probe.reads[0], heldCount: probe.heldCount }
+    })
+    heldCount = captured.heldCount
+    expect(captured.read).toMatchObject({
+      status: 200,
+      body: { data: { work_id: identity.workId, state: 'running' } },
+    })
     expect(
       (
         await pa.evaluate(async ({ characterId, workId }) => {
@@ -146,17 +194,18 @@ test('a real terminal Work hint survives an older running detail response in the
     await pb.evaluate(() => (window as ProbeWindow).__workRefreshProbe!.terminal)
     completed = await waitForWorkState(pa, identity.characterId, identity.workId, 'completed')
     proxy.pauseActive(streamPath)
-    proxy.faults.holdResponseSuffixes.delete(workPath)
-    proxy.releaseResponses(workPath)
+    await b.evaluate(() => {
+      const probe = (globalThis as typeof globalThis & { __workReadProbe: ReadProbe })
+        .__workReadProbe
+      probe.release()
+    })
     await expect(detailB.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
-    const reads = await b.evaluate(
-      () =>
-        (
-          globalThis as typeof globalThis & {
-            __workReadProbe: { reads: { status?: number; body?: { data?: Work } }[] }
-          }
-        ).__workReadProbe.reads,
-    )
+    const reads = await b.evaluate(async () => {
+      const probe = (globalThis as typeof globalThis & { __workReadProbe: ReadProbe })
+        .__workReadProbe
+      await Promise.allSettled(probe.pending)
+      return probe.reads
+    })
     expect(reads[0]?.body?.data?.state).toBe('running')
     expect(reads.some((read) => read.body?.data?.state === 'completed')).toBe(true)
     expect(completed.work_id).toBe(running.work_id)
@@ -165,20 +214,12 @@ test('a real terminal Work hint survives an older running detail response in the
     success = true
   } finally {
     await fetch(`${rig.base}/__test/release-work`, { method: 'POST' })
-    for (const path of proxy.held.keys()) proxy.releaseResponses(path)
-    proxy.faults.holdResponseSuffixes.clear()
     const reads = await b
       .evaluate(async () => {
-        const probe = (
-          globalThis as typeof globalThis & {
-            __workReadProbe?: {
-              reads: { status?: number; body?: { data?: Work } }[]
-              pending: Promise<unknown>[]
-              restore(): void
-            }
-          }
-        ).__workReadProbe
+        const probe = (globalThis as typeof globalThis & { __workReadProbe?: ReadProbe })
+          .__workReadProbe
         if (!probe) return undefined
+        probe.release()
         await Promise.allSettled(probe.pending)
         probe.restore()
         return probe.reads
