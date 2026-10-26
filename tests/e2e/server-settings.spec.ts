@@ -1,15 +1,9 @@
 import { activeCharacterName } from '../fixtures/active-character'
 import { crashElectron } from '../fixtures/electron-process'
 import { expect, test, type Page } from '@playwright/test'
-import { ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
+import { ledgerEvents, pairUI, waitForMainEnded, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
-import type {
-  Connection,
-  Me,
-  EventsPage,
-  ProactiveRoute,
-  OriginalRequest,
-} from '../../src/shared/api'
+import type { Connection, Me, EventsPage, ProactiveRoute } from '../../src/shared/api'
 async function settings(page: Page) {
   await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
@@ -158,6 +152,7 @@ test('new server address proves real identity before bearer and resumes the orig
     expect(moved.calls[0]).toMatchObject({ path: '/client/v1/meta', bearer: false })
     const proof = moved.calls.find((call) => call.path === '/client/v1/me')
     expect(proof?.bearer).toBe(true)
+    const result = await waitForMainEnded(page, original.characterId, requestId)
     await expect
       .poll(() =>
         page.evaluate(
@@ -176,20 +171,6 @@ test('new server address proves real identity before bearer and resumes the orig
     const events = await ledgerEvents(rig.base)
     expect(events.filter((event) => event.content === '換網址前已接納的原訊息')).toHaveLength(1)
     await page.getByRole('button', { name: '返回', exact: true }).click()
-    const receipt = () =>
-      page.evaluate(
-        async ({ id, requestId }) => {
-          const result = await window.yuki.client.read<OriginalRequest>(id, {
-            kind: 'request',
-            requestId,
-          })
-          if (!result.ok) throw Error(result.code)
-          return result.value
-        },
-        { id: original.characterId, requestId },
-      )
-    await expect.poll(async () => (await receipt()).turn?.state).toBe('ended')
-    const result = await receipt()
     expect(result.event_id).toBe(
       events.find((event) => event.content === '換網址前已接納的原訊息')!.event_id,
     )
