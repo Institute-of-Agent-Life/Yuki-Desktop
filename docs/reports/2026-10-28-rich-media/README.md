@@ -1,6 +1,6 @@
 # Desktop 富媒體驗收，2026-10-28
 
-實作分支：`codex/desktop-rich-media-20261028`。開發基底為 Desktop `1d42784a17bfc09f509e9f50f0f5c0be877b2d7d`，配套後端固定為 [8720d929057cb91290c911d09b282bcd8fa7e394](https://github.com/YuanYeYouTao/Yuki/commit/8720d929057cb91290c911d09b282bcd8fa7e394)。Client API 維持 revision 7。
+實作分支：`codex/desktop-rich-media-20261028`。開發基底為 Desktop `1d42784a17bfc09f509e9f50f0f5c0be877b2d7d`，配套後端固定為 [27c71ee2822bbc91a32124bc6612180bdab5b177](https://github.com/YuanYeYouTao/Yuki/commit/27c71ee2822bbc91a32124bc6612180bdab5b177)，包含本輪最後的目錄清理補修及 main #530。Client API 維持 revision 7，重新匯出的合同與最初 `8720d929` 來源逐位元相同。
 
 從該後端 commit 的獨立源碼歸檔實際導出 OpenAPI，內容 SHA-256 仍為 `58462caed2f2fbe63d762d3627645476ab03baa26128982d950d73ba7701280a`，OpenAPI 與產生的 TypeScript 沒有內容差異；只更新 `contracts/source.json` 的固定來源。
 
