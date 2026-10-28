@@ -1,5 +1,43 @@
 import { expect, type Frame, type Locator } from '@playwright/test'
 
+export async function pdfFacts(preview: Locator) {
+  const element = await preview.elementHandle()
+  const source = await element!.getAttribute('src')
+  const root = await element!.contentFrame()
+  await element!.dispose()
+  const result: unknown[] = [{ at: new Date().toISOString(), source, root: root?.url() }]
+  const pending = root ? [root] : []
+  while (pending.length) {
+    const frame = pending.shift()!
+    try {
+      const viewer = frame.locator('pdf-viewer')
+      if (await viewer.count())
+        result.push(
+          await viewer.evaluate((element) => ({
+            at: new Date().toISOString(),
+            url: location.href,
+            registered: !!customElements.get('pdf-viewer'),
+            loaded: customElements.get('pdf-viewer')
+              ? (
+                  element as HTMLElement & { getLoadSucceededForTesting(): boolean }
+                ).getLoadSucceededForTesting()
+              : null,
+            failed: (element as HTMLElement & { showErrorDialog: boolean }).showErrorDialog,
+            original: element.shadowRoot?.querySelector('embed')?.getAttribute('original-url'),
+            progress: element.shadowRoot
+              ?.querySelector('viewer-toolbar')
+              ?.shadowRoot?.querySelector('#progress')
+              ?.getAttribute('aria-valuenow'),
+          })),
+        )
+      pending.push(...frame.childFrames())
+    } catch (error) {
+      result.push({ url: frame.url(), error: String(error) })
+    }
+  }
+  return result
+}
+
 /** Inspect the loaded Chromium viewer belonging to this visible preview. */
 export async function expectPdfPages(preview: Locator, pages: number) {
   await preview.page().bringToFront()
@@ -24,14 +62,16 @@ export async function expectPdfPages(preview: Locator, pages: number) {
             if (await viewer.count()) {
               // Keep following the current guest until Chromium reports LoadState.SUCCESS.
               // A tag can exist before its initial guest is replaced.
-              const loaded = await viewer.evaluate((element) =>
-                (
+              const loaded = await viewer.evaluate((element) => {
+                if (!customElements.get('pdf-viewer')) return false
+                return (
                   element as HTMLElement & {
                     getLoadSucceededForTesting(): boolean
                   }
-                ).getLoadSucceededForTesting(),
-              )
+                ).getLoadSucceededForTesting()
+              })
               if (!loaded) return false
+              if ((await preview.getAttribute('src')) !== currentSource) return false
               source = currentSource
               viewerFrame = frame
               return true
