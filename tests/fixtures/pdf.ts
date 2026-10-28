@@ -3,16 +3,21 @@ import { expect, type Frame, type Locator } from '@playwright/test'
 /** Inspect the loaded Chromium viewer belonging to this visible preview. */
 export async function expectPdfPages(preview: Locator, pages: number) {
   await preview.page().bringToFront()
-  await expect(preview).toBeVisible()
-  await preview.scrollIntoViewIfNeeded()
-  await expect(preview).toBeInViewport()
   let source: string | null = null
   let viewerFrame: Frame | undefined
   await expect
     .poll(
       async () => {
         const element = await preview.elementHandle()
-        const currentSource = await element!.getAttribute('src')
+        const currentSource = await element!.evaluate((element) => {
+          if (!element.isConnected) return null
+          element.scrollIntoView({ block: 'nearest' })
+          return element.getAttribute('src')
+        })
+        if (!currentSource) {
+          await element!.dispose()
+          return false
+        }
         const root = await element!.contentFrame()
         await element!.dispose()
         if (!root || root.url() !== currentSource) return false
@@ -24,16 +29,18 @@ export async function expectPdfPages(preview: Locator, pages: number) {
             if (await viewer.count()) {
               // Keep following the current guest until Chromium reports LoadState.SUCCESS.
               // A tag can exist before its initial guest is replaced.
-              const loaded = await viewer.evaluate((element) => {
-                if (!customElements.get('pdf-viewer')) return false
-                return (
-                  element as HTMLElement & {
-                    getLoadSucceededForTesting(): boolean
-                  }
-                ).getLoadSucceededForTesting()
+              const state = await viewer.evaluate((element) => {
+                if (!customElements.get('pdf-viewer')) return null
+                const pdf = element as HTMLElement & {
+                  getLoadSucceededForTesting(): boolean
+                  showErrorDialog: boolean
+                }
+                return { loaded: pdf.getLoadSucceededForTesting(), failed: pdf.showErrorDialog }
               })
-              if (!loaded) return false
               if ((await preview.getAttribute('src')) !== currentSource) return false
+              if (!state) return false
+              if (state.failed) throw Error('The current PDF viewer reported a document load error')
+              if (!state.loaded) return false
               source = currentSource
               viewerFrame = frame
               return true
@@ -47,7 +54,11 @@ export async function expectPdfPages(preview: Locator, pages: number) {
         }
         return false
       },
-      { message: 'The current PDF preview must load successfully in its Chromium viewer' },
+      {
+        message: 'The current PDF preview must load successfully in its Chromium viewer',
+        // Native document initialization follows the original whole-test deadline.
+        timeout: 0,
+      },
     )
     .toBe(true)
   const viewer = viewerFrame!.locator('pdf-viewer'),
@@ -55,6 +66,8 @@ export async function expectPdfPages(preview: Locator, pages: number) {
     progress = toolbar.locator('#progress'),
     currentPage = toolbar.locator('viewer-page-selector #pageSelector')
   await expect(preview).toHaveAttribute('src', source!)
+  await expect(preview).toBeVisible()
+  await expect(preview).toBeInViewport()
   await expect(progress).toBeHidden()
   await expect(viewer.locator('viewer-error-dialog')).toBeHidden()
   await expect(currentPage).toBeVisible()

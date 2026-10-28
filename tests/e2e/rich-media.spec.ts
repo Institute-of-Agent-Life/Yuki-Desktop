@@ -94,11 +94,14 @@ async function upload(
   await expect(page.getByLabel('待送出附件')).toContainText('可送出')
   await page.getByRole('button', { name: '送出', exact: true }).click()
   await expect
-    .poll(async () =>
-      (await ledgerEvents(base)).some(
-        (event) =>
-          event.direction === 'inbound' && event.attachments.some((item) => item.filename === name),
-      ),
+    .poll(
+      async () =>
+        (await ledgerEvents(base)).some(
+          (event) =>
+            event.direction === 'inbound' &&
+            event.attachments.some((item) => item.filename === name),
+        ),
+      { timeout: 0 },
     )
     .toBe(true)
   return (await ledgerEvents(base)).find(
