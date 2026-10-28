@@ -5,6 +5,7 @@ import type { ElectronApplication } from '@playwright/test'
 import { currentConnection, ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
 import { navigate, sidebar } from '../fixtures/navigation'
 import { contentSize } from '../fixtures/visual'
+import { expectPdfPages } from '../fixtures/pdf'
 
 async function playback(player: Locator) {
   await expect
@@ -67,20 +68,6 @@ async function upload(
     (event) =>
       event.direction === 'inbound' && event.attachments.some((item) => item.filename === name),
   )!
-}
-
-async function pdfPages(page: Page) {
-  for (const frame of page.frames()) {
-    const count = await frame
-      .evaluate(() => {
-        const viewer = document.querySelector('pdf-viewer') as
-          (HTMLElement & { documentDimensions?: { pageDimensions?: unknown[] } }) | null
-        return viewer?.documentDimensions?.pageDimensions?.length ?? 0
-      })
-      .catch(() => 0)
-    if (count) return count
-  }
-  return 0
 }
 
 test('plays and seeks both actual media sources, renders local rich text and keeps binary IPC bounded', async () => {
@@ -207,14 +194,18 @@ test('plays and seeks both actual media sources, renders local rich text and kee
       .locator(`article[data-event-id="${pdf.event_id}"]`)
       .getByRole('button', { name: /manual.pdf/ })
       .click()
-    await expect.poll(() => pdfPages(page)).toBe(1)
+    // Chromium hides pagination in the compact sidebar toolbar.
+    await page.getByRole('button', { name: '展開工作區', exact: true }).click()
+    await expectPdfPages(inspector().locator('iframe'), 1)
+    await page.screenshot({ path: test.info().outputPath('pdf-attachment.png') })
     await close()
     const defaults = (await (
       await fetch(`${rig.base}/__test/artifacts`, { method: 'POST' })
     ).json()) as { artifact_id: string; sha256: string; name: string }[]
     await navigate(page, '檔案與成果')
     await page.getByRole('button').filter({ hasText: defaults[2]!.artifact_id }).click()
-    await expect.poll(() => pdfPages(page)).toBe(1)
+    await expectPdfPages(page.getByRole('region', { name: '成果預覽' }).locator('iframe'), 1)
+    await page.screenshot({ path: test.info().outputPath('pdf-artifact.png') })
     // 128 MiB valid MP4 with trailing padding: only the main-process disk stream holds its bytes.
     const large = join(rig.root, 'large.mp4')
     await copyFile('tests/fixtures/media/clip.mp4', large)

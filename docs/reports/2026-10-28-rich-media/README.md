@@ -85,7 +85,9 @@ npm exec playwright test -- tests/e2e/plugin-notification-media.spec.ts tests/e2
 
 新一輪跨平台 CI 的 Mermaid 用例仍暴露定位問題：全頁第一個 SVG 和全頁截圖座標不能穩定指向本次原訊息。測試現在鎖定 `accepted.eventId`，返回設定後將原圖塊捲入視口，截取該 SVG，按 SVG 相對座標核對字形。原六輪主題、對比度及像素閾值保留，沒有改產品或加入延時、重試。本機真 Electron 用例通過，Input／Output 深色像素為 71／96，其他平台仍以本次最新提交 CI 為準。
 
-Mac Intel 同輪的兩項 PDF 失敗不是 Mermaid：失敗截圖已有實際正文、縮圖和 1/1，測試卻從 Chromium 私有 `documentDimensions` 讀到空值。兩處重複探針改用同一個小型 helper，只尋找當前預覽 iframe 的 viewer，先核實載入完成，再核對可見頁碼與總頁數，避免把預設的 1 頁當成功；沒有改產品或放寬超時。本機相關六個整檔 Electron 用例共 23 項通過，包含真 PDF、撤權、通知原件、影音播放與 seek、128 MiB Range 及 500 條歷史；PDF helper 的後續回歸與跨平台結果另按最新提交 CI 核對。
+Mac Intel 同輪的兩項 PDF 失敗不是 Mermaid：失敗截圖已有實際正文、縮圖和 1/1，測試卻從 Chromium 私有 `documentDimensions` 讀到空值。兩處重複探針改用同一個小型 helper，只尋找當前預覽 iframe 的 viewer，先核實載入完成，再核對可見頁碼與總頁數，避免把預設的 1 頁當成功。窄側欄會正常隱藏 Chromium 分頁控件，附件場景先經現有「展開工作區」顯示分頁，關閉檢視器後沿原行為恢復布局；沒有改產品或放寬超時。
+
+本機相關六個整檔 Electron 用例共 23 項通過，包含真 PDF、撤權、通知原件、影音播放與 seek、128 MiB Range 及 500 條歷史。替換 PDF helper 後，成果與 MP3/OGG 場景先通過；附件場景復現窄欄前提問題後，加入真實展開動作，完整場景以 1.3 分鐘通過。三個受影響場景均有通過回執，實際附件／成果 PDF 正文與 1/1 截圖已人工核對；未重跑無變更場景。ESLint、型別和 diff 檢查通過，跨平台結果仍核對最新提交 CI。打包相關檢查另為 24 項通過、1 項依平台跳過。
 
 原 pin `27c71ee2` 的預設 GHCR 鏡像實測不存在，因此不能作為本地部署驗收。改用已審查的公開後端提交 `1e0a1933`，同步匹配模板。[候選鏡像構建](https://github.com/YuanYeYouTao/Yuki/actions/runs/40748797560)成功，匿名核實 linux/amd64、linux/arm64 的 OCI revision 均為完整 pin、version 均為 4.0.0，index digest 為 `sha256:4f6636dc7c7e78fafcb71cca74b6069b651a93b2e44bc656b1563c88ce1890dc`。合併時仍核對後端主線及實際產品樹。OpenAPI 與安裝包、合併與生產升級分別記錄。
 

@@ -1,4 +1,5 @@
 import { navigate } from '../fixtures/navigation'
+import { expectPdfPages } from '../fixtures/pdf'
 import { expect, test } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
@@ -202,36 +203,8 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
     const inspector = page.getByRole('complementary', { name: '檢視器' })
     await expect(inspector.locator('iframe')).toBeVisible()
     try {
-      await expect
-        .poll(async () => {
-          for (const frame of page.frames()) {
-            const pages = await frame
-              .evaluate(() => {
-                const viewer = document.querySelector('pdf-viewer') as
-                  (HTMLElement & { documentDimensions?: { pageDimensions?: unknown[] } }) | null
-                return viewer?.documentDimensions?.pageDimensions?.length ?? null
-              })
-              .catch(() => null)
-            if (pages === 1) return pages
-          }
-          return null
-        })
-        .toBe(1)
+      await expectPdfPages(inspector.locator('iframe'), 1)
     } catch (error) {
-      for (const frame of page.frames())
-        console.info(
-          'PDF probe',
-          frame.url(),
-          await frame
-            .evaluate(() => ({
-              title: document.title,
-              nodes: [...document.querySelectorAll('embed,pdf-viewer,iframe')].map((node) =>
-                node.outerHTML.slice(0, 500),
-              ),
-              viewer: Object.keys(document.querySelector('pdf-viewer') ?? {}),
-            }))
-            .catch(() => null),
-        )
       await page.screenshot({ path: test.info().outputPath('artifact-pdf-failed.png') })
       throw error
     }
