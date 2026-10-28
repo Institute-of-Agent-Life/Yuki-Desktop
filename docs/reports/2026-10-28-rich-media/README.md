@@ -77,6 +77,8 @@ npm exec playwright test -- tests/e2e/plugin-notification-media.spec.ts tests/e2
 
 最終原生 Windows Electron 主用例完整通過（1.5 分鐘），包含窄窗角色切換、舊預覽 404、新預覽 200，以及後續 500 條歷史實際掛載。125% DPI 下窄窗請求 1024×684、實際 1024×686，恢復請求 1439×899、實際 1440×900；記錄原生取整結果。詳見[角色切換與原生尺寸記錄](ci-40727651466-narrow-role-preview.json)。typecheck、lint、格式檢查通過；macOS 原生補修結果以後續 CI 為準。
 
+打包來源同步到最終後端後，實際 Connector 又揭示舊升級測試的路徑假設：main #530 保留 `bin/codex` 這個安裝別名，測試卻按 `version-one/codex` 尋找。現沿穩定別名配置，另用 `realpath` 證明目標由舊版本切到新版本；原 instance、installation、配置及 journal 位元組斷言保留。以 `27c71ee2` 建立真正的 Connector 0.3.6，相關44項單元測試全部通過，typecheck和lint通過；變更只在測試及交付記錄。
+
 ## Client 7 能證明的邊界
 
 新打開、恢復 sync、臨時原件回收時間、已知憑據失效與來源變更會核對原授權或關流。每個 Range 使用同一個已查證的 FD，不碰後端、不重算整件 SHA。

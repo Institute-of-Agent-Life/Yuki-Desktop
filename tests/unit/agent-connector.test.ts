@@ -373,7 +373,8 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
       await mkdir(directory)
     const name = process.platform === 'win32' ? 'codex.exe' : 'codex'
     const oldExecutable = join(firstVersion, name),
-      currentExecutable = join(nextVersion, name)
+      currentExecutable = join(nextVersion, name),
+      installationExecutable = join(bin, name)
     for (const executable of [oldExecutable, currentExecutable]) {
       await writeFile(executable, 'Native configuration target only; never executed')
       await chmod(executable, 0o755)
@@ -419,8 +420,11 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
     const configPath = join(data, 'config.json'),
       journalPath = join(data, 'journal.sqlite3')
     await writeFile(configPath, JSON.stringify(identity))
-    const candidate = (await connector.discover()).find((item) => item.command === oldExecutable)
+    const candidate = (await connector.discover()).find(
+      (item) => item.command === installationExecutable,
+    )
     expect(candidate).toBeDefined()
+    expect(await realpath(candidate!.command)).toBe(oldExecutable)
     const instanceId = 'original-upgrade-instance'
     await execute(selected, [
       '--data-dir',
@@ -454,7 +458,7 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
     ).toEqual({ instanceId })
     const originalConfig = JSON.parse(await readFile(configPath, 'utf8'))
     expect(originalConfig.instances).toHaveLength(1)
-    expect(originalConfig.instances[0].installation).toBe(`path:${join(bin, name)}`)
+    expect(originalConfig.instances[0].installation).toBe(`path:${installationExecutable}`)
     await execute(
       {
         ...selected,
@@ -474,14 +478,16 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
     await unlink(oldExecutable)
     expect(await realpath(bin)).toBe(nextVersion)
     expect(existsSync(oldExecutable)).toBe(false)
-    expect(await connector.nativeExecutable(instanceId)).toBe(currentExecutable)
+    const nativeExecutable = await connector.nativeExecutable(instanceId)
+    expect(nativeExecutable).toBe(installationExecutable)
+    expect(await realpath(nativeExecutable)).toBe(currentExecutable)
     expect(await readFile(configPath)).toEqual(configBytes)
     expect(await readFile(journalPath)).toEqual(journalBytes)
     expect(
       await connector.configure({
         id: instanceId,
         create: false,
-        command: oldExecutable,
+        command: installationExecutable,
         label: '升級後的原安裝',
         cwd: editedProject,
       }),
@@ -491,7 +497,7 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
       instances: [
         {
           ...originalConfig.instances[0],
-          command: currentExecutable,
+          command: installationExecutable,
           label: '升級後的原安裝',
           cwd: editedProject,
         },
