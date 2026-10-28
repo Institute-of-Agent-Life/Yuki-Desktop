@@ -1,10 +1,12 @@
 import { expect, test } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
-import type { Home, Work, OriginalRequest } from '../../src/shared/api'
+import type { Work } from '../../src/shared/api'
 import {
   currentConnection,
   pairUI,
   recordBusinessState,
+  waitForAcceptedMessage,
+  waitForMainEnded,
   waitForWorkState,
   yukiFixture,
 } from '../fixtures/backend'
@@ -44,40 +46,27 @@ test('a real terminal Work hint survives an older running detail response in the
       pb = await b.firstWindow()
     await pairUI(pa, rig.base, await rig.code())
     await pairUI(pb, proxy.base, await rig.code())
+    await pa.bringToFront()
     const connection = await currentConnection(pa)
     await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
     await pa
       .getByRole('textbox', { name: `和 ${connection.name} 說點什麼`, exact: true })
       .fill(creationText)
     await pa.getByRole('button', { name: '送出', exact: true }).click()
+    const accepted = await waitForAcceptedMessage(pa, connection.characterId, creationText),
+      ended = await waitForMainEnded(pa, connection.characterId, accepted.requestId)
+    expect(ended.event_id).toBe(accepted.eventId)
+    expect(ended.work?.state).toBe('waiting_user')
+    expect(ended.work?.work_id).toBeTruthy()
+    identity = {
+      characterId: connection.characterId,
+      requestId: accepted.requestId,
+      eventId: accepted.eventId,
+      workId: ended.work!.work_id,
+    }
     await navigate(pa, '工作')
     await pa.getByRole('button', { name: /等你回覆.*原工作整合測試/ }).click()
-    identity = await pa.evaluate(
-      async ({ characterId, text }) => {
-        const outbox = await window.yuki.client.outbox(characterId)
-        if (!outbox.ok) throw Error(outbox.code)
-        const item = outbox.value.find((item) => item.body.text === text)
-        if (!item) throw Error('Original Work creation request missing')
-        const request = await window.yuki.client.read<OriginalRequest>(characterId, {
-          kind: 'request',
-          requestId: item.requestId,
-        })
-        if (!request.ok) throw Error(request.code)
-        const home = await window.yuki.client.read<Home>(characterId, { kind: 'home' })
-        if (!home.ok) throw Error(home.code)
-        const work = home.value.works.find(
-          (work) => work.trigger_event_id === request.value.event_id,
-        )
-        if (!work || !request.value.event_id) throw Error('Original Work source missing')
-        return {
-          characterId,
-          requestId: item.requestId,
-          eventId: request.value.event_id,
-          workId: work.work_id,
-        }
-      },
-      { characterId: connection.characterId, text: creationText },
-    )
+    await pb.bringToFront()
     await navigate(pb, '工作')
     await pb.getByRole('button', { name: /等你回覆.*原工作整合測試/ }).click()
     const detailA = pa.getByRole('complementary', { name: '檢視器' }),
@@ -103,6 +92,7 @@ test('a real terminal Work hint survives an older running detail response in the
       Object.assign(window, { __workRefreshProbe: { terminal, hints, dispose } })
     }, identity)
     await fetch(`${rig.base}/__test/hold-work`, { method: 'POST' })
+    await pa.bringToFront()
     await detailA.getByRole('textbox').fill('台北，沿原工作繼續')
     await detailA.getByRole('button', { name: '傳送給這項工作', exact: true }).click()
     running = await waitForWorkState(pa, identity.characterId, identity.workId, 'running')
@@ -199,6 +189,7 @@ test('a real terminal Work hint survives an older running detail response in the
         .__workReadProbe
       probe.release()
     })
+    await pb.bringToFront()
     await expect(detailB.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
     const reads = await b.evaluate(async () => {
       const probe = (globalThis as typeof globalThis & { __workReadProbe: ReadProbe })

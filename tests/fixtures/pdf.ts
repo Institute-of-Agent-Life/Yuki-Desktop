@@ -15,7 +15,14 @@ export async function expectPdfPages(preview: Locator, pages: number) {
         const pending = [root]
         while (pending.length) {
           const frame = pending.shift()!
-          if (await frame.locator('pdf-viewer').count()) {
+          let viewers: number
+          try {
+            viewers = await frame.locator('pdf-viewer').count()
+          } catch (error) {
+            if (frame.isDetached()) return false
+            throw error
+          }
+          if (viewers) {
             viewerFrame = frame
             return true
           }

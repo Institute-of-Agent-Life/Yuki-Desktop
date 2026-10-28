@@ -8,17 +8,59 @@ import { contentSize } from '../fixtures/visual'
 import { expectPdfPages } from '../fixtures/pdf'
 
 async function playback(player: Locator) {
+  const playUntil = async (target: number) => {
+    const result = await player.evaluate(async (node, target) => {
+      const media = node as HTMLMediaElement,
+        started = performance.now()
+      media.muted = true
+      await new Promise<void>((resolve, reject) => {
+        const dispose = () => {
+          media.removeEventListener('timeupdate', progress)
+          media.removeEventListener('ended', failed)
+          media.removeEventListener('error', failed)
+          media.removeEventListener('emptied', failed)
+        }
+        const progress = () => {
+          if (media.currentTime <= target) return
+          dispose()
+          resolve()
+        }
+        const failed = () => {
+          dispose()
+          reject(
+            Error(
+              `Playback stopped at ${media.currentTime}: ${media.error?.message ?? 'ended or source replaced'}`,
+            ),
+          )
+        }
+        media.addEventListener('timeupdate', progress)
+        media.addEventListener('ended', failed)
+        media.addEventListener('error', failed)
+        media.addEventListener('emptied', failed)
+        void media.play().then(progress, (error) => {
+          dispose()
+          reject(error)
+        })
+      })
+      return {
+        target,
+        currentTime: media.currentTime,
+        duration: media.duration,
+        source: media.currentSrc,
+        elapsedMs: performance.now() - started,
+      }
+    }, target)
+    expect(result.currentTime).toBeGreaterThan(target)
+    await test.info().attach(`actual-playback-${target}`, {
+      body: JSON.stringify(result),
+      contentType: 'application/json',
+    })
+  }
   await expect
     .poll(() => player.evaluate((node) => (node as HTMLMediaElement).readyState))
     .toBeGreaterThanOrEqual(2)
-  await player.evaluate(async (node) => {
-    const media = node as HTMLMediaElement
-    media.muted = true
-    await media.play()
-  })
-  await expect
-    .poll(() => player.evaluate((node) => (node as HTMLMediaElement).currentTime))
-    .toBeGreaterThan(0.2)
+  // Follow the decoder's actual progress, rather than its startup taking less than 5 seconds.
+  await playUntil(0.2)
   await player.evaluate((node) => {
     const media = node as HTMLMediaElement
     media.pause()
@@ -32,12 +74,7 @@ async function playback(player: Locator) {
       }),
     )
     .toBe(true)
-  await player.evaluate(async (node) => {
-    await (node as HTMLMediaElement).play()
-  })
-  await expect
-    .poll(() => player.evaluate((node) => (node as HTMLMediaElement).currentTime))
-    .toBeGreaterThan(2.7)
+  await playUntil(2.7)
   await player.evaluate((node) => (node as HTMLMediaElement).pause())
 }
 
