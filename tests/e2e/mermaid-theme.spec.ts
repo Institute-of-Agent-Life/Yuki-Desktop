@@ -15,6 +15,7 @@ test('keeps real flowchart edges and arrowheads visible across existing light an
   let success = false
   try {
     const page = await app.firstWindow()
+    await page.bringToFront()
     await pairUI(page, rig.base, await rig.code())
     const connection = await currentConnection(page),
       markdownText = '```mermaid\ngraph LR\nA[Input]-->B[Output]\n```'
@@ -30,7 +31,10 @@ test('keeps real flowchart edges and arrowheads visible across existing light an
           .locator(`article[data-event-id="${eventId}"]`)
           .getByText('Desktop reference reply', { exact: true }),
       ).toBeVisible()
-    const diagram = page.locator('[data-mermaid] svg').first()
+    const article = page.locator(`article[data-event-id="${accepted.eventId}"]`),
+      block = article.locator('[data-mermaid]'),
+      diagram = block.locator('svg')
+    await block.scrollIntoViewIfNeeded()
     await expect(diagram).toContainText('Input')
     const facts: unknown[] = []
     for (const [theme, label] of [
@@ -46,6 +50,8 @@ test('keeps real flowchart edges and arrowheads visible across existing light an
       await page.getByRole('radio', { name: label, exact: true }).click()
       await page.getByRole('button', { name: '返回', exact: true }).click()
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+      await block.scrollIntoViewIfNeeded()
+      await expect(diagram).toBeVisible()
       await expect(diagram).toContainText('Output')
       const colors = await diagram.evaluate((svg) => {
         const root = getComputedStyle(document.documentElement),
@@ -91,25 +97,35 @@ test('keeps real flowchart edges and arrowheads visible across existing light an
       expect(colors.arrowContrast).toBeGreaterThanOrEqual(3)
       expect(colors.labelContrast).toBeGreaterThanOrEqual(4.5)
       // Capture before reading SVG text geometry: getBBox itself can flush stale text layout.
-      const screenshot = await page.screenshot({
+      const screenshot = await diagram.screenshot({
         path: test.info().outputPath(`mermaid-${theme}.png`),
       })
-      const geometry = await diagram.evaluate((svg) => ({
-        viewport: window.innerWidth,
-        labels: [...svg.querySelectorAll('.node text')].map((node) => {
-          const element = node as SVGGraphicsElement,
-            box = element.getBBox()
-          return {
-            text: node.textContent,
-            rect: node.getBoundingClientRect().toJSON(),
-            bbox: { x: box.x, y: box.y, width: box.width, height: box.height },
-          }
-        }),
-      }))
+      const geometry = await diagram.evaluate((svg) => {
+        const bounds = svg.getBoundingClientRect()
+        return {
+          width: bounds.width,
+          height: bounds.height,
+          labels: [...svg.querySelectorAll('.node text')].map((node) => {
+            const element = node as SVGGraphicsElement,
+              box = element.getBBox(),
+              rect = element.getBoundingClientRect()
+            return {
+              text: node.textContent,
+              rect: {
+                x: rect.x - bounds.x,
+                y: rect.y - bounds.y,
+                width: rect.width,
+                height: rect.height,
+              },
+              bbox: { x: box.x, y: box.y, width: box.width, height: box.height },
+            }
+          }),
+        }
+      })
       const ink = await app.evaluate(
         ({ nativeImage }, { png, geometry }) => {
           const image = nativeImage.createFromBuffer(Buffer.from(png, 'base64'))
-          const ratio = image.getSize().width / geometry.viewport
+          const ratio = image.getSize().width / geometry.width
           return geometry.labels.map(({ text, rect }) => {
             const pixels = image
               .crop({
