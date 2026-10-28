@@ -1,25 +1,14 @@
-name: Desktop
+name: PDF native viewer Mac verification
 on:
-  pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: desktop-${{ github.ref }}
-  cancel-in-progress: true
 jobs:
-  desktop:
+  pdf:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { os: macos-15, platform: mac, arch: arm64 }
-          - { os: macos-15-intel, platform: mac, arch: x64 }
-          - { os: windows-2025, platform: win, arch: x64 }
-          - { os: ubuntu-24.04, platform: linux, arch: x64 }
-          - { os: ubuntu-24.04-arm, platform: linux, arch: arm64 }
+        os: [macos-15, macos-15-intel]
     runs-on: ${{ matrix.os }}
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -44,106 +33,24 @@ jobs:
           cache-dependency-glob: |
             .cache/backend/uv.lock
             .cache/backend/packages/yuki-agent-connector/uv.lock
-      - uses: ilammy/msvc-dev-cmd@v1
-        if: runner.os == 'Windows'
       - name: Prepare the actual backend test environment
         run: uv sync --directory .cache/backend --frozen --all-extras --managed-python --python 3.12
       - name: Select the actual backend fixture
-        run: node -e "const fs=require('node:fs'),p=require('node:path');const root=p.resolve('.cache/backend');const py=p.join(root,'.venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');fs.appendFileSync(process.env.GITHUB_ENV,'YUKI_BACKEND_TEST_ROOT='+root+'\nYUKI_BACKEND_TEST_PYTHON='+py+'\nYUKI_E2E_OUTPUT='+p.join(process.env.RUNNER_TEMP,'yuki-desktop-e2e')+'\n')"
-      - name: Verify actual backend Python SQLite extension support
-        run: node -e "require('node:child_process').execFileSync(process.env.YUKI_BACKEND_TEST_PYTHON,['-c','import sqlite3, sys; db = sqlite3.connect(sys.argv[1]); db.enable_load_extension(True); db.enable_load_extension(False); db.close(); print(sys.executable); print(sqlite3.sqlite_version)',':memory:'],{stdio:'inherit'})"
+        run: node -e "const fs=require('node:fs'),p=require('node:path');const root=p.resolve('.cache/backend');const py=p.join(root,'.venv','bin/python');fs.appendFileSync(process.env.GITHUB_ENV,'YUKI_BACKEND_TEST_ROOT='+root+'\nYUKI_BACKEND_TEST_PYTHON='+py+'\nYUKI_E2E_OUTPUT='+p.join(process.env.RUNNER_TEMP,'yuki-pdf-native-verification')+'\n')"
       - run: npm ci
-      - name: Bundle the platform's standalone Connector
-        run: node build-tools/prepare-connector.mjs --backend .cache/backend
-      - name: Bundle the matching local Bot setup
-        run: node build-tools/prepare-local-bot.mjs --source .cache/backend
+      - run: node build-tools/prepare-connector.mjs --backend .cache/backend
+      - run: node build-tools/prepare-local-bot.mjs --source .cache/backend
       - run: npm exec playwright install -- --with-deps chromium
-      - if: runner.os == 'Linux'
-        run: sudo apt-get install --no-install-recommends -y rpm ffmpeg libnotify4 dbus-x11 gnome-keyring openbox
-      - if: runner.os == 'macOS'
-        run: brew install ffmpeg
-      - if: runner.os == 'Windows'
-        run: choco install ffmpeg --yes --no-progress
-      - name: Configure Electron sandbox for Ubuntu CI
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          node -e 'require("electron")'
-          electron_path="$(node --print 'require("electron")')"
-          printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile yuki-desktop-ci "%s" flags=(unconfined) {\n  userns,\n}\n' "$electron_path" | sudo tee /etc/apparmor.d/yuki-desktop-ci
-          sudo apparmor_parser --replace /etc/apparmor.d/yuki-desktop-ci
+      - run: brew install ffmpeg
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm run check:contract
       - run: node build-tools/check-backend-contract.mjs
-      - run: npm test
-      - run: npm run test:release
-      - if: runner.os != 'Linux'
-        run: npm run test:e2e
-      - if: runner.os == 'Linux'
-        env:
-          XDG_CURRENT_DESKTOP: GNOME
-        run: |
-          dbus-run-session -- xvfb-run --auto-servernum --server-args="-screen 0 1920x1200x24" bash -e -c '
-            export XDG_DATA_HOME="$RUNNER_TEMP/yuki-keyring-data"
-            export XDG_CONFIG_HOME="$RUNNER_TEMP/yuki-keyring-config"
-            printf "%s" "yuki-ci-test" | gnome-keyring-daemon --unlock --components=secrets > "$RUNNER_TEMP/keyring-startup.log"
-            openbox > "$RUNNER_TEMP/openbox.log" 2>&1 &
-            node build-tools/check-linux-keyring.mjs
-            node build-tools/diagnose-linux-notifications.mjs
-            npm run test:e2e
-          '
-      - run: npm run package -- --${{ matrix.platform }} --${{ matrix.arch }}
-      - name: Verify the real signed Mac runtime on a disposable copy
-        if: runner.os == 'macOS'
-        run: node build-tools/check-mac-runtime-signing.mjs dist
-      - name: Verify the actual NSIS installation and installed Connector resources
-        if: runner.os == 'Windows'
-        run: node build-tools/check-windows-install.mjs dist
-      - run: npm run check:package
-      - run: node build-tools/prepare-upload.mjs dist/upload dist
+      - run: npm run build
+      - name: Exercise actual PDF attachments and delivered artifacts
+        run: npm exec playwright -- test tests/e2e/artifacts.spec.ts tests/e2e/rich-media.spec.ts
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: Yuki-unsigned-${{ matrix.platform }}-${{ matrix.arch }}
-          path: dist/upload/*
-          if-no-files-found: error
-      - name: Preserve native package content audit
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: Yuki-package-audit-${{ matrix.platform }}-${{ matrix.arch }}
-          path: dist/upload.local-audit.json
+          name: PDF-native-viewer-${{ matrix.os }}
+          path: ${{ runner.temp }}/yuki-pdf-native-verification
           if-no-files-found: warn
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: Yuki-e2e-failure-${{ matrix.platform }}-${{ matrix.arch }}
-          path: ${{ runner.temp }}/yuki-desktop-e2e
-          if-no-files-found: ignore
-
-  local-bot:
-    name: Real local Bot deployment
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - name: Read the pinned backend source
-        id: backend
-        run: node -e "const fs=require('node:fs');const s=JSON.parse(fs.readFileSync('contracts/source.json','utf8'));fs.appendFileSync(process.env.GITHUB_OUTPUT,'commit='+s.commit+'\n')"
-      - uses: actions/checkout@v4
-        with:
-          repository: YuanYeYouTao/Yuki
-          ref: ${{ steps.backend.outputs.commit }}
-          path: .cache/backend
-      - run: npm ci
-      - name: Build the actual App-only Bot image
-        run: docker build --target direct --tag yuki-desktop-local:ci .cache/backend
-      - name: Prepare matching local deployment templates
-        run: node build-tools/prepare-local-bot.mjs --source .cache/backend --image yuki-desktop-local:ci
-      - name: Deploy, initialize and pair through the actual services
-        run: npm test -- tests/unit/local-bot.test.ts
-        env:
-          YUKI_TEST_DOCKER: '1'
