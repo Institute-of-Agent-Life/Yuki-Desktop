@@ -18,41 +18,38 @@ export async function expectPdfPages(preview: Locator, pages: number) {
         const pending = [root]
         while (pending.length) {
           const frame = pending.shift()!
-          let viewers: number
           try {
-            viewers = await frame.locator('pdf-viewer').count()
+            const viewer = frame.locator('pdf-viewer')
+            if (await viewer.count()) {
+              // Keep following the current guest until Chromium reports LoadState.SUCCESS.
+              // A tag can exist before its initial guest is replaced.
+              const loaded = await viewer.evaluate((element) =>
+                (
+                  element as HTMLElement & {
+                    getLoadSucceededForTesting(): boolean
+                  }
+                ).getLoadSucceededForTesting(),
+              )
+              if (!loaded) return false
+              viewerFrame = frame
+              return true
+            }
           } catch (error) {
-            if (frame.isDetached()) return false
+            if (preview.page().isClosed()) throw error
+            if (frame.isDetached() || frame.page().isClosed()) return false
             throw error
-          }
-          if (viewers) {
-            viewerFrame = frame
-            return true
           }
           pending.push(...frame.childFrames())
         }
         return false
       },
-      { message: 'The current PDF preview must attach its Chromium viewer' },
+      { message: 'The current PDF preview must load successfully in its Chromium viewer' },
     )
     .toBe(true)
   const viewer = viewerFrame!.locator('pdf-viewer'),
     toolbar = viewer.locator('viewer-toolbar'),
     progress = toolbar.locator('#progress'),
     currentPage = toolbar.locator('viewer-page-selector #pageSelector')
-  // Chromium 148 exposes its actual LoadState.SUCCESS through this testing contract.
-  // Toolbar defaults and page selectors do not establish that a document loaded.
-  await expect
-    .poll(() =>
-      viewer.evaluate((element) =>
-        (
-          element as HTMLElement & {
-            getLoadSucceededForTesting(): boolean
-          }
-        ).getLoadSucceededForTesting(),
-      ),
-    )
-    .toBe(true)
   await expect(preview).toHaveAttribute('src', source!)
   await expect(progress).toBeHidden()
   await expect(viewer.locator('viewer-error-dialog')).toBeHidden()
