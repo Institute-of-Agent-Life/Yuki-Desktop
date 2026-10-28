@@ -103,103 +103,10 @@ test('keeps real flowchart edges and arrowheads visible across existing light an
       expect(colors.edgeContrast).toBeGreaterThanOrEqual(3)
       expect(colors.arrowContrast).toBeGreaterThanOrEqual(3)
       expect(colors.labelContrast).toBeGreaterThanOrEqual(4.5)
-      // Isolated diagnostic: vary which real capture API observes the first frame.
-      // The original element capture and pixel assertions remain the acceptance data.
-      const captureOrders = [
-        ['element', 'native', 'viewport'],
-        ['native', 'element', 'viewport'],
-        ['viewport', 'element', 'native'],
-      ] as const
-      const captureOrder = captureOrders[test.info().repeatEachIndex % captureOrders.length]!
-      const captures: unknown[] = []
-      let screenshot: Buffer | undefined
-      for (const kind of captureOrder) {
-        const startedAt = Date.now()
-        let bytes: Buffer
-        if (kind === 'element') {
-          bytes = await diagram.screenshot({
-            path: test.info().outputPath(`mermaid-${theme}.png`),
-          })
-          screenshot = bytes
-        } else if (kind === 'native') {
-          const captured = await app.evaluate(async ({ BrowserWindow }) => {
-            const window = BrowserWindow.getAllWindows()[0]!
-            const image = await window.webContents.capturePage()
-            return {
-              png: image.toPNG().toString('base64'),
-              bounds: window.getContentBounds(),
-              focused: window.isFocused(),
-              visible: window.isVisible(),
-            }
-          })
-          bytes = Buffer.from(captured.png, 'base64')
-          captures.push({ kind, ...captured, png: undefined })
-          await writeFile(test.info().outputPath(`mermaid-${theme}-native.png`), bytes)
-        } else {
-          bytes = await page.screenshot({
-            path: test.info().outputPath(`mermaid-${theme}-viewport.png`),
-          })
-        }
-        captures.push({ kind, startedAt, finishedAt: Date.now(), bytes: bytes.length })
-      }
-      await page.screenshot({
-        fullPage: true,
-        path: test.info().outputPath(`mermaid-${theme}-fullpage.png`),
+      // Capture before reading SVG text geometry: getBBox itself can flush stale text layout.
+      const screenshot = await diagram.screenshot({
+        path: test.info().outputPath(`mermaid-${theme}.png`),
       })
-      const paint = await diagram.evaluate((svg) => {
-        const ancestors = []
-        for (let element: Element | null = svg; element; element = element.parentElement) {
-          const style = getComputedStyle(element)
-          ancestors.push({
-            tag: element.tagName,
-            id: element.id,
-            class: element.getAttribute('class'),
-            rect: element.getBoundingClientRect().toJSON(),
-            opacity: style.opacity,
-            visibility: style.visibility,
-            display: style.display,
-            transform: style.transform,
-            overflow: style.overflow,
-            filter: style.filter,
-            position: style.position,
-            zIndex: style.zIndex,
-            background: style.backgroundColor,
-            clipPath: style.clipPath,
-            mask: style.maskImage,
-          })
-        }
-        const bounds = svg.getBoundingClientRect()
-        return {
-          svg: svg.outerHTML,
-          visibility: document.visibilityState,
-          focused: document.hasFocus(),
-          fonts: document.fonts.status,
-          dpr: devicePixelRatio,
-          viewport: { width: innerWidth, height: innerHeight },
-          ancestors,
-          hitTargets: [0.1, 0.5, 0.9].map((fraction) => ({
-            fraction,
-            elements: document
-              .elementsFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height * fraction)
-              .slice(0, 6)
-              .map((element) => ({
-                tag: element.tagName,
-                class: element.getAttribute('class'),
-                region: element.getAttribute('data-region'),
-                label: element.getAttribute('aria-label'),
-              })),
-          })),
-          animations: document.getAnimations().map((animation) => ({
-            state: animation.playState,
-            time: String(animation.currentTime),
-            timing: animation.effect?.getComputedTiming(),
-          })),
-        }
-      })
-      await writeFile(
-        test.info().outputPath(`mermaid-${theme}-capture.json`),
-        JSON.stringify({ captureOrder, captures, paint }, null, 2),
-      )
       const geometry = await diagram.evaluate((svg) => {
         const bounds = svg.getBoundingClientRect()
         return {
@@ -245,7 +152,7 @@ test('keeps real flowchart edges and arrowheads visible across existing light an
             return { text, darkPixels, lightPixels, pixelCount: pixels.length / 4 }
           })
         },
-        { png: screenshot!.toString('base64'), geometry },
+        { png: screenshot.toString('base64'), geometry },
       )
       facts.push({ theme, ...colors, geometry, ink })
       await writeFile(
