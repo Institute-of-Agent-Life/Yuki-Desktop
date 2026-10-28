@@ -101,6 +101,14 @@ Mac Intel 的 Work 測試於原工作尚未建立完時就導航、等待卡片�
 
 最終後端 `4d2a70a` 只修正凍結的 0155 入站回填查詢，讓原 canonical event 查詢使用已有索引；沒有變更 `src`、Connector、依賴或部署模板。從該提交實際匯出的 OpenAPI 仍逐位元相同，本地 Bot manifest 已按該 HEAD 重新準備，包檢查 24 項通過、1 項依平台跳過。[候選鏡像構建](https://github.com/YuanYeYouTao/Yuki/actions/runs/40763719969)成功，匿名核實 amd64／arm64 的完整 revision 及 4.0.0 標籤；index digest 為 `sha256:d9c86e1be4bd6e28bb214df1572a6b8262484bc2dd846d2028dca5dddd858585`。最終跨平台 CI 核對更新 pin 後的提交，全部通過後才合併；正式安裝、Release 及生產升級分別驗收。
 
+## Mac PDF 的當前來源驗證
+
+固定 `4d2a70a` 的完整 CI `40764036569` 中，Windows、Linux 雙架構與真實本地 Bot 部署全部通過；兩種 Mac 均只剩同一項成果 PDF 探針失敗。取證確認同一成果在授權重新核驗後換成新預覽句柄，舊探針卻固定了更新前的隨機 `app://` URL，之後每次等待都跳過新的 guest。當前新 URL 的 HEAD 為 200、MIME 為 PDF、大小為 594 bytes；不能據舊 guest 的進度 0 判定當前文件失敗。
+
+修補只在測試：每輪從同一個預覽 iframe 讀取當前 src 與 root，沿其子樹尋找原生 viewer；僅在固定 Chromium 148 的 [`getLoadSucceededForTesting()`](https://raw.githubusercontent.com/chromium/chromium/148.0.7778.280/chrome/browser/resources/pdf/pdf_viewer_base.ts) 真正成功、src 仍為本輪來源後保留 frame。靜態 tag 早於 module 註冊，因此在同一等待中確認元素已註冊；註冊後缺方法仍會失敗。主頁關閉不被吞掉，僅已離場的 guest 重新沿當前預覽查找。原 artifact／版本、無錯誤、進度隱藏、可見頁碼與總頁數全部保留，沒有改產品刷新／授權語義、放寬測試期限或加入平台分支。
+
+核心修補的 [Mac 雙架構定向驗證](https://github.com/Institute-of-Agent-Life/Yuki-Desktop/actions/runs/40773481594) 兩項全過，並人工核對 [ARM64](pdf-current-source-macos-arm64.png) 與 [Intel](pdf-current-source-macos-x64.png) 的真實正文、縮略圖及 1/1。最後的註冊與 src 提交前核對由正式 PR 最新完整 CI 一併驗收；診斷 workflow 與採樣日誌不進正式 PR。
+
 ## Client 7 能證明的邊界
 
 新打開、恢復 sync、臨時原件回收時間、已知憑據失效與來源變更會核對原授權或關流。每個 Range 使用同一個已查證的 FD，不碰後端、不重算整件 SHA。
