@@ -1,6 +1,6 @@
 # Desktop 富媒體驗收，2026-10-28
 
-實作分支：`codex/desktop-rich-media-20261028`。開發基底為 Desktop `1d42784a17bfc09f509e9f50f0f5c0be877b2d7d`，配套後端固定為 [27c71ee2822bbc91a32124bc6612180bdab5b177](https://github.com/YuanYeYouTao/Yuki/commit/27c71ee2822bbc91a32124bc6612180bdab5b177)，包含本輪最後的目錄清理補修及 main #530。Client API 維持 revision 7，重新匯出的合同與最初 `8720d929` 來源逐位元相同。
+實作分支：`codex/desktop-rich-media-20261028`。開發基底為 Desktop `1d42784a17bfc09f509e9f50f0f5c0be877b2d7d`，配套後端最終固定為 [4d2a70a24723b390034754285687897af7036723](https://github.com/YuanYeYouTao/Yuki/commit/4d2a70a24723b390034754285687897af7036723)，包含 #531 及 0155 入站回填查詢修正。Client API 維持 revision 7，重新匯出的合同與最初 `8720d929` 來源逐位元相同。
 
 從該後端 commit 的獨立源碼歸檔實際導出 OpenAPI，內容 SHA-256 仍為 `58462caed2f2fbe63d762d3627645476ab03baa26128982d950d73ba7701280a`，OpenAPI 與產生的 TypeScript 沒有內容差異；只更新 `contracts/source.json` 的固定來源。
 
@@ -90,6 +90,16 @@ Mac Intel 同輪的兩項 PDF 失敗不是 Mermaid：失敗截圖已有實際正
 本機相關六個整檔 Electron 用例共 23 項通過，包含真 PDF、撤權、通知原件、影音播放與 seek、128 MiB Range 及 500 條歷史。替換 PDF helper 後，成果與 MP3/OGG 場景先通過；附件場景復現窄欄前提問題後，加入真實展開動作，完整場景以 1.3 分鐘通過。三個受影響場景均有通過回執，實際附件／成果 PDF 正文與 1/1 截圖已人工核對；未重跑無變更場景。ESLint、型別和 diff 檢查通過，跨平台結果仍核對最新提交 CI。打包相關檢查另為 24 項通過、1 項依平台跳過。
 
 原 pin `27c71ee2` 的預設 GHCR 鏡像實測不存在，因此不能作為本地部署驗收。最終改用已審查的公開後端提交 `af959bbf`，同步匹配模板；該提交另補齊兩份離線 SQLite 工具的 0155 適配，src／tests／packages／依賴與先前完整 CI 通過的 `1e0a1933` 相同。[候選鏡像構建](https://github.com/YuanYeYouTao/Yuki/actions/runs/40752394098)成功，匿名核實 linux/amd64、linux/arm64 的 OCI revision 均為完整 pin、version 均為 4.0.0，index digest 為 `sha256:84a16b7eb1a36a606142433222cb13e0646c477fc8f671c673029af39bfa2168`。合併時仍核對後端主線及實際產品樹。OpenAPI 與安裝包、合併與生產升級分別記錄。
+
+## 10/29 中斷接續與最終固定來源
+
+`8c74d2c` 的 CI 在兩種 Mac 上均於 PDF viewer frame 切換時失敗。探針現在只在已脫離的 frame 上返回未就緒，沿既有載入查找繼續；其他例外仍拋出。Mermaid 則在認回原回執後明確捲到原回覆，再捲回原圖表，消除不同視窗高度與聊天自動捲動的競態；六次主題往返及原對比度、字形像素閾值保留。
+
+Mac Intel 的 Work 測試於原工作尚未建立完時就導航、等待卡片。改用既有 helper 等原 request 的接納與 Main 結束，沿原 event／work 繼續，兩個視窗在真實互動前切到前景。影音用例原先把預設 5 秒內啟動解碼當前提，該次 WAV 於最後取樣才前進到 0.161 秒；改沿同一播放器的原生 `timeupdate` 等實際播放超過 0.2 秒、seek 後超過 2.7 秒，沿原測試總期限執行，沒有增加重試。播放拒絕、錯誤、提前結束與來源被替換仍會失敗，並附實際進度、來源、時長和耗時。
+
+接續後本機四個整檔、五個真 Electron 用例全部通過，共 4.1 分鐘；包含 PDF、Mermaid、兩來源影音／seek、128 MiB Range、500 條歷史及原 Work 順序。ESLint、型別、格式及 diff 檢查通過，獨立復審完成。修補已以 `1b00f8a` 推送；該中間輪 CI 的真實本地 Bot 部署通過，因後端需要同步遷移修正而取消其餘檢查，不把取消當作跨平台通過。
+
+最終後端 `4d2a70a` 只修正凍結的 0155 入站回填查詢，讓原 canonical event 查詢使用已有索引；沒有變更 `src`、Connector、依賴或部署模板。從該提交實際匯出的 OpenAPI 仍逐位元相同，本地 Bot manifest 已按該 HEAD 重新準備，包檢查 24 項通過、1 項依平台跳過。[候選鏡像構建](https://github.com/YuanYeYouTao/Yuki/actions/runs/40763719969)成功，匿名核實 amd64／arm64 的完整 revision 及 4.0.0 標籤；index digest 為 `sha256:d9c86e1be4bd6e28bb214df1572a6b8262484bc2dd846d2028dca5dddd858585`。最終跨平台 CI 核對更新 pin 後的提交，全部通過後才合併；正式安裝、Release 及生產升級分別驗收。
 
 ## Client 7 能證明的邊界
 
