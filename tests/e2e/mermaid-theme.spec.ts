@@ -50,6 +50,13 @@ test('keeps real flowchart edges and arrowheads visible across existing light an
       await page.getByRole('radio', { name: label, exact: true }).click()
       await page.getByRole('button', { name: '返回', exact: true }).click()
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+      await expect(article.getByText('已取得原回執', { exact: true })).toBeVisible()
+      for (const eventId of ended.result_event_ids!)
+        await expect(
+          page
+            .locator(`article[data-event-id="${eventId}"]`)
+            .getByText('Desktop reference reply', { exact: true }),
+        ).toBeInViewport()
       await block.scrollIntoViewIfNeeded()
       await expect(diagram).toBeVisible()
       await expect(diagram).toContainText('Output')
