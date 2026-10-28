@@ -125,6 +125,7 @@ test('native large work area uses automatic 440 and retains manual choices and r
   let app = await rig.launch('responsive-large'),
     success = false
   try {
+    let page = await app.firstWindow()
     const displays = await app.evaluate(({ screen }) =>
       screen.getAllDisplays().map(({ workArea, scaleFactor }) => ({ workArea, scaleFactor })),
     )
@@ -140,7 +141,6 @@ test('native large work area uses automatic 440 and retains manual choices and r
         'No native work area fits the 1920 × 900 acceptance window; VM sizing is verified separately.',
       )
     }
-    let page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
     await app.evaluate(
       ({ BrowserWindow }, area) => BrowserWindow.getAllWindows()[0]!.setPosition(area.x, area.y),

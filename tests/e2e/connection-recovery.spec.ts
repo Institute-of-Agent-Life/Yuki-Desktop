@@ -48,9 +48,10 @@ test('a real thirty second transport outage preserves the draft and converges an
     gate.disconnect()
     const offline = pa
       .getByRole('status')
-      .filter({ hasText: '無法連到伺服器，已保留本機內容。' })
+      .filter({ hasText: '無法取得伺服器回應。' })
       .first()
     await expect(offline).toBeVisible()
+    await expect(offline).toContainText('本機內容已保留。')
     await expect(pa.getByRole('button', { name: '重新連線', exact: true })).toBeVisible()
     await pa.getByRole('button', { name: '重新連線', exact: true }).click()
     await expect(composer).toHaveValue(draft)

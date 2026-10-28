@@ -254,27 +254,40 @@ it('configuration returns the real saved instance ID without inferring an identi
   })
   expect(run.mock.calls.some((call) => call[1].includes('service'))).toBe(false)
 })
-it('an unsupported write stays on the old runtime and reports its failure without trying the reader', async () => {
-  const run = vi.fn(async (selected: unknown, args: readonly string[]) => {
-    if (args.includes('status')) {
-      expect(selected).toBe(reader)
-      return JSON.stringify(publicStatus)
-    }
-    expect(selected).toBe(runtime)
-    expect(args.slice(2)).toEqual(['instance', 'configure'])
-    throw new ApiError('connector_failed')
-  })
-  const { connector } = fixture(run)
-  const original = connector.installations.selected()
-  await expect(
-    connector.configure({ id: 'original-profile', label: 'Home Codex' }),
-  ).rejects.toMatchObject({
-    code: 'connector_failed',
-    reason: 'configure',
-  })
-  expect(run).toHaveBeenCalledTimes(2)
-  expect(connector.installations.selected()).toEqual(original)
-})
+it.each([false, true])(
+  'an unsupported write stays on the old runtime and reports its failure without updating it (managed=%s)',
+  async (managed) => {
+    const run = vi.fn(async (selected: unknown, args: readonly string[]) => {
+      if (args.includes('status')) {
+        expect(selected).toBe(reader)
+        return JSON.stringify(publicStatus)
+      }
+      expect(selected).toBe(runtime)
+      expect(args.slice(2)).toEqual(['instance', 'configure'])
+      throw new ApiError('connector_failed')
+    })
+    const { connector } = fixture(run)
+    connector.installations.select({ ...connector.installations.selected()!, managed })
+    vi.spyOn(connector.installations, 'manifest').mockResolvedValue({
+      version: reader.version,
+      protocol: reader.protocol,
+      platform: process.platform,
+      arch: process.arch,
+      executable: 'python.exe',
+      arguments: reader.arguments,
+      files: [],
+    })
+    const original = connector.installations.selected()
+    await expect(
+      connector.configure({ id: 'original-profile', label: 'Home Codex' }),
+    ).rejects.toMatchObject({
+      code: 'connector_failed',
+      reason: 'configure',
+    })
+    expect(run).toHaveBeenCalledTimes(2)
+    expect(connector.installations.selected()).toEqual(original)
+  },
+)
 it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
   'actual standalone CLI keeps the preallocated creation ID through partial failure, human/JSON output and later edits',
   async () => {
@@ -419,8 +432,10 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
     const configPath = join(data, 'config.json'),
       journalPath = join(data, 'journal.sqlite3')
     await writeFile(configPath, JSON.stringify(identity))
-    const candidate = (await connector.discover()).find((item) => item.command === oldExecutable)
+    const alias = join(bin, name)
+    const candidate = (await connector.discover()).find((item) => item.command === alias)
     expect(candidate).toBeDefined()
+    expect(await realpath(candidate!.command)).toBe(oldExecutable)
     const instanceId = 'original-upgrade-instance'
     await execute(selected, [
       '--data-dir',
@@ -454,7 +469,8 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
     ).toEqual({ instanceId })
     const originalConfig = JSON.parse(await readFile(configPath, 'utf8'))
     expect(originalConfig.instances).toHaveLength(1)
-    expect(originalConfig.instances[0].installation).toBe(`path:${join(bin, name)}`)
+    expect(originalConfig.instances[0].command).toBe(alias)
+    expect(originalConfig.instances[0].installation).toBe(`path:${alias}`)
     await execute(
       {
         ...selected,
@@ -474,14 +490,16 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
     await unlink(oldExecutable)
     expect(await realpath(bin)).toBe(nextVersion)
     expect(existsSync(oldExecutable)).toBe(false)
-    expect(await connector.nativeExecutable(instanceId)).toBe(currentExecutable)
+    const resolved = await connector.nativeExecutable(instanceId)
+    expect(resolved).toBe(alias)
+    expect(await realpath(resolved)).toBe(currentExecutable)
     expect(await readFile(configPath)).toEqual(configBytes)
     expect(await readFile(journalPath)).toEqual(journalBytes)
     expect(
       await connector.configure({
         id: instanceId,
         create: false,
-        command: oldExecutable,
+        command: originalConfig.instances[0].command,
         label: '升級後的原安裝',
         cwd: editedProject,
       }),
@@ -491,12 +509,15 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
       instances: [
         {
           ...originalConfig.instances[0],
-          command: currentExecutable,
+          command: alias,
           label: '升級後的原安裝',
           cwd: editedProject,
         },
       ],
     })
+    expect(
+      await realpath(JSON.parse(await readFile(configPath, 'utf8')).instances[0].command),
+    ).toBe(currentExecutable)
     expect(await readFile(journalPath)).toEqual(journalBytes)
     expect(process.env.PATH).toBe(parentPath)
     expect(launched.every((call) => call.executable === selected.executable)).toBe(true)
@@ -570,7 +591,7 @@ it('creation, configuration and background actions keep their original installat
   ])
   expect(connector.installations.selected()!.dataDirectory).toBe(second)
 })
-it('upgrades a cached managed runtime before configuring once under the original namespace and instance', async () => {
+it('saving a managed instance keeps its running service and runtime while a bundled update is available', async () => {
   const root = await mkdtemp(join(tmpdir(), 'connector-cached-'))
   temporary.push(root)
   const bundle = join(root, 'bundle'),
@@ -603,9 +624,9 @@ it('upgrades a cached managed runtime before configuring once under the original
           ...publicStatus,
           version: selected.executable === oldExecutable ? '0.3.1' : '0.3.2',
         })
-      expect(selected.executable).not.toBe(oldExecutable)
-      if (args.includes('configure')) return JSON.stringify({ instance_id: 'original-profile' })
-      return 'service updated'
+      expect(selected.executable).toBe(oldExecutable)
+      expect(args).toContain('configure')
+      return JSON.stringify({ instance_id: 'original-profile' })
     },
   )
   const authorize = vi.fn(),
@@ -624,18 +645,20 @@ it('upgrades a cached managed runtime before configuring once under the original
     dataDirectory: directory,
     runtime: { ...runtime, version: '0.3.1', executable: oldExecutable },
   })
+  const original = connector.installations.selected()
+  const install = vi.spyOn(connector.installations, 'install')
+  expect(await connector.state()).toMatchObject({
+    managed: true,
+    updateAvailable: true,
+    service: { running: true },
+  })
   expect(await connector.configure({ id: 'original-profile', label: 'Same Codex' })).toEqual({
     instanceId: 'original-profile',
   })
   expect(run.mock.calls.filter((call) => call[1].includes('configure'))).toHaveLength(1)
-  expect(
-    run.mock.calls.filter((call) => call[1].includes('service')).map((call) => call[1].slice(-2)),
-  ).toEqual([
-    ['service', 'stop'],
-    ['service', 'install'],
-    ['service', 'start'],
-  ])
-  expect(connector.installations.selected()!.dataDirectory).toBe(directory)
+  expect(run.mock.calls.some((call) => call[1].includes('service'))).toBe(false)
+  expect(install).not.toHaveBeenCalled()
+  expect(connector.installations.selected()).toEqual(original)
   expect(await readFile(join(directory, 'config.json'), 'utf8')).toBe('original identity')
   expect(await readFile(join(directory, 'journal.sqlite3'), 'utf8')).toBe('original receipts')
   expect(authorize).not.toHaveBeenCalled()
@@ -1056,64 +1079,124 @@ it('reads a pre-upgrade installation through the bundled reader and keeps the ac
   expect(run.mock.calls.some((call) => call[1].includes('pair'))).toBe(false)
 })
 
-it('explicit adoption re-registers only the original service and preserves its data and identity', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'connector-adopt-'))
-  temporary.push(root)
-  const bundle = join(root, 'bundle'),
-    data = join(root, 'original-data')
-  await mkdir(bundle)
-  await mkdir(data)
-  await writeFile(join(data, 'journal.sqlite3'), 'original durable receipts')
-  await writeFile(join(bundle, 'python.exe'), 'new runtime bytes')
-  await writeFile(
-    join(bundle, 'manifest.json'),
-    JSON.stringify({
-      version: '0.3.1',
-      protocol: 3,
-      platform: process.platform,
-      arch: process.arch,
-      executable: 'python.exe',
-      arguments: ['-I', '-m', 'yuki_agent_connector'],
-      files: [
-        {
-          path: 'python.exe',
-          sha256: createHash('sha256').update('new runtime bytes').digest('hex'),
-        },
+it.each([
+  { action: 'install', running: true, selected: true },
+  { action: 'install', running: false, selected: true },
+  { action: 'adopt', running: true, selected: false },
+  { action: 'adopt', running: false, selected: false },
+] as const)(
+  'explicit $action keeps the original data and service state (running=$running, selected=$selected)',
+  async ({ action, running, selected }) => {
+    const root = await mkdtemp(join(tmpdir(), 'connector-adopt-'))
+    temporary.push(root)
+    const bundle = join(root, 'bundle'),
+      data = join(root, 'original-data')
+    await mkdir(bundle)
+    await mkdir(data)
+    const originalExecutable = join(root, 'python.exe')
+    await writeFile(originalExecutable, 'old runtime, never launched')
+    const configuration = JSON.stringify({
+      device_id: 'original-device',
+      instances: [
+        { id: 'original-profile', args: ['--original-owner'], env: { PROFILE: 'original' } },
       ],
-    }),
+    })
+    await writeFile(join(data, 'config.json'), configuration)
+    await writeFile(join(data, 'journal.sqlite3'), 'original durable receipts')
+    await writeFile(join(bundle, 'python.exe'), 'new runtime bytes')
+    await writeFile(
+      join(bundle, 'manifest.json'),
+      JSON.stringify({
+        version: '0.3.5',
+        protocol: 3,
+        platform: process.platform,
+        arch: process.arch,
+        executable: 'python.exe',
+        arguments: ['-I', '-m', 'yuki_agent_connector'],
+        files: [
+          {
+            path: 'python.exe',
+            sha256: createHash('sha256').update('new runtime bytes').digest('hex'),
+          },
+        ],
+      }),
+    )
+    const calls: { executable: string; args: readonly string[] }[] = []
+    const options = {
+      root: join(root, 'managed'),
+      bundledRuntime: bundle,
+      store: store(),
+      authorize: vi.fn(),
+      admission: vi.fn(),
+    }
+    const connector = new AgentConnector(options, async (selected, args) => {
+      calls.push({ executable: selected.executable, args })
+      if (args.includes('--version')) return '0.3.0\n'
+      return args.includes('status')
+        ? JSON.stringify({
+            ...publicStatus,
+            data_directory: data,
+            service: { installed: true, running, executable: originalExecutable },
+          })
+        : 'ok'
+    })
+    if (selected) connector.installations.select({ managed: false, dataDirectory: data, runtime })
+    const result = await connector[action]()
+    expect(result).toMatchObject({
+      managed: true,
+      version: '0.3.5',
+      deviceId: 'original-device',
+      dataDirectory: data,
+      service: { running },
+    })
+    expect(connector.installations.selected()).toMatchObject({ managed: true, dataDirectory: data })
+    expect(
+      calls.filter((call) => call.args.includes('service')).map((call) => call.args.at(-1)),
+    ).toEqual(running ? ['stop', 'install', 'start'] : ['install'])
+    expect(
+      calls.filter((call) => call.args.includes('service')).every((call) => call.args[1] === data),
+    ).toBe(true)
+    expect(
+      calls
+        .filter((call) => call.args.includes('service'))
+        .every((call) => call.executable !== runtime.executable),
+    ).toBe(true)
+    expect(options.authorize).not.toHaveBeenCalled()
+    expect(calls.some((call) => call.args.includes('pair'))).toBe(false)
+    expect(await readFile(join(data, 'config.json'), 'utf8')).toBe(configuration)
+    expect(await readFile(join(data, 'journal.sqlite3'), 'utf8')).toBe('original durable receipts')
+  },
+)
+
+it.each(['not JSON', '{"instances":[]}'])(
+  'discovery reports an invalid local response without presenting an execution receipt (%s)',
+  async (output) => {
+    const { connector } = fixture(vi.fn(async () => output))
+    await expect(connector.discover()).rejects.toMatchObject({
+      code: 'connector_invalid_response',
+      reason: 'discover',
+    })
+  },
+)
+
+it('a missing original Python is reported as an unavailable installation, without pairing', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'connector-missing-runtime-'))
+  temporary.push(root)
+  const { connector, options } = fixture(
+    vi.fn(async () =>
+      JSON.stringify({
+        ...publicStatus,
+        data_directory: root,
+        service: { installed: true, running: false, executable: join(root, 'python.exe') },
+      }),
+    ),
   )
-  const calls: { executable: string; args: readonly string[] }[] = []
-  const options = {
-    root: join(root, 'managed'),
-    bundledRuntime: bundle,
-    store: store(),
-    authorize: vi.fn(),
-    admission: vi.fn(),
-  }
-  const connector = new AgentConnector(options, async (selected, args) => {
-    calls.push({ executable: selected.executable, args })
-    return args.includes('status') ? JSON.stringify(publicStatus) : 'ok'
+  options.store.set('agent-connector-installation', undefined)
+  await expect(connector.state()).rejects.toMatchObject({
+    code: 'connector_existing_runtime_unavailable',
   })
-  connector.installations.select({ managed: false, dataDirectory: data, runtime })
-  await expect(connector.install()).rejects.toHaveProperty(
-    'code',
-    'connector_external_installation',
-  )
-  calls.length = 0
-  const result = await connector.adopt()
-  expect(result).toMatchObject({ managed: true, deviceId: 'original-device', dataDirectory: data })
-  expect(
-    calls.filter((call) => call.args.includes('service')).map((call) => call.args.at(-1)),
-  ).toEqual(['stop', 'install', 'start'])
-  expect(calls.every((call) => call.args[1] === data)).toBe(true)
-  expect(
-    calls
-      .filter((call) => call.args.includes('service'))
-      .every((call) => call.executable !== runtime.executable),
-  ).toBe(true)
   expect(options.authorize).not.toHaveBeenCalled()
-  const { readFile } = await import('node:fs/promises')
-  expect(await readFile(join(data, 'journal.sqlite3'), 'utf8')).toBe('original durable receipts')
+  expect(connector.installations.selected()).toBeUndefined()
 })
 
 it.each(['preview', 'use', 'connect'])(
@@ -1165,6 +1248,15 @@ it.each(['preview', 'use', 'connect'])(
     }
     const connector = new AgentConnector(options, run)
     vi.spyOn(connector.installations, 'bundled').mockResolvedValue(reader)
+    vi.spyOn(connector.installations, 'manifest').mockResolvedValue({
+      version: reader.version,
+      protocol: reader.protocol,
+      platform: process.platform,
+      arch: process.arch,
+      executable: 'python.exe',
+      arguments: reader.arguments,
+      files: [],
+    })
     const install = vi.spyOn(connector.installations, 'install')
     const preview = await connector.state('role')
     expect(preview).toMatchObject({
@@ -1174,6 +1266,8 @@ it.each(['preview', 'use', 'connect'])(
         state: {
           managed: false,
           version: '0.3.0',
+          bundledVersion: '0.3.5',
+          updateAvailable: true,
           protocol: undefined,
           deviceId: 'original-device',
           instances: [{ id: native.id, command: native.command, cwd: native.cwd }],
@@ -1306,4 +1400,94 @@ it('editing an original Claude instance preserves its driver without revalidatin
     await connector.configure({ id: 'claude', driver: 'codex', label: 'Original Claude' }),
   ).toEqual({ instanceId: 'claude' })
   expect(run.mock.calls.some(([, args]) => args.includes('add'))).toBe(false)
+})
+
+it('ACP creation preserves argument values without shell splitting or another discovery pass', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'connector-acp-arguments-'))
+  temporary.push(root)
+  const command = join(root, 'acp.exe')
+  await writeFile(command, 'native configuration target, never launched')
+  const args = ['--stdio', 'value with spaces', '--owner=original']
+  const run = vi.fn(async (_runtime: unknown, commandArgs: readonly string[]) =>
+    commandArgs.includes('status') ? JSON.stringify({ ...publicStatus, instances: [] }) : '{}',
+  )
+  const { connector } = fixture(run)
+  const result = await connector.configure({
+    command,
+    label: 'ACP',
+    driver: 'acp',
+    args,
+  })
+  const add = run.mock.calls.find(([, commandArgs]) => commandArgs.includes('add'))!
+  expect(add[1]).toEqual([
+    '--data-dir',
+    join(tmpdir(), 'original-data'),
+    'instance',
+    'add',
+    '--id',
+    result.instanceId,
+    '--driver',
+    'acp',
+    '--label',
+    'ACP',
+    '--command',
+    command,
+    '--cwd',
+    expect.any(String),
+    ...args.map((value) => '--agent-arg=' + value),
+  ])
+  expect(
+    run.mock.calls.some(
+      ([, commandArgs]) => commandArgs.includes('discover') || commandArgs.includes('service'),
+    ),
+  ).toBe(false)
+})
+
+it('ACP parameter edits are explicit and do not replace the original driver or hidden owner settings', async () => {
+  const run = vi.fn(async (_runtime: unknown, args: readonly string[], input?: string) => {
+    if (args.includes('status'))
+      return JSON.stringify({
+        ...publicStatus,
+        instances: [
+          {
+            id: 'original-acp',
+            label: 'ACP',
+            driver: 'acp',
+            command: runtime.executable,
+            args: ['--stdio'],
+            env: { PRIVATE: 'owner' },
+            socket: 'private-owner',
+          },
+        ],
+      })
+    expect(args).toContain('configure')
+    const value = JSON.parse(input!)
+    expect(value).toMatchObject({ id: 'original-acp', driver: 'acp' })
+    expect(value).not.toHaveProperty('env')
+    expect(value).not.toHaveProperty('socket')
+    return '{}'
+  })
+  const { connector } = fixture(run)
+  expect(await connector.state()).toMatchObject({ instances: [{ args: ['--stdio'] }] })
+  await connector.configure({ id: 'original-acp', label: 'Renamed ACP' })
+  const first = run.mock.calls.find(([, args]) => args.includes('configure'))!
+  expect(JSON.parse(first[2]!)).not.toHaveProperty('args')
+  await connector.configure({ id: 'original-acp', label: 'Renamed ACP', args: [] })
+  const last = run.mock.calls.filter(([, args]) => args.includes('configure')).at(-1)!
+  expect(JSON.parse(last[2]!)).toMatchObject({ args: [] })
+})
+
+it('a missing new executable reports a configuration error without starting a service or creating an instance', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'connector-missing-command-'))
+  temporary.push(root)
+  const run = vi.fn(async () => JSON.stringify({ ...publicStatus, instances: [] }))
+  const { connector } = fixture(run)
+  await expect(
+    connector.configure({
+      driver: 'acp',
+      command: join(root, 'missing.exe'),
+      label: 'ACP',
+    }),
+  ).rejects.toMatchObject({ code: 'validation_error', reason: 'configure' })
+  expect(run).toHaveBeenCalledOnce()
 })

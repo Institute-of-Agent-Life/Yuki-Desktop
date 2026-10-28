@@ -49,6 +49,7 @@ export class ConnectorInstallations {
       return JSON.parse(await readFile(join(this.bundledRuntime, 'manifest.json'), 'utf8'))
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+      if (error instanceof SyntaxError) throw new ApiError('connector_runtime_invalid')
       throw error
     }
   }
@@ -101,14 +102,11 @@ export class ConnectorInstallations {
   }
   async install(
     separate = false,
-    adopt = false,
     selected: ConnectorInstallation | null = this.selected() ?? null,
   ): Promise<ConnectorInstallation> {
     const previous = separate ? undefined : (selected ?? undefined)
     const manifest = await this.manifest()
     if (!manifest) throw new ApiError('connector_runtime_unavailable')
-    if (previous && !previous.managed && !adopt)
-      throw new ApiError('connector_external_installation')
     const source = this.bundledRuntime
     // The manifest is part of the signed Desktop payload. Validate bytes before executing them.
     await this.validate(manifest)
