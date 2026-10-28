@@ -89,7 +89,7 @@ Mac Intel 同輪的兩項 PDF 失敗不是 Mermaid：失敗截圖已有實際正
 
 本機相關六個整檔 Electron 用例共 23 項通過，包含真 PDF、撤權、通知原件、影音播放與 seek、128 MiB Range 及 500 條歷史。替換 PDF helper 後，成果與 MP3/OGG 場景先通過；附件場景復現窄欄前提問題後，加入真實展開動作，完整場景以 1.3 分鐘通過。三個受影響場景均有通過回執，實際附件／成果 PDF 正文與 1/1 截圖已人工核對；未重跑無變更場景。ESLint、型別和 diff 檢查通過，跨平台結果仍核對最新提交 CI。打包相關檢查另為 24 項通過、1 項依平台跳過。
 
-原 pin `27c71ee2` 的預設 GHCR 鏡像實測不存在，因此不能作為本地部署驗收。改用已審查的公開後端提交 `1e0a1933`，同步匹配模板。[候選鏡像構建](https://github.com/YuanYeYouTao/Yuki/actions/runs/40748797560)成功，匿名核實 linux/amd64、linux/arm64 的 OCI revision 均為完整 pin、version 均為 4.0.0，index digest 為 `sha256:4f6636dc7c7e78fafcb71cca74b6069b651a93b2e44bc656b1563c88ce1890dc`。合併時仍核對後端主線及實際產品樹。OpenAPI 與安裝包、合併與生產升級分別記錄。
+原 pin `27c71ee2` 的預設 GHCR 鏡像實測不存在，因此不能作為本地部署驗收。最終改用已審查的公開後端提交 `af959bbf`，同步匹配模板；該提交另補齊兩份離線 SQLite 工具的 0155 適配，src／tests／packages／依賴與先前完整 CI 通過的 `1e0a1933` 相同。[候選鏡像構建](https://github.com/YuanYeYouTao/Yuki/actions/runs/40752394098)成功，匿名核實 linux/amd64、linux/arm64 的 OCI revision 均為完整 pin、version 均為 4.0.0，index digest 為 `sha256:84a16b7eb1a36a606142433222cb13e0646c477fc8f671c673029af39bfa2168`。合併時仍核對後端主線及實際產品樹。OpenAPI 與安裝包、合併與生產升級分別記錄。
 
 ## Client 7 能證明的邊界
 
