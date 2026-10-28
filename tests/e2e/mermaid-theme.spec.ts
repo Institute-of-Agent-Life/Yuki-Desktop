@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import {
+  currentConnection,
+  pairUI,
+  waitForAcceptedMessage,
+  waitForMainEnded,
+  yukiFixture,
+} from '../fixtures/backend'
 
 test('keeps real flowchart edges and arrowheads visible across existing light and dark themes', async () => {
   test.setTimeout(90000)
@@ -10,10 +16,20 @@ test('keeps real flowchart edges and arrowheads visible across existing light an
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
-    await page
-      .getByRole('textbox', { name: /^和 .+ 說點什麼$/ })
-      .fill('```mermaid\ngraph LR\nA[Input]-->B[Output]\n```')
+    const connection = await currentConnection(page),
+      markdownText = '```mermaid\ngraph LR\nA[Input]-->B[Output]\n```'
+    await page.getByRole('textbox', { name: /^和 .+ 說點什麼$/ }).fill(markdownText)
     await page.getByRole('button', { name: '送出', exact: true }).click()
+    const accepted = await waitForAcceptedMessage(page, connection.characterId, markdownText),
+      ended = await waitForMainEnded(page, connection.characterId, accepted.requestId)
+    expect(ended.event_id).toBe(accepted.eventId)
+    expect(ended.result_event_ids).toHaveLength(1)
+    for (const eventId of ended.result_event_ids!)
+      await expect(
+        page
+          .locator(`article[data-event-id="${eventId}"]`)
+          .getByText('Desktop reference reply', { exact: true }),
+      ).toBeVisible()
     const diagram = page.locator('[data-mermaid] svg').first()
     await expect(diagram).toContainText('Input')
     const facts: unknown[] = []

@@ -69,6 +69,14 @@ npm exec playwright test -- tests/e2e/plugin-notification-media.spec.ts tests/e2
 
 同時核查全屏縮小預覽中「節點似乎缺字」的疑點。原 PNG 的 Input／Output 字形本來就存在，其區域與後續正確畫面逐像素相同，分別含 71／96 個深色字形像素。[原尺寸局部](mermaid-dark-detail.png) 與 [原圖對照記錄](mermaid-paint-verification.json) 保留了這個證據。回歸測試先截取實際畫面，再讀取文字幾何以定位像素，避免幾何查詢本身影響待驗證的繪製；文字內容、可用邊界、字形像素與白底一起核對。原 SVG 插入方法通過對照，沒有加入重試、延時或主題監聽。
 
+後續 [CI run 40727651466 的 Linux x64](https://github.com/Institute-of-Agent-Life/Yuki-Desktop/actions/runs/40727651466/job/122955562581) 暴露了這個測試的截圖座標競態。原圖中文字實際位於 y=702，第三輪截圖後讀取的 DOM 位置卻變為 y=571，相差 131 px；新回覆觸發自動捲動，測試用下一個畫面的座標去讀上一張截圖。錯誤位置是白底，原圖真正文字位置仍有 Input 42／Output 64 個深色字形像素，並非產品缺字。證據見 [CI 原圖](ci-40727651466-mermaid-light.png) 與 [座標及像素核對](ci-40727651466-mermaid-coordinate-check.json)。
+
+測試現在沿本次提交的原 request，等待 Main 結束及 `result_event_ids` 對應的真回覆呈現，再開始主題循環；仍然先截圖、後讀幾何並檢查實際像素。聚焦真 Electron `--repeat-each=2` 通過，合計十二次主題／視圖往返，typecheck 與 lint 通過。兩次實測資料為 [第一次](mermaid-stable-request-repeat0.json)、[第二次](mermaid-stable-request-repeat1.json)。這次只修測試，未改 SVG 渲染或加入等待時間、重試。
+
+同次 CI 的 macOS arm64 主媒體用例在第二角色配對後直接點「切換 Yuki」，漏了窄窗先開啟側欄的操作。原圖為 1024×684，主要導覽已折疊；trace 顯示配對上線及舊預覽 404 均已通過，隨後才找不到按鈕。Windows 也在相同操作失敗。測試現復用既有 `sidebar` 導覽，並將這段角色切換明確放在窄窗覆蓋；切回後恢復原視窗尺寸請求。
+
+最終原生 Windows Electron 主用例完整通過（1.5 分鐘），包含窄窗角色切換、舊預覽 404、新預覽 200，以及後續 500 條歷史實際掛載。125% DPI 下窄窗請求 1024×684、實際 1024×686，恢復請求 1439×899、實際 1440×900；記錄原生取整結果。詳見[角色切換與原生尺寸記錄](ci-40727651466-narrow-role-preview.json)。typecheck、lint、格式檢查通過；macOS 原生補修結果以後續 CI 為準。
+
 ## Client 7 能證明的邊界
 
 新打開、恢復 sync、臨時原件回收時間、已知憑據失效與來源變更會核對原授權或關流。每個 Range 使用同一個已查證的 FD，不碰後端、不重算整件 SHA。

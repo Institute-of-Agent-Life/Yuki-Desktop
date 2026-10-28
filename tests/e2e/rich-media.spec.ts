@@ -3,7 +3,8 @@ import { copyFile, readFile, writeFile, open } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ElectronApplication } from '@playwright/test'
 import { currentConnection, ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
-import { navigate } from '../fixtures/navigation'
+import { navigate, sidebar } from '../fixtures/navigation'
+import { contentSize } from '../fixtures/visual'
 
 async function playback(player: Locator) {
   await expect
@@ -284,13 +285,19 @@ test('plays and seeks both actual media sources, renders local rich text and kee
       .getByRole('region', { name: '成果預覽' })
       .getByRole('img', { name: 'animated.gif' })
       .getAttribute('src')
+    const originalViewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
+    const narrowMethod = await contentSize(app, page, 1024, 684)
+    const narrowViewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
+    expect(narrowViewport.width).toBeLessThan(1100)
     // Role sessions intentionally remain mounted; their existing active context owns previews.
     second = await yukiFixture()
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
     await page.getByRole('button', { name: '連接另一個 Yuki', exact: true }).click()
     await pairUI(page, second.base, await second.code())
-    expect(await page.evaluate(async (url) => (await fetch(url!)).status, oldUrl)).toBe(404)
+    const oldUrlStatus = await page.evaluate(async (url) => (await fetch(url!)).status, oldUrl)
+    expect(oldUrlStatus).toBe(404)
+    await sidebar(page)
     await page.getByRole('button', { name: '切換 Yuki', exact: true }).click()
     await page
       .getByRole('menu', { name: 'Yuki', exact: true })
@@ -301,7 +308,39 @@ test('plays and seeks both actual media sources, renders local rich text and kee
       .filter({ visible: true })
       .getByRole('img', { name: 'animated.gif' })
     await expect(restored).toBeVisible()
-    expect(await restored.getAttribute('src')).not.toBe(oldUrl)
+    const restoredUrl = await restored.getAttribute('src')
+    expect(restoredUrl).not.toBe(oldUrl)
+    const restoredUrlStatus = await page.evaluate(
+      async (url) => (await fetch(url!)).status,
+      restoredUrl,
+    )
+    expect(restoredUrlStatus).toBe(200)
+    const restoreMethod = await contentSize(
+      app,
+      page,
+      originalViewport.width,
+      originalViewport.height,
+    )
+    const restoredViewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
+    await writeFile(
+      test.info().outputPath('narrow-role-preview-lifecycle.json'),
+      JSON.stringify(
+        {
+          requestedNarrow: { width: 1024, height: 684 },
+          originalViewport,
+          narrowViewport,
+          narrowMethod,
+          oldUrl,
+          oldUrlStatus,
+          restoredUrl,
+          restoredUrlStatus,
+          restoredViewport,
+          restoreMethod,
+        },
+        null,
+        2,
+      ),
+    )
     await app.close()
     const seedStart = performance.now()
     const seeded = await fetch(`${rig.base}/__test/history?count=500`, { method: 'POST' })

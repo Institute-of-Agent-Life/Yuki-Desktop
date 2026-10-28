@@ -1,0 +1,52 @@
+{
+  "run": 40727651466,
+  "job": 122955562581,
+  "head": "422eb5f43bb68d9d78a849256a8ed5a860e22f2b",
+  "pngSize": [
+    1440,
+    900
+  ],
+  "viewportWidth": 1440,
+  "coordinateShiftY": -131,
+  "kind": "screenshot-and-later-DOM-coordinate-race",
+  "labels": [
+    {
+      "text": "Input",
+      "failedPostScreenshotRoi": {
+        "x": 915,
+        "y": 571,
+        "darkPixels": 0,
+        "lightPixels": 351,
+        "width": 27,
+        "height": 13
+      },
+      "actualGlyphRoiInSamePng": {
+        "x": 915,
+        "y": 702,
+        "darkPixels": 42,
+        "lightPixels": 257,
+        "width": 27,
+        "height": 13
+      }
+    },
+    {
+      "text": "Output",
+      "failedPostScreenshotRoi": {
+        "x": 1070,
+        "y": 571,
+        "darkPixels": 0,
+        "lightPixels": 468,
+        "width": 36,
+        "height": 13
+      },
+      "actualGlyphRoiInSamePng": {
+        "x": 1070,
+        "y": 702,
+        "darkPixels": 64,
+        "lightPixels": 324,
+        "width": 36,
+        "height": 13
+      }
+    }
+  ]
+}
