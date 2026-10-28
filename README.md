@@ -12,13 +12,23 @@ Yuki 的跨平台桌面客戶端專案。
 
 完成配對即可管理這個 Yuki 的共享資料、頭像、SOUL 與角色電腦。個人資料、工作和本機 Agent 操作沿原本人與執行身份處理；持久環境按後端部署配置。完整打包版本會準備配套部署資源，缺少 Docker、模型設定或配套資源時，頁面會顯示實際原因。
 
-設定 →「本機 Agent」統一管理這台電腦上的 Codex 與 Claude，沿用同一個 `yuki-agent-connector` 使用者服務。原生帳號、會話與權限仍由原程式管理；關閉 Desktop 後，背景連接可繼續工作。
+設定 →「本機 Agent」統一管理這台電腦上的 Codex、Claude 與通用 ACP Agent，沿用同一個 `yuki-agent-connector` 使用者服務。原生帳號、會話與權限仍由原程式管理；關閉 Desktop 後，背景連接可繼續工作。
+
+只驗證本機 Codex 發現、不執行模型任務時，明確設定 `YUKI_REAL_NATIVE_DISCOVERY=1` 與 `YUKI_NATIVE_DISCOVERY_EXPECT_COMMAND`（實際程式絕對路徑），再執行 `npm exec playwright test -- --config tests/live/native-agent-discovery.config.ts`。可另設 `YUKI_NATIVE_DISCOVERY_EXPECT_SOURCE` 核對來源 ID；這些值只作結果斷言，不注入候選。設定 `YUKI_DESKTOP_EXECUTABLE` 可驗收實際打包程式，未設定時使用已建置的源 App 和 `.cache/connector-runtime`。測試啟動隔離 App，經真實 main/preload IPC 發現原生安裝，不配對、註冊服務、連接 daemon 或派發模型任務；記錄留在 `.cache/native-agent-discovery`，與付費任務測試分開。
+
+隔離 profile 只隔離 App 資料。打包程式啟動時仍沿產品行為註冊系統的 `yuki://` 協定，可能把關聯改到測試執行檔；建議使用臨時作業系統帳戶或虛擬機驗收，或在測試後恢復正式安裝的協定關聯。
 
 選擇原生工具，確認目前的 Yuki 與網址，勾選授權後按「連接本機 Codex」或「連接本機 Claude」。桌面準備完整安裝包隨附的執行環境，以目前本人身份完成配對並尋找原生程式；只有一個候選時直接登記並啟動背景連接，多個候選才需選擇。不需要安裝 Python、wheel、修改 PATH 或抄第二種配對碼，也不必先選專案。任務可指定工作目錄，已有會話沿原會話的目錄；工作目錄不是檔案存取白名單。
 
 桌面會只讀發現預設位置的既有獨立安裝。「使用已有連接」沿用原執行環境、資料目錄、device、instance 與操作回執，不重新配對或啟停服務。「改用隨附版本，保留原資料」是另一個明確的升級動作，會更新同一份安裝使用的服務程式。其他位置的安裝與專用 `connector` 授權碼保留在進階入口。
 
+Desktop 與連接器版本分別顯示。更新保留原服務狀態：停止中的服務更新後仍停止，執行中的服務才會重新啟動。「只保存」只改原設定，不暗中升級或啟停連接器。Codex 自己的 daemon 不由這個更新重啟。
+
+Codex 尋找範圍包括 Store、PATH、目前活動 npm 安裝與 daemon 包的穩定 `current` 入口。原設定若寫死已移除的版本，先按「更新連接器，保留原資料」，再從「修改原設定」選擇尋找到的安裝，即可沿原 instance 保存其來源，之後跟隨正常升級。通用 ACP 直接選擇實際執行檔，啟動參數逐項填寫，保留順序、空格與空參數；未編輯時保留原值。
+
 一般遠端接入復用同一個 Yuki HTTPS 網址與 443 的 `/agents/v1/` WebSocket 入口，由伺服器部署者一次配置；使用者電腦只需連出。伺服器未提供入口時需先完成[配套部署](https://github.com/YuanYeYouTao/Yuki/blob/main/docs/operations/desktop-local-deployment.zh-CN.md)，SSH 隧道保留為進階方式。改變既有 Connector 的網址前須核原操作 namespace，不能覆蓋設定後自稱未決任務已遷移。
+
+已有 SSH、VPN 或 Tailscale 網路時，先由原工具建立可達入口，再使用該 Yuki 網址。Desktop 不另外啟動隧道或安裝 VPN；原位址恢復後可以重新連線，不因普通斷網要求重新配對。遠端 Connector 使用 HTTPS/WSS，SSH 轉發至本機 loopback 可使用 HTTP/WS。
 
 「本機 Agent」可選擇原生會話、提交要求及查看原操作事件，並回應原權限或問題請求。伺服器接納、背景服務、原生就緒與實際執行結果分別顯示。Codex 連接原 daemon；Claude 沿原生 SDK 的會話與執行能力，不把讀取歷史說成接管任意執行中的終端。桌面不改原生登入或權限設定。
 

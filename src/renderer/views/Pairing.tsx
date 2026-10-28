@@ -276,6 +276,9 @@ export function Pairing({
             }}
           >
             {confirmed && <small>伺服器：{confirmed.server}</small>}
+            <small>
+              使用可從這台電腦存取的 Yuki 網址。透過 SSH、VPN 或 Tailscale 連接時，請先建立網路連線。
+            </small>
             <label htmlFor="pair-code">配對連結、綁定碼或完整回覆</label>
             <div className={styles.codeRow}>
               <TextField

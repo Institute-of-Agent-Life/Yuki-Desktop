@@ -16,16 +16,25 @@ import {
   yukiFixture,
 } from '../fixtures/backend'
 
-async function memoryResult(page: Page, characterId: string, text: string) {
+async function memoryResult(
+  page: Page,
+  characterId: string,
+  match: { action: 'correct'; text: string } | { action: 'retract'; factId: number },
+) {
   const command = await page.evaluate(
-    ({ characterId, text }) =>
+    ({ characterId, match }) =>
       new Promise<CharacterCommandItem>((resolve, reject) => {
         const read = async () => {
           try {
             const result = await window.yuki.client.characterCommands(characterId)
             if (!result.ok) throw Error(result.code)
             const item = result.value.find(
-              (item) => item.command.kind === 'memory' && item.command.text === text,
+              (item) =>
+                item.command.kind === 'memory' &&
+                item.command.action === match.action &&
+                (match.action === 'correct'
+                  ? item.command.text === match.text
+                  : item.command.factId === match.factId),
             )
             if (item?.state === 'result') {
               dispose()
@@ -41,8 +50,9 @@ async function memoryResult(page: Page, characterId: string, text: string) {
         })
         void read()
       }),
-    { characterId, text },
+    { characterId, match },
   )
+  expect(command.state).toBe('result')
   expect(command.problem).toBeNull()
   const receipt = await page.evaluate(
     async ({ characterId, requestId }) => {
@@ -55,7 +65,7 @@ async function memoryResult(page: Page, characterId: string, text: string) {
     },
     { characterId, requestId: command.requestId },
   )
-  expect(command.command.kind).toBe('memory')
+  expect(command.command).toMatchObject({ kind: 'memory', ...match })
   if (command.command.kind !== 'memory') throw Error('Original memory command is missing')
   expect(receipt).toMatchObject({
     found: true,
@@ -144,7 +154,10 @@ test('real Electron edits original memory and arrangements, handles two-device c
     await pa.getByRole('textbox', { name: '更正後的記憶' }).fill(retainedDraft)
     await pb.getByRole('textbox', { name: '更正後的記憶' }).fill('另一台已核對的修正')
     await pb.getByRole('button', { name: '送出更正' }).click()
-    await memoryResult(pb, connection.characterId, '另一台已核對的修正')
+    await memoryResult(pb, connection.characterId, {
+      action: 'correct',
+      text: '另一台已核對的修正',
+    })
     await expect(pb.getByRole('dialog')).not.toBeVisible()
     await pa.getByRole('button', { name: '送出更正' }).click()
     await expect(pa.getByRole('dialog')).toContainText('這則記憶已變更')
@@ -201,6 +214,10 @@ test('real Electron edits original memory and arrangements, handles two-device c
     await pa.getByRole('button', { name: /^回應遺失後保留同一次修正/ }).click()
     await pa.getByRole('button', { name: '請她忘記這件事' }).click()
     await pa.getByRole('button', { name: '確認忘記' }).click()
+    await memoryResult(pa, connection.characterId, {
+      action: 'retract',
+      factId: recovered[0]!.fact_id,
+    })
     await expect(pa.getByRole('dialog')).not.toBeVisible()
     await expect(pa.getByRole('button', { name: /^回應遺失後保留同一次修正/ })).toHaveCount(0)
     await pa.getByRole('tab', { name: '她自己', exact: true }).click()

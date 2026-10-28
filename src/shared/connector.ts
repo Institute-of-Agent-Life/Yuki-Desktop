@@ -2,13 +2,14 @@ import type { ApiReply, OutboxItem } from './api'
 import type { components } from './contract.gen'
 
 export type ConnectorServiceAction = 'install' | 'start' | 'stop' | 'uninstall'
-export type ConnectorDriver = 'codex' | 'claude'
+export type ConnectorDriver = 'codex' | 'claude' | 'acp'
 export interface ConnectorInstance {
   id: string
   label: string
   driver: string
   command?: string
   cwd?: string
+  args?: string[]
 }
 export interface ConnectorAdmission {
   matched: boolean | null
@@ -46,6 +47,7 @@ export interface ConnectorAvailableState {
   runtime?: string
   dataDirectory?: string
   updateAvailable?: boolean
+  bundledVersion?: string
   instances: ConnectorInstance[]
   service: {
     installed: boolean
@@ -69,6 +71,7 @@ export interface ConnectorConfiguration {
   label: string
   cwd?: string
   driver?: ConnectorDriver
+  args?: string[]
 }
 export interface ConnectorDiagnostic {
   id: string

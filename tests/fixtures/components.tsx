@@ -54,7 +54,8 @@ if (
   connectorMode?.startsWith('protocol-') ||
   connectorMode === 'long-layout' ||
   connectorMode === 'native-unavailable' ||
-  connectorMode === 'operation-detail'
+  connectorMode === 'operation-detail' ||
+  connectorMode === 'acp-existing'
 ) {
   connectorState = {
     ...preparedConnector(),
@@ -64,13 +65,21 @@ if (
     instances: [
       {
         id: 'fixture-native-instance',
-        label: connectorMode === 'long-layout' ? 'OriginalAgent'.repeat(100) : 'My Codex',
-        driver: 'codex',
+        label:
+          connectorMode === 'long-layout'
+            ? 'OriginalAgent'.repeat(100)
+            : connectorMode === 'acp-existing'
+              ? 'My ACP'
+              : 'My Codex',
+        driver: connectorMode === 'acp-existing' ? 'acp' : 'codex',
         command:
           connectorMode === 'long-layout'
             ? '/original/'.repeat(120) + 'codex'
-            : '/fixture/Codex/codex',
+            : connectorMode === 'acp-existing'
+              ? '/fixture/acp-agent'
+              : '/fixture/Codex/codex',
         cwd: '/fixture/project',
+        ...(connectorMode === 'acp-existing' ? { args: ['--stdio', '原參數 有空格', ''] } : {}),
       },
     ],
     service: { installed: true, running: true },
@@ -85,7 +94,7 @@ if (
           id: 'fixture-server-instance',
           localId: 'fixture-native-instance',
           label: 'My Codex',
-          driver: 'codex',
+          driver: connectorMode === 'acp-existing' ? 'acp' : 'codex',
           online: connectorMode !== 'native-unavailable',
           status: connectorMode === 'native-unavailable' ? 'unavailable' : 'available',
           ...(connectorMode === 'native-unavailable' ? { errorType: 'native_login_required' } : {}),
@@ -102,10 +111,13 @@ if (connectorMode === 'paired')
     server: connectorConnection.baseUrl,
     admission: { matched: true, connected: false },
   }
-if (connectorMode === 'existing') {
+if (connectorMode === 'existing' || connectorMode === 'existing-old-stopped') {
   const original = {
     ...preparedConnector(),
     managed: false,
+    ...(connectorMode === 'existing-old-stopped'
+      ? { version: '0.3.1', bundledVersion: '0.3.6', updateAvailable: true }
+      : {}),
     paired: true,
     deviceId: 'original-connector-device',
     server: connectorConnection.baseUrl,
@@ -119,8 +131,8 @@ if (connectorMode === 'existing') {
         cwd: '/original/project',
       },
     ],
-    service: { installed: true, running: true },
-    admission: { matched: true, connected: true },
+    service: { installed: true, running: connectorMode !== 'existing-old-stopped' },
+    admission: { matched: true, connected: connectorMode !== 'existing-old-stopped' },
   }
   connectorState = {
     available: false,
@@ -198,7 +210,19 @@ window.yuki = {
       connectorState = preparedConnector()
       return { ok: true, value: connectorState }
     },
-    adopt: async () => ({ ok: false, code: 'fixture_only' }),
+    adopt: async () => {
+      connectorCalls.push({ method: 'adopt' })
+      if (!connectorState.available)
+        throw Error('Select the original installation before updating it')
+      connectorState = {
+        ...connectorState,
+        managed: true,
+        version: connectorState.bundledVersion ?? 'component-fixture',
+        updateAvailable: false,
+        runtime: '/fixture/connector/python',
+      }
+      return { ok: true, value: connectorState }
+    },
     useInstallation: async (input) => {
       connectorCalls.push({ method: 'useInstallation', input })
       connectorState = {
@@ -239,10 +263,8 @@ window.yuki = {
       connectorCalls.push({ method: 'configure', input, start })
       if (!connectorState.available) throw Error('Connector runtime has not been prepared')
       const local = input.id ?? 'fixture-native-instance'
-      const driver =
-        connectorState.instances.find((instance) => instance.id === local)?.driver ??
-        input.driver ??
-        'codex'
+      const original = connectorState.instances.find((instance) => instance.id === local)
+      const driver = original?.driver ?? input.driver ?? 'codex'
       connectorState = {
         ...connectorState,
         instances: [
@@ -250,8 +272,11 @@ window.yuki = {
             id: local,
             label: input.label,
             driver,
-            command: '/fixture/Codex/codex',
+            command: input.command ?? original?.command ?? `/fixture/${driver}`,
             cwd: input.cwd ?? '/fixture/home',
+            ...(input.args !== undefined || original?.args !== undefined
+              ? { args: input.args ?? original?.args }
+              : {}),
           },
         ],
         service: start ? { installed: true, running: true } : connectorState.service,
@@ -277,20 +302,26 @@ window.yuki = {
       }
       return { ok: true, value: { instanceId: local } }
     },
-    diagnose: async (id) => ({
-      ok: true,
-      value: {
-        id,
-        available: connectorMode !== 'native-unavailable',
-        ...(connectorMode === 'native-unavailable' ? { problem: 'native_login_required' } : {}),
-      },
-    }),
+    diagnose: async (id) => {
+      connectorCalls.push({ method: 'diagnose', input: id })
+      return {
+        ok: true,
+        value: {
+          id,
+          available: connectorMode !== 'native-unavailable',
+          ...(connectorMode === 'native-unavailable' ? { problem: 'native_login_required' } : {}),
+        },
+      }
+    },
     revealNative: async () => ({ ok: true, value: undefined }),
     chooseProject: async () => {
       connectorCalls.push({ method: 'chooseProject' })
       return { ok: true, value: '/fixture/project' }
     },
-    chooseExecutable: async () => ({ ok: true, value: null }),
+    chooseExecutable: async () => {
+      connectorCalls.push({ method: 'chooseExecutable' })
+      return { ok: true, value: 'C:\\Program Files\\ACP Agent\\agent.exe' }
+    },
     sessions: async () => ({
       ok: true,
       value: { sessions: [{ id: 'original-session', label: '原會話' }] },
