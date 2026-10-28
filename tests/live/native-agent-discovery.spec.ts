@@ -32,6 +32,9 @@ test('real Electron preload IPC discovers the selected installed Codex without p
   await mkdir(root, { recursive: true })
   const fixture = await isolatedDesktop(root)
   const profile = join(root, 'profile')
+  // The profile isolates App data only. A packaged launch still registers yuki://
+  // through normal product startup; use a disposable OS account/VM, or restore
+  // the protocol association to the installed product after the test.
   const app = await fixture.launch('profile')
   let evidence: Record<string, unknown> = { scope: 'real Electron main/preload IPC discovery only' }
   try {

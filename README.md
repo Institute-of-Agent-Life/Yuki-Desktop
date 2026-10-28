@@ -16,6 +16,8 @@ Yuki 的跨平台桌面客戶端專案。
 
 只驗證本機 Codex 發現、不執行模型任務時，明確設定 `YUKI_REAL_NATIVE_DISCOVERY=1` 與 `YUKI_NATIVE_DISCOVERY_EXPECT_COMMAND`（實際程式絕對路徑），再執行 `npm exec playwright test -- --config tests/live/native-agent-discovery.config.ts`。可另設 `YUKI_NATIVE_DISCOVERY_EXPECT_SOURCE` 核對來源 ID；這些值只作結果斷言，不注入候選。設定 `YUKI_DESKTOP_EXECUTABLE` 可驗收實際打包程式，未設定時使用已建置的源 App 和 `.cache/connector-runtime`。測試啟動隔離 App，經真實 main/preload IPC 發現原生安裝，不配對、註冊服務、連接 daemon 或派發模型任務；記錄留在 `.cache/native-agent-discovery`，與付費任務測試分開。
 
+隔離 profile 只隔離 App 資料。打包程式啟動時仍沿產品行為註冊系統的 `yuki://` 協定，可能把關聯改到測試執行檔；建議使用臨時作業系統帳戶或虛擬機驗收，或在測試後恢復正式安裝的協定關聯。
+
 選擇原生工具，確認目前的 Yuki 與網址，勾選授權後按「連接本機 Codex」或「連接本機 Claude」。桌面準備完整安裝包隨附的執行環境，以目前本人身份完成配對並尋找原生程式；只有一個候選時直接登記並啟動背景連接，多個候選才需選擇。不需要安裝 Python、wheel、修改 PATH 或抄第二種配對碼，也不必先選專案。任務可指定工作目錄，已有會話沿原會話的目錄；工作目錄不是檔案存取白名單。
 
 桌面會只讀發現預設位置的既有獨立安裝。「使用已有連接」沿用原執行環境、資料目錄、device、instance 與操作回執，不重新配對或啟停服務。「改用隨附版本，保留原資料」是另一個明確的升級動作，會更新同一份安裝使用的服務程式。其他位置的安裝與專用 `connector` 授權碼保留在進階入口。
