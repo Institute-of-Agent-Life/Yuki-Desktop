@@ -32,7 +32,7 @@ import { parseMessage, referencedMessage, type MessageReference } from '../../sh
 import { AttachmentPreview, DraftAttachments, MessageAttachment } from './Media'
 import { VoiceRecorder } from './VoiceRecorder'
 import mediaStyles from './Media.module.css'
-import { useMarkdown } from '../text/markdown'
+import { Markdown } from '../text/RichMarkdown'
 import { useHistory } from '../queries/history'
 import { CommandPalette, type PaletteCommand } from '../components/CommandPalette'
 import type { LoadedItem } from '../state/loaded'
@@ -1409,7 +1409,6 @@ export function Message({
   const yuki = event.author_kind === 'yuki'
   const author = own ? '你' : yuki ? name : (event.sender_display_name ?? '參與者')
   const { timeLabel } = useDisplayTime()
-  const html = useMarkdown(parseMessage(event.content).text)
   const [error, setError] = useState('')
   const action = (work: Promise<unknown>) =>
     void work.catch((error) => setError(error instanceof Error ? error.message : '操作未完成。'))
@@ -1447,7 +1446,9 @@ export function Message({
           <time dateTime={event.created_at}>{timeLabel(event.created_at)}</time>
         </header>
         <References characterId={characterId} text={event.content} onJump={onJump} />
-        <div
+        <Markdown
+          id={characterId}
+          text={parseMessage(event.content).text}
           className={styles.markdown}
           onClick={(event) => {
             const copy = (event.target as HTMLElement).closest('button[data-code-copy]')
@@ -1464,9 +1465,6 @@ export function Message({
               event.stopPropagation()
               action(window.yuki.client.external(link.href).then(unwrap))
             }
-          }}
-          dangerouslySetInnerHTML={{
-            __html: html,
           }}
         />
         {error && <Banner status="failed">{error}</Banner>}

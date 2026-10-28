@@ -365,3 +365,29 @@
 :global([data-contrast='true']) .entry[aria-current] {
   color: var(--accent-on);
 }
+
+.markdown :global([data-mermaid]) {
+  overflow: auto;
+  margin: 12px 0;
+}
+.markdown :global([data-mermaid] svg) {
+  max-width: 100%;
+  height: auto;
+}
+/* Mermaid embeds ID-scoped colors; keep edges readable with the live app theme. */
+.markdown :global([data-mermaid] .flowchart-link) {
+  stroke: var(--text-primary) !important;
+}
+.markdown :global([data-mermaid] .arrowMarkerPath) {
+  fill: var(--text-primary) !important;
+  stroke: var(--text-primary) !important;
+}
+.markdown :global([data-media-ref] img) {
+  max-width: 100%;
+  max-height: 480px;
+  object-fit: contain;
+}
+.markdown :global([data-render-error]::before) {
+  content: attr(data-render-error);
+  color: var(--text-secondary);
+}

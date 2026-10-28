@@ -108,6 +108,7 @@ const bridge: DesktopBridge = {
     content: (id, source) => ipcRenderer.invoke('yuki:content', id, source),
     saveContent: (id, source) => ipcRenderer.invoke('yuki:save-content', id, source),
     artifactContent: (id, source) => ipcRenderer.invoke('yuki:artifact-content', id, source),
+    releasePreview: (id, previewId) => ipcRenderer.invoke('yuki:release-preview', id, previewId),
     saveArtifact: (id, source) => ipcRenderer.invoke('yuki:save-artifact', id, source),
     revealArtifact: (id, source) => ipcRenderer.invoke('yuki:reveal-artifact', id, source),
     openArtifact: (id, source) => ipcRenderer.invoke('yuki:open-artifact', id, source),

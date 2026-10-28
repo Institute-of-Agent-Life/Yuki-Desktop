@@ -1,0 +1,151 @@
+{
+  "baselineCommit": "1d42784a17bfc09f509e9f50f0f5c0be877b2d7d",
+  "mountedEvents": 500,
+  "elapsedMs": 3645.1110999999983,
+  "before": [
+    {
+      "cpu": {
+        "cumulativeCPUUsage": 0.809539,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      },
+      "pid": 243004,
+      "type": "Browser",
+      "creationTime": 1793202810007.834,
+      "memory": {
+        "workingSetSize": 114572,
+        "peakWorkingSetSize": 127876,
+        "privateBytes": 85700
+      },
+      "integrityLevel": "medium",
+      "sandboxed": false
+    },
+    {
+      "cpu": {
+        "cumulativeCPUUsage": 4.304811,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      },
+      "pid": 170004,
+      "type": "GPU",
+      "creationTime": 1793202810242.526,
+      "serviceName": "GPU",
+      "memory": {
+        "workingSetSize": 166496,
+        "peakWorkingSetSize": 171764,
+        "privateBytes": 279824
+      },
+      "integrityLevel": "low",
+      "sandboxed": true
+    },
+    {
+      "cpu": {
+        "cumulativeCPUUsage": 0.076415,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      },
+      "pid": 263920,
+      "type": "Utility",
+      "creationTime": 1793202810246.285,
+      "serviceName": "network.mojom.NetworkService",
+      "name": "Network Service",
+      "memory": {
+        "workingSetSize": 50792,
+        "peakWorkingSetSize": 51692,
+        "privateBytes": 12772
+      },
+      "integrityLevel": "medium",
+      "sandboxed": false
+    },
+    {
+      "cpu": {
+        "cumulativeCPUUsage": 1.833798,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      },
+      "pid": 250596,
+      "type": "Tab",
+      "creationTime": 1793202810300.686,
+      "memory": {
+        "workingSetSize": 165304,
+        "peakWorkingSetSize": 171064,
+        "privateBytes": 92760
+      },
+      "integrityLevel": "untrusted",
+      "sandboxed": true
+    }
+  ],
+  "after": [
+    {
+      "cpu": {
+        "cumulativeCPUUsage": 0.908736,
+        "percentCPUUsage": 0.13679359896916288,
+        "idleWakeupsPerSecond": 0
+      },
+      "pid": 243004,
+      "type": "Browser",
+      "creationTime": 1793202810007.834,
+      "memory": {
+        "workingSetSize": 116688,
+        "peakWorkingSetSize": 127876,
+        "privateBytes": 87844
+      },
+      "integrityLevel": "medium",
+      "sandboxed": false
+    },
+    {
+      "cpu": {
+        "cumulativeCPUUsage": 6.302762,
+        "percentCPUUsage": 2.7551606058082085,
+        "idleWakeupsPerSecond": 0
+      },
+      "pid": 170004,
+      "type": "GPU",
+      "creationTime": 1793202810242.526,
+      "serviceName": "GPU",
+      "memory": {
+        "workingSetSize": 164416,
+        "peakWorkingSetSize": 175136,
+        "privateBytes": 261820
+      },
+      "integrityLevel": "low",
+      "sandboxed": true
+    },
+    {
+      "cpu": {
+        "cumulativeCPUUsage": 0.07648,
+        "percentCPUUsage": 0.00008963291872362723,
+        "idleWakeupsPerSecond": 0
+      },
+      "pid": 263920,
+      "type": "Utility",
+      "creationTime": 1793202810246.285,
+      "serviceName": "network.mojom.NetworkService",
+      "name": "Network Service",
+      "memory": {
+        "workingSetSize": 50796,
+        "peakWorkingSetSize": 51692,
+        "privateBytes": 12776
+      },
+      "integrityLevel": "medium",
+      "sandboxed": false
+    },
+    {
+      "cpu": {
+        "cumulativeCPUUsage": 7.2483,
+        "percentCPUUsage": 7.466280746944956,
+        "idleWakeupsPerSecond": 0
+      },
+      "pid": 250596,
+      "type": "Tab",
+      "creationTime": 1793202810300.686,
+      "memory": {
+        "workingSetSize": 370244,
+        "peakWorkingSetSize": 529476,
+        "privateBytes": 300416
+      },
+      "integrityLevel": "untrusted",
+      "sandboxed": true
+    }
+  ]
+}

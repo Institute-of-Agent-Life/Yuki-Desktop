@@ -63,7 +63,10 @@ import { LocalBot } from './local-bot'
 import type { LocalBotConfiguration } from '../shared/local-bot'
 
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  {
+    scheme: 'app',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
 ])
 if (process.env.YUKI_DESKTOP_DATA) app.setPath('userData', process.env.YUKI_DESKTOP_DATA)
 app.setAppUserModelId('life.yuki.desktop')
@@ -98,6 +101,8 @@ else {
     const renderer = resolve(import.meta.dirname, '../renderer')
     protocol.handle('app', (request) => {
       const url = new URL(request.url)
+      if (url.hostname === 'desktop' && url.pathname.startsWith('/__media/'))
+        return connections.previews.response(request)
       const path = resolve(renderer, `.${decodeURIComponent(url.pathname)}`)
       if (url.hostname !== 'desktop' || !path.startsWith(renderer + sep))
         return new Response(null, { status: 404 })
@@ -600,6 +605,8 @@ else {
     })
     action('selected', (id: string) => {
       connections.connection(id)
+      const previous = store.get<string>('selectedCharacterId')
+      if (previous && previous !== id) connections.previews.close(previous)
       store.set('selectedCharacterId', id)
       native.selectedCharacter = id
       if (win) setWindowMode(win, false)
@@ -778,6 +785,9 @@ else {
     )
     clientAction('artifact-content', (id: string, source: ArtifactSource) =>
       connections.artifactContent(id, source),
+    )
+    clientAction('release-preview', (id: string, previewId: string) =>
+      connections.previews.release(id, previewId),
     )
     clientAction('save-artifact', async (id: string, source: ArtifactSource) => {
       const content = await connections.artifact(id, source)

@@ -1,18 +1,21 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, FolderOpen, Copy, ArrowUpRight, X } from 'lucide-react'
 import type { DiffRow } from '../../shared/diff'
 import type { ArtifactPage, ArtifactSource, CachedContent, Home } from '../../shared/api'
 import { Banner, Button, EmptyState, IconButton, Segmented } from '../components/Controls'
 import { FileName, FileRow } from '../components/Content'
 import { unwrap } from '../queries/client'
-import { renderCode, useMarkdown } from '../text/markdown'
+import { renderCode } from '../text/markdown'
+import { Markdown } from '../text/RichMarkdown'
 import { useWorkspace } from '../state/workspace'
 import type { MessageReference } from '../../shared/message'
 import { formatBytes } from '../../shared/media'
 import styles from './Files.module.css'
 import chatStyles from './Conversation.module.css'
 import { useDisplayTime } from '../state/time'
+import { useMediaContent } from './media-content'
+import { MediaBody } from './Media'
 
 type Reference = ArtifactPage['items'][number]
 type Item = Reference & { references: Reference[] }
@@ -21,22 +24,10 @@ const source = (item: Reference): ArtifactSource => ({
   version: item.version,
 })
 const shortVersion = (version: string) => `${version.slice(0, 4)}…${version.slice(-4)}`
-function useContent(id: string, item?: ArtifactSource) {
-  return useQuery({
-    queryKey: [id, 'artifact-content', item?.artifactId, item?.version],
-    queryFn: () => window.yuki.client.artifactContent(id, item!).then(unwrap),
-    enabled: !!item,
-    retry: false,
-  })
+async function saveArtifact(id: string, source: ArtifactSource) {
+  return unwrap(await window.yuki.client.saveArtifact(id, source))
 }
-async function saveArtifact(id: string, source: ArtifactSource, query: QueryClient) {
-  const saved = unwrap(await window.yuki.client.saveArtifact(id, source))
-  if (saved)
-    await query.invalidateQueries({
-      queryKey: [id, 'artifact-content', source.artifactId, source.version],
-    })
-  return saved
-}
+
 export function Files({
   id,
   initial,
@@ -108,7 +99,6 @@ export function Files({
       window.yuki.client.onHint((character, kind) => {
         if (character === id && ['sync', 'artifacts', 'conversation', 'work'].includes(kind)) {
           void query.invalidateQueries({ queryKey: [id, 'artifacts'] })
-          void query.invalidateQueries({ queryKey: [id, 'artifact-content'] })
         }
       }),
     [id, query],
@@ -116,8 +106,8 @@ export function Files({
   const item = items.find(
     (item) => item.artifact_id === selected?.artifactId && item.version === selected?.version,
   )
-  const content = useContent(id, selected),
-    other = useContent(id, comparison)
+  const content = useMediaContent(id, selected),
+    other = useMediaContent(id, comparison)
   const data = content.error ? undefined : content.data
   const act = async (promise: Promise<unknown>) => {
     setProblem('')
@@ -239,7 +229,9 @@ export function Files({
               <h2 title={data.filename} aria-label={data.filename}>
                 <FileName name={data.filename} compact={false} />
               </h2>
-              <Button onClick={() => void act(saveArtifact(id, selected, query))}>
+              <Button
+                onClick={() => void act(saveArtifact(id, selected).then(() => content.refetch()))}
+              >
                 <Download size={15} />
                 存到…
               </Button>
@@ -341,9 +333,10 @@ export function Files({
                 )}
                 {other.error && <Banner status="failed">{other.error.message}</Banner>}
                 {comparison && !other.error && other.data ? (
-                  <ArtifactComparison left={data} right={other.data} />
+                  <ArtifactComparison id={id} left={data} right={other.data} />
                 ) : (
                   <Content
+                    id={id}
                     key={data.sha256}
                     content={data}
                     open={() =>
@@ -369,18 +362,9 @@ export function ArtifactInspector({
   source: ArtifactSource
   library(): void
 }) {
-  const content = useContent(id, source),
+  const content = useMediaContent(id, source),
     [problem, setProblem] = useState('')
   const data = content.error ? undefined : content.data
-  const query = useQueryClient()
-  useEffect(
-    () =>
-      window.yuki.client.onHint((character, kind) => {
-        if (character === id && ['sync', 'artifacts', 'conversation', 'work'].includes(kind))
-          void query.invalidateQueries({ queryKey: [id, 'artifact-content'] })
-      }),
-    [id, query],
-  )
   const act = async (promise: Promise<unknown>) => {
     try {
       setProblem('')
@@ -400,12 +384,17 @@ export function ArtifactInspector({
             {source.artifactId} · {shortVersion(source.version)}
           </code>
           <div className={styles.actions}>
-            <Button onClick={() => void act(saveArtifact(id, source, query))}>存到…</Button>
+            <Button
+              onClick={() => void act(saveArtifact(id, source).then(() => content.refetch()))}
+            >
+              存到…
+            </Button>
             <Button variant="plain" onClick={library}>
               在檔案與成果查看
             </Button>
           </div>
           <Content
+            id={id}
             key={data.sha256}
             content={data}
             open={() => void act(window.yuki.client.openArtifact(id, source).then(unwrap))}
@@ -415,29 +404,12 @@ export function ArtifactInspector({
     </div>
   )
 }
-function useBlob(content: CachedContent) {
-  const [url, setUrl] = useState<string>()
-  useEffect(() => {
-    if (!content.bytes) return
-    const url = URL.createObjectURL(
-      new Blob([Uint8Array.from(content.bytes).buffer], { type: content.mime }),
-    )
-    setUrl(url)
-    return () => {
-      setUrl(undefined)
-      URL.revokeObjectURL(url)
-    }
-  }, [content])
-  return url
-}
-function Content({ content, open }: { content: CachedContent; open?: () => void }) {
-  const url = useBlob(content),
-    [raw, setRaw] = useState(false)
+function Content({ id, content, open }: { id: string; content: CachedContent; open?: () => void }) {
+  const [raw, setRaw] = useState(false)
   const [html, setHtml] = useState(''),
     [problem, setProblem] = useState('')
   const textual = !!content.bytes && /^(text\/|application\/json)/.test(content.mime)
   const text = textual ? new TextDecoder().decode(content.bytes!) : ''
-  const markdown = useMarkdown(content.mime === 'text/markdown' && !raw ? text : '')
   useEffect(() => {
     if (!textual) return
     let active = true
@@ -452,10 +424,7 @@ function Content({ content, open }: { content: CachedContent; open?: () => void 
       active = false
     }
   }, [text, content.filename, textual])
-  if (content.mime.startsWith('image/') && url)
-    return <img className={styles.image} src={url} alt={content.filename} />
-  if (content.mime === 'application/pdf' && url)
-    return <iframe className={styles.pdf} src={url} title={`PDF 預覽：${content.filename}`} />
+  if (content.preview) return <MediaBody content={content} />
   if (textual)
     return (
       <>
@@ -484,7 +453,9 @@ function Content({ content, open }: { content: CachedContent; open?: () => void 
             />
           )}
         </div>
-        <div
+        <Markdown
+          id={id}
+          text={content.mime === 'text/markdown' && !raw ? text : ''}
           className={`${chatStyles.markdown} ${content.mime === 'text/markdown' && !raw ? styles.document : styles.lines}`}
           onClick={(event) => {
             const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href]')
@@ -503,9 +474,7 @@ function Content({ content, open }: { content: CachedContent; open?: () => void 
                 .then(unwrap)
                 .catch((error) => setProblem(error.message))
           }}
-          dangerouslySetInnerHTML={{
-            __html: content.mime === 'text/markdown' && !raw ? markdown : html,
-          }}
+          rendered={content.mime === 'text/markdown' && !raw ? undefined : html}
         />
         {!html && problem && <pre>{text}</pre>}
       </>
@@ -521,7 +490,15 @@ function Content({ content, open }: { content: CachedContent; open?: () => void 
     </EmptyState>
   )
 }
-export function ArtifactComparison({ left, right }: { left: CachedContent; right: CachedContent }) {
+export function ArtifactComparison({
+  id = '',
+  left,
+  right,
+}: {
+  id?: string
+  left: CachedContent
+  right: CachedContent
+}) {
   const leftPane = useRef<HTMLElement>(null),
     rightPane = useRef<HTMLElement>(null)
   const [result, setResult] = useState<{ left: string; right: string; rows: DiffRow[] }>(),
@@ -553,8 +530,8 @@ export function ArtifactComparison({ left, right }: { left: CachedContent; right
   if (!textual(left) || !textual(right))
     return (
       <div className={styles.comparison}>
-        <Content key={left.sha256} content={left} />
-        <Content key={right.sha256} content={right} />
+        <Content id={id} key={left.sha256} content={left} />
+        <Content id={id} key={right.sha256} content={right} />
       </div>
     )
   if (!changes) return <p role="status">正在比較文字…</p>

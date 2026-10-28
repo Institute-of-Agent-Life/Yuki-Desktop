@@ -441,6 +441,7 @@ window.yuki = {
     content: async () => ({ ok: false, code: 'fixture_only' }),
     saveContent: async () => ({ ok: false, code: 'fixture_only' }),
     artifactContent: async () => ({ ok: false, code: 'fixture_only' }),
+    releasePreview: async () => ({ ok: true, value: undefined }),
     saveArtifact: async () => ({ ok: false, code: 'fixture_only' }),
     revealArtifact: async () => ({ ok: false, code: 'fixture_only' }),
     openArtifact: async () => ({ ok: false, code: 'fixture_only' }),

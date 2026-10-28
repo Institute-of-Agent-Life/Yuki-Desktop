@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { renderMarkdown } from '../../src/renderer/text/markdown'
+import { internalImage, renderMarkdown } from '../../src/renderer/text/markdown'
 
 it('highlights real fenced code for four themes while preserving escaped code and the copy affordance', async () => {
   const html = await renderMarkdown('```javascript\nconst text = "<script>"\n```')
@@ -8,6 +8,22 @@ it('highlights real fenced code for four themes while preserving escaped code an
   expect(html).toContain('data-code-copy')
   expect(html).toMatch(/&(?:lt;|#x0*3c;|#0*60;)script(?:>|&gt;|&#x0*3e;|&#0*62;)/i)
   expect(html).not.toContain('<script>')
+})
+it('renders local mathematics, leaves code literal and resolves only explicit immutable/internal image sources', async () => {
+  const source = 'artifact:00000000-0000-5000-8000-000000000001@' + 'a'.repeat(64)
+  const html = await renderMarkdown(
+    `An equation $x^2 + 1$.\n\n\`$literal$\`\n\n![diagram](${source})\n\n\`\`\`mermaid\ngraph LR\nA-->B\n\`\`\``,
+  )
+  expect(html).toContain('class="katex"')
+  expect(html).toContain('<code>$literal$</code>')
+  expect(html).toContain('data-media-ref="' + source + '"')
+  expect(html).toContain('data-mermaid')
+  expect(internalImage(source)).toEqual({
+    artifactId: '00000000-0000-5000-8000-000000000001',
+    version: 'a'.repeat(64),
+  })
+  expect(internalImage('https://example.invalid/image.png')).toBeUndefined()
+  expect(internalImage('file:///C:/private.png')).toBeUndefined()
 })
 it('keeps unknown code languages readable and blocks raw HTML, external image loads and script links', async () => {
   const html = await renderMarkdown(

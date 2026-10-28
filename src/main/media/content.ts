@@ -47,7 +47,12 @@ export class ContentCache {
       await response.body.cancel()
       throw new ApiError('invalid_response')
     }
-    const metadata = { filename, mime: response.headers.get('Content-Type')?.split(';')[0] }
+    const expiry = response.headers.get('X-Yuki-Expires-At')
+    const metadata = {
+      filename,
+      mime: response.headers.get('Content-Type')?.split(';')[0],
+      expiresAt: expiry === null ? undefined : Date.parse(expiry) / 1000,
+    }
     await mkdir(this.root, { recursive: true, mode: 0o700 })
     const destination = join(this.root, expected + '.blob')
     try {

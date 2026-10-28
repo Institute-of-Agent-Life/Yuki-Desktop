@@ -19,7 +19,11 @@ coverage/
 *.soul-draft.md
 
 # Local planning and prototype materials: do not publish.
-/docs/
+/docs/*
+!/docs/media-preview.md
+!/docs/reports/
+/docs/reports/*
+!/docs/reports/2026-10-28-rich-media/
 /assets/
 /scripts/
 /third-party/

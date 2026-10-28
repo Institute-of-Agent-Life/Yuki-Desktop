@@ -1,0 +1,38 @@
+{
+  "originalReviewedPng": "mermaid-dark-reviewed.png",
+  "detailCrop": [
+    1065,
+    845,
+    1450,
+    925
+  ],
+  "labels": [
+    {
+      "text": "Input",
+      "pixelRect": [
+        1143,
+        875,
+        1177,
+        892
+      ],
+      "darkPixels": 71,
+      "lightPixels": 415,
+      "totalPixels": 578,
+      "sameAsCurrentCapture": true
+    },
+    {
+      "text": "Output",
+      "pixelRect": [
+        1337,
+        875,
+        1382,
+        892
+      ],
+      "darkPixels": 96,
+      "lightPixels": 547,
+      "totalPixels": 765,
+      "sameAsCurrentCapture": true
+    }
+  ],
+  "comparedPng": "mermaid-dark.png"
+}

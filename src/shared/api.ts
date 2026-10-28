@@ -202,6 +202,7 @@ export interface AttachmentSource {
 }
 export interface CachedContent {
   saved?: boolean
+  preview?: { id: string; url: string }
   bytes: Uint8Array | null
   sha256: string
   mime: string
@@ -300,6 +301,7 @@ export interface ConversationBridge {
   content(characterId: string, source: AttachmentSource): Promise<ApiReply<CachedContent>>
   saveContent(characterId: string, source: AttachmentSource): Promise<ApiReply<boolean>>
   artifactContent(characterId: string, source: ArtifactSource): Promise<ApiReply<CachedContent>>
+  releasePreview(characterId: string, previewId: string): Promise<ApiReply<void>>
   saveArtifact(characterId: string, source: ArtifactSource): Promise<ApiReply<boolean>>
   revealArtifact(characterId: string, source: ArtifactSource): Promise<ApiReply<void>>
   openArtifact(characterId: string, source: ArtifactSource): Promise<ApiReply<void>>
