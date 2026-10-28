@@ -201,7 +201,10 @@ test('Claude uses the same connection flow and new or existing sessions do not r
   await page.getByRole('combobox', { name: '原生工具類型', exact: true }).selectOption('claude')
   await page.getByRole('checkbox', { name: '我允許這個 Yuki 連接本機 Agent', exact: true }).check()
   await page.getByRole('button', { name: '連接本機 Claude', exact: true }).click()
-  await expect(page.getByText('Claude 原生連線已建立', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText('Claude 程式已找到；登入與任務依原生結果確認', { exact: true }),
+  ).toBeVisible()
+  await expect(page.getByText('Claude 原生連線已建立', { exact: true })).toHaveCount(0)
   await page.getByRole('textbox', { name: '原生任務要求', exact: true }).fill('請檢查目前狀態')
   await page.getByRole('button', { name: '交給 Yuki 執行', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '原生任務要求', exact: true })).toHaveValue('')
@@ -223,6 +226,7 @@ test('Claude uses the same connection flow and new or existing sessions do not r
         .__connectorCalls,
   )
   expect(calls.find((call) => call.method === 'discover')?.input).toBe('claude')
+  expect(calls.some((call) => call.method === 'diagnose')).toBe(false)
   expect(calls.find((call) => call.method === 'configure')?.input).toEqual({
     id: expect.any(String),
     create: true,
@@ -257,6 +261,134 @@ test('Claude uses the same connection flow and new or existing sessions do not r
         session_id: 'original-session',
       },
     },
+  ])
+  await page.getByRole('button', { name: '檢查原生就緒', exact: true }).click()
+  await expect(
+    page.getByText('Claude 登入檢查完成；尚未執行模型任務。', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByText('原生握手與帳戶檢查完成；尚未執行模型任務。', { exact: true }),
+  ).toHaveCount(0)
+})
+
+// Component fixtures verify configuration/UI semantics, not a real native ACP handshake.
+test('a generic ACP program is configured through the existing connection with exact ordered arguments', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 480, height: 760 })
+  await page.goto('http://127.0.0.1:4178/components.html?connector=missing')
+  await page.getByRole('combobox', { name: '原生工具類型', exact: true }).selectOption('acp')
+  await page.getByRole('checkbox', { name: '我允許這個 Yuki 連接本機 Agent', exact: true }).check()
+  await page.getByRole('button', { name: '連接本機 ACP', exact: true }).click()
+  await expect(page.getByRole('button', { name: '尋找已安裝的 ACP', exact: true })).toHaveCount(0)
+  await expect(page.getByText('進階：手動選擇原生程式', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: '選擇原生執行檔', exact: true }).click()
+  await page.getByRole('button', { name: '新增啟動參數', exact: true }).click()
+  await page.getByRole('textbox', { name: 'ACP 啟動參數 1', exact: true }).fill('--stdio')
+  await page.getByRole('button', { name: '新增啟動參數', exact: true }).click()
+  await page.getByRole('textbox', { name: 'ACP 啟動參數 2', exact: true }).fill('含空格的值')
+  await page.getByRole('button', { name: '新增啟動參數', exact: true }).click()
+  expect(
+    await page.locator('main').evaluate((node) => node.scrollWidth - node.clientWidth),
+  ).toBeLessThanOrEqual(1)
+  await page.screenshot({ path: test.info().outputPath('acp-arguments-480.png') })
+  await page.getByRole('button', { name: '連接此 ACP 並啟動背景連接', exact: true }).click()
+  await expect(page.getByText('ACP 原生連線已建立', { exact: true })).toBeVisible()
+  const calls = await page.evaluate(
+    () =>
+      (
+        window as Window & {
+          __connectorCalls?: { method: string; input?: unknown; start?: boolean }[]
+        }
+      ).__connectorCalls!,
+  )
+  expect(calls.filter((call) => call.method === 'configure')).toEqual([
+    {
+      method: 'configure',
+      input: {
+        id: expect.any(String),
+        create: true,
+        command: 'C:\\Program Files\\ACP Agent\\agent.exe',
+        driver: 'acp',
+        label: '本機 ACP',
+        args: ['--stdio', '含空格的值', ''],
+      },
+      start: true,
+    },
+  ])
+  expect(
+    calls.some((call) => ['discover', 'chooseProject', 'diagnose'].includes(call.method)),
+  ).toBe(false)
+})
+
+test('editing an original ACP keeps omitted arguments and only changes arguments on explicit edits', async ({
+  page,
+}) => {
+  await page.goto('http://127.0.0.1:4178/components.html?connector=acp-existing')
+  await page.getByRole('button', { name: '修改原設定', exact: true }).click()
+  await expect(page.getByRole('combobox', { name: '原生工具類型', exact: true })).toHaveValue('acp')
+  await expect(page.getByRole('textbox', { name: 'ACP 啟動參數 1', exact: true })).toHaveValue(
+    '--stdio',
+  )
+  await expect(page.getByRole('textbox', { name: 'ACP 啟動參數 2', exact: true })).toHaveValue(
+    '原參數 有空格',
+  )
+  await page.getByRole('textbox', { name: 'Agent 顯示名稱', exact: true }).fill('Same ACP renamed')
+  await page.getByRole('button', { name: '只保存原設定', exact: true }).click()
+  await expect(page.getByRole('button', { name: '只保存原設定', exact: true })).toBeEnabled()
+  await page.getByRole('textbox', { name: 'ACP 啟動參數 1', exact: true }).fill('--stdio=new')
+  await page.getByRole('button', { name: '移除 ACP 啟動參數 3', exact: true }).click()
+  await page.getByRole('button', { name: '只保存原設定', exact: true }).click()
+  await expect(page.getByRole('button', { name: '只保存原設定', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: '移除 ACP 啟動參數 2', exact: true }).click()
+  await page.getByRole('button', { name: '移除 ACP 啟動參數 1', exact: true }).click()
+  await page.getByRole('button', { name: '只保存原設定', exact: true }).click()
+  await expect(page.getByRole('button', { name: '只保存原設定', exact: true })).toBeEnabled()
+  const calls = await page.evaluate(
+    () =>
+      (
+        window as Window & {
+          __connectorCalls?: { method: string; input?: Record<string, unknown>; start?: boolean }[]
+        }
+      ).__connectorCalls!,
+  )
+  const saved = calls.filter((call) => call.method === 'configure')
+  expect(saved).toHaveLength(3)
+  expect(saved[0]!.input).toEqual({
+    id: 'fixture-native-instance',
+    create: false,
+    command: '/fixture/acp-agent',
+    label: 'Same ACP renamed',
+  })
+  expect(saved[1]!.input).toEqual({ ...saved[0]!.input, args: ['--stdio=new', '原參數 有空格'] })
+  expect(saved[2]!.input).toEqual({ ...saved[0]!.input, args: [] })
+  expect(saved.every((call) => call.start === false)).toBe(true)
+  expect(calls.some((call) => ['connect', 'pair', 'service'].includes(call.method))).toBe(false)
+})
+
+test('a stopped independent connector can update in place while retaining its original identity and stopped service', async ({
+  page,
+}) => {
+  await page.goto('http://127.0.0.1:4178/components.html?connector=existing-old-stopped')
+  await expect(page.getByText('0.3.1', { exact: true })).toBeVisible()
+  await expect(page.getByText('已停止', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '連接本機 Codex', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: '更新連接器，保留原資料', exact: true }).click()
+  await expect(page.getByText('已停止', { exact: true })).toBeVisible()
+  await page.getByText('進階：安裝與原有連接', { exact: true }).click()
+  await expect(page.getByText('original-connector-device', { exact: true })).toBeVisible()
+  await expect(page.getByText('/original/data', { exact: true })).toBeVisible()
+  await expect(page.getByText(/0\.3\.6 · 協議 3/)).toBeVisible()
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __connectorCalls?: unknown[] }).__connectorCalls,
+    ),
+  ).toEqual([
+    {
+      method: 'useInstallation',
+      input: { executable: '/original/python', dataDirectory: '/original/data' },
+    },
+    { method: 'adopt' },
   ])
 })
 
@@ -371,7 +503,10 @@ test('native readiness remains distinct from a running service and an online ser
     )
   })
   await expect(page.getByRole('status').filter({ hasText: '伺服器接納尚未確認：' })).toContainText(
-    '無法連到伺服器，已保留本機內容。',
+    '無法取得伺服器回應。',
+  )
+  await expect(page.getByRole('status').filter({ hasText: '伺服器接納尚未確認：' })).toContainText(
+    '本機內容已保留。',
   )
   await expect(page.getByRole('status').filter({ hasText: '伺服器接納尚未確認：' })).toContainText(
     '可按「重新讀取狀態」再確認；本機服務仍可管理。',

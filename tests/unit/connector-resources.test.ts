@@ -54,3 +54,22 @@ it('reads connection state without auditing unused app files, but refuses to pub
   expect(authorize).not.toHaveBeenCalled()
   expect(admission).not.toHaveBeenCalled()
 })
+
+it('reports a malformed bundled manifest as a local runtime error', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'yuki-connector-manifest-'))
+  temporary.push(directory)
+  await writeFile(join(directory, 'manifest.json'), '{')
+  const run = vi.fn()
+  const connector = new AgentConnector(
+    {
+      root: join(directory, 'managed'),
+      bundledRuntime: directory,
+      store: { get: () => undefined, set: vi.fn() },
+      authorize: vi.fn(),
+      admission: vi.fn(),
+    },
+    run,
+  )
+  await expect(connector.state()).rejects.toMatchObject({ code: 'connector_runtime_invalid' })
+  expect(run).not.toHaveBeenCalled()
+})
