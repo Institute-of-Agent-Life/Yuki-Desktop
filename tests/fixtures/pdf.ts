@@ -6,30 +6,16 @@ export async function expectPdfPages(preview: Locator, pages: number) {
   await expect(preview).toBeVisible()
   await preview.scrollIntoViewIfNeeded()
   await expect(preview).toBeInViewport()
-  const source = await preview.getAttribute('src')
+  let source: string | null = null
   let viewerFrame: Frame | undefined
   await expect
     .poll(
       async () => {
         const element = await preview.elementHandle()
+        const currentSource = await element!.getAttribute('src')
         const root = await element!.contentFrame()
         await element!.dispose()
-        console.info(
-          'PDF_SOURCE',
-          JSON.stringify({
-            expected: source,
-            current: await preview.getAttribute('src'),
-            root: root?.url(),
-            children: root
-              ?.childFrames()
-              .map((frame) => ({
-                url: frame.url(),
-                detached: frame.isDetached(),
-                closed: frame.page().isClosed(),
-              })),
-          }),
-        )
-        if (!root || root.url() !== source) return false
+        if (!root || root.url() !== currentSource) return false
         const pending = [root]
         while (pending.length) {
           const frame = pending.shift()!
@@ -38,20 +24,15 @@ export async function expectPdfPages(preview: Locator, pages: number) {
             if (await viewer.count()) {
               // Keep following the current guest until Chromium reports LoadState.SUCCESS.
               // A tag can exist before its initial guest is replaced.
-              const facts = await viewer.evaluate((element) => ({
-                loaded: (
+              const loaded = await viewer.evaluate((element) =>
+                (
                   element as HTMLElement & {
                     getLoadSucceededForTesting(): boolean
                   }
                 ).getLoadSucceededForTesting(),
-                url: location.href,
-                plugin: (
-                  element.shadowRoot?.querySelector('embed') ?? element.querySelector('embed')
-                )?.getAttribute('original-url'),
-                html: element.shadowRoot?.innerHTML.slice(-1200),
-              }))
-              console.info('PDF_GUEST', JSON.stringify(facts))
-              if (!facts.loaded) return false
+              )
+              if (!loaded) return false
+              source = currentSource
               viewerFrame = frame
               return true
             }
