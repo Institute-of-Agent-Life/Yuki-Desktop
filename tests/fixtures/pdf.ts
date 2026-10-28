@@ -14,6 +14,21 @@ export async function expectPdfPages(preview: Locator, pages: number) {
         const element = await preview.elementHandle()
         const root = await element!.contentFrame()
         await element!.dispose()
+        console.info(
+          'PDF_SOURCE',
+          JSON.stringify({
+            expected: source,
+            current: await preview.getAttribute('src'),
+            root: root?.url(),
+            children: root
+              ?.childFrames()
+              .map((frame) => ({
+                url: frame.url(),
+                detached: frame.isDetached(),
+                closed: frame.page().isClosed(),
+              })),
+          }),
+        )
         if (!root || root.url() !== source) return false
         const pending = [root]
         while (pending.length) {
@@ -23,14 +38,20 @@ export async function expectPdfPages(preview: Locator, pages: number) {
             if (await viewer.count()) {
               // Keep following the current guest until Chromium reports LoadState.SUCCESS.
               // A tag can exist before its initial guest is replaced.
-              const loaded = await viewer.evaluate((element) =>
-                (
+              const facts = await viewer.evaluate((element) => ({
+                loaded: (
                   element as HTMLElement & {
                     getLoadSucceededForTesting(): boolean
                   }
                 ).getLoadSucceededForTesting(),
-              )
-              if (!loaded) return false
+                url: location.href,
+                plugin: (
+                  element.shadowRoot?.querySelector('embed') ?? element.querySelector('embed')
+                )?.getAttribute('original-url'),
+                html: element.shadowRoot?.innerHTML.slice(-1200),
+              }))
+              console.info('PDF_GUEST', JSON.stringify(facts))
+              if (!facts.loaded) return false
               viewerFrame = frame
               return true
             }
