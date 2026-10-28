@@ -2,7 +2,10 @@ import { expect, type Frame, type Locator } from '@playwright/test'
 
 /** Inspect the loaded Chromium viewer belonging to this visible preview. */
 export async function expectPdfPages(preview: Locator, pages: number) {
+  await preview.page().bringToFront()
   await expect(preview).toBeVisible()
+  await preview.scrollIntoViewIfNeeded()
+  await expect(preview).toBeInViewport()
   const source = await preview.getAttribute('src')
   let viewerFrame: Frame | undefined
   await expect
@@ -37,9 +40,20 @@ export async function expectPdfPages(preview: Locator, pages: number) {
     toolbar = viewer.locator('viewer-toolbar'),
     progress = toolbar.locator('#progress'),
     currentPage = toolbar.locator('viewer-page-selector #pageSelector')
-  // Page selectors initially default to 1; completed loading must be proven first.
-  await expect(toolbar).not.toHaveAttribute('loading')
-  await expect(progress).toHaveAttribute('aria-valuenow', '100')
+  // Chromium 148 exposes its actual LoadState.SUCCESS through this testing contract.
+  // Toolbar defaults and page selectors do not establish that a document loaded.
+  await expect
+    .poll(() =>
+      viewer.evaluate((element) =>
+        (
+          element as HTMLElement & {
+            getLoadSucceededForTesting(): boolean
+          }
+        ).getLoadSucceededForTesting(),
+      ),
+    )
+    .toBe(true)
+  await expect(preview).toHaveAttribute('src', source!)
   await expect(progress).toBeHidden()
   await expect(viewer.locator('viewer-error-dialog')).toBeHidden()
   await expect(currentPage).toBeVisible()
