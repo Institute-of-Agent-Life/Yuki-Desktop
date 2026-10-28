@@ -9,6 +9,8 @@ ffmpeg -f lavfi -i testsrc2=size=160x90:rate=10 -t 4 -an -c:v libx264 -preset ul
 ffmpeg -f lavfi -i testsrc2=size=160x90:rate=10 -t 4 -an -c:v libvpx-vp9 -b:v 40k clip.webm
 ffmpeg -f lavfi -i sine=frequency=440:sample_rate=16000 -t 4 -c:a libopus -b:a 16k voice.webm
 ffmpeg -f lavfi -i sine=frequency=440:sample_rate=16000 -t 4 -c:a pcm_s16le voice.wav
+ffmpeg -f lavfi -i sine=frequency=440:sample_rate=16000 -t 4 -c:a libmp3lame -b:a 32k voice.mp3
+ffmpeg -f lavfi -i sine=frequency=440:sample_rate=16000 -t 4 -c:a libvorbis -q:a 2 voice.ogg
 ffmpeg -f lavfi -i testsrc2=size=32x24:rate=2 -t 1 animated.gif
 ```
 

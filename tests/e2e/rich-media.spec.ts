@@ -347,3 +347,66 @@ test('plays and seeks both actual media sources, renders local rich text and kee
     await rig.close(success)
   }
 })
+
+test('plays and seeks actual MP3 and OGG audio from event attachments and published artifacts', async () => {
+  test.setTimeout(120000)
+  const rig = await yukiFixture({ richMedia: true }),
+    app = await rig.launch('audio-mime-matrix')
+  let success = false
+  const facts: unknown[] = []
+  try {
+    const page = await app.firstWindow()
+    await pairUI(page, rig.base, await rig.code())
+    const inspector = page.getByRole('complementary', { name: '檢視器', exact: true })
+    for (const [name, mime] of [
+      ['voice.mp3', 'audio/mpeg'],
+      ['voice.ogg', 'audio/ogg'],
+    ] as const) {
+      const event = await upload(app, page, rig.root, name, rig.base)
+      const response = await fetch(`${rig.base}/__test/media-artifact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: name }),
+      })
+      expect(response.status).toBe(200)
+      const artifact = (await response.json()) as {
+        artifact_id: string
+        sha256: string
+        event_id: number
+      }
+      for (const [source, eventId] of [
+        ['event', event.event_id],
+        ['artifact', artifact.event_id],
+      ] as const) {
+        await page
+          .locator(`article[data-event-id="${eventId}"]`)
+          .getByRole('button', { name: new RegExp(name.replace('.', '\\.')) })
+          .click()
+        const player = inspector.locator('audio')
+        await playback(player)
+        const actual = await player.evaluate(async (node) => {
+          const audio = node as HTMLAudioElement
+          const response = await fetch(audio.src, { method: 'HEAD' })
+          return {
+            mime: response.headers.get('Content-Type'),
+            currentTime: audio.currentTime,
+            duration: audio.duration,
+          }
+        })
+        expect(actual.mime).toBe(mime)
+        expect(actual.currentTime).toBeGreaterThan(2.7)
+        facts.push({ filename: name, source, eventId, ...actual })
+        await page.screenshot({ path: test.info().outputPath(`${name}-${source}.png`) })
+        await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+      }
+    }
+    await writeFile(
+      test.info().outputPath('audio-mime-playback.json'),
+      JSON.stringify(facts, null, 2),
+    )
+    success = true
+  } finally {
+    await app.close()
+    await rig.close(success)
+  }
+})

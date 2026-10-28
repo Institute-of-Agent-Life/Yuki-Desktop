@@ -31,6 +31,8 @@ MIME 依實際宣告、下載中繼資料、附件種類及副檔名解析；通
 
 `tests/e2e/rich-media.spec.ts` 使用真正的 Electron、隔離 Yuki API、帳本、快照及投遞流程。固定模型 Provider 只替代付費模型；不是以假的播放器或假 DOM 代替影音解碼。
 
+其中 MP3／OGG 聚焦用例覆蓋事件附件及發布成果的實際播放、seek 和 MIME；`tests/e2e/plugin-notification-media.spec.ts` 將已批准插件的通知原圖，沿真 publish、outbox worker、Client history／files，一直接到桌面顯示及保存，核對原件 SHA。
+
 ```powershell
 $env:YUKI_BACKEND_TEST_ROOT = '<配套後端工作目錄>'
 $env:YUKI_BACKEND_TEST_PYTHON = '<該後端 Python>'
