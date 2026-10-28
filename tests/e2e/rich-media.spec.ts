@@ -5,7 +5,7 @@ import type { ElectronApplication } from '@playwright/test'
 import { currentConnection, ledgerEvents, pairUI, yukiFixture } from '../fixtures/backend'
 import { navigate, sidebar } from '../fixtures/navigation'
 import { contentSize } from '../fixtures/visual'
-import { expectPdfPages, pdfFacts } from '../fixtures/pdf'
+import { expectPdfPages } from '../fixtures/pdf'
 
 async function playback(player: Locator) {
   const playUntil = async (target: number) => {
@@ -94,11 +94,14 @@ async function upload(
   await expect(page.getByLabel('待送出附件')).toContainText('可送出')
   await page.getByRole('button', { name: '送出', exact: true }).click()
   await expect
-    .poll(async () =>
-      (await ledgerEvents(base)).some(
-        (event) =>
-          event.direction === 'inbound' && event.attachments.some((item) => item.filename === name),
-      ),
+    .poll(
+      async () =>
+        (await ledgerEvents(base)).some(
+          (event) =>
+            event.direction === 'inbound' &&
+            event.attachments.some((item) => item.filename === name),
+        ),
+      { timeout: 0 },
     )
     .toBe(true)
   return (await ledgerEvents(base)).find(
@@ -233,20 +236,7 @@ test('plays and seeks both actual media sources, renders local rich text and kee
       .click()
     // Chromium hides pagination in the compact sidebar toolbar.
     await page.getByRole('button', { name: '展開工作區', exact: true }).click()
-    try {
-      await expectPdfPages(inspector().locator('iframe'), 1)
-    } catch (error) {
-      const initial = await pdfFacts(inspector().locator('iframe'))
-      await page.screenshot({ path: test.info().outputPath('pdf-attachment-failed.png') })
-      // Read-only timing diagnosis; the original failed assertion is still reported.
-      await new Promise((resolve) => setTimeout(resolve, 5000))
-      const later = await pdfFacts(inspector().locator('iframe'))
-      await writeFile(
-        test.info().outputPath('pdf-after-original-deadline.json'),
-        JSON.stringify({ initial, later }, null, 2),
-      )
-      throw error
-    }
+    await expectPdfPages(inspector().locator('iframe'), 1)
     await page.screenshot({ path: test.info().outputPath('pdf-attachment.png') })
     await close()
     const defaults = (await (

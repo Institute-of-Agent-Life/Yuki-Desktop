@@ -2,7 +2,7 @@ import { navigate } from '../fixtures/navigation'
 import { expectPdfPages } from '../fixtures/pdf'
 import { expect, test } from '@playwright/test'
 import { createHash } from 'node:crypto'
-import { readFile, stat, writeFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   recordBusinessState,
@@ -206,27 +206,6 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
       await expectPdfPages(inspector.locator('iframe'), 1)
     } catch (error) {
       await page.screenshot({ path: test.info().outputPath('artifact-pdf-failed.png') })
-      const contents = await app.evaluate(({ webContents }) =>
-        webContents
-          .getAllWebContents()
-          .map((content) => ({
-            id: content.id,
-            url: content.getURL(),
-            type: content.getType(),
-            destroyed: content.isDestroyed(),
-          })),
-      )
-      const source = await inspector.locator('iframe').getAttribute('src')
-      const response = await page
-        .evaluate(async (source) => {
-          const response = await fetch(source!, { method: 'HEAD' })
-          return { status: response.status, headers: Object.fromEntries(response.headers) }
-        }, source)
-        .catch((error) => ({ error: String(error) }))
-      await writeFile(
-        test.info().outputPath('native-pdf-diagnostic.json'),
-        JSON.stringify({ contents, source, response }, null, 2),
-      )
       throw error
     }
 

@@ -40,14 +40,12 @@ jobs:
       - run: npm ci
       - run: node build-tools/prepare-connector.mjs --backend .cache/backend
       - run: node build-tools/prepare-local-bot.mjs --source .cache/backend
-      - run: npm exec playwright install -- --with-deps chromium
-      - run: brew install ffmpeg
       - run: npm run lint
       - run: npm run typecheck
       - run: node build-tools/check-backend-contract.mjs
       - run: npm run build
       - name: Exercise actual PDF attachments and delivered artifacts
-        run: npm exec playwright -- test tests/e2e/rich-media.spec.ts --grep 'both actual media sources'
+        run: npm exec playwright -- test tests/e2e/artifacts.spec.ts tests/e2e/character-data.spec.ts tests/e2e/server-settings.spec.ts tests/e2e/rich-media.spec.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
