@@ -79,6 +79,16 @@ npm exec playwright test -- tests/e2e/plugin-notification-media.spec.ts tests/e2
 
 打包來源同步到最終後端後，實際 Connector 又揭示舊升級測試的路徑假設：main #530 保留 `bin/codex` 這個安裝別名，測試卻按 `version-one/codex` 尋找。現沿穩定別名配置，另用 `realpath` 證明目標由舊版本切到新版本；原 instance、installation、配置及 journal 位元組斷言保留。以 `27c71ee2` 建立真正的 Connector 0.3.6，相關44項單元測試全部通過，typecheck和lint通過；變更只在測試及交付記錄。
 
+## 10/29 合併前復審
+
+合入 main `0827cef`，保留 beta.7、Codex/Claude/ACP 連接及原 instance、installation、配置和 journal 的回歸；富媒體與 `releasePreview` 同時保留。相關四個單元模組 62 項通過，ESLint、構建及型別檢查通過；獨立 Connector 0.3.6 已實際構建並驗證搬移後啟動。
+
+新一輪跨平台 CI 的 Mermaid 用例仍暴露定位問題：全頁第一個 SVG 和全頁截圖座標不能穩定指向本次原訊息。測試現在鎖定 `accepted.eventId`，返回設定後將原圖塊捲入視口，截取該 SVG，按 SVG 相對座標核對字形。原六輪主題、對比度及像素閾值保留，沒有改產品或加入延時、重試。本機真 Electron 用例通過，Input／Output 深色像素為 71／96，其他平台仍以本次最新提交 CI 為準。
+
+Mac Intel 同輪的兩項 PDF 失敗不是 Mermaid：失敗截圖已有實際正文、縮圖和 1/1，測試卻從 Chromium 私有 `documentDimensions` 讀到空值。兩處重複探針改用同一個小型 helper，只尋找當前預覽 iframe 的 viewer，先核實載入完成，再核對可見頁碼與總頁數，避免把預設的 1 頁當成功；沒有改產品或放寬超時。本機相關六個整檔 Electron 用例共 23 項通過，包含真 PDF、撤權、通知原件、影音播放與 seek、128 MiB Range 及 500 條歷史；PDF helper 的後續回歸與跨平台結果另按最新提交 CI 核對。
+
+原 pin `27c71ee2` 的預設 GHCR 鏡像實測不存在，因此不能作為本地部署驗收。改用已審查的公開後端提交 `1e0a1933`，同步匹配模板。[候選鏡像構建](https://github.com/YuanYeYouTao/Yuki/actions/runs/40748797560)成功，匿名核實 linux/amd64、linux/arm64 的 OCI revision 均為完整 pin、version 均為 4.0.0，index digest 為 `sha256:4f6636dc7c7e78fafcb71cca74b6069b651a93b2e44bc656b1563c88ce1890dc`。合併時仍核對後端主線及實際產品樹。OpenAPI 與安裝包、合併與生產升級分別記錄。
+
 ## Client 7 能證明的邊界
 
 新打開、恢復 sync、臨時原件回收時間、已知憑據失效與來源變更會核對原授權或關流。每個 Range 使用同一個已查證的 FD，不碰後端、不重算整件 SHA。
