@@ -3,16 +3,17 @@ import { expect, type Frame, type Locator } from '@playwright/test'
 /** Inspect the loaded Chromium viewer belonging to this visible preview. */
 export async function expectPdfPages(preview: Locator, pages: number) {
   await preview.page().bringToFront()
-  await expect(preview).toBeVisible()
-  await preview.scrollIntoViewIfNeeded()
-  await expect(preview).toBeInViewport()
   let source: string | null = null
   let viewerFrame: Frame | undefined
   await expect
     .poll(
       async () => {
         const element = await preview.elementHandle()
-        const currentSource = await element!.getAttribute('src')
+        const currentSource = await element!.evaluate((element) => {
+          if (!element.isConnected) return null
+          element.scrollIntoView({ block: 'nearest' })
+          return element.getAttribute('src')
+        })
         const root = await element!.contentFrame()
         await element!.dispose()
         if (!root || root.url() !== currentSource) return false
@@ -61,6 +62,8 @@ export async function expectPdfPages(preview: Locator, pages: number) {
     progress = toolbar.locator('#progress'),
     currentPage = toolbar.locator('viewer-page-selector #pageSelector')
   await expect(preview).toHaveAttribute('src', source!)
+  await expect(preview).toBeVisible()
+  await expect(preview).toBeInViewport()
   await expect(progress).toBeHidden()
   await expect(viewer.locator('viewer-error-dialog')).toBeHidden()
   await expect(currentPage).toBeVisible()
