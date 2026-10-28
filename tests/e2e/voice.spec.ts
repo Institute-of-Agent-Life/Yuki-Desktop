@@ -28,11 +28,66 @@ test('records through MediaRecorder, persists the original ASR transcript and co
       if (!result.ok) throw Error(result.code)
       return result.value
     }, connection.characterId)
-    await page.getByRole('button', { name: '語音輸入', exact: true }).click()
-    await expect(page.getByRole('status').filter({ hasText: '錄音 0:01' })).toBeVisible()
-    await page.getByRole('button', { name: '結束錄音', exact: true }).click()
-    await expect(page.getByLabel('待送出附件')).toContainText('voice.webm')
-    await expect(page.getByLabel('待送出附件')).toContainText('可送出')
+    await page.bringToFront()
+    const recorderProbe = await page.evaluateHandle(() => {
+      const originalStart = MediaRecorder.prototype.start
+      let removeListeners: (() => void) | undefined
+      let receivedStart!: () => void
+      let rejectStart!: (error: unknown) => void
+      const started = new Promise<void>((resolve, reject) => {
+        receivedStart = () => resolve()
+        rejectStart = reject
+      })
+      const failed = (event: Event) => {
+        const name = (event as Event & { error?: DOMException }).error?.name ?? 'MediaRecorderError'
+        rejectStart(new Error(`Native MediaRecorder error: ${name}`))
+      }
+      MediaRecorder.prototype.start = function (...args) {
+        MediaRecorder.prototype.start = originalStart
+        this.addEventListener('start', receivedStart, { once: true })
+        this.addEventListener('error', failed, { once: true })
+        removeListeners = () => {
+          this.removeEventListener('start', receivedStart)
+          this.removeEventListener('error', failed)
+        }
+        try {
+          return originalStart.apply(this, args)
+        } catch (error) {
+          rejectStart(error)
+          throw error
+        }
+      }
+      return {
+        started,
+        restore() {
+          MediaRecorder.prototype.start = originalStart
+          removeListeners?.()
+        },
+      }
+    })
+    try {
+      await page.getByRole('button', { name: '語音輸入', exact: true }).click()
+      await test.step('Wait for the real MediaRecorder start event or native error', () =>
+        recorderProbe.evaluate((probe) => probe.started))
+      const recordingStatus = page.getByRole('status').filter({ hasText: /^錄音 \d+:\d{2}$/ })
+      await expect
+        .poll(
+          async () => {
+            const time = /^錄音 (\d+):(\d{2})$/.exec(
+              (await recordingStatus.textContent())?.trim() ?? '',
+            )
+            return time ? Number(time[1]) * 60 + Number(time[2]) : 0
+          },
+          { message: 'The started recording must display at least one elapsed second' },
+        )
+        .toBeGreaterThanOrEqual(1)
+      await page.getByRole('button', { name: '結束錄音', exact: true }).click()
+      await expect(page.getByLabel('待送出附件')).toContainText('voice.webm')
+      await expect(page.getByLabel('待送出附件')).toContainText('可送出')
+    } finally {
+      await recorderProbe.evaluate((probe) => probe.restore())
+      await recorderProbe.dispose()
+    }
     const recording = await page.evaluate(async (id) => {
       const result = await window.yuki.client.uploads(id)
       if (!result.ok) throw Error(result.code)
