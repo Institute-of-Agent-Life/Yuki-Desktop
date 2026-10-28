@@ -278,7 +278,8 @@ export function AgentConnector({
           {installation.updateAvailable && (
             <p className={styles.notice}>
               目前連接器 {installation.version ?? '版本未提供'}，桌面隨附
-              {installation.bundledVersion ?? '版本'}。可以沿原資料更新，不需要重新配對。
+              {installation.bundledVersion ?? '版本'}。請先更新，再選擇本版新增的安裝來源。
+              原資料與服務狀態會保留，不需要重新配對。
             </p>
           )}
           <Button

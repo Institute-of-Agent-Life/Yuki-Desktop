@@ -22,7 +22,7 @@ Yuki 的跨平台桌面客戶端專案。
 
 Desktop 與連接器版本分別顯示。更新保留原服務狀態：停止中的服務更新後仍停止，執行中的服務才會重新啟動。「只保存」只改原設定，不暗中升級或啟停連接器。Codex 自己的 daemon 不由這個更新重啟。
 
-Codex 尋找範圍包括 Store、PATH、目前活動 npm 安裝與 daemon 包的穩定 `current` 入口。原設定若寫死已移除的版本，按「修改原設定」後選擇尋找到的安裝，即可沿原 instance 保存其來源，之後跟隨正常升級。通用 ACP 直接選擇實際執行檔，啟動參數逐項填寫，保留順序、空格與空參數；未編輯時保留原值。
+Codex 尋找範圍包括 Store、PATH、目前活動 npm 安裝與 daemon 包的穩定 `current` 入口。原設定若寫死已移除的版本，先按「更新連接器，保留原資料」，再從「修改原設定」選擇尋找到的安裝，即可沿原 instance 保存其來源，之後跟隨正常升級。通用 ACP 直接選擇實際執行檔，啟動參數逐項填寫，保留順序、空格與空參數；未編輯時保留原值。
 
 一般遠端接入復用同一個 Yuki HTTPS 網址與 443 的 `/agents/v1/` WebSocket 入口，由伺服器部署者一次配置；使用者電腦只需連出。伺服器未提供入口時需先完成[配套部署](https://github.com/YuanYeYouTao/Yuki/blob/main/docs/operations/desktop-local-deployment.zh-CN.md)，SSH 隧道保留為進階方式。改變既有 Connector 的網址前須核原操作 namespace，不能覆蓋設定後自稱未決任務已遷移。
 
