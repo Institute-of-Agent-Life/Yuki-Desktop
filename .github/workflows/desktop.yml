@@ -64,7 +64,12 @@ jobs:
           const tests=suite=>[...(suite.specs??[]).flatMap(spec=>spec.tests??[]),...(suite.suites??[]).flatMap(tests)];
           const results=report.suites.flatMap(tests).flatMap(test=>test.results??[]).filter(result=>result.status==='failed');
           const line=fs.readFileSync('tests/e2e/computer-preview.spec.ts','utf8').split(/\r?\n/).findIndex(line=>line.includes('.isDisabled()'))+1;
-          if(report.stats.unexpected!==1||results.length!==1||!results[0].errors.some(error=>error.location?.line===line))throw Error('Baseline did not fail at the current connected-but-CAPS-held paste assertion');
+          const expected=error=>{
+            const message=(error.message??'').replace(/\x1b\[[0-9;]*m/g,'');
+            const atAssertion=error.location?.line===line||error.stack?.includes('computer-preview.spec.ts:'+line+':')||error.snippet?.includes('.isDisabled()');
+            return atAssertion&&/Expected:\s*true/.test(message)&&/Received:\s*false/.test(message);
+          };
+          if(report.stats.unexpected!==1||results.length!==1||!results[0].errors.some(expected))throw Error('Baseline did not prove enabled paste at the current connected-but-CAPS-held assertion');
           console.log('Original Computer.tsx failed exactly at the current-RFB paste-disabled assertion; no corrupted paste was sent');
           JS
       - name: Restore reviewed UI
