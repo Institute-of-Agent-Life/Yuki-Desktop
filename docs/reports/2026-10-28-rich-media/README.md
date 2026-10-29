@@ -141,6 +141,8 @@ CI 在既有 Windows 安裝命令後直接執行 `ffmpeg -version`、`ffprobe -v
 
 回歸沿原 display WebSocket 暫扣當前連線的真實 ServerCaps，先放行 ServerInit，確認同一連線已可用 CAD 但貼上仍禁用；再釋放同一份原始位元組，核對真正擴展剪貼簿的精確 Unicode。保留預覽唯讀、原 take／lease、原 180 秒期限與全部回執斷言，不使用私有 RFB 欄位、固定延時或替代輸入通道。
 
+初次原始通道驗證尚未進入能力紅控：noVNC Websock 原先只枚舉物件及一層原型，而 Playwright 的公開 WebSocket 代理在祖父原型繼承完整介面。真實 Websock 已能重現合法子類被誤報 missing send。來源補丁同步刪除此結構限制，按 JavaScript 原型鏈的 `prop in channel` 查證原有必要成員；真正缺少介面仍拋原錯誤，不變更 wire、票據或授權校驗。未以測試私有 mock 扁平化繞過，能力正反實證仍須在修正後重新核對。
+
 同輪 Work 輸入案例在結果訊息出現後、原工作真實終態尚未查證前啟動 20 秒 UI 等待，未保存該次原 Work 快照，不能推定是模型慢或刷新遺漏。現在先復用同檔既有 `waitForWorkState` 按原 Work ID 觀察真實 completed，直接沿該 Work 結果核對 generation／budget，再保留原 20 秒 UI 斷言；原 240 秒總期限不變。這改變了 UI 等待的起點，沒有把結果訊息當成完成。失敗另保存原請求與 Work 事實；產品查詢與刷新邏輯未改。
 
 ## Client 7 能證明的邊界
