@@ -172,7 +172,6 @@ test('native moves persist before an App crash and an offscreen window clamps on
     expect(clamped.displayId).toBe(display.id)
     // Requested and actual native placement are recorded above. Restoration
     // preserves the original size and keeps content and controls in the work area.
-    // The pure geometry tests check the exact requested clamp independently.
     if (security.platform !== 'win32') {
       expect(clamped.bounds).toMatchObject({
         width: offscreen.bounds.width,

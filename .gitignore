@@ -21,13 +21,15 @@ coverage/
 # Local planning and prototype materials: do not publish.
 /docs/*
 !/docs/media-preview.md
+!/docs/architecture/
+/docs/architecture/*
+!/docs/architecture/development-contract.md
 !/docs/reports/
 /docs/reports/*
 !/docs/reports/2026-10-28-rich-media/
 /assets/
 /scripts/
 /third-party/
-/AGENTS.md
 /INTEGRATION.md
 /NOTICE.md
 /LOCAL-README.md
