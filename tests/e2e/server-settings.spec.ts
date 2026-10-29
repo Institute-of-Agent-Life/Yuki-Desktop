@@ -147,17 +147,7 @@ test('new server address proves real identity before bearer and resumes the orig
     await settingsWithoutWaiting(page)
     await page.getByRole('button', { name: '更改…', exact: true }).click()
     await page.getByRole('textbox', { name: '新伺服器位址' }).fill(moved.base)
-    const addressDialog = await page.getByRole('dialog', { name: '更改伺服器位址' }).elementHandle()
     await page.getByRole('button', { name: '確認並連線', exact: true }).click()
-    await addressDialog!.evaluate(
-      (node) =>
-        new Promise<void>((resolve) => {
-          const dialog = node as HTMLDialogElement
-          if (!dialog.open) return resolve()
-          dialog.addEventListener('close', () => resolve(), { once: true })
-        }),
-    )
-    await addressDialog!.dispose()
     await expect(page.getByRole('dialog')).not.toBeVisible()
     expect(await connection(page)).toMatchObject({ ...original, baseUrl: moved.base })
     expect(moved.calls[0]).toMatchObject({ path: '/client/v1/meta', bearer: false })

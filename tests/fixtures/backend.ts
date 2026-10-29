@@ -404,7 +404,7 @@ export async function pairUI(
   base: string,
   code: string,
   label?: string,
-  timeout = 5000,
+  timeout?: number,
 ) {
   type ProbeWindow = Window & {
     __yukiPairProbe?: { online: Record<string, boolean>; dispose(): void }

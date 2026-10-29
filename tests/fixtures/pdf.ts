@@ -56,8 +56,6 @@ export async function expectPdfPages(preview: Locator, pages: number) {
       },
       {
         message: 'The current PDF preview must load successfully in its Chromium viewer',
-        // Native document initialization follows the original whole-test deadline.
-        timeout: 0,
       },
     )
     .toBe(true)

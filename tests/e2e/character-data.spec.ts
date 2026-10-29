@@ -16,34 +16,6 @@ import {
   yukiFixture,
 } from '../fixtures/backend'
 
-/** Follow this actual submission until saving finishes or the successful editor closes. */
-async function saveProfile(page: Page) {
-  const button = await page.getByRole('button', { name: '儲存', exact: true }).elementHandle()
-  try {
-    await button!.click()
-    await button!.evaluate(
-      (node) =>
-        new Promise<void>((resolve) => {
-          const finished = () => {
-            if (node.isConnected && node.getAttribute('aria-busy') === 'true') return
-            observer.disconnect()
-            resolve()
-          }
-          const observer = new MutationObserver(finished)
-          observer.observe(document.body, {
-            subtree: true,
-            childList: true,
-            attributes: true,
-            attributeFilter: ['aria-busy'],
-          })
-          finished()
-        }),
-    )
-  } finally {
-    await button!.dispose()
-  }
-}
-
 async function memoryResult(
   page: Page,
   characterId: string,
@@ -296,10 +268,10 @@ test('real Electron edits original memory and arrangements, handles two-device c
     await pb.bringToFront()
     await pb.getByRole('button', { name: '編輯角色資料' }).click()
     await pb.getByRole('textbox', { name: '名稱', exact: true }).fill('另一裝置的名稱')
-    await saveProfile(pb)
+    await pb.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(pb.getByRole('heading', { name: '另一裝置的名稱', exact: true })).toBeVisible()
     await pa.bringToFront()
-    await saveProfile(pa)
+    await pa.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(pa.getByRole('textbox', { name: '名稱', exact: true })).toHaveValue('新名稱')
     await expect(
       pa.getByText('角色資料已更新。你的輸入仍保留，儲存仍使用編輯前的版本。'),
@@ -307,7 +279,7 @@ test('real Electron edits original memory and arrangements, handles two-device c
     await pa.getByRole('button', { name: '放棄並重新讀取' }).click()
     await pa.getByRole('button', { name: '編輯角色資料' }).click()
     await pa.getByRole('textbox', { name: '名稱', exact: true }).fill('新名稱')
-    await saveProfile(pa)
+    await pa.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(pa.getByRole('heading', { name: '新名稱', exact: true })).toBeVisible()
     const after = await pa.evaluate(async () => {
       const result = await window.yuki.client.connections()
@@ -335,7 +307,7 @@ test('real Electron edits original memory and arrangements, handles two-device c
     await pb.bringToFront()
     await pb.getByRole('button', { name: '編輯角色資料' }).click()
     await pb.getByRole('textbox', { name: '簡介', exact: true }).fill('另一台有效裝置仍可編輯')
-    await saveProfile(pb)
+    await pb.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(pb.getByText('另一台有效裝置仍可編輯', { exact: true })).toBeVisible()
     await pb.getByRole('tab', { name: '安排', exact: true }).click()
     await pb.getByRole('tab', { name: '她的安排', exact: true }).click()

@@ -8,74 +8,60 @@ import { contentSize } from '../fixtures/visual'
 import { expectPdfPages } from '../fixtures/pdf'
 
 async function playback(player: Locator) {
-  const playUntil = async (target: number) => {
-    const result = await player.evaluate(async (node, target) => {
-      const media = node as HTMLMediaElement,
-        started = performance.now()
+  const element = await player.elementHandle()
+  try {
+    await expect
+      .poll(() =>
+        element!.evaluate((node) => {
+          const media = node as HTMLMediaElement
+          if (media.error) throw Error(media.error.message)
+          if (!media.isConnected) throw Error('The media player was removed')
+          return media.readyState
+        }),
+      )
+      .toBeGreaterThanOrEqual(2)
+    const source = await element!.evaluate((node) => (node as HTMLMediaElement).currentSrc)
+    const currentTime = (target: number) =>
+      element!.evaluate(
+        (node, { source, target }) => {
+          const media = node as HTMLMediaElement
+          if (media.error) throw Error(media.error.message)
+          if (!media.isConnected || media.currentSrc !== source)
+            throw Error('The playing media source was replaced')
+          if (media.ended && media.currentTime <= target)
+            throw Error(`Playback ended before ${target} seconds`)
+          return media.currentTime
+        },
+        { source, target },
+      )
+    await element!.evaluate(async (node) => {
+      const media = node as HTMLMediaElement
       media.muted = true
-      await new Promise<void>((resolve, reject) => {
-        const dispose = () => {
-          media.removeEventListener('timeupdate', progress)
-          media.removeEventListener('ended', failed)
-          media.removeEventListener('error', failed)
-          media.removeEventListener('emptied', failed)
-        }
-        const progress = () => {
-          if (media.currentTime <= target) return
-          dispose()
-          resolve()
-        }
-        const failed = () => {
-          dispose()
-          reject(
-            Error(
-              `Playback stopped at ${media.currentTime}: ${media.error?.message ?? 'ended or source replaced'}`,
-            ),
-          )
-        }
-        media.addEventListener('timeupdate', progress)
-        media.addEventListener('ended', failed)
-        media.addEventListener('error', failed)
-        media.addEventListener('emptied', failed)
-        void media.play().then(progress, (error) => {
-          dispose()
-          reject(error)
+      await media.play()
+    })
+    await expect.poll(() => currentTime(0.2)).toBeGreaterThan(0.2)
+    await element!.evaluate((node) => {
+      const media = node as HTMLMediaElement
+      media.pause()
+      media.currentTime = 2.5
+    })
+    await expect
+      .poll(async () => {
+        await currentTime(2.5)
+        return element!.evaluate((node) => {
+          const media = node as HTMLMediaElement
+          return !media.seeking && Math.abs(media.currentTime - 2.5) < 0.1
         })
       })
-      return {
-        target,
-        currentTime: media.currentTime,
-        duration: media.duration,
-        source: media.currentSrc,
-        elapsedMs: performance.now() - started,
-      }
-    }, target)
-    expect(result.currentTime).toBeGreaterThan(target)
-    await test.info().attach(`actual-playback-${target}`, {
-      body: JSON.stringify(result),
-      contentType: 'application/json',
+      .toBe(true)
+    await element!.evaluate(async (node) => {
+      await (node as HTMLMediaElement).play()
     })
+    await expect.poll(() => currentTime(2.7)).toBeGreaterThan(2.7)
+    await element!.evaluate((node) => (node as HTMLMediaElement).pause())
+  } finally {
+    await element!.dispose()
   }
-  await expect
-    .poll(() => player.evaluate((node) => (node as HTMLMediaElement).readyState))
-    .toBeGreaterThanOrEqual(2)
-  // Follow the decoder's actual progress, rather than its startup taking less than 5 seconds.
-  await playUntil(0.2)
-  await player.evaluate((node) => {
-    const media = node as HTMLMediaElement
-    media.pause()
-    media.currentTime = 2.5
-  })
-  await expect
-    .poll(() =>
-      player.evaluate((node) => {
-        const media = node as HTMLMediaElement
-        return !media.seeking && Math.abs(media.currentTime - 2.5) < 0.1
-      }),
-    )
-    .toBe(true)
-  await playUntil(2.7)
-  await player.evaluate((node) => (node as HTMLMediaElement).pause())
 }
 
 async function upload(
@@ -94,14 +80,11 @@ async function upload(
   await expect(page.getByLabel('待送出附件')).toContainText('可送出')
   await page.getByRole('button', { name: '送出', exact: true }).click()
   await expect
-    .poll(
-      async () =>
-        (await ledgerEvents(base)).some(
-          (event) =>
-            event.direction === 'inbound' &&
-            event.attachments.some((item) => item.filename === name),
-        ),
-      { timeout: 0 },
+    .poll(async () =>
+      (await ledgerEvents(base)).some(
+        (event) =>
+          event.direction === 'inbound' && event.attachments.some((item) => item.filename === name),
+      ),
     )
     .toBe(true)
   return (await ledgerEvents(base)).find(
