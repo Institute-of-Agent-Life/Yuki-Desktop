@@ -65,8 +65,7 @@ jobs:
       - if: runner.os == 'Windows'
         run: |
           choco install ffmpeg --yes --no-progress
-          ffmpeg -version
-          ffprobe -version
+          node -e "for (const command of ['ffmpeg', 'ffprobe']) require('node:child_process').execFileSync(command, ['-version'], {stdio: 'inherit'})"
       - name: Configure Electron sandbox for Ubuntu CI
         if: runner.os == 'Linux'
         shell: bash
