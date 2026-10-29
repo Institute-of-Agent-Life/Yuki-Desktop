@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+const outputDir = process.env.YUKI_E2E_OUTPUT ?? join(tmpdir(), 'yuki-desktop-e2e')
 export default defineConfig({
   testDir: './tests/e2e',
   testIgnore: [
@@ -27,7 +28,8 @@ export default defineConfig({
     'windows-artifact-actions.spec.ts',
     'windows-application-menu.spec.ts',
   ],
-  outputDir: process.env.YUKI_E2E_OUTPUT ?? join(tmpdir(), 'yuki-desktop-e2e'),
+  outputDir,
+  reporter: [['dot'], ['json', { outputFile: join(outputDir, 'report.json') }]],
   grepInvert:
     process.platform === 'win32'
       ? /@unix-manager|@linux-supervisor/
@@ -42,5 +44,5 @@ export default defineConfig({
     url: 'http://127.0.0.1:4178/components.html',
     reuseExistingServer: !process.env.CI,
   },
-  use: { trace: 'retain-on-failure' },
+  use: { trace: 'on' },
 })
