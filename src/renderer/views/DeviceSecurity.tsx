@@ -10,7 +10,7 @@ import styles from './Settings.module.css'
 import { LogoutFlow } from './LogoutFlow'
 
 const purposeLabel = (purpose: string) =>
-  purpose === 'chat' ? '聊天登入' : purpose === 'connector' ? '本機 Agent 連接器' : purpose
+  purpose === 'chat' ? '聊天登入' : purpose === 'connector' ? '本機電腦連接器' : purpose
 
 export function DeviceSecurity({
   connection,

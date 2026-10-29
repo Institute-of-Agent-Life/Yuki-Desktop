@@ -27,7 +27,7 @@ const categories = [
   { id: 'general', label: '一般', icon: SlidersHorizontal },
   { id: 'look', label: '外觀', icon: Palette },
   { id: 'notify', label: '通知', icon: Bell },
-  { id: 'agents', label: '本機 Agent', icon: Terminal },
+  { id: 'agents', label: '這台電腦', icon: Terminal },
   { id: 'security', label: '裝置與安全', icon: ShieldCheck },
   { id: 'server', label: 'Yuki 連接', icon: Server },
   { id: 'advanced', label: '進階', icon: Wrench },

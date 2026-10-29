@@ -128,6 +128,79 @@ it('status only projects public fields and never starts a service or changes own
   expect(JSON.stringify(result)).not.toMatch(/private-token|API_KEY|private-owner/)
   expect(run).toHaveBeenCalledTimes(1)
 })
+it.each([true, false])(
+  'full access %s updates only the selected local permission and rereads actual state',
+  async (enabled) => {
+    const run = vi.fn(async (_runtime: unknown, args: readonly string[]) =>
+      args.includes('status')
+        ? JSON.stringify({
+            ...publicStatus,
+            full_access: enabled,
+            computer: {
+              platform: 'win32',
+              shell: 'powershell',
+            },
+          })
+        : '{}',
+    )
+    const { connector, options } = fixture(run)
+    const current = {
+      ...connector.installations.selected()!,
+      runtime: { ...runtime, version: '0.4.0', protocol: 4 },
+    }
+    connector.installations.select(current)
+    expect(await connector.fullAccess(enabled)).toMatchObject({
+      fullAccess: enabled,
+      computer: {
+        platform: 'win32',
+        shell: 'powershell',
+      },
+    })
+    expect(run.mock.calls.map((call) => call[1])).toEqual([
+      [
+        '--data-dir',
+        join(tmpdir(), 'original-data'),
+        'full-access',
+        '--enabled',
+        String(enabled),
+        '--json',
+      ],
+      ['--data-dir', join(tmpdir(), 'original-data'), 'status', '--json'],
+    ])
+    expect(run.mock.calls[0]![0]).toBe(current.runtime)
+    expect(run.mock.calls[1]![0]).toBe(current.runtime)
+    expect(options.authorize).not.toHaveBeenCalled()
+  },
+)
+it.each([3, 0])(
+  'a bundled reader does not project new computer capabilities onto selected protocol %s runtime 0.3',
+  async (protocol) => {
+    const { connector } = fixture(
+      vi.fn(async () =>
+        JSON.stringify({
+          ...publicStatus,
+          full_access: true,
+          computer: {
+            platform: 'win32',
+            shell: 'powershell',
+          },
+        }),
+      ),
+    )
+    connector.installations.select({
+      ...connector.installations.selected()!,
+      runtime: { ...runtime, protocol },
+    })
+    const state = await connector.state()
+    expect(state).toMatchObject({
+      paired: true,
+      deviceId: 'original-device',
+      instances: publicStatus.instances,
+    })
+    expect(state.available && state.fullAccess).toBeUndefined()
+    expect(state.available && state.computer).toBeUndefined()
+  },
+)
 it('management reads require the bundled reader instead of falling back to the selected CLI', async () => {
   const { connector, run, options } = fixture()
   vi.mocked(connector.installations.bundled).mockResolvedValue(undefined)
@@ -136,6 +209,29 @@ it('management reads require the bundled reader instead of falling back to the s
   options.store.set('agent-connector-installation', undefined)
   expect(await connector.state()).toEqual({ available: false, bundled: false })
   expect(run).not.toHaveBeenCalled()
+})
+it('a selected standalone 0.4 runtime reports its own full-access state rather than the bundled reader defaults', async () => {
+  const run = vi.fn(async (selected: unknown) => {
+    expect(selected).not.toBe(reader)
+    return JSON.stringify({
+      ...publicStatus,
+      full_access: false,
+      computer: { platform: 'win32', shell: 'powershell' },
+    })
+  })
+  const { connector } = fixture(run)
+  const current = {
+    ...connector.installations.selected()!,
+    runtime: { ...runtime, version: '0.4.0', protocol: 0 },
+  }
+  connector.installations.select(current)
+  expect(await connector.state()).toMatchObject({
+    fullAccess: false,
+    computer: { platform: 'win32', shell: 'powershell' },
+    deviceId: 'original-device',
+  })
+  expect(run).toHaveBeenCalledTimes(1)
+  expect(run.mock.calls[0]![0]).toBe(current.runtime)
 })
 it('a pending management read keeps the captured data and admission when another installation is selected', async () => {
   let entered!: () => void, release!: () => void

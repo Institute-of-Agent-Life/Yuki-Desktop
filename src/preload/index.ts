@@ -11,6 +11,7 @@ const bridge: DesktopBridge = {
     connect: (input) => ipcRenderer.invoke('yuki:connector-connect', input),
     pair: (input) => ipcRenderer.invoke('yuki:connector-pair', input),
     service: (action) => ipcRenderer.invoke('yuki:connector-service', action),
+    fullAccess: (enabled, id) => ipcRenderer.invoke('yuki:connector-full-access', enabled, id),
     discover: (driver?: ConnectorDriver) => ipcRenderer.invoke('yuki:connector-discover', driver),
     configure: (input, start) => ipcRenderer.invoke('yuki:connector-configure', input, start),
     diagnose: (id) => ipcRenderer.invoke('yuki:connector-diagnose', id),
@@ -19,10 +20,17 @@ const bridge: DesktopBridge = {
     chooseExecutable: () => ipcRenderer.invoke('yuki:connector-choose-executable'),
     sessions: (id, instance, cursor) =>
       ipcRenderer.invoke('yuki:connector-sessions', id, instance, cursor),
-    operations: (id, work, cursor) =>
-      ipcRenderer.invoke('yuki:connector-operations', id, work, cursor),
+    operations: (id, work, cursor, device) =>
+      ipcRenderer.invoke('yuki:connector-operations', id, work, cursor, device),
     operation: (id, operation, cursor) =>
       ipcRenderer.invoke('yuki:connector-operation', id, operation, cursor),
+    terminals: (id, device, cursor) =>
+      ipcRenderer.invoke('yuki:connector-terminals', id, device, cursor),
+    terminal: (id, run, cursor) => ipcRenderer.invoke('yuki:connector-terminal', id, run, cursor),
+    controlTerminal: (id, run, request, action) =>
+      ipcRenderer.invoke('yuki:connector-terminal-control', id, run, request, action),
+    terminalControl: (id, run, request) =>
+      ipcRenderer.invoke('yuki:connector-terminal-control-read', id, run, request),
     submit: (id, input) => ipcRenderer.invoke('yuki:connector-submit', id, input),
   },
   localBot: {

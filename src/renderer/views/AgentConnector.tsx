@@ -7,7 +7,7 @@ import type {
   ConnectorDriver,
   ConnectorServiceAction,
 } from '../../shared/connector'
-import { Banner, Button, Spinner, TextField } from '../components/Controls'
+import { Banner, Button, Spinner, TextField, Toggle } from '../components/Controls'
 import { ClientProblem, problemText, unwrap } from '../queries/client'
 import { Row } from './SettingsRow'
 import { ConnectorTasks } from './ConnectorTasks'
@@ -68,6 +68,7 @@ const stages: Record<string, string> = {
   'service-stop': '停止原背景連接',
   'service-install': '安裝背景連接',
   'service-start': '啟動背景連接',
+  'full-access': '本機完整訪問',
 }
 export function AgentConnector({
   connection,
@@ -110,7 +111,6 @@ export function AgentConnector({
   const original = available?.instances.find((item) => item.id === instanceId)
   const nativeName = driverName(original?.driver ?? driver)
   const supportsDiscovery = ['codex', 'claude'].includes(original?.driver ?? driver)
-  const authorized = available?.paired && available.admission?.matched === true
   const serverProtocol = available?.admission?.serverProtocol
   const perform = async (operation: () => Promise<unknown>) => {
     setBusy(true)
@@ -208,35 +208,9 @@ export function AgentConnector({
   return (
     <>
       <p className={styles.notice}>
-        讓 {connection?.name ?? 'Yuki'} 使用這台電腦上的 Codex、Claude 或 ACP
-        Agent。不需要預先選專案；原生帳號、會話與權限仍由原程式管理。
+        讓 {connection?.name ?? 'Yuki'} 使用這台電腦的命令、檔案和已安裝程式。 Codex、Claude 和 ACP
+        是可選工具，不必先安裝 Agent 或選擇專案。
       </p>
-      <Row title="原生工具">
-        <select
-          aria-label="原生工具類型"
-          value={original?.driver ?? driver}
-          disabled={busy || !!original}
-          onChange={(event) => {
-            const next = event.target.value as ConnectorDriver
-            if (instanceLabel === `本機 ${driverName(driver)}`)
-              setInstanceLabel(`本機 ${driverName(next)}`)
-            setDriver(next)
-            setCandidates([])
-            setCandidateId('')
-            setCommand('')
-            setAgentArgs([])
-            setArgsChanged(false)
-            setDiagnostic(undefined)
-          }}
-        >
-          <option value="codex">Codex</option>
-          <option value="claude">Claude</option>
-          <option value="acp">通用 ACP Agent</option>
-          {original && !['codex', 'claude', 'acp'].includes(original.driver) && (
-            <option value={original.driver}>{driverName(original.driver)}（原設定）</option>
-          )}
-        </select>
-      </Row>
       {error && <Banner status="failed">{error}</Banner>}
       {notice && <Banner status="done">{notice}</Banner>}
       {state.isError && (
@@ -249,7 +223,7 @@ export function AgentConnector({
       {state.isPending && <Spinner />}
       {existing && (
         <div className={styles.group}>
-          <Row title="已發現原有 Agent 連接" description={existing.state.server}>
+          <Row title="已發現原有電腦連接" description={existing.state.server}>
             <Button
               loading={busy}
               onClick={() =>
@@ -316,68 +290,64 @@ export function AgentConnector({
           </Button>
         </>
       )}
-      {state.data &&
-        !existing?.state.paired &&
-        (!available?.paired || (available.admission?.matched && !available.instances.length)) && (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (connection && (authorized || consent))
-                void perform(async () => {
-                  const connected = unwrap(
-                    await window.yuki.connector.connect({
-                      characterId: connection.characterId,
-                      label,
-                    }),
-                  )
-                  if (supportsDiscovery) {
-                    const found = await discoverCandidates()
-                    if (connected.available && !connected.instances.length && found.length === 1)
-                      await configure(true, found[0]!.id)
-                  } else setNotice('電腦連接已建立，請選擇 ACP 執行檔與啟動參數。')
-                })
-            }}
-          >
-            <Row title="這台電腦的名稱">
-              <TextField
-                aria-label="電腦名稱"
-                value={label}
-                onChange={(event) => setLabel(event.target.value)}
-                required
-              />
-            </Row>
-            {connection ? (
-              <>
-                <p className={styles.notice}>
-                  允許 {connection.name}（{connection.baseUrl}
-                  ）以你目前的本人身份連接這台電腦。之後的 Agent 操作依原生權限處理。
-                </p>
-                {!authorized && (
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={consent}
-                      onChange={(event) => setConsent(event.target.checked)}
-                    />
-                    我允許這個 Yuki 連接本機 Agent
-                  </label>
-                )}
-                <div className={styles.actions}>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    loading={busy}
-                    disabled={!authorized && !consent}
-                  >
-                    連接本機 {driverName(driver)}
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <p className={styles.notice}>先連接一位 Yuki，再授權這台電腦。你可以直接離開此頁。</p>
-            )}
-          </form>
-        )}
+      {state.data && !existing?.state.paired && !available?.paired && (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (connection && consent)
+              void perform(async () => {
+                const connected = unwrap(
+                  await window.yuki.connector.connect({
+                    characterId: connection.characterId,
+                    label,
+                  }),
+                )
+                if (connected.available) {
+                  if (!connected.service.installed)
+                    unwrap(await window.yuki.connector.service('install'))
+                  if (!connected.service.running)
+                    unwrap(await window.yuki.connector.service('start'))
+                }
+                setNotice(
+                  '電腦連接已建立。完整訪問預設關閉，可在下方明確開啟；原生 Agent 稍後設定。',
+                )
+              })
+          }}
+        >
+          <Row title="這台電腦的名稱">
+            <TextField
+              aria-label="電腦名稱"
+              value={label}
+              onChange={(event) => setLabel(event.target.value)}
+              required
+            />
+          </Row>
+          {connection ? (
+            <>
+              <p className={styles.notice}>
+                允許 {connection.name}（{connection.baseUrl}
+                ）以你目前的本人身份連接這台電腦。通用操作另由完整訪問開關管理，原生 Agent
+                沿原授權。
+              </p>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={consent}
+                  onChange={(event) => setConsent(event.target.checked)}
+                />
+                我允許這個 Yuki 連接這台電腦
+              </label>
+              <div className={styles.actions}>
+                <Button type="submit" variant="primary" loading={busy} disabled={!consent}>
+                  連接這台電腦
+                </Button>
+              </div>
+            </>
+          ) : (
+            <p className={styles.notice}>先連接一位 Yuki，再授權這台電腦。你可以直接離開此頁。</p>
+          )}
+        </form>
+      )}
       {available && (
         <>
           {available.admission?.problem && (
@@ -414,219 +384,293 @@ export function AgentConnector({
             )}
           {available.paired && (
             <>
-              <h3>已設定的原生工具</h3>
-              <div className={styles.group}>
-                {available.instances.map((instance) => {
-                  const remote = available.admission?.instances?.find(
-                    (item) => item.localId === instance.id,
-                  )
-                  return (
-                    <Row
-                      key={instance.id}
-                      title={instance.label}
-                      description={driverName(instance.driver)}
-                    >
-                      <span>
-                        {!remote
-                          ? '伺服器尚未接納此 Agent'
-                          : remote.status !== 'available'
-                            ? `${driverName(instance.driver)} 尚未就緒：${problems[remote.errorType ?? ''] ?? remote.errorType ?? remote.status ?? '未提供原因'}`
-                            : remote.online
-                              ? instance.driver === 'claude'
-                                ? 'Claude 程式已找到；登入與任務依原生結果確認'
-                                : `${driverName(instance.driver)} 原生連線已建立`
-                              : instance.driver === 'claude'
-                                ? 'Claude 背景連接目前離線；上次已找到程式'
-                                : `${driverName(instance.driver)} 目前離線；上次已就緒`}
-                      </span>
-                      <Button
-                        disabled={busy}
-                        onClick={() => {
-                          setInstanceId(instance.id)
-                          setCreate(false)
-                          setInstanceLabel(instance.label)
-                          setCommand(instance.command ?? '')
-                          if (['codex', 'claude', 'acp'].includes(instance.driver))
-                            setDriver(instance.driver as ConnectorDriver)
-                          setAgentArgs(instance.args ?? [])
-                          setArgsChanged(false)
-                          setDiagnostic(undefined)
-                          setCandidateId('')
-                          setCandidates([])
-                        }}
+              {available.fullAccess !== undefined && (
+                <Row
+                  title="允許完整訪問本機"
+                  description="允許 Shell、檔案與本機程式操作；關閉後不再接納新的通用操作，原回執和停止仍可用。"
+                >
+                  <Toggle
+                    label="允許完整訪問本機"
+                    checked={available.fullAccess === true}
+                    disabled={busy}
+                    onChange={(enabled) =>
+                      void perform(async () => {
+                        const changed = unwrap(
+                          await window.yuki.connector.fullAccess(enabled, connection?.characterId),
+                        )
+                        setNotice(
+                          (enabled
+                            ? '完整訪問已開啟。使用目前 OS 帳號的權限，不逐命令或逐目錄重複確認。'
+                            : '完整訪問已關閉。已啟動任務需按原執行停止；原生 Agent 的獨立授權仍保留。') +
+                            (changed.available && changed.catalogProblem
+                              ? ` 雲端目錄同步尚未確認：${problemText(changed.catalogProblem)}`
+                              : ''),
+                        )
+                      })
+                    }
+                  />
+                </Row>
+              )}
+              {available.fullAccess === undefined && (
+                <p className={styles.notice}>
+                  所選連接器尚未提供完整訪問能力，請更新為本版隨附連接器；原授權範圍不變。
+                </p>
+              )}
+              {available.computer && (
+                <div className={styles.group}>
+                  <Row title="本機執行環境">
+                    <span>
+                      {available.computer.platform} ·{' '}
+                      {available.computer.shell ?? '未提供預設 Shell'}
+                    </span>
+                  </Row>
+                </div>
+              )}
+              <details open={available.instances.length > 0}>
+                <summary>可選：Codex、Claude 與 ACP</summary>
+                <Row title="原生工具">
+                  <select
+                    aria-label="原生工具類型"
+                    value={original?.driver ?? driver}
+                    disabled={busy || !!original}
+                    onChange={(event) => {
+                      const next = event.target.value as ConnectorDriver
+                      if (instanceLabel === `本機 ${driverName(driver)}`)
+                        setInstanceLabel(`本機 ${driverName(next)}`)
+                      setDriver(next)
+                      setCandidates([])
+                      setCandidateId('')
+                      setCommand('')
+                      setAgentArgs([])
+                      setArgsChanged(false)
+                      setDiagnostic(undefined)
+                    }}
+                  >
+                    <option value="codex">Codex</option>
+                    <option value="claude">Claude</option>
+                    <option value="acp">通用 ACP Agent</option>
+                    {original && !['codex', 'claude', 'acp'].includes(original.driver) && (
+                      <option value={original.driver}>
+                        {driverName(original.driver)}（原設定）
+                      </option>
+                    )}
+                  </select>
+                </Row>
+                <h3>已設定的原生工具</h3>
+                <div className={styles.group}>
+                  {available.instances.map((instance) => {
+                    const remote = available.admission?.instances?.find(
+                      (item) => item.localId === instance.id,
+                    )
+                    return (
+                      <Row
+                        key={instance.id}
+                        title={instance.label}
+                        description={driverName(instance.driver)}
                       >
-                        修改原設定
-                      </Button>
-                      {['codex', 'claude'].includes(instance.driver) && (
+                        <span>
+                          {!remote
+                            ? '伺服器尚未接納此 Agent'
+                            : remote.status !== 'available'
+                              ? `${driverName(instance.driver)} 尚未就緒：${problems[remote.errorType ?? ''] ?? remote.errorType ?? remote.status ?? '未提供原因'}`
+                              : remote.online
+                                ? instance.driver === 'claude'
+                                  ? 'Claude 程式已找到；登入與任務依原生結果確認'
+                                  : `${driverName(instance.driver)} 原生連線已建立`
+                                : instance.driver === 'claude'
+                                  ? 'Claude 背景連接目前離線；上次已找到程式'
+                                  : `${driverName(instance.driver)} 目前離線；上次已就緒`}
+                        </span>
                         <Button
                           disabled={busy}
+                          onClick={() => {
+                            setInstanceId(instance.id)
+                            setCreate(false)
+                            setInstanceLabel(instance.label)
+                            setCommand(instance.command ?? '')
+                            if (['codex', 'claude', 'acp'].includes(instance.driver))
+                              setDriver(instance.driver as ConnectorDriver)
+                            setAgentArgs(instance.args ?? [])
+                            setArgsChanged(false)
+                            setDiagnostic(undefined)
+                            setCandidateId('')
+                            setCandidates([])
+                          }}
+                        >
+                          修改原設定
+                        </Button>
+                        {['codex', 'claude'].includes(instance.driver) && (
+                          <Button
+                            disabled={busy}
+                            onClick={() =>
+                              void perform(async () => {
+                                setDiagnostic(
+                                  unwrap(await window.yuki.connector.diagnose(instance.id)),
+                                )
+                              })
+                            }
+                          >
+                            檢查原生就緒
+                          </Button>
+                        )}
+                        <Button
+                          disabled={busy || !instance.command}
                           onClick={() =>
                             void perform(async () => {
-                              setDiagnostic(
-                                unwrap(await window.yuki.connector.diagnose(instance.id)),
-                              )
+                              unwrap(await window.yuki.connector.revealNative(instance.id))
                             })
                           }
                         >
-                          檢查原生就緒
-                        </Button>
-                      )}
-                      <Button
-                        disabled={busy || !instance.command}
-                        onClick={() =>
-                          void perform(async () => {
-                            unwrap(await window.yuki.connector.revealNative(instance.id))
-                          })
-                        }
-                      >
-                        開啟原生程式位置
-                      </Button>
-                    </Row>
-                  )
-                })}
-              </div>
-              {diagnostic && (
-                <Banner status={diagnostic.available ? 'done' : 'unknown'}>
-                  {diagnostic.available
-                    ? available.instances.find((item) => item.id === diagnostic.id)?.driver ===
-                      'claude'
-                      ? 'Claude 登入檢查完成；尚未執行模型任務。'
-                      : '原生握手與帳戶檢查完成；尚未執行模型任務。'
-                    : (problems[diagnostic.problem ?? ''] ?? `尚未就緒（${diagnostic.problem}）。`)}
-                </Banner>
-              )}
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  void save(true)
-                }}
-              >
-                {supportsDiscovery && (
-                  <div className={styles.actions}>
-                    <Button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void perform(discoverCandidates)}
-                    >
-                      尋找已安裝的 {nativeName}
-                    </Button>
-                  </div>
-                )}
-                {candidates.length > 1 && (
-                  <Row title={`${nativeName} 安裝`}>
-                    <select
-                      aria-label={`${nativeName} 安裝`}
-                      value={candidateId}
-                      onChange={(event) => setCandidateId(event.target.value)}
-                    >
-                      <option value="">自行選擇執行檔</option>
-                      {candidates.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                  </Row>
-                )}
-                {candidates.length === 1 && candidateId && (
-                  <Row title={`已找到 ${nativeName}`}>
-                    <span>{candidates[0]!.label}</span>
-                  </Row>
-                )}
-                <Row title="顯示名稱">
-                  <TextField
-                    aria-label="Agent 顯示名稱"
-                    value={instanceLabel}
-                    onChange={(event) => setInstanceLabel(event.target.value)}
-                    required
-                  />
-                </Row>
-                {(original?.driver ?? driver) === 'acp' ? (
-                  <Row title="ACP 執行檔">{executableSelection}</Row>
-                ) : (
-                  <details>
-                    <summary>進階：手動選擇原生程式</summary>
-                    {executableSelection}
-                  </details>
-                )}
-                {(original?.driver ?? driver) === 'acp' && (
-                  <div className={styles.group}>
-                    <p className={styles.notice}>
-                      選擇支援 ACP
-                      的實際程式，依該程式文件填入啟動參數。每欄是一個參數，按順序傳入，不需外加引號。
-                    </p>
-                    {agentArgs.map((value, index) => (
-                      <Row key={index} title={`啟動參數 ${index + 1}`}>
-                        <TextField
-                          aria-label={`ACP 啟動參數 ${index + 1}`}
-                          disabled={busy}
-                          value={value}
-                          onChange={(event) => {
-                            setAgentArgs(
-                              agentArgs.map((argument, item) =>
-                                item === index ? event.target.value : argument,
-                              ),
-                            )
-                            setArgsChanged(true)
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          disabled={busy}
-                          aria-label={`移除 ACP 啟動參數 ${index + 1}`}
-                          onClick={() => {
-                            setAgentArgs(agentArgs.filter((_, item) => item !== index))
-                            setArgsChanged(true)
-                          }}
-                        >
-                          移除
+                          開啟原生程式位置
                         </Button>
                       </Row>
-                    ))}
-                    <Button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        setAgentArgs([...agentArgs, ''])
-                        setArgsChanged(true)
-                      }}
-                    >
-                      新增啟動參數
-                    </Button>
-                  </div>
-                )}
-                <div className={styles.actions}>
-                  <Button
-                    type="submit"
-                    loading={busy}
-                    disabled={busy || (!candidateId && !command)}
-                  >
-                    {instanceId ? '保存並重新連接' : `連接此 ${nativeName} 並啟動背景連接`}
-                  </Button>
-                  {instanceId && (
-                    <Button type="button" disabled={busy} onClick={() => void save(false)}>
-                      只保存原設定
-                    </Button>
-                  )}
-                  {instanceId && (
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        setInstanceId('')
-                        setCreate(true)
-                        setInstanceLabel(`本機 ${driverName(driver)}`)
-                        setCommand('')
-                        setCandidateId('')
-                        setAgentArgs([])
-                        setArgsChanged(false)
-                        setDiagnostic(undefined)
-                      }}
-                    >
-                      改為新增
-                    </Button>
-                  )}
+                    )
+                  })}
                 </div>
-              </form>
+                {diagnostic && (
+                  <Banner status={diagnostic.available ? 'done' : 'unknown'}>
+                    {diagnostic.available
+                      ? available.instances.find((item) => item.id === diagnostic.id)?.driver ===
+                        'claude'
+                        ? 'Claude 登入檢查完成；尚未執行模型任務。'
+                        : '原生握手與帳戶檢查完成；尚未執行模型任務。'
+                      : (problems[diagnostic.problem ?? ''] ??
+                        `尚未就緒（${diagnostic.problem}）。`)}
+                  </Banner>
+                )}
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    void save(true)
+                  }}
+                >
+                  {supportsDiscovery && (
+                    <div className={styles.actions}>
+                      <Button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void perform(discoverCandidates)}
+                      >
+                        尋找已安裝的 {nativeName}
+                      </Button>
+                    </div>
+                  )}
+                  {candidates.length > 1 && (
+                    <Row title={`${nativeName} 安裝`}>
+                      <select
+                        aria-label={`${nativeName} 安裝`}
+                        value={candidateId}
+                        onChange={(event) => setCandidateId(event.target.value)}
+                      >
+                        <option value="">自行選擇執行檔</option>
+                        {candidates.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </Row>
+                  )}
+                  {candidates.length === 1 && candidateId && (
+                    <Row title={`已找到 ${nativeName}`}>
+                      <span>{candidates[0]!.label}</span>
+                    </Row>
+                  )}
+                  <Row title="顯示名稱">
+                    <TextField
+                      aria-label="Agent 顯示名稱"
+                      value={instanceLabel}
+                      onChange={(event) => setInstanceLabel(event.target.value)}
+                      required
+                    />
+                  </Row>
+                  {(original?.driver ?? driver) === 'acp' ? (
+                    <Row title="ACP 執行檔">{executableSelection}</Row>
+                  ) : (
+                    <details>
+                      <summary>進階：手動選擇原生程式</summary>
+                      {executableSelection}
+                    </details>
+                  )}
+                  {(original?.driver ?? driver) === 'acp' && (
+                    <div className={styles.group}>
+                      <p className={styles.notice}>
+                        選擇支援 ACP
+                        的實際程式，依該程式文件填入啟動參數。每欄是一個參數，按順序傳入，不需外加引號。
+                      </p>
+                      {agentArgs.map((value, index) => (
+                        <Row key={index} title={`啟動參數 ${index + 1}`}>
+                          <TextField
+                            aria-label={`ACP 啟動參數 ${index + 1}`}
+                            disabled={busy}
+                            value={value}
+                            onChange={(event) => {
+                              setAgentArgs(
+                                agentArgs.map((argument, item) =>
+                                  item === index ? event.target.value : argument,
+                                ),
+                              )
+                              setArgsChanged(true)
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            disabled={busy}
+                            aria-label={`移除 ACP 啟動參數 ${index + 1}`}
+                            onClick={() => {
+                              setAgentArgs(agentArgs.filter((_, item) => item !== index))
+                              setArgsChanged(true)
+                            }}
+                          >
+                            移除
+                          </Button>
+                        </Row>
+                      ))}
+                      <Button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setAgentArgs([...agentArgs, ''])
+                          setArgsChanged(true)
+                        }}
+                      >
+                        新增啟動參數
+                      </Button>
+                    </div>
+                  )}
+                  <div className={styles.actions}>
+                    <Button
+                      type="submit"
+                      loading={busy}
+                      disabled={busy || (!candidateId && !command)}
+                    >
+                      {instanceId ? '保存並重新連接' : `連接此 ${nativeName} 並啟動背景連接`}
+                    </Button>
+                    {instanceId && (
+                      <Button type="button" disabled={busy} onClick={() => void save(false)}>
+                        只保存原設定
+                      </Button>
+                    )}
+                    {instanceId && (
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setInstanceId('')
+                          setCreate(true)
+                          setInstanceLabel(`本機 ${driverName(driver)}`)
+                          setCommand('')
+                          setCandidateId('')
+                          setAgentArgs([])
+                          setArgsChanged(false)
+                          setDiagnostic(undefined)
+                        }}
+                      >
+                        改為新增
+                      </Button>
+                    )}
+                  </div>
+                </form>
+              </details>
               <div className={styles.actions}>
                 {!available.service.installed && (
                   <Button disabled={busy} onClick={() => void service('install')}>
@@ -647,8 +691,8 @@ export function AgentConnector({
                 </Button>
               </div>
               <p className={styles.notice}>
-                背景連接在關閉 Desktop
-                後繼續工作。停止連接器會中斷連線；原生執行是否持續依各工具生命週期處理，停止前請查看原任務狀態。
+                背景連接在關閉或退出 Desktop 後繼續工作。關閉完整訪問保留原生 Agent
+                授權；停止連接器則斷開整台電腦。已啟動任務的結果以原回執為準。
               </p>
               {connection && available.admission?.matched && (
                 <ConnectorTasks

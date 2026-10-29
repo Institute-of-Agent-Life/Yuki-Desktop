@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { gte, valid } from 'semver'
 import type {
   ConnectorAvailableState,
   ConnectorAdmission,
@@ -47,8 +48,15 @@ interface ConnectorStatus {
   paired: boolean
   device_id?: string
   server?: string
+  full_access?: boolean
+  computer?: ConnectorAvailableState['computer']
   instances: ConnectorAvailableState['instances']
   service: ConnectorAvailableState['service']
+}
+function computerRuntime(runtime: ConnectorRuntime) {
+  return runtime.protocol
+    ? runtime.protocol >= 4
+    : valid(runtime.version) !== null && gte(runtime.version, '0.4.0')
 }
 export function runConnector(
   runtime: Pick<ConnectorRuntime, 'executable' | 'arguments'>,
@@ -135,6 +143,17 @@ export class AgentConnector {
       installation ? ['--data-dir', installation.dataDirectory, ...args] : args,
     )
   }
+  private async readState(installation: ConnectorInstallation): Promise<ConnectorStatus> {
+    return this.stage(
+      'read',
+      async () =>
+        JSON.parse(
+          await (computerRuntime(installation.runtime)
+            ? this.run(['status', '--json'], undefined, installation)
+            : this.read(['status', '--json'], installation)),
+        ) as ConnectorStatus,
+    )
+  }
   private async defaultInstallation() {
     const bundle = await this.installations.bundled()
     if (!bundle) return null
@@ -165,7 +184,11 @@ export class AgentConnector {
         throw new ApiError('connector_existing_runtime_unavailable')
       throw error
     }
-    return { installation: await this.inspectInstallation({ executable, dataDirectory }), status }
+    const installation = await this.inspectInstallation({ executable, dataDirectory })
+    return {
+      installation,
+      status: computerRuntime(installation.runtime) ? await this.readState(installation) : status,
+    }
   }
   async state(
     characterId?: string,
@@ -195,11 +218,7 @@ export class AgentConnector {
           : {}),
       }
     }
-    const status = await this.stage(
-      'read',
-      async () =>
-        JSON.parse(await this.read(['status', '--json'], installation)) as ConnectorStatus,
-    )
+    const status = await this.readState(installation)
     return this.projectState(characterId, installation, status, bundle)
   }
   private async projectState(
@@ -208,6 +227,7 @@ export class AgentConnector {
     status: ConnectorStatus,
     bundle: RuntimeManifest | undefined,
   ): Promise<ConnectorAvailableState> {
+    const computerSupported = computerRuntime(installation.runtime)
     const state: ConnectorAvailableState = {
       available: true,
       managed: installation.managed,
@@ -216,6 +236,8 @@ export class AgentConnector {
       server: status.server,
       version: installation.runtime.version,
       bundledVersion: bundle?.version,
+      fullAccess: computerSupported ? status.full_access : undefined,
+      computer: computerSupported ? status.computer : undefined,
       protocol: installation.runtime.protocol || undefined,
       runtime: installation.runtime.executable,
       dataDirectory: installation.dataDirectory,
@@ -381,6 +403,13 @@ export class AgentConnector {
       throw new ApiError('validation_error')
     await this.stage(`service-${action}`, () =>
       this.run(['service', action], undefined, installation),
+    )
+    return this.state(undefined, installation)
+  }
+  async fullAccess(enabled: boolean): Promise<ConnectorState> {
+    const installation = this.installations.selected() ?? null
+    await this.stage('full-access', () =>
+      this.run(['full-access', '--enabled', String(enabled), '--json'], undefined, installation),
     )
     return this.state(undefined, installation)
   }

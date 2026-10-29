@@ -58,7 +58,7 @@ test('logout recovery has priority over a retained direct Agent settings request
     'aria-selected',
     'true',
   )
-  await expect(page.getByRole('tab', { name: '本機 Agent', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: '這台電腦', exact: true })).toHaveAttribute(
     'aria-selected',
     'false',
   )
@@ -379,7 +379,7 @@ test('settings use the available column and expose one native Agent entry before
     Math.abs(bounds!.x + bounds!.width - contentBounds!.x - contentBounds!.width),
   ).toBeLessThanOrEqual(1)
   expect(await pane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
-  await expect(page.getByRole('tab', { name: '本機 Agent', exact: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '這台電腦', exact: true })).toBeVisible()
   await expect(page.getByRole('tab', { name: '本機連接', exact: true })).toHaveCount(0)
   await expect(page.getByRole('tab', { name: '編程 Agent', exact: true })).toHaveCount(0)
   await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
@@ -394,7 +394,7 @@ test('a direct Agent settings request opens the single native connection entry w
   page,
 }) => {
   await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=settings&agent=true')
-  await expect(page.getByRole('tab', { name: '本機 Agent', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: '這台電腦', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )

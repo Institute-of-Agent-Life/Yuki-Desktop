@@ -715,7 +715,7 @@ export function Conversation({
     { id: 'command/settings', title: '開啟設定', run: () => paletteNavigate(onSettings) },
     {
       id: 'command/agent',
-      title: '連接本機 Agent',
+      title: '連接這台電腦',
       run: () => paletteNavigate(() => onSettings('agent')),
     },
     ...(!accessLost

@@ -207,12 +207,14 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
       .getByRole('textbox', { name: '電腦名稱', exact: true })
       .fill('Isolated live Codex acceptance')
     await page
-      .getByRole('checkbox', { name: '我允許這個 Yuki 連接本機 Agent', exact: true })
+      .getByRole('checkbox', { name: '我允許這個 Yuki 連接這台電腦', exact: true })
       .check()
-    const connect = page.getByRole('button', { name: '連接本機 Codex', exact: true })
+    const connect = page.getByRole('button', { name: '連接這台電腦', exact: true })
     await connect.click()
     await expect(page.getByText('目前本人', { exact: true })).toBeVisible({ timeout: 60_000 })
     selected = await installation(app, profile)
+    await page.getByText('可選：Codex、Claude 與 ACP', { exact: true }).click()
+    await page.getByRole('button', { name: '尋找已安裝的 Codex', exact: true }).click()
     const candidates = page.getByRole('combobox', { name: 'Codex 安裝', exact: true })
     if (await candidates.count()) {
       const found = await page.evaluate(async () => {
@@ -223,8 +225,8 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
       const matching = found.filter((item) => resolve(item.command) === resolve(binary!))
       expect(matching).toHaveLength(1)
       await candidates.selectOption(matching[0]!.id)
-      await page.getByRole('button', { name: '連接此 Codex 並啟動背景連接', exact: true }).click()
     }
+    await page.getByRole('button', { name: '連接此 Codex 並啟動背景連接', exact: true }).click()
     await expect
       .poll(async () => (await state(page, connection.characterId)).admission?.connected, {
         timeout: 30_000,
@@ -236,9 +238,9 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
     const connected = await state(page, connection.characterId)
     expect(connected.version).toBe(bundled.version)
     expect(connected.protocol).toBe(bundled.protocol)
-    expect(connected.protocol).toBe(3)
+    expect(connected.protocol).toBe(4)
     expect(connected.admission?.matched).toBe(true)
-    expect(connected.admission?.serverProtocol).toBe(3)
+    expect(connected.admission?.serverProtocol).toBe(4)
     expect(connected.service).toMatchObject({ installed: true, running: true })
     expect(connected.instances).toHaveLength(1)
     const local = connected.instances[0]!

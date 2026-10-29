@@ -175,6 +175,18 @@
   overflow-wrap: anywhere;
   user-select: text;
 }
+.terminalOutput {
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  font: 12px/18px var(--font-mono);
+  color: var(--text-primary);
+  background: var(--bg-raised);
+  border-radius: 8px;
+  padding: 12px;
+}
 @media (max-width: 1000px) {
   .pane {
     padding: 8px 24px 24px;

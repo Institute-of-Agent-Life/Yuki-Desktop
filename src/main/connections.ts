@@ -1251,6 +1251,10 @@ export class Connections {
   }
 
   async agentRead<T>(id: string, path: string): Promise<T> {
+    return this.agentRequest<T>(id, path)
+  }
+
+  async agentRequest<T>(id: string, path: string, init?: RequestInit): Promise<T> {
     await this.identify(id)
     const client = this.client(id)
     await this.box(id).verifyOwner(client)
@@ -1262,7 +1266,7 @@ export class Connections {
       fetch,
       'agents/v1',
     )
-    const response = await agents.response(path)
+    const response = await agents.response(path, init)
     return (await response.json()) as T
   }
 
