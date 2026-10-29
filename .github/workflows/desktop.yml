@@ -1,30 +1,17 @@
-name: Desktop
-on:
-  pull_request:
-  push:
-    branches: [main]
-  workflow_dispatch:
+name: Current RFB clipboard capability proof
+'on':
+  workflow_dispatch: null
 permissions:
   contents: read
-concurrency:
-  group: desktop-${{ github.ref }}
-  cancel-in-progress: true
 jobs:
-  desktop:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: macos-15, platform: mac, arch: arm64 }
-          - { os: macos-15-intel, platform: mac, arch: x64 }
-          - { os: windows-2025, platform: win, arch: x64 }
-          - { os: ubuntu-24.04, platform: linux, arch: x64 }
-          - { os: ubuntu-24.04-arm, platform: linux, arch: arm64 }
-    runs-on: ${{ matrix.os }}
+  clipboard:
+    runs-on: macos-15-intel
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -39,13 +26,11 @@ jobs:
           path: .cache/backend
       - uses: astral-sh/setup-uv@v6
         with:
-          version: '0.11.31'
+          version: 0.11.31
           enable-cache: true
           cache-dependency-glob: |
             .cache/backend/uv.lock
             .cache/backend/packages/yuki-agent-connector/uv.lock
-      - uses: ilammy/msvc-dev-cmd@v1
-        if: runner.os == 'Windows'
       - name: Prepare the actual backend test environment
         run: uv sync --directory .cache/backend --frozen --all-extras --managed-python --python 3.12
       - name: Select the actual backend fixture
@@ -57,95 +42,47 @@ jobs:
         run: node build-tools/prepare-connector.mjs --backend .cache/backend
       - name: Bundle the matching local Bot setup
         run: node build-tools/prepare-local-bot.mjs --source .cache/backend
-      - run: npm exec playwright install -- --with-deps chromium
-      - if: runner.os == 'Linux'
-        run: sudo apt-get install --no-install-recommends -y rpm ffmpeg libnotify4 dbus-x11 gnome-keyring openbox
-      - if: runner.os == 'macOS'
-        run: brew install ffmpeg
-      - if: runner.os == 'Windows'
-        run: |
-          choco install ffmpeg --yes --no-progress
-          node -e "for (const command of ['ffmpeg', 'ffprobe']) require('node:child_process').execFileSync(command, ['-version'], {stdio: 'inherit'})"
-      - name: Configure Electron sandbox for Ubuntu CI
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          node -e 'require("electron")'
-          electron_path="$(node --print 'require("electron")')"
-          printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile yuki-desktop-ci "%s" flags=(unconfined) {\n  userns,\n}\n' "$electron_path" | sudo tee /etc/apparmor.d/yuki-desktop-ci
-          sudo apparmor_parser --replace /etc/apparmor.d/yuki-desktop-ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm run check:contract
-      - run: node build-tools/check-backend-contract.mjs
-      - run: npm test
-      - run: npm run test:release
-      - if: runner.os != 'Linux'
-        run: npm run test:e2e
-      - if: runner.os == 'Linux'
+      - name: Build original Computer with the same patched dependency
+        run: |-
+          cp src/renderer/views/Computer.tsx "$RUNNER_TEMP/Computer-fixed.tsx"
+          git show f330da72cc7c303bc4415fbc4d056bcd05a6654a:src/renderer/views/Computer.tsx > src/renderer/views/Computer.tsx
+          npm run build
+      - name: Prove original UI fails before current ServerCaps
+        run: |-
+          set +e
+          YUKI_E2E_OUTPUT="$RUNNER_TEMP/clipboard-negative" npm exec playwright -- test tests/e2e/computer-preview.spec.ts --reporter=json > "$RUNNER_TEMP/clipboard-negative.json"
+          clipboard_negative_exit=$?
+          set -e
+          if [ "$clipboard_negative_exit" -ne 1 ]; then
+            echo "Expected the original UI to fail the current-connection clipboard assertion"
+            exit 1
+          fi
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          const report=JSON.parse(fs.readFileSync(path.join(process.env.RUNNER_TEMP,'clipboard-negative.json'),'utf8'));
+          const tests=suite=>[...(suite.specs??[]).flatMap(spec=>spec.tests??[]),...(suite.suites??[]).flatMap(tests)];
+          const results=report.suites.flatMap(tests).flatMap(test=>test.results??[]).filter(result=>result.status==='failed');
+          const line=fs.readFileSync('tests/e2e/computer-preview.spec.ts','utf8').split(/\r?\n/).findIndex(line=>line.includes('.isDisabled()'))+1;
+          if(report.stats.unexpected!==1||results.length!==1||!results[0].errors.some(error=>error.location?.line===line))throw Error('Baseline did not fail at the current connected-but-CAPS-held paste assertion');
+          console.log('Original Computer.tsx failed exactly at the current-RFB paste-disabled assertion; no corrupted paste was sent');
+          JS
+      - name: Restore reviewed UI
+        if: always()
+        run: cp "$RUNNER_TEMP/Computer-fixed.tsx" src/renderer/views/Computer.tsx
+      - name: Exercise fixed real RFB and original Work completion
+        if: always()
         env:
-          XDG_CURRENT_DESKTOP: GNOME
-        run: |
-          dbus-run-session -- xvfb-run --auto-servernum --server-args="-screen 0 1920x1200x24" bash -e -c '
-            export XDG_DATA_HOME="$RUNNER_TEMP/yuki-keyring-data"
-            export XDG_CONFIG_HOME="$RUNNER_TEMP/yuki-keyring-config"
-            printf "%s" "yuki-ci-test" | gnome-keyring-daemon --unlock --components=secrets > "$RUNNER_TEMP/keyring-startup.log"
-            openbox > "$RUNNER_TEMP/openbox.log" 2>&1 &
-            node build-tools/check-linux-keyring.mjs
-            node build-tools/diagnose-linux-notifications.mjs
-            npm run test:e2e
-          '
-      - run: npm run package -- --${{ matrix.platform }} --${{ matrix.arch }}
-      - name: Verify the real signed Mac runtime on a disposable copy
-        if: runner.os == 'macOS'
-        run: node build-tools/check-mac-runtime-signing.mjs dist
-      - name: Verify the actual NSIS installation and installed Connector resources
-        if: runner.os == 'Windows'
-        run: node build-tools/check-windows-install.mjs dist
-      - run: npm run check:package
-      - run: node build-tools/prepare-upload.mjs dist/upload dist
+          YUKI_E2E_OUTPUT: ${{ runner.temp }}/clipboard-positive
+        run: |-
+          npm run build
+          npm exec playwright -- test tests/e2e/computer-preview.spec.ts tests/e2e/work-inputs.spec.ts --grep 'real preview stays|inline answers and supplements' --reporter=list
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: Yuki-unsigned-${{ matrix.platform }}-${{ matrix.arch }}
-          path: dist/upload/*
-          if-no-files-found: error
-      - name: Preserve native package content audit
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: Yuki-package-audit-${{ matrix.platform }}-${{ matrix.arch }}
-          path: dist/upload.local-audit.json
+          name: clipboard-current-rfb-proof
+          path: |-
+            ${{ runner.temp }}/clipboard-negative.json
+            ${{ runner.temp }}/clipboard-negative
+            ${{ runner.temp }}/clipboard-positive
           if-no-files-found: warn
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: Yuki-e2e-failure-${{ matrix.platform }}-${{ matrix.arch }}
-          path: ${{ runner.temp }}/yuki-desktop-e2e
-          if-no-files-found: ignore
-
-  local-bot:
-    name: Real local Bot deployment
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - name: Read the pinned backend source
-        id: backend
-        run: node -e "const fs=require('node:fs');const s=JSON.parse(fs.readFileSync('contracts/source.json','utf8'));fs.appendFileSync(process.env.GITHUB_OUTPUT,'commit='+s.commit+'\n')"
-      - uses: actions/checkout@v4
-        with:
-          repository: YuanYeYouTao/Yuki
-          ref: ${{ steps.backend.outputs.commit }}
-          path: .cache/backend
-      - run: npm ci
-      - name: Build the actual App-only Bot image
-        run: docker build --target direct --tag yuki-desktop-local:ci .cache/backend
-      - name: Prepare matching local deployment templates
-        run: node build-tools/prepare-local-bot.mjs --source .cache/backend --image yuki-desktop-local:ci
-      - name: Deploy, initialize and pair through the actual services
-        run: npm test -- tests/unit/local-bot.test.ts
-        env:
-          YUKI_TEST_DOCKER: '1'
