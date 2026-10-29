@@ -63,7 +63,10 @@ jobs:
       - if: runner.os == 'macOS'
         run: brew install ffmpeg
       - if: runner.os == 'Windows'
-        run: choco install ffmpeg --yes --no-progress
+        run: |
+          choco install ffmpeg --yes --no-progress
+          ffmpeg -version
+          ffprobe -version
       - name: Configure Electron sandbox for Ubuntu CI
         if: runner.os == 'Linux'
         shell: bash
