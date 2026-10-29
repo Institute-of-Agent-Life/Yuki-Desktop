@@ -393,6 +393,7 @@ function RemoteScreen({
     rfb = useRef<RFB>(null),
     holder = useRef(held)
   const [connected, setConnected] = useState(false),
+    [clipboardReady, setClipboardReady] = useState(false),
     [problem, setProblem] = useState(''),
     [fit, setFit] = useState(true),
     [dimensions, setDimensions] = useState({ width: 0, height: 0 })
@@ -405,6 +406,7 @@ function RemoteScreen({
       instance: RFB | undefined,
       retry: ReturnType<typeof setTimeout> | undefined
     setConnected(false)
+    setClipboardReady(false)
     void window.yuki.client
       .computerTicket(id)
       .then(unwrap)
@@ -425,9 +427,15 @@ function RemoteScreen({
             setDimensions({ width: image.width, height: image.height })
           }
         })
+        instance.addEventListener('capabilities', () => {
+          if (active && rfb.current === instance)
+            setClipboardReady(instance!.capabilities.clipboard === true)
+        })
         instance.addEventListener('disconnect', () => {
           if (active) {
             setConnected(false)
+            setClipboardReady(false)
+            if (rfb.current === instance) rfb.current = null
             setProblem('畫面連線已中斷，正在重新連線。')
             if (!preview) void window.yuki.client.keyboardCapture(false)
             retry = setTimeout(() => setAttempt((value) => value + 1), 1500)
@@ -525,11 +533,26 @@ function RemoteScreen({
           </Button>
           <IconButton
             label="貼上到角色的電腦"
-            disabled={!held || !connected}
+            disabled={!held || !connected || !clipboardReady}
             onClick={() =>
               void action(async () => {
+                const instance = rfb.current
+                if (
+                  !instance ||
+                  !holder.current ||
+                  instance.viewOnly ||
+                  instance.capabilities.clipboard !== true
+                )
+                  throw Error('畫面尚未準備好貼上文字。')
                 const text = unwrap(await window.yuki.client.paste())
-                if (holder.current) rfb.current?.clipboardPasteFrom(text)
+                if (
+                  rfb.current !== instance ||
+                  !holder.current ||
+                  instance.viewOnly ||
+                  instance.capabilities.clipboard !== true
+                )
+                  throw Error('畫面狀態或控制權已變更，文字未送出。')
+                instance.clipboardPasteFrom(text)
               })
             }
           >

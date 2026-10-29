@@ -1,0 +1,16 @@
+diff --git a/node_modules/@novnc/novnc/core/rfb.js b/node_modules/@novnc/novnc/core/rfb.js
+index 80011e4..99900ff 100644
+--- a/node_modules/@novnc/novnc/core/rfb.js
++++ b/node_modules/@novnc/novnc/core/rfb.js
+@@ -2388,6 +2388,11 @@ export default class RFB extends EventTargetMixin {
+                 ];
+                 RFB.messages.extendedClipboardCaps(this._sock, clientActions, {extendedClipboardFormatText: 0});
+ 
++                this._setCapability("clipboard", !!(
++                    this._clipboardServerCapabilitiesFormats[extendedClipboardFormatText] &&
++                    this._clipboardServerCapabilitiesActions[extendedClipboardActionNotify] &&
++                    this._clipboardServerCapabilitiesActions[extendedClipboardActionProvide]));
++
+             } else if (actions === extendedClipboardActionRequest) {
+                 if (this._viewOnly) {
+                     return true;

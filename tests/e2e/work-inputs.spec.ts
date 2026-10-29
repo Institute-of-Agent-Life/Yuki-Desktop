@@ -200,8 +200,13 @@ test('inline answers and supplements retain distinct multiline drafts, survive a
     await diskFault(app, box, false)
     await fetch(`${rig.base}/__test/lose-next-work-response/inputs`, { method: 'POST' })
     await detail(page).getByRole('button', { name: '送出回答', exact: true }).click()
+    const finished = await waitForWorkState(
+      page,
+      original.connection.characterId,
+      original.work.work_id,
+      'completed',
+    )
     await expect(detail(page).getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
-    const finished = await readWork(page, original.connection, original.work)
     expect(finished.work_id).toBe(original.work.work_id)
     expect(finished.generation).toBe(original.work.generation)
     expect(finished.budget.root_id).toBe(original.work.budget.root_id)
@@ -229,6 +234,9 @@ test('inline answers and supplements retain distinct multiline drafts, survive a
     expect(events.filter((event) => event.content === supplementText)).toHaveLength(0)
     success = true
   } finally {
+    const page = app.windows()[0]
+    if (!success && page)
+      await recordBusinessState(page, 'work-inline-business-state.json').catch(console.error)
     await app.close().catch(() => {})
     await rig.close(success)
   }

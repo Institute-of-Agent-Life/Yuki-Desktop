@@ -30,7 +30,7 @@
     "package": "npm run build && electron-builder --config build-tools/builder-config.mjs --publish never",
     "package:dir": "npm run build && electron-builder --config build-tools/builder-config.mjs --dir --publish never",
     "check:package": "node build-tools/check-package.mjs",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "patch-package --error-on-fail && electron-builder install-app-deps",
     "check:contract": "node build-tools/check-contract.mjs",
     "generate:contract": "openapi-typescript contracts/client-api.openapi.json -o src/shared/contract.gen.ts",
     "upgrade:soul": "node build-tools/run-soul-conversion.mjs"
@@ -84,6 +84,7 @@
     "eslint": "9.39.5",
     "js-yaml": "4.3.2",
     "openapi-typescript": "7.13.0",
+    "patch-package": "8.0.1",
     "prettier": "3.9.10",
     "typescript": "5.9.3",
     "typescript-eslint": "8.71.2",
