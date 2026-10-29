@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { writeFile, readFile, rm } from 'node:fs/promises'
+import { copyFile, writeFile, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import type { OutboxItem, OriginalRequest, Profile } from '../../src/shared/api'
@@ -152,30 +152,7 @@ test('device A uploads with a lost receipt; device B previews and saves verified
         .getByRole('img', { name: 'dropped.png', exact: true }),
     ).toBeVisible()
     const videoPath = join(rig.root, 'clip.webm')
-    const videoBytes = await page.evaluate(async () => {
-      const canvas = document.createElement('canvas')
-      canvas.width = canvas.height = 32
-      const context = canvas.getContext('2d')!
-      context.fillStyle = 'blue'
-      context.fillRect(0, 0, 32, 32)
-      const stream = canvas.captureStream(10)
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' })
-      const chunks: Blob[] = []
-      const recorded = new Promise<Blob>((resolve, reject) => {
-        recorder.ondataavailable = (event) => chunks.push(event.data)
-        recorder.onerror = () => reject(Error('Actual video fixture encoding failed'))
-        recorder.onstop = () => resolve(new Blob(chunks, { type: 'video/webm' }))
-        recorder.start()
-        // Generate the same 0.4-second real video without a host ffmpeg installation.
-        setTimeout(() => recorder.stop(), 400)
-      })
-      try {
-        return Array.from(new Uint8Array(await (await recorded).arrayBuffer()))
-      } finally {
-        stream.getTracks().forEach((track) => track.stop())
-      }
-    })
-    await writeFile(videoPath, Uint8Array.from(videoBytes))
+    await copyFile('tests/fixtures/media/clip.webm', videoPath)
     await app.evaluate(({ dialog }, path) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
     }, videoPath)
