@@ -4,8 +4,9 @@ Upstream source: https://github.com/novnc/noVNC/tree/v1.7.0
 The original source is distributed in the pinned @novnc/novnc package.
 Yuki Desktop bundles its library through Vite with the local source patch
 patches/@novnc+novnc+1.7.0.patch, which exposes the negotiated UTF-8 clipboard
-capability through the existing capabilities event. The patch is included in
-the Yuki Desktop source repository:
+capability through the existing capabilities event and accepts required raw
+channel members inherited through the prototype chain. The patch is included
+in the Yuki Desktop source repository:
 https://github.com/Institute-of-Agent-Life/Yuki-Desktop
 
 noVNC is primarily licensed under the Mozilla Public License 2.0.
