@@ -12,6 +12,13 @@ const previewTypes: Record<string, string> = {
   webm: 'video/webm',
   mov: 'video/quicktime',
   ogv: 'video/ogg',
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  aac: 'audio/aac',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  opus: 'audio/ogg',
+  flac: 'audio/flac',
   txt: 'text/plain',
   md: 'text/markdown',
   csv: 'text/csv',
@@ -30,9 +37,12 @@ export const formatBytes = (bytes: number) =>
     : bytes < 1024 * 1024
       ? `${(bytes / 1024).toFixed(1)} KB`
       : `${(bytes / 1024 / 1024).toFixed(1)} MB`
-export function previewMime(filename: string, declared?: string | null) {
+export function previewMime(filename: string, declared?: string | null, kind?: string) {
   return (
-    declared ??
+    (declared && declared !== 'application/octet-stream' ? declared : undefined) ??
+    (['record', 'audio'].includes(kind ?? '') && /\.webm$/i.test(filename)
+      ? 'audio/webm'
+      : undefined) ??
     previewTypes[filename.split('.').at(-1)?.toLowerCase() ?? ''] ??
     'application/octet-stream'
   )

@@ -38,6 +38,7 @@ import { ComputerTickets } from './computer-tickets'
 import type { LocalStore } from './store'
 import { Uploads } from './media/uploads'
 import { ContentCache } from './media/content'
+import { Previews } from './media/previews'
 import { previewMime } from '../shared/media'
 import type { components } from '../shared/contract.gen'
 
@@ -51,6 +52,10 @@ const artifactIdentity = (value: string) => {
     throw new ApiError('validation_error')
   return value.toLowerCase()
 }
+const mediaSourceKey = (source: ArtifactSource | AttachmentSource) =>
+  'artifactId' in source
+    ? `artifact/${source.artifactId.toLowerCase()}/${source.version}`
+    : `attachment/${source.conversationId.toLowerCase()}/${source.eventId}/${source.index}`
 
 export class Connections {
   diagnosticCounts() {
@@ -83,6 +88,7 @@ export class Connections {
   private readonly linkCodeStores = new Map<Outbox, LinkCodes>()
   private readonly soulReads = new Set<Promise<unknown>>()
   readonly computerTickets = new ComputerTickets()
+  readonly previews = new Previews((id, previewId) => this.emit(id, 'media-expired', { previewId }))
   private closed = false
   private readonly frozen = new Set<string>()
   private readonly epochs = new Map<string, number>()
@@ -125,6 +131,7 @@ export class Connections {
     return work
   }
   private freeze(id: string) {
+    this.previews.close(id)
     this.epochs.set(id, (this.epochs.get(id) ?? 0) + 1)
     this.frozen.add(id)
     this.streams.get(id)?.abort()
@@ -671,8 +678,11 @@ export class Connections {
       if (
         error instanceof ApiError &&
         ['not_found', 'unauthenticated', 'outbox_owner_mismatch'].includes(error.code)
-      )
-        await cache.remove(source.version)
+      ) {
+        await this.previews.closeSource(id, mediaSourceKey(source))
+        if (!this.previews.inUse(join(cache.root, source.version + '.blob')))
+          await cache.remove(source.version)
+      }
       throw error
     }
   }
@@ -687,7 +697,8 @@ export class Connections {
       ))
     return {
       saved,
-      bytes: /^(image\/|text\/|application\/(json|pdf)$)/.test(item.mime)
+      preview: await this.preview(id, source, item),
+      bytes: /^(text\/|application\/json$)/.test(item.mime)
         ? await item.cache.bytes(item.path, item.sha256)
         : null,
       sha256: item.sha256,
@@ -743,7 +754,10 @@ export class Connections {
       cache = this.contentCache(id),
       previous = this.box(id).cached<string>(key)
     if (!attachment) {
-      if (previous) await cache.remove(previous)
+      if (previous) {
+        await this.previews.closeSource(id, mediaSourceKey(source))
+        if (!this.previews.inUse(join(cache.root, previous + '.blob'))) await cache.remove(previous)
+      }
       throw new ApiError('not_found')
     }
     if (attachment.artifact_id) throw new ApiError('validation_error')
@@ -758,28 +772,56 @@ export class Connections {
         previous &&
         error instanceof ApiError &&
         ['not_found', 'media_unavailable'].includes(error.code)
-      )
-        await cache.remove(previous)
+      ) {
+        await this.previews.closeSource(id, mediaSourceKey(source))
+        if (!this.previews.inUse(join(cache.root, previous + '.blob'))) await cache.remove(previous)
+      }
       throw error
     }
     this.box(id).cache(key, downloaded.sha256)
     return {
       ...downloaded,
       cache,
-      filename: attachment.filename ?? 'attachment',
-      mime: previewMime(attachment.filename ?? '', attachment.mime_type),
+      filename: attachment.filename ?? downloaded.filename ?? 'attachment',
+      mime: previewMime(
+        attachment.filename ?? downloaded.filename ?? '',
+        attachment.mime_type && attachment.mime_type !== 'application/octet-stream'
+          ? attachment.mime_type
+          : downloaded.mime,
+        attachment.kind,
+      ),
     }
   }
   async content(id: string, source: AttachmentSource) {
     const item = await this.attachment(id, source)
     return {
-      bytes: /^(image\/|video\/|text\/|application\/(json|pdf)$)/.test(item.mime)
+      preview: await this.preview(id, source, item),
+      bytes: /^(text\/|application\/json$)/.test(item.mime)
         ? await item.cache.bytes(item.path, item.sha256)
         : null,
       sha256: item.sha256,
       mime: item.mime,
       filename: item.filename,
     }
+  }
+  private async preview(
+    id: string,
+    source: ArtifactSource | AttachmentSource,
+    item: { path: string; mime: string; expiresAt?: number },
+  ) {
+    if (!/^(image\/|video\/|audio\/|application\/pdf$)/.test(item.mime)) return undefined
+    const result = await this.previews.open(
+      id,
+      mediaSourceKey(source),
+      item.path,
+      item.mime,
+      item.expiresAt,
+    )
+    if (this.closed || this.frozen.has(id)) {
+      await this.previews.release(id, result.id)
+      throw new ApiError('logout_pending')
+    }
+    return result
   }
   async meta(server: string) {
     const meta = await new ApiClient(server, undefined, undefined, this.version).get<Meta>('meta')
@@ -1113,6 +1155,7 @@ export class Connections {
         if (controller.signal.aborted) break
         const code = error instanceof ApiError ? error.code : 'transport_unknown'
         if (code === 'unauthenticated') {
+          await this.previews.close(id)
           this.box(id).clearCache()
           await this.contentCache(id).clear()
         }
@@ -1162,6 +1205,7 @@ export class Connections {
     // Reads already in flight settle before their database is closed.
     return Promise.allSettled([
       ...[...this.activities.values()].flatMap((active) => [...active]),
+      this.previews.close(),
       ...this.logouts.values(),
       ...[...this.finishes.values()].map((value) => value.work),
       ...this.avatarReads.values(),

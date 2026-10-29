@@ -6,6 +6,7 @@ declare module '@novnc/novnc' {
     resizeSession: boolean
     clipViewport: boolean
     focusOnClick: boolean
+    readonly capabilities: { power: boolean; clipboard?: boolean }
     focus(): void
     blur(): void
     disconnect(): void

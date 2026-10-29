@@ -1,0 +1,121 @@
+{
+  "accepted": {
+    "plugin_id": "desktop-notification-fixture",
+    "notification_id": "d2d03fef96182d85ad06fe37fa00210ab3f0385f74f01f1d65a4b74777f34132",
+    "source_event_id": 4,
+    "media_handle_id": "4a8cef7c0fc348fbaddb5a2ff5020155",
+    "sha256": "ad6487365ff857aec6ef46c6b6657296df4f3863b948447f83079248562d2264",
+    "filename": "approved-notification.gif",
+    "installation": {
+      "plugin_api": "9.0",
+      "status": "running",
+      "enabled": true,
+      "approved_at": "2026-10-28T16:33:29.957854+00:00",
+      "manifest_hash": "1497dbfba83353278a948425cd1bfd243601e4e28a92620c015473c6ddd4943d",
+      "approved_permissions": []
+    }
+  },
+  "delivered": {
+    "outbox_id": 1,
+    "status": "sent",
+    "event_id": 5,
+    "source_event_id": 4,
+    "platform_message_id": null,
+    "prepared": {
+      "message": {
+        "media": true,
+        "mentions": [],
+        "reply_reference": null,
+        "text": ""
+      },
+      "route": {
+        "binding_id": "0db7f2a5-5216-40fd-b8ed-6c76d7177946",
+        "conversation_id": "88a6820e-1106-4183-bcd6-d81496ffc9b5",
+        "local_ledger": true,
+        "platform": "app",
+        "presence_id": "70f9bb10-2024-4c51-a3e6-f835b74a6e7a",
+        "provider_id": "app"
+      }
+    },
+    "event": {
+      "id": 5,
+      "caused_by_event_id": 4,
+      "native_message_id": null,
+      "origin_key": null,
+      "conversation_id": "88a6820e-1106-4183-bcd6-d81496ffc9b5"
+    },
+    "references": [
+      {
+        "artifact_id": "a47b584e-0b7b-5a1d-8c92-5b312f92be5a",
+        "version": "ad6487365ff857aec6ef46c6b6657296df4f3863b948447f83079248562d2264"
+      }
+    ]
+  },
+  "client": {
+    "event": {
+      "sender_display_name": "Agent",
+      "id": 5,
+      "event_id": 5,
+      "conversation_id": "88a6820e-1106-4183-bcd6-d81496ffc9b5",
+      "event_kind": "message",
+      "origin": "plugin_background",
+      "direction": "outbound",
+      "text": "",
+      "content": "",
+      "binding_id": "0db7f2a5-5216-40fd-b8ed-6c76d7177946",
+      "platform": "app",
+      "author_kind": "yuki",
+      "author_person_id": null,
+      "attachments": [
+        {
+          "attachment_index": 0,
+          "segment_index": 0,
+          "kind": "image",
+          "artifact_id": "a47b584e-0b7b-5a1d-8c92-5b312f92be5a",
+          "version": "ad6487365ff857aec6ef46c6b6657296df4f3863b948447f83079248562d2264",
+          "filename": "approved-notification.gif",
+          "mime_type": "image/gif",
+          "size": 1362
+        }
+      ],
+      "asr": [],
+      "observed_at": "2026-10-29T00:33:31.169589+08:00",
+      "occurred_at": "2026-10-29T00:33:31.169589+08:00",
+      "created_at": "2026-10-29T00:33:31.169589+08:00",
+      "work_ids": [],
+      "source_plugin_id": null,
+      "external_source": null,
+      "external_event_type": null,
+      "source": "plugin_background",
+      "person_id": null,
+      "presence_id": "70f9bb10-2024-4c51-a3e6-f835b74a6e7a",
+      "author_presence_id": "70f9bb10-2024-4c51-a3e6-f835b74a6e7a",
+      "author_account_id": null,
+      "ingress_presence_id": "70f9bb10-2024-4c51-a3e6-f835b74a6e7a",
+      "sender_nickname": "",
+      "sender_group_card": "",
+      "scope": "private",
+      "mentions": [],
+      "reply_to_event_id": null
+    },
+    "files": [
+      {
+        "ref": {
+          "event_id": 5,
+          "part_index": 0
+        },
+        "artifact_id": "a47b584e-0b7b-5a1d-8c92-5b312f92be5a",
+        "version": "ad6487365ff857aec6ef46c6b6657296df4f3863b948447f83079248562d2264",
+        "name": "approved-notification.gif",
+        "size": 1362,
+        "media_type": "image/gif",
+        "conversation_id": "88a6820e-1106-4183-bcd6-d81496ffc9b5",
+        "work_id": null,
+        "published_path": null,
+        "created_at": "2026-10-28T16:33:31.169589+00:00"
+      }
+    ]
+  },
+  "savedSha256": "ad6487365ff857aec6ef46c6b6657296df4f3863b948447f83079248562d2264",
+  "originalBytes": 1362
+}

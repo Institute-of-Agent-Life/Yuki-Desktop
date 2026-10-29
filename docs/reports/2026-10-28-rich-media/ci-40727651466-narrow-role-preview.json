@@ -1,0 +1,160 @@
+{
+  "ci": {
+    "runId": 40727651466,
+    "jobId": 122955562162,
+    "platform": "macOS arm64",
+    "screenshotCssWidth": 1024,
+    "screenshotCssHeight": 684,
+    "failedAction": "切換 Yuki click after pairing a second role",
+    "observedSidebar": "hidden",
+    "trace": "direct switch click without sidebar helper",
+    "finalDomSnapshotAvailable": false
+  },
+  "validation": {
+    "desktopBase": "422eb5f43bb68d9d78a849256a8ed5a860e22f2b",
+    "backend": "27c71ee2822bbc91a32124bc6612180bdab5b177",
+    "platform": "Windows x64, real Electron",
+    "command": "npm exec playwright test -- tests/e2e/rich-media.spec.ts --grep 'plays and seeks both actual media sources'",
+    "result": "1 passed (1.5m)",
+    "typecheck": "passed",
+    "lint": "passed",
+    "format": "passed",
+    "nativeMacRerun": false,
+    "productSourceChanged": false,
+    "emulationAdded": false,
+    "dpiRounding": "Record requested and actual native dimensions; no exact-equality or tolerance gate."
+  },
+  "lifecycle": {
+    "requestedNarrow": {
+      "width": 1024,
+      "height": 684
+    },
+    "originalViewport": {
+      "width": 1439,
+      "height": 899
+    },
+    "narrowViewport": {
+      "width": 1024,
+      "height": 686
+    },
+    "narrowMethod": "native-window",
+    "oldUrl": "app://desktop/__media/c8fb726a-359b-4c39-b188-41086170a3ea",
+    "oldUrlStatus": 404,
+    "restoredUrl": "app://desktop/__media/493466ba-c86f-42f8-a551-e7a92e5c730a",
+    "restoredUrlStatus": 200,
+    "restoredViewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "restoreMethod": "native-window"
+  },
+  "narrowMeasurement": {
+    "requested": {
+      "width": 1024,
+      "height": 684
+    },
+    "actual": {
+      "width": 1024,
+      "height": 686,
+      "dpr": 1.25
+    },
+    "native": {
+      "platform": "win32",
+      "contentBounds": {
+        "x": 304,
+        "y": 102,
+        "width": 1024,
+        "height": 685
+      },
+      "outerBounds": {
+        "x": 304,
+        "y": 102,
+        "width": 1026,
+        "height": 686
+      },
+      "contentSize": [
+        1024,
+        685
+      ],
+      "minimumSize": [
+        0,
+        0
+      ],
+      "display": {
+        "scaleFactor": 1.25,
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "width": 2048,
+          "height": 1152
+        },
+        "workArea": {
+          "x": 0,
+          "y": 0,
+          "width": 2048,
+          "height": 1104
+        }
+      }
+    },
+    "viewportMethod": "native-window",
+    "emulationScale": 1
+  },
+  "restoreMeasurement": {
+    "requested": {
+      "width": 1439,
+      "height": 899
+    },
+    "actual": {
+      "width": 1440,
+      "height": 900,
+      "dpr": 1.25
+    },
+    "native": {
+      "platform": "win32",
+      "contentBounds": {
+        "x": 304,
+        "y": 102,
+        "width": 1440,
+        "height": 900
+      },
+      "outerBounds": {
+        "x": 304,
+        "y": 102,
+        "width": 1441,
+        "height": 900
+      },
+      "contentSize": [
+        1440,
+        900
+      ],
+      "minimumSize": [
+        0,
+        0
+      ],
+      "display": {
+        "scaleFactor": 1.25,
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "width": 2048,
+          "height": 1152
+        },
+        "workArea": {
+          "x": 0,
+          "y": 0,
+          "width": 2048,
+          "height": 1104
+        }
+      }
+    },
+    "viewportMethod": "native-window",
+    "emulationScale": 1
+  },
+  "history": {
+    "acceptedEvents": 500,
+    "mountedEvents": 500,
+    "seedElapsedMs": 12411.33660000001,
+    "elapsedMs": 3249.569300000003
+  },
+  "localEvidenceRoot": "D:/Code/Reports/Yuki/desktop-rich-media-review-20261028/mac-narrow-role-recheck-20261029-native/rich-media-plays-and-seeks-e9254-nd-keeps-binary-IPC-bounded"
+}

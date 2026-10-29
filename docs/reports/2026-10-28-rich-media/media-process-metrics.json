@@ -1,0 +1,204 @@
+{
+  "bytes": 134217728,
+  "metadataBytes": 269,
+  "before": [
+    {
+      "type": "Browser",
+      "pid": 203308,
+      "cpu": {
+        "cumulativeCPUUsage": 4.193321,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      },
+      "memory": {
+        "workingSetSize": 133708,
+        "peakWorkingSetSize": 138856,
+        "privateBytes": 96716
+      }
+    },
+    {
+      "type": "GPU",
+      "pid": 294700,
+      "cpu": {
+        "cumulativeCPUUsage": 11.752894,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      },
+      "memory": {
+        "workingSetSize": 203528,
+        "peakWorkingSetSize": 218980,
+        "privateBytes": 286024
+      }
+    },
+    {
+      "type": "Utility",
+      "pid": 262428,
+      "cpu": {
+        "cumulativeCPUUsage": 0.092252,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      },
+      "memory": {
+        "workingSetSize": 50856,
+        "peakWorkingSetSize": 51544,
+        "privateBytes": 12648
+      }
+    },
+    {
+      "type": "Tab",
+      "pid": 293696,
+      "cpu": {
+        "cumulativeCPUUsage": 13.512016,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      },
+      "memory": {
+        "workingSetSize": 315976,
+        "peakWorkingSetSize": 412352,
+        "privateBytes": 222284
+      }
+    },
+    {
+      "type": "Utility",
+      "pid": 211996,
+      "cpu": {
+        "cumulativeCPUUsage": 0.044977,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      },
+      "memory": {
+        "workingSetSize": 95736,
+        "peakWorkingSetSize": 95736,
+        "privateBytes": 10712
+      }
+    },
+    {
+      "type": "Tab",
+      "pid": 295208,
+      "cpu": {
+        "cumulativeCPUUsage": 0.247792,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      },
+      "memory": {
+        "workingSetSize": 127720,
+        "peakWorkingSetSize": 127720,
+        "privateBytes": 44808
+      }
+    },
+    {
+      "type": "Tab",
+      "pid": 14972,
+      "cpu": {
+        "cumulativeCPUUsage": 0.189761,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      },
+      "memory": {
+        "workingSetSize": 136520,
+        "peakWorkingSetSize": 138368,
+        "privateBytes": 42756
+      }
+    }
+  ],
+  "after": [
+    {
+      "type": "Browser",
+      "pid": 203308,
+      "cpu": {
+        "cumulativeCPUUsage": 5.877411,
+        "percentCPUUsage": 2.9750781622913802,
+        "idleWakeupsPerSecond": 0
+      },
+      "memory": {
+        "workingSetSize": 169176,
+        "peakWorkingSetSize": 200188,
+        "privateBytes": 150368
+      }
+    },
+    {
+      "type": "GPU",
+      "pid": 294700,
+      "cpu": {
+        "cumulativeCPUUsage": 12.206465,
+        "percentCPUUsage": 0.801381163440972,
+        "idleWakeupsPerSecond": 0
+      },
+      "memory": {
+        "workingSetSize": 196700,
+        "peakWorkingSetSize": 218980,
+        "privateBytes": 264688
+      }
+    },
+    {
+      "type": "Utility",
+      "pid": 262428,
+      "cpu": {
+        "cumulativeCPUUsage": 0.093809,
+        "percentCPUUsage": 0.0027509436602498006,
+        "idleWakeupsPerSecond": 0
+      },
+      "memory": {
+        "workingSetSize": 50772,
+        "peakWorkingSetSize": 51544,
+        "privateBytes": 12504
+      }
+    },
+    {
+      "type": "Tab",
+      "pid": 293696,
+      "cpu": {
+        "cumulativeCPUUsage": 13.954767,
+        "percentCPUUsage": 0.7822688023248746,
+        "idleWakeupsPerSecond": 0
+      },
+      "memory": {
+        "workingSetSize": 303432,
+        "peakWorkingSetSize": 412352,
+        "privateBytes": 208624
+      }
+    },
+    {
+      "type": "Utility",
+      "pid": 211996,
+      "cpu": {
+        "cumulativeCPUUsage": 0.044977,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      },
+      "memory": {
+        "workingSetSize": 95736,
+        "peakWorkingSetSize": 95736,
+        "privateBytes": 10712
+      }
+    },
+    {
+      "type": "Tab",
+      "pid": 295208,
+      "cpu": {
+        "cumulativeCPUUsage": 0.256192,
+        "percentCPUUsage": 0.0148415557908217,
+        "idleWakeupsPerSecond": 0
+      },
+      "memory": {
+        "workingSetSize": 127792,
+        "peakWorkingSetSize": 127792,
+        "privateBytes": 44884
+      }
+    },
+    {
+      "type": "Tab",
+      "pid": 14972,
+      "cpu": {
+        "cumulativeCPUUsage": 0.196247,
+        "percentCPUUsage": 0.011459740549777785,
+        "idleWakeupsPerSecond": 0
+      },
+      "memory": {
+        "workingSetSize": 127772,
+        "peakWorkingSetSize": 138368,
+        "privateBytes": 37152
+      }
+    }
+  ]
+}

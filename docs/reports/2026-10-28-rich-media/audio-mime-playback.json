@@ -1,0 +1,34 @@
+[
+  {
+    "filename": "voice.mp3",
+    "source": "event",
+    "eventId": 4,
+    "mime": "audio/mpeg",
+    "currentTime": 2.843947,
+    "duration": 4
+  },
+  {
+    "filename": "voice.mp3",
+    "source": "artifact",
+    "eventId": 5,
+    "mime": "audio/mpeg",
+    "currentTime": 2.839737,
+    "duration": 4
+  },
+  {
+    "filename": "voice.ogg",
+    "source": "event",
+    "eventId": 7,
+    "mime": "audio/ogg",
+    "currentTime": 2.829398,
+    "duration": 4
+  },
+  {
+    "filename": "voice.ogg",
+    "source": "artifact",
+    "eventId": 8,
+    "mime": "audio/ogg",
+    "currentTime": 2.830198,
+    "duration": 4
+  }
+]

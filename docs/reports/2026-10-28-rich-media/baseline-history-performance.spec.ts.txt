@@ -1,0 +1,32 @@
+import { expect, test } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
+import { navigate } from '../fixtures/navigation'
+import { yukiFixture, pairUI } from '../fixtures/backend'
+
+test('measures the original renderer with 500 real accepted history events', async () => {
+  test.setTimeout(240000)
+  const rig = await yukiFixture()
+  const seeded = await fetch(`${rig.base}/__test/history?count=500`, { method: 'POST' })
+  expect(seeded.status).toBe(200)
+  const app = await rig.launch('history-baseline')
+  let success = false
+  try {
+    const page = await app.firstWindow()
+    await pairUI(page, rig.base, await rig.code())
+    await navigate(page, '對話')
+    const log = page.getByRole('log', { name: '對話訊息' }).filter({ visible: true })
+    await expect(log.locator('article[data-event-id]').first()).toBeVisible()
+    const before = await app.evaluate(({ app }) => app.getAppMetrics())
+    const start = performance.now()
+    await log.hover()
+    while (!(await log.getByText('歷史訊息 1', { exact: true }).count())) {
+      const first = () => log.locator('article[data-event-id]').first().getAttribute('data-event-id').then(Number)
+      const previous = await first()
+      await page.mouse.wheel(0, -20000)
+      await expect.poll(first).toBeLessThan(previous)
+    }
+    const after = await app.evaluate(({ app }) => app.getAppMetrics())
+    await writeFile(test.info().outputPath('baseline-history-process-metrics.json'), JSON.stringify({ baselineCommit: '1d42784a17bfc09f509e9f50f0f5c0be877b2d7d', mountedEvents: await log.locator('article[data-event-id]').count(), elapsedMs: performance.now() - start, before, after }, null, 2))
+    success = true
+  } finally { await app.close(); await rig.close(success) }
+})

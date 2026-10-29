@@ -267,6 +267,7 @@ export async function yukiFixture(
     prompts?: boolean | 'readonly'
     native?: boolean
     maxInputCharacters?: number
+    richMedia?: boolean
   } = {},
 ) {
   const backend = process.env.YUKI_BACKEND_TEST_ROOT,
@@ -291,8 +292,9 @@ export async function yukiFixture(
       spawn(
         python!,
         [
-          '-m',
-          'tests.support.desktop_reference_server',
+          ...(options.richMedia
+            ? [join(process.cwd(), 'tests/fixtures/media_reference_server.py')]
+            : ['-m', 'tests.support.desktop_reference_server']),
           '--root',
           root,
           '--state-file',
@@ -402,7 +404,7 @@ export async function pairUI(
   base: string,
   code: string,
   label?: string,
-  timeout = 5000,
+  timeout?: number,
 ) {
   type ProbeWindow = Window & {
     __yukiPairProbe?: { online: Record<string, boolean>; dispose(): void }

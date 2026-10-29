@@ -189,7 +189,6 @@ test('rejects the original stale cancellation after another device completes the
     await pairUI(page, rig.base, await rig.code())
     const connection = await currentConnection(page)
     const name = connection.name
-    await navigate(page, '對話')
     await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
     await page
       .getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true })

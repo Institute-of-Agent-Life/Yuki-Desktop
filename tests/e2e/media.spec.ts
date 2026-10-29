@@ -117,14 +117,24 @@ test('device A uploads with a lost receipt; device B previews and saves verified
         'base64',
       ),
     )
-    const drag = await page.context().newCDPSession(page)
-    for (const type of ['dragEnter', 'dragOver', 'drop'] as const)
-      await drag.send('Input.dispatchDragEvent', {
-        type,
-        x: 600,
-        y: 300,
+    await page.bringToFront()
+    const composer = page.getByRole('textbox', {
+      name: `和 ${profile.display_name} 說點什麼`,
+      exact: true,
+    })
+    await expect(composer).toBeVisible()
+    const bounds = await composer.boundingBox()
+    expect(bounds).not.toBeNull()
+    const drag = await page.context().newCDPSession(page),
+      target = {
+        x: bounds!.x + bounds!.width / 2,
+        y: bounds!.y + bounds!.height / 2,
         data: { items: [], files: [imagePath], dragOperationsMask: 1 },
-      })
+      }
+    for (const type of ['dragEnter', 'dragOver'] as const)
+      await drag.send('Input.dispatchDragEvent', { type, ...target })
+    await expect(page.getByText('放開以附加', { exact: true })).toBeVisible()
+    await drag.send('Input.dispatchDragEvent', { type: 'drop', ...target })
     await expect(page.getByLabel('待送出附件')).toContainText('dropped.png')
     await expect(page.getByLabel('待送出附件')).toContainText('可送出')
     const image = await page.evaluate(async (id) => {

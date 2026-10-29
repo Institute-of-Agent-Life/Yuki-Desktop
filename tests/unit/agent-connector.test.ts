@@ -15,7 +15,7 @@ import { delimiter, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, expect, it, onTestFailed, vi } from 'vitest'
 import { AgentConnector, runConnector } from '../../src/main/agent-connector'
 import { ConnectorInstallations } from '../../src/main/connector-installation'
 import { ApiError } from '../../src/main/api/client'
@@ -373,6 +373,19 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
 it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
   'actual standalone CLI follows the original instance through a directory-alias upgrade and preserves its receipts',
   async () => {
+    const started = performance.now()
+    const phases: {
+      phase: string
+      startedMs: number
+      elapsedMs?: number
+      code?: number | null
+    }[] = []
+    onTestFailed(() => {
+      console.error('Alias upgrade CLI phases', {
+        elapsedMs: performance.now() - started,
+        phases,
+      })
+    })
     const manifest = JSON.parse(await readFile(join(actualBundle, 'manifest.json'), 'utf8'))
     const root = await realpath(await mkdtemp(join(tmpdir(), 'connector-cli-upgrade-')))
     temporary.push(root)
@@ -397,10 +410,24 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
     const launched: { executable: string; args: readonly string[] }[] = []
     const launch: NonNullable<Parameters<typeof runConnector>[3]> = (executable, args, options) => {
       launched.push({ executable, args })
-      return spawn(executable, args, {
+      const phase: (typeof phases)[number] = {
+        phase: args.includes('-c')
+          ? 'journal'
+          : args
+              .filter((arg) => ['discover', 'status', 'instance', 'add', 'configure'].includes(arg))
+              .join(' '),
+        startedMs: performance.now() - started,
+      }
+      phases.push(phase)
+      const child = spawn(executable, args, {
         ...options,
         env: { ...options.env, PATH: bin + delimiter + parentPath },
       })
+      child.once('close', (code) => {
+        phase.elapsedMs = performance.now() - started - phase.startedMs
+        phase.code = code
+      })
+      return child
     }
     const execute: typeof runConnector = (selected, args, input) =>
       runConnector(selected, args, input, launch)

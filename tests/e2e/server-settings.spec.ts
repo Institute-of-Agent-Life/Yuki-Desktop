@@ -5,6 +5,7 @@ import { ledgerEvents, pairUI, waitForMainEnded, yukiFixture } from '../fixtures
 import { forwardProxy } from '../fixtures/forward-proxy'
 import type { Connection, Me, EventsPage, ProactiveRoute } from '../../src/shared/api'
 async function settings(page: Page) {
+  await page.bringToFront()
   await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
   await expect(
@@ -196,6 +197,7 @@ test('new server address proves real identity before bearer and resumes the orig
   }
 })
 async function settingsWithoutWaiting(page: Page) {
+  await page.bringToFront()
   await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
 }

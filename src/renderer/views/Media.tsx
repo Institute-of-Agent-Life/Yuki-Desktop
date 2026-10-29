@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
 import { File, Mic, Image as ImageIcon, Download, X } from 'lucide-react'
 import type {
   AttachmentSource,
@@ -12,31 +11,9 @@ import { Button, IconButton, Banner } from '../components/Controls'
 import { unwrap, problemText } from '../queries/client'
 import styles from './Media.module.css'
 import { formatBytes as size } from '../../shared/media'
+import { useMediaContent } from './media-content'
 
 type Attachment = PublicEvent['attachments'][number]
-function useBlob(content?: CachedContent) {
-  const [url, setUrl] = useState<string>()
-  useEffect(() => {
-    if (!content?.bytes) {
-      setUrl(undefined)
-      return
-    }
-    const url = URL.createObjectURL(
-      new Blob([Uint8Array.from(content.bytes).buffer], { type: content.mime }),
-    )
-    setUrl(url)
-    return () => URL.revokeObjectURL(url)
-  }, [content])
-  return url
-}
-function useContent(id: string, source: AttachmentSource, enabled: boolean) {
-  return useQuery({
-    queryKey: [id, 'content', source.conversationId, source.eventId, source.index],
-    queryFn: () => window.yuki.client.content(id, source).then(unwrap),
-    enabled,
-    retry: false,
-  })
-}
 export function MessageAttachment({
   id,
   event,
@@ -57,12 +34,26 @@ export function MessageAttachment({
     },
     voice = ['audio', 'record'].includes(attachment.kind),
     image = attachment.kind === 'image'
-  const content = useContent(id, source, image && !attachment.artifact_id),
-    url = useBlob(content.error ? undefined : content.data)
+  const element = useRef<HTMLButtonElement>(null),
+    [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => setVisible(!!entry?.isIntersecting), {
+      rootMargin: '120px',
+    })
+    observer.observe(element.current!)
+    return () => observer.disconnect()
+  }, [])
+  const resource =
+    attachment.artifact_id && attachment.version
+      ? { artifactId: attachment.artifact_id, version: attachment.version }
+      : source
+  const content = useMediaContent(id, resource, image && visible),
+    url = content.data?.preview?.url
   const [menuError, setMenuError] = useState('')
   const status = content.error?.message
   return (
     <button
+      ref={element}
       className={`${styles.attachment} ${image ? styles.image : ''}`}
       disabled={attachment.artifact_id ? !attachment.version || !artifact : false}
       onClick={() =>
@@ -76,17 +67,22 @@ export function MessageAttachment({
         void window.yuki.client
           .contextMenu({
             text: attachment.filename ?? '附件',
-            save: !attachment.artifact_id,
+            save: true,
           })
           .then(unwrap)
           .then((action) => {
-            if (action === 'save') return window.yuki.client.saveContent(id, source).then(unwrap)
+            if (action === 'save')
+              return (
+                'artifactId' in resource
+                  ? window.yuki.client.saveArtifact(id, resource)
+                  : window.yuki.client.saveContent(id, resource)
+              ).then(unwrap)
           })
           .catch((error) => setMenuError(error instanceof Error ? error.message : '操作未完成。'))
       }}
     >
       {image && url ? (
-        <img src={url} alt={attachment.filename ?? '圖片附件'} />
+        <img src={url} loading="lazy" alt={attachment.filename ?? '圖片附件'} />
       ) : (
         <div className={styles.file}>
           <span>
@@ -180,12 +176,9 @@ export function AttachmentPreview({
   source: AttachmentSource
   close(): void
 }) {
-  const content = useContent(id, source, true),
+  const content = useMediaContent(id, source),
     data = content.error ? undefined : content.data,
-    url = useBlob(data),
-    [problem, setProblem] = useState(''),
-    [decodeError, setDecodeError] = useState(false)
-  useEffect(() => setDecodeError(false), [url])
+    [problem, setProblem] = useState('')
   return (
     <div className={styles.preview}>
       <header>
@@ -198,12 +191,8 @@ export function AttachmentPreview({
       {content.isPending && <p role="status">正在讀取附件…</p>}
       {data && (
         <>
-          {data.mime.startsWith('image/') && url ? (
-            <img src={url} alt={data.filename} onError={() => setDecodeError(true)} />
-          ) : data.mime.startsWith('video/') && url ? (
-            <video src={url} controls onError={() => setDecodeError(true)} />
-          ) : data.mime.startsWith('audio/') && url ? (
-            <audio src={url} controls onError={() => setDecodeError(true)} />
+          {data.preview ? (
+            <MediaBody content={data} />
           ) : data.bytes &&
             (data.mime.startsWith('text/') ||
               /\.(txt|md|json|csv|py|js|ts|yaml|yml|log)$/i.test(data.filename)) ? (
@@ -211,7 +200,6 @@ export function AttachmentPreview({
           ) : (
             <p>此類型的附件可存成檔案後開啟。</p>
           )}
-          {decodeError && <p>這台電腦無法預覽此格式，可存成檔案後開啟。</p>}
           <Button
             onClick={() => {
               void window.yuki.client
@@ -226,6 +214,28 @@ export function AttachmentPreview({
         </>
       )}
       {problem && <Banner status="failed">{problem}</Banner>}
+    </div>
+  )
+}
+
+/** Both event attachments and versioned artifacts use the same player. */
+export function MediaBody({ content }: { content: CachedContent }) {
+  const [failed, setFailed] = useState(false),
+    url = content.preview?.url
+  useEffect(() => setFailed(false), [url])
+  const error = () => setFailed(true)
+  return (
+    <div className={styles.media}>
+      {content.mime.startsWith('image/') ? (
+        <img src={url} alt={content.filename} onError={error} />
+      ) : content.mime.startsWith('audio/') ? (
+        <audio src={url} controls preload="metadata" onError={error} />
+      ) : content.mime.startsWith('video/') ? (
+        <video src={url} controls preload="metadata" onError={error} />
+      ) : content.mime === 'application/pdf' ? (
+        <iframe src={url} title={`PDF 預覽：${content.filename}`} />
+      ) : null}
+      {failed && <p>這台電腦無法預覽此格式，可存成檔案後開啟。</p>}
     </div>
   )
 }

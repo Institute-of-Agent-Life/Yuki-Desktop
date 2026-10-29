@@ -14,6 +14,53 @@ interface Facts {
 const inspector = (page: Page) => page.getByRole('complementary', { name: '檢視器', exact: true })
 const inputEvents = (facts: Facts) =>
   facts.events.filter((event) => ['key', 'extended', 'pointer'].includes(event.kind))
+
+async function delayClipboardCaps(page: Page, base: string) {
+  // The actual fixture sends this ServerCutText CAPS packet after ServerInit.
+  const caps = Buffer.from('03000000fffffff81f00000100000000', 'hex')
+  const display = new URL(`${base}/client/v1/computer/display`)
+  let captured = false,
+    release: (() => void) | undefined,
+    received!: () => void
+  const pending = new Promise<void>((resolve) => (received = resolve))
+  await page.routeWebSocket(
+    (url) => url.host === display.host && url.pathname === display.pathname,
+    (route) => {
+      const server = route.connectToServer()
+      if (captured) return
+      captured = true
+      let bytes: Buffer = Buffer.alloc(0),
+        holding = false,
+        released = false
+      release = () => {
+        released = true
+        if (bytes.length) route.send(bytes)
+        bytes = Buffer.alloc(0)
+      }
+      server.onMessage((message) => {
+        if (released) return route.send(message)
+        bytes = Buffer.concat([bytes, Buffer.from(message)])
+        if (holding) return
+        const index = bytes.indexOf(caps)
+        if (index >= 0) {
+          if (index) route.send(bytes.subarray(0, index))
+          bytes = bytes.subarray(index)
+          holding = true
+          received()
+          return
+        }
+        // Forward ServerInit immediately, retaining only a split CAPS prefix.
+        let suffix = Math.min(caps.length - 1, bytes.length)
+        while (suffix && !bytes.subarray(-suffix).equals(caps.subarray(0, suffix))) suffix--
+        const boundary = bytes.length - suffix
+        if (boundary) route.send(bytes.subarray(0, boundary))
+        bytes = bytes.subarray(boundary)
+      })
+    },
+  )
+  return { pending, release: () => release?.() }
+}
+
 async function preview(page: Page) {
   await page.keyboard.press('ControlOrMeta+1')
   if (!(await inspector(page).count()))
@@ -117,8 +164,17 @@ test(
         .getByRole('button', { name: '交回', exact: true })
         .click()
       await expect.poll(async () => (await facts()).control.holder).toBe('none')
-      await inspector(pa).getByRole('button', { name: '接手', exact: true }).click()
-      await expect(pa.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
+      const clipboardCaps = await delayClipboardCaps(pa, rig.base)
+      try {
+        await inspector(pa).getByRole('button', { name: '接手', exact: true }).click()
+        await expect(pa.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
+        await clipboardCaps.pending
+        await expect(pa.getByRole('button', { name: '傳送 Ctrl Alt Delete' })).toBeEnabled()
+        expect(await pa.getByRole('button', { name: '貼上到角色的電腦' }).isDisabled()).toBe(true)
+        expect((await facts()).clipboard).toBe('')
+      } finally {
+        clipboardCaps.release()
+      }
       await expect(pa.getByRole('button', { name: '貼上到角色的電腦' })).toBeEnabled()
       const beforePaste = await facts()
       expect(
@@ -147,6 +203,15 @@ test(
       )
       success = true
     } finally {
+      if (!success)
+        await facts()
+          .then((value) =>
+            writeFile(
+              test.info().outputPath('preview-failed-facts.json'),
+              JSON.stringify(value, null, 2),
+            ),
+          )
+          .catch(console.error)
       for (const app of [a, b]) {
         await app
           .evaluate(({ dialog }) => {

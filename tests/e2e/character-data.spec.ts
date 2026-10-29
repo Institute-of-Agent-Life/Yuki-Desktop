@@ -93,6 +93,7 @@ test('real Electron edits original memory and arrangements, handles two-device c
     const errors: string[] = []
     pa.on('pageerror', (error) => errors.push(error.message))
     pb.on('pageerror', (error) => errors.push(error.message))
+    await pa.bringToFront()
     await pairUI(pa, rig.base, await rig.code())
     const connection = await currentConnection(pa)
     const original = await pa.evaluate(async (id) => {
@@ -145,13 +146,17 @@ test('real Electron edits original memory and arrangements, handles two-device c
       '這是記憶的原始依據。',
     )
     await navigate(pa, `關於 ${original.display_name}`)
+    await pb.bringToFront()
     await pairUI(pb, rig.base, await rig.code())
     await navigate(pb, `關於 ${original.display_name}`)
     for (const page of [pa, pb]) {
+      await page.bringToFront()
       await page.getByRole('button', { name: '已核對的記錄 52', exact: false }).click()
       await page.getByRole('button', { name: '更正', exact: true }).click()
     }
+    await pa.bringToFront()
     await pa.getByRole('textbox', { name: '更正後的記憶' }).fill(retainedDraft)
+    await pb.bringToFront()
     await pb.getByRole('textbox', { name: '更正後的記憶' }).fill('另一台已核對的修正')
     await pb.getByRole('button', { name: '送出更正' }).click()
     await memoryResult(pb, connection.characterId, {
@@ -159,6 +164,7 @@ test('real Electron edits original memory and arrangements, handles two-device c
       text: '另一台已核對的修正',
     })
     await expect(pb.getByRole('dialog')).not.toBeVisible()
+    await pa.bringToFront()
     await pa.getByRole('button', { name: '送出更正' }).click()
     await expect(pa.getByRole('dialog')).toContainText('這則記憶已變更')
     await expectContainedText(pa.getByRole('dialog').getByRole('status'))
@@ -189,6 +195,7 @@ test('real Electron edits original memory and arrangements, handles two-device c
     await fetch(`${rig.base}/__test/release-original-queries`, { method: 'POST' })
     a = await rig.launch('character-a')
     pa = await a.firstWindow()
+    await pa.bringToFront()
     pa.on('pageerror', (error) => errors.push(error.message))
     await navigate(pa, `關於 ${original.display_name}`)
     await expect(pa.getByRole('button', { name: /^回應遺失後保留同一次修正/ })).toBeVisible()
@@ -229,9 +236,11 @@ test('real Electron edits original memory and arrangements, handles two-device c
     await pa.getByRole('button', { name: '恢復', exact: true }).click()
     await expect(pa.getByRole('button', { name: '暫停', exact: true })).toBeVisible()
     await pa.getByRole('button', { name: '刪除安排', exact: true }).click()
+    await pb.bringToFront()
     await pb.getByRole('tab', { name: '安排', exact: true }).click()
     await pb.getByRole('button', { name: '暫停', exact: true }).click()
     await expect(pb.getByRole('button', { name: '恢復', exact: true })).toBeVisible()
+    await pa.bringToFront()
     await pa.getByRole('dialog').getByRole('button', { name: '刪除安排', exact: true }).click()
     await expect(pa.getByRole('dialog')).not.toBeVisible()
     await expect(pa.getByRole('button', { name: '恢復', exact: true })).toBeVisible()
@@ -256,10 +265,12 @@ test('real Electron edits original memory and arrangements, handles two-device c
     await expect(pa.getByText('目前沒有環境工具清單。')).toBeVisible()
     await pa.getByRole('button', { name: '編輯角色資料' }).click()
     await pa.getByRole('textbox', { name: '名稱', exact: true }).fill('新名稱')
+    await pb.bringToFront()
     await pb.getByRole('button', { name: '編輯角色資料' }).click()
     await pb.getByRole('textbox', { name: '名稱', exact: true }).fill('另一裝置的名稱')
     await pb.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(pb.getByRole('heading', { name: '另一裝置的名稱', exact: true })).toBeVisible()
+    await pa.bringToFront()
     await pa.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(pa.getByRole('textbox', { name: '名稱', exact: true })).toHaveValue('新名稱')
     await expect(
@@ -293,6 +304,7 @@ test('real Electron edits original memory and arrangements, handles two-device c
     }, connection.characterId)
     expect(denied).toBe('unauthenticated')
     await expect(pa.getByRole('button', { name: '編輯角色資料' })).toHaveCount(0)
+    await pb.bringToFront()
     await pb.getByRole('button', { name: '編輯角色資料' }).click()
     await pb.getByRole('textbox', { name: '簡介', exact: true }).fill('另一台有效裝置仍可編輯')
     await pb.getByRole('button', { name: '儲存', exact: true }).click()
