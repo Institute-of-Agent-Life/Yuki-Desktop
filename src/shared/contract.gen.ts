@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agents/v1/devices/{device_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Device Status */
+        get: operations["device_status_agents_v1_devices__device_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agents/v1/instances/{instance_id}/sessions": {
         parameters: {
             query?: never;
@@ -83,6 +100,74 @@ export interface paths {
         put?: never;
         /** Pair */
         post: operations["pair_agents_v1_pair_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/v1/terminals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Terminals */
+        get: operations["terminals_agents_v1_terminals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/v1/terminals/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Terminal */
+        get: operations["terminal_agents_v1_terminals__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/v1/terminals/{run_id}/control": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Terminal Control */
+        post: operations["terminal_control_agents_v1_terminals__run_id__control_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/v1/terminals/{run_id}/controls/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Terminal Control Receipt */
+        get: operations["terminal_control_receipt_agents_v1_terminals__run_id__controls__request_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1833,6 +1918,10 @@ export interface components {
         };
         /** NativeDevice */
         NativeDevice: {
+            /** Device Capabilities */
+            device_capabilities?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
             /** Id */
             id: string;
             /** Label */
@@ -2171,6 +2260,74 @@ export interface components {
             /** Version */
             version: string;
         };
+        /** TerminalControl */
+        TerminalControl: {
+            /** Pending */
+            pending?: boolean | null;
+            /** Request Id */
+            request_id: string;
+            /** Run Id */
+            run_id: string;
+            /** Status */
+            status?: string | null;
+            /** Uncertain */
+            uncertain?: boolean | null;
+        } & {
+            [key: string]: components["schemas"]["JsonValue"];
+        };
+        /** TerminalControlBody */
+        TerminalControlBody: {
+            /** Action */
+            action: string;
+            /** Request Id */
+            request_id: string;
+        };
+        /** TerminalRun */
+        TerminalRun: {
+            /** Command */
+            command?: string | null;
+            /** Completion */
+            completion?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /** Cwd */
+            cwd?: string | null;
+            /** Device Id */
+            device_id: string;
+            /** Exit Code */
+            exit_code?: number | null;
+            /** Next Cursor */
+            next_cursor?: number | null;
+            /** Observation Error */
+            observation_error?: string | null;
+            /** Output */
+            output?: string | null;
+            /** Output Lost */
+            output_lost?: boolean | null;
+            /** Output Unavailable */
+            output_unavailable?: boolean | null;
+            /** Pending */
+            pending: boolean;
+            /** Request Id */
+            request_id: string;
+            /** Run Id */
+            run_id: string;
+            /** Status */
+            status: string;
+            /** Uncertain */
+            uncertain?: boolean | null;
+        } & {
+            [key: string]: components["schemas"]["JsonValue"];
+        };
+        /** TerminalRuns */
+        TerminalRuns: {
+            /** Items */
+            items: components["schemas"]["TerminalRun"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        } & {
+            [key: string]: components["schemas"]["JsonValue"];
+        };
         /** TimeDueCondition */
         TimeDueCondition: {
             /** Due At */
@@ -2437,6 +2594,41 @@ export interface operations {
             };
         };
     };
+    device_status_agents_v1_devices__device_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     sessions_agents_v1_instances__instance_id__sessions_get: {
         parameters: {
             query?: {
@@ -2476,6 +2668,7 @@ export interface operations {
         parameters: {
             query?: {
                 work_id?: string | null;
+                device_id?: string | null;
                 cursor?: string | null;
                 limit?: number;
             };
@@ -2564,6 +2757,147 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    terminals_agents_v1_terminals_get: {
+        parameters: {
+            query?: {
+                device_id?: string | null;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalRuns"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    terminal_agents_v1_terminals__run_id__get: {
+        parameters: {
+            query?: {
+                cursor?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalRun"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    terminal_control_agents_v1_terminals__run_id__control_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TerminalControlBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalControl"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    terminal_control_receipt_agents_v1_terminals__run_id__controls__request_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalControl"];
                 };
             };
             /** @description Validation Error */

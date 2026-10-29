@@ -129,6 +129,43 @@ it.each([undefined, 3])(
     })
   },
 )
+it('terminal control uses the original device credentials and request ID without replaying a lost POST', async () => {
+  const connections = setup()
+  connections.credentials.set(`device/${original.characterId}/${original.personId}`, 'fixture-only')
+  const posts: RequestInit[] = []
+  vi.stubGlobal('fetch', async (input: string, init: RequestInit) => {
+    if (input.endsWith('/meta')) return data('Envelope_Meta_', meta)
+    if (input.endsWith('/me')) return data('Envelope_Me_', me)
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer fixture-only')
+    if (init.method === 'POST') {
+      expect(input).toBe(`${original.baseUrl}/agents/v1/terminals/original-run/control`)
+      posts.push(init)
+      throw Error('Response lost after the original control was accepted')
+    }
+    expect(input).toBe(
+      `${original.baseUrl}/agents/v1/terminals/original-run/controls/original-control`,
+    )
+    return Response.json({ request_id: 'original-control', status: 'completed' })
+  })
+  await expect(
+    connections.agentRequest(original.characterId, 'terminals/original-run/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ request_id: 'original-control', action: 'cancel' }),
+    }),
+  ).rejects.toHaveProperty('code', 'transport_unknown')
+  expect(
+    await connections.agentRead(
+      original.characterId,
+      'terminals/original-run/controls/original-control',
+    ),
+  ).toEqual({ request_id: 'original-control', status: 'completed' })
+  expect(posts).toHaveLength(1)
+  expect(JSON.parse(posts[0]!.body as string)).toEqual({
+    request_id: 'original-control',
+    action: 'cancel',
+  })
+})
 it.each([false, true])(
   'shares an initial message POST with SSE verification until its response settles (lost response: %s)',
   async (lostResponse) => {

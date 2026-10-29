@@ -1,6 +1,6 @@
 {
   "name": "yuki-desktop",
-  "version": "1.0.0-beta.7",
+  "version": "1.0.0-beta.8",
   "private": true,
   "description": "與持續存在的 Yuki 對話、共事與接續工作",
   "desktopName": "yuki.desktop",

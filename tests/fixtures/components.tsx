@@ -39,7 +39,12 @@ const preparedConnector = (): Extract<ConnectorState, { available: true }> => ({
   managed: true,
   paired: false,
   version: 'component-fixture',
-  protocol: 3,
+  protocol: 4,
+  fullAccess: false,
+  computer: {
+    platform: 'win32',
+    shell: 'powershell',
+  },
   runtime: '/fixture/connector/python',
   dataDirectory:
     connectorMode === 'long-layout' ? '/original-data/'.repeat(100) : '/fixture/connector/data',
@@ -88,7 +93,14 @@ if (
       connected: true,
       ...(connectorMode === 'protocol-unknown'
         ? {}
-        : { serverProtocol: connectorMode === 'protocol-connector' ? 4 : 2 }),
+        : {
+            serverProtocol:
+              connectorMode === 'protocol-connector'
+                ? 5
+                : connectorMode === 'protocol-server'
+                  ? 3
+                  : 4,
+          }),
       instances: [
         {
           id: 'fixture-server-instance',
@@ -103,7 +115,7 @@ if (
     },
   }
 }
-if (connectorMode === 'paired')
+if (connectorMode === 'paired' || connectorMode === 'terminal-detail')
   connectorState = {
     ...preparedConnector(),
     paired: true,
@@ -116,7 +128,13 @@ if (connectorMode === 'existing' || connectorMode === 'existing-old-stopped') {
     ...preparedConnector(),
     managed: false,
     ...(connectorMode === 'existing-old-stopped'
-      ? { version: '0.3.1', bundledVersion: '0.3.6', updateAvailable: true }
+      ? {
+          version: '0.3.1',
+          protocol: 3,
+          fullAccess: undefined,
+          bundledVersion: '0.4.0',
+          updateAvailable: true,
+        }
       : {}),
     paired: true,
     deviceId: 'original-connector-device',
@@ -205,6 +223,15 @@ window.yuki = {
   },
   connector: {
     state: async () => ({ ok: true, value: connectorState }),
+    fullAccess: async (enabled, id) => {
+      connectorCalls.push({ method: 'fullAccess', input: { enabled, id } })
+      if (!connectorState.available) throw Error('Connector runtime has not been prepared')
+      connectorState = { ...connectorState, fullAccess: enabled }
+      return {
+        ok: true,
+        value: { ...connectorState, ...(!enabled ? { catalogProblem: 'transport_unknown' } : {}) },
+      }
+    },
     install: async (separate) => {
       connectorCalls.push({ method: 'install', input: separate })
       connectorState = preparedConnector()
@@ -218,6 +245,8 @@ window.yuki = {
         ...connectorState,
         managed: true,
         version: connectorState.bundledVersion ?? 'component-fixture',
+        protocol: 4,
+        fullAccess: connectorState.fullAccess ?? false,
         updateAvailable: false,
         runtime: '/fixture/connector/python',
       }
@@ -326,11 +355,12 @@ window.yuki = {
       ok: true,
       value: { sessions: [{ id: 'original-session', label: '原會話' }] },
     }),
-    operations: async () => ({
+    operations: async (_character, _work, _cursor, device) => ({
       ok: true,
       value: {
         operations:
-          connectorMode === 'operation-detail'
+          connectorMode === 'operation-detail' ||
+          (connectorMode === 'terminal-detail' && device === 'fixture-connector-device')
             ? [
                 {
                   id: 'original-operation',
@@ -343,9 +373,52 @@ window.yuki = {
     }),
     operation: async (_character, id, cursor = 0) => {
       operationReads.push({ id, cursor })
-      return connectorMode === 'operation-detail'
+      return connectorMode === 'operation-detail' || connectorMode === 'terminal-detail'
         ? { ok: true, value: operationPage(id, cursor) }
         : { ok: false, code: 'not_found' }
+    },
+    terminals: async (_character, device) => ({
+      ok: true,
+      value: {
+        terminals:
+          connectorMode === 'terminal-detail' && device === 'fixture-connector-device'
+            ? [
+                {
+                  run_id: 'original-terminal',
+                  request_id: 'original-terminal-request',
+                  pending: true,
+                  device_id: device,
+                  command: 'Write-Output hello',
+                  status: 'running',
+                },
+              ]
+            : [],
+      },
+    }),
+    terminal: async (_character, run, cursor = 0) => ({
+      ok: true,
+      value: {
+        run_id: run,
+        request_id: 'original-terminal-request',
+        pending: cursor === 0,
+        device_id: 'fixture-connector-device',
+        command: 'Write-Output hello',
+        cwd: 'C:\\Users\\fixture',
+        status: cursor === 0 ? 'running' : 'exited',
+        output: cursor === 0 ? 'hello\n' : 'done\n',
+        next_cursor: cursor === 0 ? 6 : 11,
+        ...(cursor > 0
+          ? { exit_code: 0, completion: { exit_code: 0, source: 'original-run' } }
+          : {}),
+      },
+    }),
+    controlTerminal: async (_character, run, request, action) => {
+      connectorCalls.push({ method: 'controlTerminal', input: { run, request, action } })
+      return { ok: false, code: 'transport_unknown' }
+    },
+    terminalControl: async (_character, run, request) => {
+      connectorCalls.push({ method: 'terminalControl', input: { run, request } })
+      return { ok: true, value: { request_id: request, run_id: run, status: 'completed' } }
     },
     submit: async (_character, input) => {
       connectorCalls.push({ method: 'submit', input })

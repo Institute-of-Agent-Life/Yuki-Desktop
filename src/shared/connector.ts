@@ -48,6 +48,12 @@ export interface ConnectorAvailableState {
   dataDirectory?: string
   updateAvailable?: boolean
   bundledVersion?: string
+  catalogProblem?: string
+  fullAccess?: boolean
+  computer?: {
+    platform: string
+    shell: string | null
+  }
   instances: ConnectorInstance[]
   service: {
     installed: boolean
@@ -106,6 +112,8 @@ export interface ConnectorOperation {
   events?: components['schemas']['NativeEvent'][]
   next_cursor?: number
 }
+export type ConnectorTerminal = components['schemas']['TerminalRun']
+export type ConnectorTerminalControl = components['schemas']['TerminalControl']
 export interface ConnectorBridge {
   state(characterId?: string): Promise<ApiReply<ConnectorState>>
   install(separate?: boolean): Promise<ApiReply<ConnectorState>>
@@ -117,6 +125,7 @@ export interface ConnectorBridge {
   connect(input: { characterId: string; label: string }): Promise<ApiReply<ConnectorState>>
   pair(input: ConnectorPairing): Promise<ApiReply<ConnectorState>>
   service(action: ConnectorServiceAction): Promise<ApiReply<ConnectorState>>
+  fullAccess(enabled: boolean, characterId?: string): Promise<ApiReply<ConnectorState>>
   discover(driver?: ConnectorDriver): Promise<ApiReply<ConnectorCandidate[]>>
   configure(
     input: ConnectorConfiguration,
@@ -135,12 +144,34 @@ export interface ConnectorBridge {
     characterId: string,
     workId?: string,
     cursor?: string,
+    deviceId?: string,
   ): Promise<ApiReply<{ operations: ConnectorOperation[]; next_cursor?: string | null }>>
   operation(
     characterId: string,
     operationId: string,
     cursor?: number,
   ): Promise<ApiReply<ConnectorOperation>>
+  terminals(
+    characterId: string,
+    deviceId: string,
+    cursor?: string,
+  ): Promise<ApiReply<{ terminals: ConnectorTerminal[]; next_cursor?: string | null }>>
+  terminal(
+    characterId: string,
+    runId: string,
+    cursor?: number,
+  ): Promise<ApiReply<ConnectorTerminal>>
+  controlTerminal(
+    characterId: string,
+    runId: string,
+    requestId: string,
+    action: 'cancel',
+  ): Promise<ApiReply<ConnectorTerminalControl>>
+  terminalControl(
+    characterId: string,
+    runId: string,
+    requestId: string,
+  ): Promise<ApiReply<ConnectorTerminalControl>>
   submit(
     characterId: string,
     input: { text: string; agentTarget: ConnectorTarget },

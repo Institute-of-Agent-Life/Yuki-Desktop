@@ -116,14 +116,23 @@ export function Conversation({
     }
   }, [id])
   const list = useRef<HTMLDivElement>(null),
+    scrollTop = useRef(0),
     bottom = useRef(true),
     [newMessages, setNewMessages] = useState(false)
   const [scrolled, setScrolled] = useState(false)
-  const attachList = useCallback((element: HTMLDivElement | null) => {
-    list.current = element
-    setScrolled((element?.scrollTop ?? 0) > 0)
-  }, [])
   const [anchor, setAnchor] = useState<number | null>(null)
+  const attachList = useCallback(
+    (element: HTMLDivElement | null) => {
+      if (list.current) scrollTop.current = list.current.scrollTop
+      list.current = element
+      if (element)
+        element.scrollTo({
+          top: bottom.current && anchor === null ? element.scrollHeight : scrollTop.current,
+        })
+      setScrolled((element?.scrollTop ?? 0) > 0)
+    },
+    [anchor],
+  )
   const [jump, setJump] = useState<MessageReference>()
   const [historyError, setHistoryError] = useState('')
   const [loadingEarlier, setLoadingEarlier] = useState(false)
@@ -715,7 +724,7 @@ export function Conversation({
     { id: 'command/settings', title: '開啟設定', run: () => paletteNavigate(onSettings) },
     {
       id: 'command/agent',
-      title: '連接本機 Agent',
+      title: '連接這台電腦',
       run: () => paletteNavigate(() => onSettings('agent')),
     },
     ...(!accessLost
@@ -1084,6 +1093,10 @@ export function Conversation({
               aria-label="對話訊息"
               aria-live="polite"
               ref={attachList}
+              onLoadCapture={(event) => {
+                const node = event.currentTarget
+                if (bottom.current && anchor === null) node.scrollTo({ top: node.scrollHeight })
+              }}
               onScroll={(event) => {
                 const node = event.currentTarget
                 setScrolled(node.scrollTop > 0)

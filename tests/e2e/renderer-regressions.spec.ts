@@ -1,4 +1,187 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test'
+import { navigate, sidebar } from '../fixtures/navigation'
+
+interface ConversationScrollFixture {
+  imagePending(eventId: number): boolean
+  releaseImage(): void
+  appendImageConversation(): void
+  snapshot(): { mainHistoryReads: number }
+}
+const conversationPosition = (log: Locator) =>
+  log.evaluate((node) => ({
+    top: node.scrollTop,
+    gap: Math.round(node.scrollHeight - node.scrollTop - node.clientHeight),
+  }))
+const renderedFrames = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  )
+
+for (const position of ['tail', 'reader', 'quoted-history'] as const) {
+  test(`delayed image decode preserves the actual ${position} position`, async ({ page }) => {
+    await page.setViewportSize({ width: 1180, height: 760 })
+    let notifyRequest!: (route: Route) => void
+    const imageRequest = new Promise<Route>((resolve) => {
+      notifyRequest = resolve
+    })
+    await page.route('**/delayed-conversation-image.svg', (route) => notifyRequest(route))
+    await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=conversation-scroll')
+    const log = page.getByRole('log', { name: '對話訊息', exact: true })
+    await expect(page.locator('article[data-event-id="1024"]')).toHaveCount(1)
+    await expect(page.getByRole('button', { name: /引用：Original quoted image/ })).toBeEnabled()
+    await log.hover()
+    await page.mouse.wheel(0, 10000)
+    await expect.poll(async () => (await conversationPosition(log)).gap).toBe(0)
+    const eventId = position === 'quoted-history' ? 900 : 1024
+    if (position === 'quoted-history') {
+      await page.getByRole('button', { name: /引用：Original quoted image/ }).click()
+      await expect(page.getByRole('button', { name: '回到最新訊息', exact: true })).toBeVisible()
+      await expect(page.locator('article[data-event-id="900"]')).toHaveClass(/selected/)
+      await log.hover()
+      await page.mouse.wheel(0, 10000)
+      await expect.poll(async () => (await conversationPosition(log)).gap).toBe(0)
+    }
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (eventId) =>
+            (
+              window as unknown as { regression: ConversationScrollFixture }
+            ).regression.imagePending(eventId),
+          eventId,
+        ),
+      )
+      .toBe(true)
+    await page.evaluate(() =>
+      (window as unknown as { regression: ConversationScrollFixture }).regression.releaseImage(),
+    )
+    const imageRoute = await imageRequest
+    const image = page.locator(`article[data-event-id="${eventId}"] img`)
+    await expect(image).toBeAttached()
+    // The placeholder is gone while the real image response remains unfinished.
+    await renderedFrames(page)
+    if (position === 'reader') {
+      const initial = await conversationPosition(log)
+      await log.hover()
+      await page.mouse.wheel(0, -100)
+      await expect.poll(async () => (await conversationPosition(log)).top).toBeLessThan(initial.top)
+      await renderedFrames(page)
+      await expect(image).toBeAttached()
+    }
+    const before = await conversationPosition(log)
+    await imageRoute.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240"><rect width="320" height="240" fill="blue"/></svg>',
+    })
+    await image.evaluate((node) => (node as HTMLImageElement).decode())
+    await renderedFrames(page)
+    expect(await image.evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBe(320)
+    if (position === 'tail') expect((await conversationPosition(log)).gap).toBe(0)
+    else expect((await conversationPosition(log)).top).toBe(before.top)
+    await page.evaluate(() =>
+      (
+        window as unknown as { regression: ConversationScrollFixture }
+      ).regression.appendImageConversation(),
+    )
+    if (position === 'quoted-history') {
+      await expect(page.locator('article[data-event-id="1025"]')).toHaveCount(0)
+      await expect(page.getByRole('button', { name: '回到最新訊息', exact: true })).toBeVisible()
+    } else await expect(page.locator('article[data-event-id="1025"]')).toHaveCount(1)
+    await renderedFrames(page)
+    if (position === 'tail') {
+      expect((await conversationPosition(log)).gap).toBe(0)
+      await expect(page.getByRole('button', { name: '↓ 新訊息', exact: true })).toHaveCount(0)
+    } else expect((await conversationPosition(log)).top).toBe(before.top)
+  })
+}
+
+for (const view of ['工作', 'Yuki 的電腦', '設定']) {
+  test(`returning from ${view} restores the main conversation tail without a new history response`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1439, height: 760 })
+    await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=conversation-scroll')
+    const log = page.getByRole('log', { name: '對話訊息', exact: true })
+    await expect(page.locator('article[data-event-id="1024"]')).toHaveCount(1)
+    await expect(page.getByRole('button', { name: /引用：Original quoted image/ })).toBeEnabled()
+    await log.hover()
+    await page.mouse.wheel(0, 10000)
+    await expect.poll(async () => (await conversationPosition(log)).gap).toBe(0)
+    const reads = () =>
+      page.evaluate(
+        () =>
+          (window as unknown as { regression: ConversationScrollFixture }).regression.snapshot()
+            .mainHistoryReads,
+      )
+    const beforeReads = await reads()
+    await navigate(page, view)
+    await expect(log).toHaveCount(0)
+    if (view === '設定') await page.getByRole('button', { name: '返回', exact: true }).click()
+    else await navigate(page, '對話')
+    await expect(log).toHaveCount(1)
+    await renderedFrames(page)
+    expect((await conversationPosition(log)).gap).toBe(0)
+    expect(await reads()).toBe(beforeReads)
+  })
+}
+
+for (const position of ['reader', 'quoted-history'] as const) {
+  test(`closing settings restores the actual ${position} offset`, async ({ page }) => {
+    await page.setViewportSize({ width: 1439, height: 760 })
+    await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=conversation-scroll')
+    const log = page.getByRole('log', { name: '對話訊息', exact: true })
+    await expect(page.locator('article[data-event-id="1024"]')).toHaveCount(1)
+    await expect(page.getByRole('button', { name: /引用：Original quoted image/ })).toBeEnabled()
+    await log.hover()
+    await page.mouse.wheel(0, 10000)
+    await expect.poll(async () => (await conversationPosition(log)).gap).toBe(0)
+    if (position === 'quoted-history') {
+      await page.getByRole('button', { name: /引用：Original quoted image/ }).click()
+      await expect(page.locator('article[data-event-id="900"]')).toHaveClass(/selected/)
+      await expect(page.getByRole('button', { name: '回到最新訊息', exact: true })).toBeVisible()
+    } else {
+      const tail = await conversationPosition(log)
+      await log.hover()
+      await page.mouse.wheel(0, -600)
+      await expect.poll(async () => (await conversationPosition(log)).top).toBeLessThan(tail.top)
+    }
+    await renderedFrames(page)
+    const before = await conversationPosition(log)
+    await navigate(page, '設定')
+    await expect(log).toHaveCount(0)
+    await page.getByRole('button', { name: '返回', exact: true }).click()
+    await expect(log).toHaveCount(1)
+    await renderedFrames(page)
+    expect((await conversationPosition(log)).top).toBe(before.top)
+    if (position === 'quoted-history')
+      await expect(page.getByRole('button', { name: '回到最新訊息', exact: true })).toBeVisible()
+  })
+}
+
+test('opening settings closes the floating sidebar before the next observer and keeps explicit navigation usable', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 760 })
+  await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=settings-transition')
+  const navigation = await sidebar(page)
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'settings' }))
+  })
+  await expect(page.getByRole('region', { name: '轉場設定', exact: true })).toBeVisible()
+  await expect(page.getByTestId('settings-transition-state')).toHaveText('hidden')
+  await expect(navigation).not.toBeVisible()
+  await sidebar(page)
+  await expect(navigation.getByRole('button', { name: '設定', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await navigation.getByRole('button', { name: '對話', exact: true }).click()
+  await expect(page.getByRole('region', { name: '轉場設定', exact: true })).toHaveCount(0)
+  await expect(page.getByText('原對話內容', { exact: true })).toBeVisible()
+})
 
 for (const recovery of ['online', 'refresh'] as const) {
   test(`a failed manual reconnect does not leave a stale error after automatic ${recovery} recovery`, async ({
@@ -58,7 +241,7 @@ test('logout recovery has priority over a retained direct Agent settings request
     'aria-selected',
     'true',
   )
-  await expect(page.getByRole('tab', { name: '本機 Agent', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: '這台電腦', exact: true })).toHaveAttribute(
     'aria-selected',
     'false',
   )
@@ -379,7 +562,7 @@ test('settings use the available column and expose one native Agent entry before
     Math.abs(bounds!.x + bounds!.width - contentBounds!.x - contentBounds!.width),
   ).toBeLessThanOrEqual(1)
   expect(await pane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
-  await expect(page.getByRole('tab', { name: '本機 Agent', exact: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '這台電腦', exact: true })).toBeVisible()
   await expect(page.getByRole('tab', { name: '本機連接', exact: true })).toHaveCount(0)
   await expect(page.getByRole('tab', { name: '編程 Agent', exact: true })).toHaveCount(0)
   await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
@@ -394,7 +577,7 @@ test('a direct Agent settings request opens the single native connection entry w
   page,
 }) => {
   await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=settings&agent=true')
-  await expect(page.getByRole('tab', { name: '本機 Agent', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: '這台電腦', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )

@@ -57,6 +57,8 @@ import type {
   ConnectorTarget,
   ConnectorOperation,
   ConnectorDriver,
+  ConnectorTerminal,
+  ConnectorTerminalControl,
 } from '../shared/connector'
 import type { components } from '../shared/contract.gen'
 import { LocalBot } from './local-bot'
@@ -365,6 +367,17 @@ else {
     )
     action('connector-pair', (input: ConnectorPairing) => connector.pair(input))
     action('connector-service', (command: ConnectorServiceAction) => connector.service(command))
+    action('connector-full-access', async (enabled: boolean, id?: string) => {
+      const state = await connector.fullAccess(enabled)
+      if (id && state.available && state.deviceId) {
+        try {
+          await connections.agentRead(id, `devices/${encodeURIComponent(state.deviceId)}`)
+        } catch (error) {
+          return { ...state, catalogProblem: error instanceof ApiError ? error.code : 'unknown' }
+        }
+      }
+      return state
+    })
     action('connector-discover', (driver?: ConnectorDriver) => connector.discover(driver))
     action('connector-configure', (input: ConnectorConfiguration, start?: boolean) =>
       connector.configure(input, start),
@@ -405,25 +418,62 @@ else {
       pending: item.pending ?? undefined,
       uncertain: item.uncertain ?? undefined,
       next_cursor: item.next_cursor ?? undefined,
-      result: typeof item.text === 'string' ? { text: item.text } : null,
+      result: item,
     })
-    action('connector-operations', async (id: string, work?: string, cursor?: string) => {
-      const params = new URLSearchParams({
-        ...(work ? { work_id: work } : {}),
-        ...(cursor ? { cursor } : {}),
-      })
-      const page = await connections.agentRead<components['schemas']['NativeOperations']>(
-        id,
-        `operations${params.size ? '?' + params : ''}`,
-      )
-      return { operations: page.items.map(operationView), next_cursor: page.next_cursor }
-    })
+    action(
+      'connector-operations',
+      async (id: string, work?: string, cursor?: string, device?: string) => {
+        const params = new URLSearchParams({
+          ...(work ? { work_id: work } : {}),
+          ...(cursor ? { cursor } : {}),
+          ...(device ? { device_id: device } : {}),
+        })
+        const page = await connections.agentRead<components['schemas']['NativeOperations']>(
+          id,
+          `operations${params.size ? '?' + params : ''}`,
+        )
+        return { operations: page.items.map(operationView), next_cursor: page.next_cursor }
+      },
+    )
     action('connector-operation', async (id: string, operation: string, cursor?: number) =>
       operationView(
         await connections.agentRead<components['schemas']['NativeOperation']>(
           id,
           `operations/${encodeURIComponent(operation)}${cursor === undefined ? '' : '?' + new URLSearchParams({ cursor: String(cursor) })}`,
         ),
+      ),
+    )
+    action('connector-terminals', async (id: string, device: string, cursor?: string) => {
+      const params = new URLSearchParams({ device_id: device, ...(cursor ? { cursor } : {}) })
+      const page = await connections.agentRead<{
+        items: ConnectorTerminal[]
+        next_cursor?: string | null
+      }>(id, `terminals?${params}`)
+      return { terminals: page.items, next_cursor: page.next_cursor }
+    })
+    action('connector-terminal', (id: string, run: string, cursor?: number) =>
+      connections.agentRead<ConnectorTerminal>(
+        id,
+        `terminals/${encodeURIComponent(run)}${cursor === undefined ? '' : '?' + new URLSearchParams({ cursor: String(cursor) })}`,
+      ),
+    )
+    action(
+      'connector-terminal-control',
+      (id: string, run: string, request: string, action: 'cancel') =>
+        connections.agentRequest<ConnectorTerminalControl>(
+          id,
+          `terminals/${encodeURIComponent(run)}/control`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ request_id: request, action }),
+          },
+        ),
+    )
+    action('connector-terminal-control-read', (id: string, run: string, request: string) =>
+      connections.agentRead<ConnectorTerminalControl>(
+        id,
+        `terminals/${encodeURIComponent(run)}/controls/${encodeURIComponent(request)}`,
       ),
     )
     action(
