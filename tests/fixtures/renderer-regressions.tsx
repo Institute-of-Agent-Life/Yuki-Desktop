@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SoulEditor } from '../../src/renderer/views/SoulEditor'
@@ -10,6 +10,7 @@ import { Conversation, Message } from '../../src/renderer/views/Conversation'
 import { ComputerInspector } from '../../src/renderer/views/Computer'
 import { Settings } from '../../src/renderer/views/Settings'
 import { Workspace } from '../../src/renderer/components/Workspace'
+import { useCommands } from '../../src/renderer/state/commands'
 import { defaultPreferences } from '../../src/shared/desktop'
 import appStyles from '../../src/renderer/App.module.css'
 import messageStyles from '../../src/renderer/views/Conversation.module.css'
@@ -458,6 +459,37 @@ Object.assign(window, {
   },
 })
 
+function SettingsTransition() {
+  const root = useRef<HTMLElement>(null)
+  const [settings, setSettings] = useState(false)
+  const [observed, setObserved] = useState('')
+  useCommands((command) => {
+    if (command === 'settings') setSettings(true)
+  })
+  useLayoutEffect(() => {
+    if (settings)
+      queueMicrotask(() => {
+        const navigation = root.current!.querySelector<HTMLElement>('[data-region="sidebar"]')!
+        setObserved(getComputedStyle(navigation).visibility)
+      })
+  }, [settings])
+  return (
+    <main ref={root} className={appStyles.app}>
+      <Workspace
+        name="Yuki"
+        status=""
+        platform="linux"
+        settings={settings ? <section aria-label="轉場設定">設定內容</section> : undefined}
+        onSettings={() => setSettings(true)}
+        onView={() => setSettings(false)}
+      >
+        原對話內容
+      </Workspace>
+      <output data-testid="settings-transition-state">{observed}</output>
+    </main>
+  )
+}
+
 function Case() {
   const [value, setValue] = useState('original message')
   const [preferences, setPreferences] = useState(defaultPreferences)
@@ -465,6 +497,7 @@ function Case() {
   const [selected, setSelected] = useState('')
   const [attachment, setAttachment] = useState<AttachmentSource>()
   const mode = new URLSearchParams(location.search).get('case')
+  if (mode === 'settings-transition') return <SettingsTransition />
   if (mode === 'work-help')
     return (
       <>

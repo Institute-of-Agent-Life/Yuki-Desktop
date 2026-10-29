@@ -76,7 +76,7 @@ export function Workspace(props: Props) {
   )
   const [overlaySidebar, setOverlaySidebar] = useState(false)
   const showingSettings = !!props.settings
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (showingSettings) setOverlaySidebar(false)
   }, [showingSettings])
   const toggleSidebar = () => {

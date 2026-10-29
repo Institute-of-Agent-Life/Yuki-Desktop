@@ -1,4 +1,27 @@
 import { expect, test } from '@playwright/test'
+import { sidebar } from '../fixtures/navigation'
+
+test('opening settings closes the floating sidebar before the next observer and keeps explicit navigation usable', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 760 })
+  await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=settings-transition')
+  const navigation = await sidebar(page)
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'settings' }))
+  })
+  await expect(page.getByRole('region', { name: '轉場設定', exact: true })).toBeVisible()
+  await expect(page.getByTestId('settings-transition-state')).toHaveText('hidden')
+  await expect(navigation).not.toBeVisible()
+  await sidebar(page)
+  await expect(navigation.getByRole('button', { name: '設定', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await navigation.getByRole('button', { name: '對話', exact: true }).click()
+  await expect(page.getByRole('region', { name: '轉場設定', exact: true })).toHaveCount(0)
+  await expect(page.getByText('原對話內容', { exact: true })).toBeVisible()
+})
 
 for (const recovery of ['online', 'refresh'] as const) {
   test(`a failed manual reconnect does not leave a stale error after automatic ${recovery} recovery`, async ({
