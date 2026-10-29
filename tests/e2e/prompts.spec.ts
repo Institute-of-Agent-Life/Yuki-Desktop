@@ -14,7 +14,7 @@ test('single SOUL saves empty text and preserves a raw draft after process reope
   try {
     let page = await app.firstWindow()
     await pairUI(page, rig.base, rig.ownerCode, undefined, 30000)
-    await navigate(page, '關於 初始角色')
+    await page.keyboard.press('ControlOrMeta+5')
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     let editor = page.getByRole('textbox', { name: 'SOUL.md 內容', exact: true })
     await expect(editor).toBeVisible()
@@ -65,7 +65,7 @@ test('another paired person updates the name and SOUL, preserves conflicts and k
     const page = await app.firstWindow()
     await pairUI(page, rig.base, rig.ownerCode, undefined, 30000)
     const connection = await currentConnection(page)
-    await navigate(page, '關於 初始角色')
+    await page.keyboard.press('ControlOrMeta+5')
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     const editor = page.getByRole('textbox', { name: 'SOUL.md 內容', exact: true })
     await editor.fill('local private draft')
