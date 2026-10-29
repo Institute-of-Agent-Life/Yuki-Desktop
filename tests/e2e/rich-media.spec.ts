@@ -190,6 +190,7 @@ test('plays and seeks both actual media sources, renders local rich text and kee
     await copyFile('tests/fixtures/media/animated.gif', join(rig.root, 'animated.gif'))
     const image = await publish('animated.gif', 'image')
     const imageArticle = page.locator(`article[data-event-id="${image.event_id}"]`)
+    await imageArticle.scrollIntoViewIfNeeded()
     await expect(imageArticle.getByRole('img', { name: 'animated.gif' })).toBeVisible()
     expect(
       await imageArticle.locator('img').evaluate((node) => (node as HTMLImageElement).naturalWidth),

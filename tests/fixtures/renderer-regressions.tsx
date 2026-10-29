@@ -21,6 +21,7 @@ import type {
   ConversationBridge,
   Computer,
   CharacterStatus,
+  CachedContent,
   EventsPage,
   Home,
   PublicEvent,
@@ -55,6 +56,7 @@ let reconnects = 0
 let failReconnect = false
 let submissions = 0
 const reads: string[] = []
+let mainHistoryReads = 0
 const contentReads: AttachmentSource[] = []
 const lateWorkReads: { kind: 'work' | 'steps'; workId: string }[] = []
 const hintListeners = new Set<Parameters<ConversationBridge['onHint']>[0]>()
@@ -199,6 +201,45 @@ const historicalEvents: EventsPage = {
     },
   ],
 }
+const imageConversation = '11111111-1111-4111-8111-111111111111'
+let imageAppended = false
+let pendingConversationImage: { eventId: number; release(): void } | undefined
+function imageEvents(last = imageAppended ? 1025 : 1024, only = false): EventsPage {
+  const length = only ? 1 : last === 1025 ? 26 : 25
+  const items = Array.from({ length }, (_, index) => {
+    const eventId = only ? last : last - length + 1 + index
+    const content =
+      eventId === 900
+        ? 'Original quoted image'
+        : `${eventId === 1024 ? `[[yuki-ref conversation=${imageConversation} event=900]]\n` : ''}${eventId}: ${'original fixture message '.repeat(20)}`
+    return {
+      ...historicalEvents.items[1]!,
+      id: eventId,
+      event_id: eventId,
+      conversation_id: imageConversation,
+      content,
+      text: content,
+      work_ids: [],
+      attachments: [900, 1024].includes(eventId)
+        ? [
+            {
+              attachment_index: 0,
+              segment_index: 0,
+              kind: 'image' as const,
+              filename: 'controlled.svg',
+            },
+          ]
+        : [],
+    }
+  })
+  return {
+    ...historicalEvents,
+    revision: imageAppended ? 2 : 1,
+    latest_event_id: imageAppended ? 1025 : 1024,
+    next_after: last,
+    items,
+  }
+}
 const profile: Profile = {
   id: 'role',
   display_name: 'Yuki',
@@ -257,7 +298,27 @@ Object.assign(window, {
       ...client,
       read: async (_id: string, route: ApiRead) => {
         reads.push(route.kind)
+        if (route.kind === 'events' && route.limit !== 1) mainHistoryReads++
         const mode = new URLSearchParams(location.search).get('case')
+        if (mode === 'conversation-scroll') {
+          if (route.kind === 'home')
+            return {
+              ok: true,
+              value: {
+                ...home,
+                main: { ...home.main, conversation_id: imageConversation },
+                works: [],
+              },
+            }
+          if (route.kind === 'events')
+            return {
+              ok: true,
+              value: imageEvents(
+                route.before === 901 || route.after === 899 ? 900 : undefined,
+                route.limit === 1,
+              ),
+            }
+        }
         if (mode === 'late-work' || mode === 'late-work-combined') {
           if (route.kind === 'work' || route.kind === 'steps')
             lateWorkReads.push({ kind: route.kind, workId: route.workId })
@@ -320,7 +381,12 @@ Object.assign(window, {
             return { ok: true, value: { path: '', items: [], next_cursor: null } }
         }
         if (
-          ['historical-work', 'late-work-combined', 'connection-reconnect'].includes(mode ?? '')
+          [
+            'historical-work',
+            'late-work-combined',
+            'connection-reconnect',
+            'conversation-scroll',
+          ].includes(mode ?? '')
         ) {
           if (route.kind === 'home') return { ok: true, value: { ...home, works: [] } }
           if (route.kind === 'events')
@@ -411,8 +477,29 @@ Object.assign(window, {
       letterDecoration: async () => ({ ok: true, value: null }),
       content: async (_id: string, value: AttachmentSource) => {
         contentReads.push(value)
+        if (new URLSearchParams(location.search).get('case') === 'conversation-scroll')
+          return new Promise((resolve) => {
+            pendingConversationImage = {
+              eventId: value.eventId,
+              release: () =>
+                resolve({
+                  ok: true,
+                  value: {
+                    bytes: null,
+                    filename: 'controlled.svg',
+                    mime: 'image/svg+xml',
+                    sha256: '0'.repeat(64),
+                    preview: {
+                      id: `controlled-${value.eventId}`,
+                      url: '/delayed-conversation-image.svg',
+                    },
+                  } satisfies CachedContent,
+                }),
+            }
+          })
         return { ok: false, code: 'media_unavailable' }
       },
+      releasePreview: async () => ({ ok: true, value: undefined }),
     },
     onCommand: () => () => {},
     loginItem: async () => ({
@@ -428,6 +515,7 @@ Object.assign(window, {
       reconnects,
       submissions,
       reads,
+      mainHistoryReads,
       contentReads,
       lateWorkReads,
       heldSecondPage: !!releaseSecondPage,
@@ -455,6 +543,12 @@ Object.assign(window, {
     },
     failNextReconnect: () => {
       failReconnect = true
+    },
+    imagePending: (eventId: number) => pendingConversationImage?.eventId === eventId,
+    releaseImage: () => pendingConversationImage!.release(),
+    appendImageConversation: () => {
+      imageAppended = true
+      for (const listener of hintListeners) listener('role', 'refresh', {})
     },
   },
 })
@@ -494,6 +588,7 @@ function Case() {
   const [value, setValue] = useState('original message')
   const [preferences, setPreferences] = useState(defaultPreferences)
   const [calls, setCalls] = useState(0)
+  const [conversationSettings, setConversationSettings] = useState(false)
   const [selected, setSelected] = useState('')
   const [attachment, setAttachment] = useState<AttachmentSource>()
   const mode = new URLSearchParams(location.search).get('case')
@@ -529,7 +624,14 @@ function Case() {
         <output data-testid="selected-work">{selected}</output>
       </>
     )
-  if (['historical-work', 'late-work-combined', 'connection-reconnect'].includes(mode ?? ''))
+  if (
+    [
+      'historical-work',
+      'late-work-combined',
+      'connection-reconnect',
+      'conversation-scroll',
+    ].includes(mode ?? '')
+  )
     return (
       <main className={appStyles.app}>
         <Conversation
@@ -539,12 +641,16 @@ function Case() {
             baseUrl: 'https://example.invalid',
             personId: 'person',
             bindingId: 'binding',
-            conversationId: 'conversation',
+            conversationId: mode === 'conversation-scroll' ? imageConversation : 'conversation',
             persistentCredentials: false,
           }}
           platform="linux"
           preferences={preferences}
-          onSettings={() => {}}
+          settings={
+            conversationSettings ? <section aria-label="原設定內容">設定內容</section> : undefined
+          }
+          onSettings={() => setConversationSettings(true)}
+          onSettingsBack={() => setConversationSettings(false)}
           onPairAgain={() => {}}
         />
       </main>
