@@ -2,6 +2,8 @@
 
 实施依据：[UI 布局与设置重整任务书](Yuki-Desktop-UI布局与设置重整任务书-2026-10-30.md)。
 
+各批记录中的“未推送／未创建 PR”是本地实施阶段的时点状态。用户随后明确授权全部提交 PR，最新远端与手动预览状态见文末。
+
 ## 基线与环境
 
 - Desktop 基线：`79ee0359ba04bb6bb509142a086c52cf6f586ebb`，从已同步的 `origin/main` 建立独立 worktree `D:\Code\My_Github_Repo\Yuki-Desktop-ui-20261030`。
@@ -141,4 +143,24 @@
 
 最后一个手动后端已通过其测试 shutdown 入口关闭并确认 exit 0；任务持有的 Vite PID／监听端口核实后已关闭，证据和 worktree 保留。
 
-当前仅本地实施、提交与验证；未推送、未创建远端 PR、未合并、未发布或安装到用户环境。
+上述本地实施阶段未推送、未创建远端 PR。2026-10-30 用户随后明确授权全部提交 PR 并打开完整应用供手动测试，已完成以下交付。
+
+## 远端 PR 与手动预览
+
+七条分支以普通原子 push 上传，远端 PR 均为 open、非 draft，按前一分支为 base 保持每批差异；PR-1 指向 main。请按 1→7 审阅和合并，合并时同步后续 base，不将后六批提前并入 main。
+
+| 批次 | GitHub PR |
+| --- | --- |
+| PR-1 | [#16：术语](https://github.com/Institute-of-Agent-Life/Yuki-Desktop/pull/16) |
+| PR-2 | [#17：全窗口设置](https://github.com/Institute-of-Agent-Life/Yuki-Desktop/pull/17) |
+| PR-3 | [#18：连线与装置](https://github.com/Institute-of-Agent-Life/Yuki-Desktop/pull/18) |
+| PR-4 | [#19：这台电脑](https://github.com/Institute-of-Agent-Life/Yuki-Desktop/pull/19) |
+| PR-5 | [#20：侧栏与菜单](https://github.com/Institute-of-Agent-Life/Yuki-Desktop/pull/20) |
+| PR-6 | [#21：工作与档案详情](https://github.com/Institute-of-Agent-Life/Yuki-Desktop/pull/21) |
+| PR-7 | [#22：平台文案](https://github.com/Institute-of-Agent-Life/Yuki-Desktop/pull/22) |
+
+GitHub 连接器创建接口返回 403 后，使用本机已有登录的 gh 创建；逐条绑定到本 chat，再通过 GitHub API 核对 open、draft=false 和 base/head。没有合并、发布或安装；本地通过不代表 GitHub CI 全部通过，状态以各 PR checks 为准。
+
+手动预览包 `dist/manual-preview/win-unpacked/Yuki.exe` 包含全部七批产品代码，基于 `7c31010` 的构建；与最终验收包的 202 个 out 文件逐一 SHA-256 一致，证据 `.cache/manual-preview-package-proof.json`。另设生成的手测入口，仅隔离宿主协议注册和原生通知展示，不加载自动化后台窗口 hook，窗口正常可交互。没有覆盖已安装的 Yuki。
+
+使用独立 `.cache/manual-preview-profile/` 和 `.cache/manual-preview-backend/`，已通过真实配对界面连接本地参考后端并确认主界面“已連線”；窗口标题为 `Yuki UI Preview - 7 changes`。参考后端 API／资料／档案走真实代码，回复由脚本模型生成，不连接正式 Yuki，也未自动授权或启动宿主连接器。会话与进程信息保存在 `.cache/manual-preview-session.json`，本地后端与预览窗口为用户手动测试保持运行。已使用 computer-use 完成该测试实例的配对和主界面核对，随后停止 UI 输入。
