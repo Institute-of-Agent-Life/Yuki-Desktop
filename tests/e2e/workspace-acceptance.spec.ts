@@ -161,7 +161,7 @@ test('real workspace handles long conversations, separate entries, work details 
       page,
       'state-entry-readonly',
       async () => {
-        await navigate(page, /^QQ ·/)
+        await navigate(page, /^QQ 私聊 ·/)
         await expect(page.getByText('QQ 原入口的真實帳本內容', { exact: true })).toBeVisible()
         await expect(page.locator('textarea')).toHaveCount(0)
       },
@@ -175,7 +175,7 @@ test('real workspace handles long conversations, separate entries, work details 
       },
     )
     await contentSize(app, page, 1440, 900)
-    await page.getByRole('button', { name: '回到桌面對話', exact: true }).click()
+    await navigate(page, '桌面對話')
     await expect(composer).toHaveValue('視覺核對的未送出草稿')
     await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
     await composer.fill('請建立原工作整合測試')
@@ -203,7 +203,7 @@ test('real workspace handles long conversations, separate entries, work details 
       await page.keyboard.press('ControlOrMeta+2')
       await expect(page.getByRole('button', { name: /等你回覆.*原工作整合測試/ })).toBeVisible()
     })
-    const detail = page.getByRole('complementary', { name: '檢視器', exact: true })
+    const detail = page.getByRole('complementary', { name: '詳情', exact: true })
     await captureWorkspace(app, page, 'state-work-inspector', async () => {
       await page.keyboard.press('ControlOrMeta+2')
       await page.getByRole('button', { name: /等你回覆.*原工作整合測試/ }).click()
@@ -212,7 +212,7 @@ test('real workspace handles long conversations, separate entries, work details 
     await contentSize(app, page, 1180, 760)
     for (const [name, destination] of [
       ['調整側邊欄', 1179],
-      ['調整檢視器', 1],
+      ['調整詳情寬度', 1],
     ] as const) {
       const divider = page.getByRole('separator', { name, exact: true })
       const box = (await divider.boundingBox())!

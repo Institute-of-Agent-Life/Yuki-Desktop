@@ -91,13 +91,19 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.yukiTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .yukiHeader > div {
-  position: static;
-  flex: 0 0 22px;
+  flex: 1;
+  min-width: 0;
 }
 .yukiHeader [role='menu'] {
-  left: 0;
-  top: calc(100% + 4px);
+  width: 240px;
+  max-width: calc(100vw - 32px);
   max-height: min(400px, calc(100vh - 280px));
 }
 .pane {

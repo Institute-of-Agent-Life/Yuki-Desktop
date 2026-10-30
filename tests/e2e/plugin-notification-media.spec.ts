@@ -134,7 +134,7 @@ test('delivers an approved plugin original through the real notification worker 
       size: original.length,
     })
     await article.getByRole('button', { name: new RegExp(filename.replace('.', '\\.')) }).click()
-    const inspector = page.getByRole('complementary', { name: '檢視器', exact: true })
+    const inspector = page.getByRole('complementary', { name: '詳情', exact: true })
     await expect(inspector.getByRole('img', { name: filename, exact: true })).toBeVisible()
     await app.evaluate(({ dialog }, saved) => {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: saved })
@@ -149,7 +149,7 @@ test('delivers an approved plugin original through the real notification worker 
       )
       .toBe(digest)
     expect(await readFile(saved)).toEqual(original)
-    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
     await navigate(page, '檔案與成果')
     await page.getByRole('button').filter({ hasText: reference.artifact_id }).click()
     await expect(

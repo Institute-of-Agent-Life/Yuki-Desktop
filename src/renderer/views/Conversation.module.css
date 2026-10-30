@@ -152,19 +152,6 @@
   color: var(--accent);
   text-decoration: underline;
 }
-.entry {
-  position: relative;
-  text-align: left;
-  width: 100%;
-  padding: 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-.entry[aria-current] {
-  background: transparent;
-  color: var(--accent-strong);
-}
 .pending {
   display: flex;
   gap: 8px;

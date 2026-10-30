@@ -22,12 +22,14 @@ import { CharacterAvatar, CharacterVisuals } from '../components/CharacterAvatar
 import { characterPresence } from '../../shared/presence'
 import { SoulEditor } from './SoulEditor'
 import { useDisplayTime } from '../state/time'
-import { Copy, Reply } from 'lucide-react'
+import { Copy, MessageCircle, Reply } from 'lucide-react'
 import { Workspace } from '../components/Workspace'
+import { PresenceCard } from '../components/PresenceCard'
 import { unwrap, problemText, hidesPrivateData, ClientProblem } from '../queries/client'
 import { useWorkspace, useSessionActive } from '../state/workspace'
 import { useCommands } from '../state/commands'
 import styles from './Conversation.module.css'
+import appStyles from '../App.module.css'
 import { parseMessage, referencedMessage, type MessageReference } from '../../shared/message'
 import { AttachmentPreview, DraftAttachments, MessageAttachment } from './Media'
 import { VoiceRecorder } from './VoiceRecorder'
@@ -60,7 +62,7 @@ export function Conversation({
   preferences: Preferences
   onSettings(category?: SettingsCategory): void
   onPairAgain(): void
-  roleSwitcher?: React.ReactNode
+  roleSwitcher?: (trigger: React.ReactNode) => React.ReactNode
 }) {
   const floatingRef = useFloatingInsets()
   const workspace = useWorkspace()
@@ -704,7 +706,7 @@ export function Conversation({
     })),
     {
       id: 'command/inspector',
-      title: '開合檢視器',
+      title: '開合詳情面板',
       run: () =>
         paletteNavigate(() =>
           window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'inspector' })),
@@ -720,7 +722,7 @@ export function Conversation({
     },
     {
       id: 'command/stage',
-      title: '展開或收合工作區',
+      title: '放大或還原詳情',
       run: () => paletteNavigate(() => workspace.toggle('focusMode')),
     },
     { id: 'command/settings', title: '開啟設定', run: () => paletteNavigate(onSettings) },
@@ -786,7 +788,14 @@ export function Conversation({
             </div>
           ) : undefined
         }
-        roleSwitcher={roleSwitcher}
+        roleSwitcher={roleSwitcher?.(
+          <PresenceCard
+            name={name}
+            status={presence.text}
+            color={presence.color}
+            avatar={<CharacterAvatar />}
+          />,
+        )}
         name={name}
         avatar={<CharacterAvatar />}
         status={presence.text}
@@ -800,7 +809,7 @@ export function Conversation({
               .filter((item) => item.conversation_id !== connection.conversationId)
               .map((item) => (
                 <button
-                  className={styles.entry}
+                  className={appStyles.nav}
                   key={item.conversation_id}
                   aria-current={
                     view === 'chat' && item.conversation_id === conversation ? 'page' : undefined
@@ -811,19 +820,10 @@ export function Conversation({
                     })
                   }
                 >
-                  {item.platform.toUpperCase()} · {item.display_name}
+                  <MessageCircle size={16} strokeWidth={1.5} />
+                  {item.platform.toUpperCase()} 私聊 · {item.display_name}
                 </button>
               ))}
-            {!isMain && (
-              <Button
-                variant="plain"
-                onClick={() => {
-                  choose(connection.conversationId)
-                }}
-              >
-                回到桌面對話
-              </Button>
-            )}
           </>
         }
         inspector={

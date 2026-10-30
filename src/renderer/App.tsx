@@ -318,15 +318,19 @@ export function App({ boot }: { boot: BootInfo }) {
                       connection={item}
                       platform={boot.platform}
                       preferences={preferences}
-                      roleSwitcher={
-                        connections.length > 1 ? (
-                          <RoleSwitcher
-                            connections={connections}
-                            selected={item.characterId}
-                            select={select}
-                          />
-                        ) : undefined
-                      }
+                      roleSwitcher={(trigger) => (
+                        <RoleSwitcher
+                          trigger={trigger}
+                          connections={connections}
+                          selected={item.characterId}
+                          select={select}
+                          onAdd={adding}
+                          onDeploy={deployLocal}
+                          onAbout={() =>
+                            requestNavigation(() => workspaceFor(scope).getState().setView('about'))
+                          }
+                        />
+                      )}
                       onSettings={(target) =>
                         requestNavigation(() => {
                           openSettings(target)
@@ -372,11 +376,16 @@ export function App({ boot }: { boot: BootInfo }) {
                   connect={adding}
                   deploy={deployLocal}
                   onSettings={openSettings}
-                  roleSwitcher={
-                    connections.length ? (
-                      <RoleSwitcher connections={connections} selected="" select={select} />
-                    ) : undefined
-                  }
+                  roleSwitcher={(trigger) => (
+                    <RoleSwitcher
+                      trigger={trigger}
+                      connections={connections}
+                      selected=""
+                      select={select}
+                      onAdd={adding}
+                      onDeploy={deployLocal}
+                    />
+                  )}
                   help={() => {
                     void window.yuki.client.external(
                       'https://github.com/Institute-of-Agent-Life/Yuki-Desktop',

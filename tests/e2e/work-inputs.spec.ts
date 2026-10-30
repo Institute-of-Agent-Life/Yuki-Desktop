@@ -14,7 +14,7 @@ import {
 } from '../fixtures/backend'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
 
-const detail = (page: Page) => page.getByRole('complementary', { name: '檢視器', exact: true })
+const detail = (page: Page) => page.getByRole('complementary', { name: '詳情', exact: true })
 const card = (page: Page, id?: string) =>
   (id ? page.locator(`[data-character-session="${id}"]`) : page).getByRole('article').filter({
     has: page.getByRole('heading', { name: '原工作整合測試', exact: true }),

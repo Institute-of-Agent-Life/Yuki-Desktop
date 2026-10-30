@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import { activeCharacterName } from '../fixtures/active-character'
 import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
+import { sidebar } from '../fixtures/navigation'
 import { captureViewport, contentSize, workspaceSizes } from '../fixtures/visual'
 
 test('settings have one navigation column and keep the selected category across actual Yuki switches', async () => {
@@ -11,26 +12,82 @@ test('settings have one navigation column and keep the selected category across 
     app = await first.launch('settings-layout')
   let success = false
   const layouts: unknown[] = []
+  const sidebars: unknown[] = []
   try {
     const page = await app.firstWindow()
     await pairUI(page, first.base, await first.code())
     const firstConnection = await currentConnection(page)
-    await page.keyboard.press('ControlOrMeta+,')
-    await page.getByRole('tab', { name: '所有 Yuki', exact: true }).click()
-    await page.getByRole('button', { name: '連接…', exact: true }).click()
-    await pairUI(page, second.base, await second.code())
-    await page.keyboard.press('ControlOrMeta+5')
-    await page.getByRole('button', { name: '編輯名稱與簡介', exact: true }).click()
-    const secondName = '第二個 Yuki'
-    await page.getByRole('textbox', { name: '名稱', exact: true }).fill(secondName)
-    await page.getByRole('button', { name: '儲存', exact: true }).click()
-    await expect(page.getByRole('heading', { name: secondName, exact: true })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
     const reducedMotion = page.getByRole('switch', { name: '減少動態', exact: true })
     if ((await reducedMotion.getAttribute('aria-checked')) !== 'true') await reducedMotion.click()
     await expect(page.locator('html')).toHaveAttribute('data-motion', 'reduced')
     await page.getByRole('button', { name: '返回', exact: true }).click()
+    const captureSidebars = async (kind: 'single' | 'dual', name: string) => {
+      for (const [width, height] of workspaceSizes) {
+        const viewportMethod = await contentSize(app, page, width, height)
+        const navigation = await sidebar(page)
+        const trigger = navigation.getByRole('button', { name: '切換 Yuki', exact: true })
+        await expect(trigger).toHaveAccessibleDescription(new RegExp(name))
+        await expect(navigation.getByText('對話', { exact: true })).toBeVisible()
+        await expect(navigation.getByText('工作區', { exact: true })).toBeVisible()
+        await expect(navigation.locator('button:not([aria-haspopup])')).toHaveText([
+          '桌面對話',
+          '工作',
+          '檔案與成果',
+          `${name} 的電腦`,
+          '這台電腦',
+          `關於 ${name}`,
+          '設定',
+        ])
+        const observed = await navigation.evaluate((nav) => {
+          const trigger = nav.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')!
+          const description = document.getElementById(trigger.getAttribute('aria-describedby')!)!
+          return {
+            buttons: [...nav.querySelectorAll<HTMLButtonElement>('button')].map((button) => ({
+              name: button.getAttribute('aria-label') ?? button.textContent?.trim(),
+              current: button.getAttribute('aria-current'),
+            })),
+            groups: [...nav.children]
+              .filter((element) => String(element.className).includes('group'))
+              .map((element) => element.textContent?.trim()),
+            trigger: {
+              name: description.querySelector('strong')!.textContent,
+              status: description.querySelector('small')!.textContent,
+            },
+          }
+        })
+        expect(observed.trigger).toEqual({ name, status: expect.stringMatching(/\S/) })
+        await captureViewport(
+          app,
+          page,
+          test.info().outputPath(`sidebar-${kind}-${width}x${height}.png`),
+        )
+        sidebars.push({ kind, requested: { width, height }, viewportMethod, ...observed })
+        await page.keyboard.press('Escape')
+      }
+    }
+    await captureSidebars('single', firstConnection.name)
+    await (await sidebar(page)).getByRole('button', { name: '切換 Yuki', exact: true }).click()
+    const singleMenu = page.getByRole('menu', { name: 'Yuki', exact: true })
+    await expect(singleMenu.getByRole('menuitemradio')).toHaveCount(1)
+    await singleMenu.getByRole('menuitem', { name: '連接另一個 Yuki', exact: true }).click()
+    await pairUI(page, second.base, await second.code())
+    const secondConnection = await currentConnection(page)
+    expect(secondConnection.characterId).not.toBe(firstConnection.characterId)
+    expect(secondConnection.baseUrl).toBe(second.base)
+    await (await sidebar(page)).getByRole('button', { name: '切換 Yuki', exact: true }).click()
+    await page
+      .getByRole('menu', { name: 'Yuki', exact: true })
+      .getByRole('menuitem', { name: `關於 ${secondConnection.name}`, exact: true })
+      .click()
+    await page.getByRole('button', { name: '編輯名稱與簡介', exact: true }).click()
+    const secondName = '第二個 Yuki'
+    await page.getByRole('textbox', { name: '名稱', exact: true }).fill(secondName)
+    await page.getByRole('button', { name: '儲存', exact: true }).click()
+    await expect(page.getByRole('heading', { name: secondName, exact: true })).toBeVisible()
+    await page.keyboard.press('ControlOrMeta+1')
+    await captureSidebars('dual', secondName)
     const categories = [
       ['general', '一般'],
       ['look', '外觀'],
@@ -150,6 +207,7 @@ test('settings have one navigation column and keep the selected category across 
       JSON.stringify(
         {
           layouts,
+          sidebars,
           switches: [firstConnection.name, secondName],
           retainedCategory: 'connection',
           draft,

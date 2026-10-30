@@ -69,8 +69,8 @@ test('a real terminal Work hint survives an older running detail response in the
     await pb.bringToFront()
     await navigate(pb, '工作')
     await pb.getByRole('button', { name: /等你回覆.*原工作整合測試/ }).click()
-    const detailA = pa.getByRole('complementary', { name: '檢視器' }),
-      detailB = pb.getByRole('complementary', { name: '檢視器' })
+    const detailA = pa.getByRole('complementary', { name: '詳情' }),
+      detailB = pb.getByRole('complementary', { name: '詳情' })
     await expect(detailB.getByText('等你回覆', { exact: true })).toBeVisible()
     const streamPath = proxy.calls.find((call) => call.path.startsWith('/client/v1/stream'))!.path
     const workPath = `/client/v1/works/${identity.workId}`

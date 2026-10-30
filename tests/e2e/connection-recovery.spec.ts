@@ -46,10 +46,7 @@ test('a real thirty second transport outage preserves the draft and converges an
     await composer.fill(draft)
     const started = performance.now()
     gate.disconnect()
-    const offline = pa
-      .getByRole('status')
-      .filter({ hasText: '無法取得伺服器回應。' })
-      .first()
+    const offline = pa.getByRole('status').filter({ hasText: '無法取得伺服器回應。' }).first()
     await expect(offline).toBeVisible()
     await expect(offline).toContainText('本機內容已保留。')
     await expect(pa.getByRole('button', { name: '重新連線', exact: true })).toBeVisible()
@@ -258,7 +255,7 @@ test('two actual devices submit different answers to one work and recover their 
     )
     const answers = ['裝置A回答：台北，沿原工作繼續', '裝置B補充：還要保留原版本成果']
     const details = [pa, pb].map((page) =>
-      page.getByRole('complementary', { name: '檢視器', exact: true }),
+      page.getByRole('complementary', { name: '詳情', exact: true }),
     )
     for (const [index, page] of [pa, pb].entries()) {
       await page.keyboard.press('ControlOrMeta+2')

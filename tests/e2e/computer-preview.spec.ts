@@ -11,7 +11,7 @@ interface Facts {
   mutations: number
   control: { holder: string; lease_id?: string }
 }
-const inspector = (page: Page) => page.getByRole('complementary', { name: '檢視器', exact: true })
+const inspector = (page: Page) => page.getByRole('complementary', { name: '詳情', exact: true })
 const inputEvents = (facts: Facts) =>
   facts.events.filter((event) => ['key', 'extended', 'pointer'].includes(event.kind))
 
@@ -64,7 +64,7 @@ async function delayClipboardCaps(page: Page, base: string) {
 async function preview(page: Page) {
   await page.keyboard.press('ControlOrMeta+1')
   if (!(await inspector(page).count()))
-    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '詳情', exact: true }).click()
   await inspector(page).getByRole('tab', { name: '電腦', exact: true }).click()
   await expect(
     inspector(page).getByRole('img', { name: '遠端電腦預覽' }).locator('canvas'),
@@ -121,7 +121,7 @@ test(
       await fetch(`${rig.base}/__test/lose-next-computer-response`, { method: 'POST' })
       await inspector(pa).getByRole('button', { name: '接手', exact: true }).click()
       await expect.poll(async () => (await facts()).control.holder).toBe('human')
-      await expect(pa.getByRole('button', { name: '收合工作區', exact: true })).toHaveCount(0)
+      await expect(pa.getByRole('button', { name: '還原版面', exact: true })).toHaveCount(0)
       await inspector(pa).getByRole('button', { name: '查證原請求', exact: true }).click()
       await expect(
         inspector(pa).getByRole('button', { name: `交回給 ${name}`, exact: true }),
@@ -140,7 +140,7 @@ test(
         .getByRole('dialog', { name: '改由這台裝置控制？' })
         .getByRole('button', { name: '改由這台控制', exact: true })
         .click()
-      await expect(pb.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
+      await expect(pb.getByRole('button', { name: '還原版面', exact: true })).toBeVisible()
       await expect(pb.getByRole('button', { name: '貼上文字到遠端畫面' })).toBeEnabled()
       expect((await facts()).control.lease_id).not.toBe(firstLease)
       await pb
@@ -167,7 +167,7 @@ test(
       const clipboardCaps = await delayClipboardCaps(pa, rig.base)
       try {
         await inspector(pa).getByRole('button', { name: '接手', exact: true }).click()
-        await expect(pa.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
+        await expect(pa.getByRole('button', { name: '還原版面', exact: true })).toBeVisible()
         await clipboardCaps.pending
         await expect(pa.getByRole('button', { name: '傳送 Ctrl Alt Delete' })).toBeEnabled()
         expect(await pa.getByRole('button', { name: '貼上文字到遠端畫面' }).isDisabled()).toBe(true)
@@ -191,7 +191,7 @@ test(
         .getByRole('button', { name: '交回', exact: true })
         .click()
       await expect.poll(async () => (await facts()).control.holder).toBe('none')
-      await pa.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+      await pa.getByRole('button', { name: '關閉詳情', exact: true }).click()
       await preview(pa)
       await inspector(pa).getByRole('button', { name: '開啟完整畫面', exact: true }).click()
       await expect(pa.getByRole('application', { name: '遠端電腦畫面' })).toBeVisible()

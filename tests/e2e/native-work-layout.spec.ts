@@ -80,7 +80,7 @@ test('native work list and inspector preserve step layout, keyboard focus and or
       return { connection, work: home.value.works[0]! }
     })
     proof.original = original
-    const detail = page.getByRole('complementary', { name: '檢視器', exact: true })
+    const detail = page.getByRole('complementary', { name: '詳情', exact: true })
     const row = page.getByRole('button', { name: /等你回覆.*原工作整合測試/ })
     const capture = async (name: string) => {
       const path = test
@@ -128,7 +128,7 @@ test('native work list and inspector preserve step layout, keyboard focus and or
         const viewportMethod = await contentSize(app, page, width!, height!)
         await page.keyboard.press('ControlOrMeta+2')
         if (await detail.isVisible())
-          await detail.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+          await detail.getByRole('button', { name: '關閉詳情', exact: true }).click()
         await expect(row).toBeVisible()
         const list = await row.evaluate((row) => {
           const rect = (node: Element) => {
@@ -261,10 +261,10 @@ test('native work list and inspector preserve step layout, keyboard focus and or
         await save()
         await page.keyboard.press('Escape')
         await expect(reply).toBeFocused()
-        const close = detail.getByRole('button', { name: '關閉檢視器', exact: true })
+        const close = detail.getByRole('button', { name: '關閉詳情', exact: true })
         await close.focus()
         await page.keyboard.press('Space')
-        const toggle = page.getByRole('button', { name: '檢視器', exact: true })
+        const toggle = page.getByRole('button', { name: '詳情', exact: true })
         await expect(toggle).toBeFocused()
         await page.keyboard.press('Space')
         await expect(detail).toBeVisible()

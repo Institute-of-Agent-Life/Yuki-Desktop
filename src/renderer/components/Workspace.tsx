@@ -45,12 +45,15 @@ interface Props {
   floating?: boolean
   mainConversation?: boolean
 }
-const views = [
-  ['chat', '對話', MessageCircle],
+const workspaceViews = [
   ['works', '工作', BriefcaseBusiness],
+  ['files', '檔案與成果', Folder],
   ['computer', '電腦', Monitor],
   ['local', '這台電腦', Laptop],
-  ['files', '檔案與成果', Folder],
+] as const
+const views = [
+  ['chat', '桌面對話', MessageCircle],
+  ...workspaceViews,
   ['about', '關於', Snowflake],
   ['settings', '設定', Settings2],
 ] as const
@@ -90,7 +93,7 @@ export function Workspace(props: Props) {
       requestAnimationFrame(() => {
         const target =
           root.current?.querySelector<HTMLButtonElement>(
-            '[data-region="toolbar"] button[aria-label="檢視器"]',
+            '[data-region="toolbar"] button[aria-label="詳情"]',
           ) ?? root.current?.querySelector<HTMLButtonElement>('[data-region="toolbar"] button')
         if (target?.offsetWidth && !target.closest('[inert]')) target.focus()
       })
@@ -170,7 +173,7 @@ export function Workspace(props: Props) {
       style={{ gridColumn: kind === 'sidebarWidth' ? 2 : focusMode ? 2 : 4, gridRow: 1 }}
     >
       <button
-        aria-label={kind === 'sidebarWidth' ? '調整側邊欄' : '調整檢視器'}
+        aria-label={kind === 'sidebarWidth' ? '調整側邊欄' : '調整詳情寬度'}
         role="separator"
         aria-orientation="vertical"
         aria-valuenow={kind === 'sidebarWidth' ? layout.sidebar : layout.inspector}
@@ -196,52 +199,47 @@ export function Workspace(props: Props) {
   )
   const sidebarContent = (
     <>
-      <div className={props.roleSwitcher ? styles.presenceRow : undefined}>
+      {props.roleSwitcher ?? (
         <PresenceCard
           name={props.name}
           status={props.status}
           color={props.presence}
           avatar={props.avatar}
-          open={() => selectView('about')}
         />
-        {props.roleSwitcher}
-      </div>
+      )}
       <div className={styles.group}>對話</div>
-      {views
-        .filter(([view]) => view === 'chat')
-        .map(([view, label, Icon]) => (
-          <button
-            className={styles.nav}
-            key={view}
-            aria-current={
-              selectedView === view && props.mainConversation !== false ? 'page' : undefined
-            }
-            onClick={() => selectView(view)}
-          >
-            <Icon size={16} strokeWidth={1.5} />
-            {label}
-          </button>
-        ))}
+      <button
+        className={styles.nav}
+        aria-current={
+          selectedView === 'chat' && props.mainConversation !== false ? 'page' : undefined
+        }
+        onClick={() => selectView('chat')}
+      >
+        <MessageCircle size={16} strokeWidth={1.5} />
+        桌面對話
+      </button>
       {props.entries}
-      <div className={styles.group}>工作與成果</div>
-      {views
-        .filter(([view]) => view !== 'chat' && view !== 'settings')
-        .map(([view, label, Icon]) => (
-          <button
-            className={styles.nav}
-            key={view}
-            aria-current={selectedView === view ? 'page' : undefined}
-            onClick={() => selectView(view)}
-          >
-            <Icon size={16} strokeWidth={1.5} />
-            {view === 'computer'
-              ? `${props.name} 的電腦`
-              : view === 'about'
-                ? `關於 ${props.name}`
-                : label}
-          </button>
-        ))}
-      <div className={styles.group} />
+      <div className={styles.group}>工作區</div>
+      {workspaceViews.map(([view, label, Icon]) => (
+        <button
+          className={styles.nav}
+          key={view}
+          aria-current={selectedView === view ? 'page' : undefined}
+          onClick={() => selectView(view)}
+        >
+          <Icon size={16} strokeWidth={1.5} />
+          {view === 'computer' ? `${props.name} 的電腦` : label}
+        </button>
+      ))}
+      <div className={styles.navSpacer} />
+      <button
+        className={styles.nav}
+        aria-current={selectedView === 'about' ? 'page' : undefined}
+        onClick={() => selectView('about')}
+      >
+        <Snowflake size={16} strokeWidth={1.5} />
+        關於 {props.name}
+      </button>
       <button
         className={styles.nav}
         onClick={() => {
@@ -272,7 +270,7 @@ export function Workspace(props: Props) {
           !focusMode &&
           layout.overlayInspector &&
           inspector &&
-          !target.closest('[data-region="inspector"],button[aria-label="檢視器"]')
+          !target.closest('[data-region="inspector"],button[aria-label="詳情"]')
         )
           state.patch({ inspector: false })
         if (
@@ -351,7 +349,7 @@ export function Workspace(props: Props) {
               )}
               <div ref={glass.ref} data-glass="toolbar" className={styles.toolbarGroup}>
                 <IconButton
-                  label={focusMode ? '收合工作區' : '展開工作區'}
+                  label={focusMode ? '還原版面' : '放大詳情'}
                   onClick={() => state.toggle('focusMode')}
                 >
                   {focusMode ? (
@@ -360,7 +358,7 @@ export function Workspace(props: Props) {
                     <Maximize2 size={16} strokeWidth={1.5} />
                   )}
                 </IconButton>
-                <IconButton label="檢視器" onClick={toggleInspector}>
+                <IconButton label="詳情" onClick={toggleInspector}>
                   <PanelRight size={16} strokeWidth={1.5} />
                 </IconButton>
                 <IconButton
@@ -388,7 +386,7 @@ export function Workspace(props: Props) {
           <aside
             style={{ gridColumn: focusMode ? 3 : 5, gridRow: 1 }}
             data-region="inspector"
-            aria-label="檢視器"
+            aria-label="詳情"
             className={`${styles.inspector} ${layout.overlayInspector && !focusMode ? styles.overlay : ''}`}
           >
             <header className={styles.inspectorHeader}>
@@ -396,13 +394,13 @@ export function Workspace(props: Props) {
                 <strong>{props.inspectorTitle}</strong>
               ) : (
                 <Segmented
-                  label="檢視器內容"
+                  label="詳情內容"
                   items={inspectorTabs}
                   value={selectedTab}
                   onChange={(inspectorTab) => state.patch({ inspectorTab })}
                 />
               )}
-              <IconButton label="關閉檢視器" onClick={closeInspector}>
+              <IconButton label="關閉詳情" onClick={closeInspector}>
                 <X size={16} strokeWidth={1.5} />
               </IconButton>
             </header>

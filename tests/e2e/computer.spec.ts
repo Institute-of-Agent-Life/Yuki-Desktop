@@ -97,7 +97,7 @@ test(
           }
         })
         .toBe('89504e470d0a1a0a')
-      await pa.getByRole('button', { name: '檢視器', exact: true }).click()
+      await pa.getByRole('button', { name: '詳情', exact: true }).click()
       const currentFile = join(rig.root, 'current.txt')
       await a.evaluate(({ dialog }, path) => {
         dialog.showSaveDialog = async () => ({ canceled: false, filePath: path })
@@ -112,7 +112,7 @@ test(
           }
         })
         .toBe('Current workspace bytes.')
-      await pa.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+      await pa.getByRole('button', { name: '關閉詳情', exact: true }).click()
       await pb.getByRole('button', { name: '改由這台控制', exact: true }).click()
       await pb
         .getByRole('dialog', { name: '改由這台裝置控制？' })

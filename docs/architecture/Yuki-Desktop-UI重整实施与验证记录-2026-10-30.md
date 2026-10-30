@@ -78,4 +78,18 @@
 - 三尺寸空态图与 `local-computer-empty.json` 位于 `.cache/pr4-real-empty/local-computer-a-real-pair-14bd6-ing-or-starting-a-connector/`；双 Tab／NativeRequest／分页及草稿图和 `local-computer.json` 位于 `.cache/pr4-fixed/local-computer-the-compone-bb261--across-local-activity-tabs/`。已查看小窗口空态和活动图。
 - 证据分层：真实后端验证未批准本机连接时的路径；正向连接器、Agent、权限回覆与故障为真实组件配合明确 mock 的 E2E。未启动或授权宿主连接器服务，没有宣称真实宿主 Agent 握手或模型执行通过。
 
+## PR-5：侧栏与 Yuki 菜单
+
+分支：`codex/ui-sidebar-20261030`，接续 PR-4 `03f9075`。
+
+- 头像卡作为单个／多个／零连接菜单入口；PresenceCard 只渲染内容，名字和状态作为菜单描述。保留选中连接初焦点、Escape、外点和 inactive 行为；方向键遍历连接及新增／部署／关于动作。新增动作继续经过已有导航守卫。
+- 侧栏明确按桌面对话、私聊入口、工作／档案／远端电脑／这台电脑排列，关于与设定位于底部；删除重复返回入口及旧 CSS。详情、放大／还原文案及两处浮层／焦点选择器同步，内部命令和身份不变。档案行的实际按钮同时保留完整文件名与双击提示。
+- 最窄侧栏会裁切固定 240px 菜单，改为随卡宽收缩；设置菜单保留 240px。任务书示例同步实际布局事实，没有新增 portal、测量状态或定时器。
+- `npm run lint`、`npm run build`（含 typecheck）、`git diff --check`：通过。组件批 `role-switcher.spec.ts components.spec.ts renderer-regressions.spec.ts`（CLI 名称匹配亦含 `work-components.spec.ts`）：35 通过、1 失败，产物从默认临时输出完整复制到 `.cache/pr5-components/`，日志 `.cache/pr5-components.log`。新增菜单描述测试发现头像 alt 与名字重复；将已有可见名字旁的头像标为装饰内容，保留真实名字与状态描述，整合批四项菜单用例全部通过。
+- 后端整合命令：`npm exec playwright -- test role-switcher.spec.ts characters.spec.ts chat-navigation.spec.ts responsive-columns.spec.ts workspace-layout.spec.ts computer-preview.spec.ts palette.spec.ts unconfigured-workspace.spec.ts settings-layout.spec.ts --reporter=list`。原批 `.cache/pr5-integration/` 已完成 16 项通过；按用户要求停止会抢前台的窗口测试，最后 2 项中断，不计入通过。补跑这两项 `--grep 'late repair|only visible columns'`：2 通过，产物 `.cache/pr5-background-finish/`、日志 `.cache/pr5-background-finish.log`。原批和补批合计覆盖全部 18 个 Windows 可运行用例。
+- Windows 配置另外排除三个 Unix manager 用例：`computer-preview.spec.ts` 1 项、`workspace-layout.spec.ts` 1 项、`palette.spec.ts` 1 项；未宣称这些用例通过。
+- 6 张侧栏图、27 张设置图及含按钮顺序／分组／卡片名字状态的 `settings-layout.json` 位于 `.cache/pr5-integration/settings-layout-settings-h-c9f73-across-actual-Yuki-switches/`。已查看宽窗口单连接和窄窗口双连接截图，底部入口与两类电脑顺序正确。
+- 用户新增要求：测试窗口留在其他窗口后面。仅在测试入口加入 Windows 后台 fixture，设置不可激活后一次异步按本进程 HWND／PID 显示到底层；不改产品窗口代码、不轮询、不伪造焦点状态。后续源程序测试设置 `YUKI_E2E_BACKGROUND_WINDOWS=1`；默认测试配置保留真实 OS 焦点用例原语义。原生入口无法直接使用源程序入口的 hook，后续使用单独明确标识的后台测试包。
+- 后台启动实证 `.cache/pr5-background-proof/background-window.json`：窗口 visible=true、focused=false、focusable=false，显示前后前台 HWND 相同且均非测试 PID；测试配置变更后再验通过。需要 OS 真焦点的 responsive 用例已在用户提出此约束前通过，不会用后台替身重复宣称同一验收。
+
 当前仅本地实施与验证；未推送、未创建远端 PR、未合并、未发布或安装到用户环境。

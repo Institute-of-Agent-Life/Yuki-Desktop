@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Connection, Profile } from '../../src/shared/api'
 import { RoleSwitcher } from '../../src/renderer/components/RoleSwitcher'
+import { PresenceCard } from '../../src/renderer/components/PresenceCard'
 import '../../src/renderer/tokens.css'
 
 // Isolated component data only; this fixture never changes a real connection.
@@ -67,18 +68,34 @@ Object.defineProperty(window, 'yuki', {
 })
 
 function Fixture() {
+  const parameters = new URLSearchParams(location.search)
+  const available =
+    parameters.get('mode') === 'empty'
+      ? []
+      : parameters.get('mode') === 'single'
+        ? connections.slice(0, 1)
+        : connections
   const [selected, setSelected] = useState(
-    new URLSearchParams(location.search).get('selected') === 'second'
+    parameters.get('selected') === 'second'
       ? connections[1]!.characterId
-      : '',
+      : parameters.get('mode') === 'single'
+        ? connections[0]!.characterId
+        : '',
   )
   const [selections, setSelections] = useState<string[]>([])
+  const [actions, setActions] = useState<string[]>([])
+  const current = available.find((connection) => connection.characterId === selected)
+  const action = (name: string) => setActions((previous) => [...previous, name])
   return (
     <main style={{ padding: 24 }}>
       <div style={{ position: 'relative', width: 300, height: 220 }}>
         <RoleSwitcher
-          connections={connections}
+          connections={available}
           selected={selected}
+          trigger={<PresenceCard name={current?.name ?? 'Yuki Desktop'} status="Fixture status" />}
+          onAdd={() => action('connect')}
+          onDeploy={() => action('deploy')}
+          onAbout={current ? () => action(`about:${current.characterId}`) : undefined}
           select={(connection) => {
             setSelections((current) => [...current, connection.characterId])
             setSelected(connection.characterId)
@@ -87,6 +104,7 @@ function Fixture() {
       </div>
       <output data-testid="selected">{selected}</output>
       <output data-testid="selection-count">{selections.length}</output>
+      <output data-testid="actions">{JSON.stringify(actions)}</output>
     </main>
   )
 }

@@ -7,10 +7,10 @@ import { join } from 'node:path'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 
 async function add(page: Page, app?: ElectronApplication) {
-  await page.keyboard.press('ControlOrMeta+,')
-  await page.getByRole('tab', { name: '所有 Yuki', exact: true }).click()
-  if (app) await captureViewport(app, page, test.info().outputPath('yuki-connections.png'))
-  await page.getByRole('button', { name: '連接…', exact: true }).click()
+  await (await sidebar(page)).getByRole('button', { name: '切換 Yuki', exact: true }).click()
+  const menu = page.getByRole('menu', { name: 'Yuki', exact: true })
+  if (app) await captureViewport(app, page, test.info().outputPath('single-yuki-menu.png'))
+  await menu.getByRole('menuitem', { name: '連接另一個 Yuki', exact: true }).click()
   await expect(page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })).toBeVisible()
 }
 async function switchRole(page: Page, name: string) {
@@ -36,7 +36,18 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await page.getByRole('radio', { name: '淺色', exact: true }).click()
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await contentSize(app, page, 1440, 900)
-    await expect(page.getByRole('button', { name: '切換 Yuki', exact: true })).toHaveCount(0)
+    const singleYuki = page.getByRole('button', { name: '切換 Yuki', exact: true })
+    await expect(singleYuki).toBeVisible()
+    await expect(singleYuki).toHaveAccessibleDescription(new RegExp(firstName))
+    expect(
+      await singleYuki.evaluate((button) => {
+        const description = document.getElementById(button.getAttribute('aria-describedby')!)!
+        return {
+          name: description.querySelector('strong')!.textContent,
+          status: description.querySelector('small')!.textContent,
+        }
+      }),
+    ).toEqual({ name: firstName, status: expect.stringMatching(/\S/) })
     await page
       .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼`, exact: true })
       .fill('只有第一角色的草稿')
@@ -44,12 +55,12 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await separator.focus()
     await page.keyboard.press('ArrowRight')
     await expect(separator).toHaveAttribute('aria-valuenow', '264')
-    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '詳情', exact: true }).click()
     await page
-      .getByRole('tablist', { name: '檢視器內容' })
+      .getByRole('tablist', { name: '詳情內容' })
       .getByRole('tab', { name: '檔案', exact: true })
       .click()
-    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
     await add(page, app)
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await add(page)
@@ -61,13 +72,13 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
       }),
     ).toHaveValue('')
     await expect(separator).toHaveAttribute('aria-valuenow', '260')
-    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '詳情', exact: true }).click()
     await expect(
       page
-        .getByRole('tablist', { name: '檢視器內容' })
+        .getByRole('tablist', { name: '詳情內容' })
         .getByRole('tab', { name: '工作', exact: true }),
     ).toHaveAttribute('aria-selected', 'true')
-    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
     await navigate(page, `關於 ${await activeCharacterName(page)}`)
     await page.getByRole('button', { name: '編輯名稱與簡介', exact: true }).click()
     await page.getByLabel('名稱', { exact: true }).fill('Mika')
@@ -75,7 +86,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     await page.getByLabel('深色外觀', { exact: true }).fill('#e5a2bc')
     await page.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(page.getByRole('button', { name: '關於 Mika', exact: true })).toBeVisible()
-    await navigate(page, '對話')
+    await navigate(page, '桌面對話')
     await page
       .getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })
       .fill('只有 Mika 的草稿')
@@ -90,13 +101,13 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
       }),
     ).toHaveValue('只有第一角色的草稿')
     await expect(separator).toHaveAttribute('aria-valuenow', '264')
-    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '詳情', exact: true }).click()
     await expect(
       page
-        .getByRole('tablist', { name: '檢視器內容' })
+        .getByRole('tablist', { name: '詳情內容' })
         .getByRole('tab', { name: '檔案', exact: true }),
     ).toHaveAttribute('aria-selected', 'true')
-    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
     await expect
       .poll(() =>
         page.evaluate(() =>
@@ -166,7 +177,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     ).toBeFocused()
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     await expect(editor).not.toContainText('只屬於 Mika 的提示詞')
-    await navigate(page, '對話')
+    await navigate(page, '桌面對話')
     await switchRole(page, 'Mika')
     await expect(page.getByRole('dialog', { name: '更換 Mika 的頭像' })).toBeVisible()
     await page.keyboard.press('Escape')
@@ -233,13 +244,13 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
       'aria-valuenow',
       '264',
     )
-    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '詳情', exact: true }).click()
     await expect(
       page
-        .getByRole('tablist', { name: '檢視器內容' })
+        .getByRole('tablist', { name: '詳情內容' })
         .getByRole('tab', { name: '檔案', exact: true }),
     ).toHaveAttribute('aria-selected', 'true')
-    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
       await page.keyboard.press('ControlOrMeta+,')
       await page.getByRole('tab', { name: '外觀', exact: true }).click()

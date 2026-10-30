@@ -210,7 +210,7 @@ test('device A uploads with a lost receipt; device B previews and saves verified
         throw error
       })
     await page.getByRole('button', { name: '關閉預覽', exact: true }).click()
-    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
     await page
       .locator(`article[data-event-id="${original.event_id}"]`)
       .getByRole('button', { name: /handoff\.txt/ })
@@ -243,7 +243,7 @@ test('device A uploads with a lost receipt; device B previews and saves verified
       ).status,
     ).toBe(200)
     expect((await fetch(`${rig.base}/__test/disconnect`, { method: 'POST' })).ok).toBe(true)
-    const preview = page.getByRole('complementary', { name: '檢視器', exact: true })
+    const preview = page.getByRole('complementary', { name: '詳情', exact: true })
     await expect(
       preview.getByText('無法讀取或查證原項目，原文仍保留。', { exact: true }),
     ).toBeVisible()

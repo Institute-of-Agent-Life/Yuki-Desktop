@@ -56,7 +56,7 @@ test('the real Conversation and WorkDetail combination honours refresh after an 
     .getByRole('log', { name: '對話訊息' })
     .getByRole('button', { name: '查看詳情', exact: true })
     .click()
-  const inspector = page.getByRole('complementary', { name: '檢視器' })
+  const inspector = page.getByRole('complementary', { name: '詳情' })
   await expect(inspector.getByText('Original first page step', { exact: true })).toBeVisible()
   await page.evaluate(() => {
     ;(window as unknown as { regression: LateWorkFixture }).regression.holdNextSecondPage()

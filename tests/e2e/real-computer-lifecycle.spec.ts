@@ -117,7 +117,7 @@ test('real wait-control follows three leases and survives each Manager restart b
     }, wait.work_id)
     if (expectedGoal) expect(original.work.goal).toBe(expectedGoal)
     expect(initial.control.device_id).toBe(original.deviceId)
-    await navigate(pa, '對話')
+    await navigate(pa, '桌面對話')
     await expect(
       pa
         .getByRole('article')

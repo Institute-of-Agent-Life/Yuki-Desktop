@@ -119,6 +119,7 @@ export function FileRow({
   onOpen,
   onDragStart,
   selected,
+  title = name,
 }: {
   name: string
   identity: string
@@ -127,6 +128,7 @@ export function FileRow({
   onOpen: () => void
   onDragStart?: DragEventHandler<HTMLButtonElement>
   selected?: boolean
+  title?: string
 }) {
   return (
     <button
@@ -134,7 +136,7 @@ export function FileRow({
       onClick={onOpen}
       draggable={!!onDragStart}
       onDragStart={onDragStart}
-      title={name}
+      title={title}
       aria-current={selected ? 'true' : undefined}
     >
       <File size={20} strokeWidth={1.5} />

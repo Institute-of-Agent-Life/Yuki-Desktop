@@ -31,10 +31,10 @@ test('the main chat entry, shortcut and palette return from another actual ingre
       .toContain(source.conversation_id)
 
     for (const route of ['sidebar', 'shortcut', 'palette', 'settings'] as const) {
-      await navigate(page, /^QQ ·/)
+      await navigate(page, /^QQ 私聊 ·/)
       await expect(page.locator(`article[data-event-id="${source.event_id}"]`)).toBeVisible()
       await expect(composer).toHaveCount(0)
-      if (route === 'sidebar') await navigate(page, '對話')
+      if (route === 'sidebar') await navigate(page, '桌面對話')
       else if (route === 'shortcut') await page.keyboard.press('ControlOrMeta+1')
       else if (route === 'palette') {
         await page.keyboard.press('ControlOrMeta+k')
@@ -51,23 +51,23 @@ test('the main chat entry, shortcut and palette return from another actual ingre
       await expect(composer).toBeVisible()
       await expect(composer).toHaveValue(draft)
       await expect(
-        (await sidebar(page)).getByRole('button', { name: '對話', exact: true }),
+        (await sidebar(page)).getByRole('button', { name: '桌面對話', exact: true }),
       ).toHaveAttribute('aria-current', 'page')
       expect(await currentConnection(page)).toEqual(original)
     }
     await page.keyboard.press('ControlOrMeta+,')
     await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '返回', exact: true }).click()
-    await navigate(page, /^QQ ·/)
+    await navigate(page, /^QQ 私聊 ·/)
     await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeHidden()
     await expect(page.locator(`article[data-event-id="${source.event_id}"]`)).toBeVisible()
     await expect(composer).toHaveCount(0)
-    await navigate(page, '對話')
+    await navigate(page, '桌面對話')
     await expect(composer).toHaveValue(draft)
     expect(await currentConnection(page)).toEqual(original)
 
     for (const sourceIsQQ of [true, false]) {
-      if (sourceIsQQ) await navigate(page, /^QQ ·/)
+      if (sourceIsQQ) await navigate(page, /^QQ 私聊 ·/)
       await navigate(page, '關於 初始角色')
       await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
       const editor = page.getByRole('textbox', { name: 'SOUL.md 內容', exact: true })
@@ -76,7 +76,7 @@ test('the main chat entry, shortcut and palette return from another actual ingre
       await editor.click()
       await page.keyboard.press('ControlOrMeta+A')
       await page.keyboard.insertText(unsaved)
-      await navigate(page, sourceIsQQ ? '對話' : /^QQ ·/)
+      await navigate(page, sourceIsQQ ? '桌面對話' : /^QQ 私聊 ·/)
       const guard = page.getByRole('dialog', { name: '要儲存變更嗎？', exact: true })
       await expect(guard).toBeVisible()
       await guard.getByRole('button', { name: '取消', exact: true }).click()

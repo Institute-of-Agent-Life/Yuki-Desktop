@@ -99,12 +99,12 @@ test(
       })
       await contentSize(app, page, 1440, 900)
       await waiting().getByRole('button', { name: '查看詳情', exact: true }).click()
-      await page.getByRole('button', { name: '展開工作區', exact: true }).click()
+      await page.getByRole('button', { name: '放大詳情', exact: true }).click()
       await page
-        .getByRole('complementary', { name: '檢視器', exact: true })
+        .getByRole('complementary', { name: '詳情', exact: true })
         .getByRole('button', { name: '在電腦上查看', exact: true })
         .click()
-      await expect(page.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
+      await expect(page.getByRole('button', { name: '還原版面', exact: true })).toBeVisible()
       await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled()
       await captureWorkspace(
         app,
@@ -219,8 +219,8 @@ test(
           version: asset.sha256,
         }),
       ])
-      if (await page.getByRole('button', { name: '收合工作區', exact: true }).isVisible())
-        await page.getByRole('button', { name: '收合工作區', exact: true }).click()
+      if (await page.getByRole('button', { name: '還原版面', exact: true }).isVisible())
+        await page.getByRole('button', { name: '還原版面', exact: true }).click()
       await page.keyboard.press('ControlOrMeta+1')
       await page.screenshot({
         path: test
