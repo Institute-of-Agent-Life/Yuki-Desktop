@@ -4,6 +4,7 @@ import {
   Folder,
   MessageCircle,
   Monitor,
+  Laptop,
   Settings2,
   Snowflake,
 } from 'lucide-react'
@@ -35,9 +36,11 @@ export function DisconnectedHome({
         ? '檔案與成果'
         : view === 'computer'
           ? '電腦'
-          : view === 'about'
-            ? '關於 Yuki Desktop'
-            : '對話'
+          : view === 'local'
+            ? '這台電腦'
+            : view === 'about'
+              ? '關於 Yuki Desktop'
+              : '對話'
   const Icon =
     view === 'works'
       ? BriefcaseBusiness
@@ -45,9 +48,11 @@ export function DisconnectedHome({
         ? Folder
         : view === 'computer'
           ? Monitor
-          : view === 'about'
-            ? Snowflake
-            : MessageCircle
+          : view === 'local'
+            ? Laptop
+            : view === 'about'
+              ? Snowflake
+              : MessageCircle
   return (
     <Workspace
       name="Yuki Desktop"
@@ -81,9 +86,11 @@ export function DisconnectedHome({
               ? '檔案與成果會顯示在這裡'
               : view === 'computer'
                 ? 'Yuki 的電腦會顯示在這裡'
-                : view === 'about'
-                  ? 'Yuki Desktop'
-                  : '你的 Yuki 工作區'}
+                : view === 'local'
+                  ? '這台電腦'
+                  : view === 'about'
+                    ? 'Yuki Desktop'
+                    : '你的 Yuki 工作區'}
         </h1>
         <p className={styles.description}>
           {view === 'works'
@@ -92,9 +99,11 @@ export function DisconnectedHome({
               ? '連接你的 Yuki 後，可以瀏覽檔案與成果的原版本、比較內容，並返回原始訊息或工作。'
               : view === 'computer'
                 ? '連接你的 Yuki 後，可以查看她的電腦、接手操作，再交回原工作。'
-                : view === 'about'
-                  ? '與自己的 Yuki 對話、查看工作，也可以讓她使用本機的編程 Agent。連接後會顯示她的資料。'
-                  : 'Yuki 可以稍後再設定。你現在就能使用工作區、本機設定和說明；連接後即可開始對話。'}
+                : view === 'local'
+                  ? '連接 Yuki 後，可以讓她使用這台電腦。'
+                  : view === 'about'
+                    ? '與自己的 Yuki 對話、查看工作，也可以讓她使用本機的編程 Agent。連接後會顯示她的資料。'
+                    : 'Yuki 可以稍後再設定。你現在就能使用工作區、本機設定和說明；連接後即可開始對話。'}
         </p>
         <div className={styles.actions}>
           <Button variant="primary" large onClick={connect}>

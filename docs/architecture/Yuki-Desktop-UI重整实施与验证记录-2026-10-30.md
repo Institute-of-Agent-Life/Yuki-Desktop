@@ -64,4 +64,18 @@
 - 补充检查每个分类标题的实际几何与视口可见性，重跑 `settings-layout.spec.ts`：1 通过，27 张图及逐页 `*.layout.json` 位于 `.cache/pr3-heading-layout/`。已查看小窗口连线／装置页面；标题与分类高亮可见，连线技术资料折叠，装置按组呈现。记录实际 DPI 尺寸，不将请求尺寸当作实际窗口尺寸。
 - 最新静态检查通过。PR-3 本地实现及对应验证完成，按该分支提交；未推送或创建远端 PR。
 
+## PR-4：这台电脑的设置与活动
+
+分支：`codex/ui-local-computer-20261030`，接续 PR-3 `75a0338`。
+
+- 新增 `local` 视图、菜单与 Ctrl/Cmd+6 入口；未授权显示空态并直达设置。沿原查询键、SSE 和真实本人匹配读取状态，Conversation 复用已有失权提示。没有改 connector IPC 或新建全局状态。
+- 设置保留唯一状态主动作、背景连接 Toggle、完整访问、旧安装沿用／更新和技术排障；Agent 编辑移入 Sheet。派生摘要区分未配对、未安装、已停止与未知，行内连接描述只在真实匹配时显示。
+- 活动页分原生任务／终端两页，内容保持挂载；每页右上一个“重新整理”。保留原提交、分页、原 UUID、权限请求和停止逻辑。
+- `npm run lint`、`npm run build`（含 typecheck）、`git diff --check`：通过。
+- 首批 `agent-connector.spec.ts native-request.spec.ts native.spec.ts local-computer.spec.ts`：25 通过、3 失败，产物 `.cache/pr4-e2e/`、日志 `.cache/pr4-e2e.log`。`native.spec.ts` 的真实源程序／隔离 OS 适配器路径通过；没有宿主剪贴板或服务安装的额外验收声明。
+- 三处失败分别是摘要与折叠技术信息同名造成 strict 定位重复、新增真实后端用例未配置同类测试的整体执行预算、测试把原生 options 回覆误写成 response.decision。定位收窄到状态 Section；真实用例使用既有同类后端测试的 120 秒总预算（不改变单步、产品超时或重试）；原生实际协议为 `agentTarget.option_id='accept'`，按合同更正断言。
+- 真实后端空态／设置跳转补跑：1 通过（24.4 秒），产物 `.cache/pr4-real-empty/`。组件定向补跑：3 通过，产物 `.cache/pr4-fixed/`、日志 `.cache/pr4-fixed.log`。其中修正故障注入，实际覆盖“configure 已保存、随后启动失败”：Sheet／草稿／原实例 ID 保持，同 ID 保存后仍停止，再由明确 Toggle 启动；JSON 记录持久状态与调用。没有将普通成功编辑当作失败恢复验收。
+- 三尺寸空态图与 `local-computer-empty.json` 位于 `.cache/pr4-real-empty/local-computer-a-real-pair-14bd6-ing-or-starting-a-connector/`；双 Tab／NativeRequest／分页及草稿图和 `local-computer.json` 位于 `.cache/pr4-fixed/local-computer-the-compone-bb261--across-local-activity-tabs/`。已查看小窗口空态和活动图。
+- 证据分层：真实后端验证未批准本机连接时的路径；正向连接器、Agent、权限回覆与故障为真实组件配合明确 mock 的 E2E。未启动或授权宿主连接器服务，没有宣称真实宿主 Agent 握手或模型执行通过。
+
 当前仅本地实施与验证；未推送、未创建远端 PR、未合并、未发布或安装到用户环境。

@@ -6,6 +6,7 @@ import { Banner, Button } from '../components/Controls'
 import { hidesPrivateData, unwrap } from '../queries/client'
 import { Row } from './SettingsRow'
 import styles from './Settings.module.css'
+import activityStyles from './LocalComputer.module.css'
 
 export function ConnectorTerminals({
   connection,
@@ -92,19 +93,22 @@ export function ConnectorTerminals({
   }
   return (
     <>
-      <h3>這台電腦的終端任務</h3>
+      <div className={activityStyles.toolbar}>
+        <h3>這台電腦的終端任務</h3>
+        <Button
+          variant="plain"
+          disabled={directory.isFetching || detail.isFetching}
+          onClick={() => {
+            void directory.refetch()
+            if (runId) void detail.refetch()
+          }}
+        >
+          重新整理
+        </Button>
+      </div>
       <p className={styles.notice}>
         查看 Yuki 在這台電腦啟動的原執行、輸出與完成回執。關閉完整訪問後仍可讀取與停止原執行。
       </p>
-      <Button
-        disabled={directory.isFetching || detail.isFetching}
-        onClick={() => {
-          void directory.refetch()
-          if (runId) void detail.refetch()
-        }}
-      >
-        重新讀取終端任務
-      </Button>
       {directory.isError && <Banner status="unknown">終端目錄暫時無法讀取。</Banner>}
       <div className={styles.group}>
         {!hidesPrivateData(directory.error) &&
