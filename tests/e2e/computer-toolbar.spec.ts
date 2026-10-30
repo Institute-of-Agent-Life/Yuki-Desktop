@@ -105,7 +105,7 @@ test(
       await expect(controls.getByRole('button', { name: '接手', exact: true })).toBeEnabled()
       const longName = `${name}・在不同裝置間保留同一個長期角色的名稱`
       await navigate(pa, `關於 ${name}`)
-      await pa.getByRole('button', { name: '編輯角色資料', exact: true }).click()
+      await pa.getByRole('button', { name: '編輯名稱與簡介', exact: true }).click()
       await pa.getByRole('textbox', { name: '名稱', exact: true }).fill(longName)
       await pa.getByRole('button', { name: '儲存', exact: true }).click()
       await expect(pa.getByRole('heading', { name: longName, exact: true })).toBeVisible()

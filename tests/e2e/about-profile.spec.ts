@@ -19,28 +19,28 @@ test('an empty profile remains editable when legacy owner metadata is false', as
     contentType: 'application/json',
   })
   await page.screenshot({ path: test.info().outputPath('about-nonowner-empty.png') })
-  await expect(page.getByText('尚未設定角色簡介。', { exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '角色資料', exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '角色頭像', exact: true })).toBeInViewport()
+  await expect(page.getByText('尚未設定簡介。', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '簡介', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '頭像', exact: true })).toBeInViewport()
   await expect(
     page.getByText('名稱、簡介、頭像與提示詞由連接這個 Yuki 的使用者共享。'),
   ).toBeVisible()
-  await expect(page.getByRole('button', { name: '編輯角色資料', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '編輯名稱與簡介', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '編輯提示詞', exact: true })).toBeVisible()
 })
 
 test('legacy owner metadata does not change shared profile editing', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('http://127.0.0.1:4178/about-profile.html?owner=true')
-  await expect(page.getByText('尚未設定角色簡介。', { exact: true })).toBeVisible()
+  await expect(page.getByText('尚未設定簡介。', { exact: true })).toBeVisible()
   await expect(
     page.getByText('名稱、簡介、頭像與提示詞由連接這個 Yuki 的使用者共享。'),
   ).toBeVisible()
-  await page.getByRole('button', { name: '編輯角色資料', exact: true }).click()
+  await page.getByRole('button', { name: '編輯名稱與簡介', exact: true }).click()
   await expect(page.getByLabel('名稱', { exact: true })).toHaveValue('Yuki')
   await expect(page.getByLabel('簡介', { exact: true })).toHaveValue('')
   await page.getByRole('button', { name: '取消', exact: true }).click()
-  await expect(page.getByRole('button', { name: '編輯角色資料', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '編輯名稱與簡介', exact: true })).toBeVisible()
 })
 
 test('a long profile wraps and scrolls inside the existing content column', async ({ page }) => {
@@ -59,37 +59,57 @@ test('a long profile wraps and scrolls inside the existing content column', asyn
   await scrollArea.evaluate((element) => {
     element.scrollTop = element.scrollHeight
   })
-  await expect(page.getByRole('heading', { name: '角色資料', exact: true })).toBeVisible()
-  await page.getByRole('heading', { name: '角色資料', exact: true }).scrollIntoViewIfNeeded()
-  await expect(page.getByRole('heading', { name: '角色資料', exact: true })).toBeInViewport()
-  await page.getByRole('heading', { name: '角色頭像', exact: true }).scrollIntoViewIfNeeded()
-  await expect(page.getByRole('heading', { name: '角色頭像', exact: true })).toBeInViewport()
+  await expect(page.getByRole('heading', { name: '簡介', exact: true })).toBeVisible()
+  await page.getByRole('heading', { name: '簡介', exact: true }).scrollIntoViewIfNeeded()
+  await expect(page.getByRole('heading', { name: '簡介', exact: true })).toBeInViewport()
+  await page.getByRole('heading', { name: '頭像', exact: true }).scrollIntoViewIfNeeded()
+  await expect(page.getByRole('heading', { name: '頭像', exact: true })).toBeInViewport()
   expect(await content.evaluate((element) => element.scrollTop)).toBe(0)
   await page.screenshot({ path: test.info().outputPath('about-long-profile.png') })
 })
 
 test('avatar editing depends on the actual server capability', async ({ page }) => {
   await page.goto('http://127.0.0.1:4178/about-profile.html?owner=true')
-  await expect(page.getByText('這個 Yuki 目前尚未提供更換角色頭像的功能。')).toBeVisible()
-  await expect(page.getByRole('button', { name: '更換頭像', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '編輯角色資料', exact: true })).toBeVisible()
+  await expect(page.getByText('這個 Yuki 目前尚未提供更換頭像的功能。')).toBeVisible()
+  await expect(
+    page
+      .getByRole('region', { name: '頭像', exact: true })
+      .getByRole('button', { name: '更換頭像', exact: true }),
+  ).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '編輯名稱與簡介', exact: true })).toBeVisible()
   await page.goto('http://127.0.0.1:4178/about-profile.html?owner=true&avatar=supported')
-  await page.getByRole('button', { name: '更換頭像', exact: true }).click()
+  await page
+    .getByRole('region', { name: '頭像', exact: true })
+    .getByRole('button', { name: '更換頭像', exact: true })
+    .click()
   await expect(page.getByRole('dialog', { name: '更換 Yuki 的頭像' })).toBeVisible()
   await expect(page.getByRole('button', { name: '選擇圖片…', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '還原預設', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '取消', exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '更換頭像', exact: true })).toBeFocused()
+  await expect(
+    page
+      .getByRole('region', { name: '頭像', exact: true })
+      .getByRole('button', { name: '更換頭像', exact: true }),
+  ).toBeFocused()
 })
 
 test('shared avatar editing and original pending updates remain available without owner metadata', async ({
   page,
 }) => {
   await page.goto('http://127.0.0.1:4178/about-profile.html?avatar=supported')
-  await expect(page.getByRole('button', { name: '更換頭像', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '更換角色頭像', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '更換頭像', exact: true }).click()
+  await expect(
+    page
+      .getByRole('region', { name: '頭像', exact: true })
+      .getByRole('button', { name: '更換頭像', exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.locator('header').getByRole('button', { name: '更換頭像', exact: true }),
+  ).toBeVisible()
+  await page
+    .getByRole('region', { name: '頭像', exact: true })
+    .getByRole('button', { name: '更換頭像', exact: true })
+    .click()
   await expect(page.getByRole('dialog', { name: '更換 Yuki 的頭像' })).toBeVisible()
   await page.getByRole('button', { name: '取消', exact: true }).click()
   await page.goto('http://127.0.0.1:4178/about-profile.html?avatar=supported&pending=avatar')
@@ -106,8 +126,8 @@ test('an unavailable capability read stays unknown while normal profile editing 
   await page.goto('http://127.0.0.1:4178/about-profile.html?owner=true&avatar=error')
   await expect(page.getByText('目前無法取得頭像設定，請確認連線後重新讀取。')).toBeVisible()
   await expect(page.getByRole('button', { name: '重新讀取頭像設定', exact: true })).toBeVisible()
-  await expect(page.getByText('這個 Yuki 目前尚未提供更換角色頭像的功能。')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '編輯角色資料', exact: true })).toBeVisible()
+  await expect(page.getByText('這個 Yuki 目前尚未提供更換頭像的功能。')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '編輯名稱與簡介', exact: true })).toBeVisible()
 })
 
 test('the full About keeps personal memory, read-only SELF memory, arrangements and capabilities', async ({

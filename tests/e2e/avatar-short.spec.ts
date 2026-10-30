@@ -29,7 +29,10 @@ test('short avatar sheet preserves crop scale, real pointer and keyboard movemen
     expect(inputResponse.ok).toBe(true)
     const inputs = (await inputResponse.json()) as { rotated: string }
     await navigate(page, `關於 ${original.display_name}`)
-    await page.getByRole('button', { name: '更換頭像', exact: true }).click()
+    await page
+      .getByRole('region', { name: '頭像', exact: true })
+      .getByRole('button', { name: '更換頭像', exact: true })
+      .click()
     const sheet = page.getByRole('dialog', {
       name: `更換 ${original.display_name} 的頭像`,
       exact: true,

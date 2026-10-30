@@ -172,7 +172,7 @@ export function ServerSettings({
         <Banner status="failed">{(info.error ?? me.error)?.message}</Banner>
       )}
       <h3>主動訊息送到哪裡</h3>
-      <p className={styles.notice}>選擇你希望收到角色主動訊息的入口。</p>
+      <p className={styles.notice}>選擇 Yuki 主動找你時使用的入口。</p>
       {route.isError && <Banner status="failed">{route.error.message}</Banner>}
       {error && <Banner status="failed">{error}</Banner>}
       {notice && (
@@ -241,9 +241,9 @@ export function ServerSettings({
           </Button>
         </div>
       ))}
-      <h3>角色資料</h3>
-      <p className={styles.notice}>名稱、頭像與提示詞會隨角色保留。</p>
-      <Button onClick={about}>開啟角色資料</Button>
+      <h3>資料</h3>
+      <p className={styles.notice}>名稱、頭像與人格會隨這個 Yuki 保留。</p>
+      <Button onClick={about}>開啟資料</Button>
       <Sheet
         title="更改伺服器位址"
         open={address !== undefined}

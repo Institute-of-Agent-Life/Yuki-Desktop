@@ -660,7 +660,7 @@ function Case() {
       <main className={appStyles.app}>
         <Workspace
           name="Yuki Desktop"
-          status="尚未連接 Bot"
+          status="尚未連接 Yuki"
           platform="linux"
           floating={false}
           settings={

@@ -57,7 +57,7 @@ export function DisconnectedHome({
     <Workspace
       name="Yuki Desktop"
       avatar={<Snowflake size={28} strokeWidth={1.5} aria-hidden="true" />}
-      status="尚未連接 Bot"
+      status="尚未連接 Yuki"
       presence="offline"
       platform={platform}
       floating={false}
@@ -82,8 +82,10 @@ export function DisconnectedHome({
           )}
         </>
       }
-      inspectorTitle="尚未連接 Bot"
-      inspector={<p className={styles.inspectorEmpty}>連接 Bot 後，可以在這裡查看原工作與檔案。</p>}
+      inspectorTitle="尚未連接 Yuki"
+      inspector={
+        <p className={styles.inspectorEmpty}>連接 Yuki 後，可以在這裡查看原工作與檔案。</p>
+      }
     >
       <section className={styles.empty} aria-labelledby="disconnected-heading">
         <Icon className={styles.mark} size={40} strokeWidth={1.25} aria-hidden="true" />
@@ -100,14 +102,14 @@ export function DisconnectedHome({
         </h1>
         <p className={styles.description}>
           {view === 'works'
-            ? '連接你的 Bot 後，可以查看真實工作、補充要求，並跟進原本的進度與結果。'
+            ? '連接你的 Yuki 後，可以查看真實工作、補充要求，並跟進原本的進度與結果。'
             : view === 'files'
-              ? '連接你的 Bot 後，可以瀏覽檔案與成果的原版本、比較內容，並返回原始訊息或工作。'
+              ? '連接你的 Yuki 後，可以瀏覽檔案與成果的原版本、比較內容，並返回原始訊息或工作。'
               : view === 'computer'
-                ? '連接你的 Bot 後，可以查看她的電腦、接手操作，再交回原工作。'
+                ? '連接你的 Yuki 後，可以查看她的電腦、接手操作，再交回原工作。'
                 : view === 'about'
-                  ? '與自己的 Bot 對話、查看工作，也可以讓她使用本機的編程 Agent。角色資料會在連接後顯示。'
-                  : 'Bot 可以稍後再設定。你現在就能使用工作區、本機設定和說明；連接後即可開始對話。'}
+                  ? '與自己的 Yuki 對話、查看工作，也可以讓她使用本機的編程 Agent。連接後會顯示她的資料。'
+                  : 'Yuki 可以稍後再設定。你現在就能使用工作區、本機設定和說明；連接後即可開始對話。'}
         </p>
         <div className={styles.actions}>
           <Button variant="primary" large onClick={connect}>

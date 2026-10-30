@@ -141,7 +141,7 @@ test(
         .getByRole('button', { name: '改由這台控制', exact: true })
         .click()
       await expect(pb.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
-      await expect(pb.getByRole('button', { name: '貼上到角色的電腦' })).toBeEnabled()
+      await expect(pb.getByRole('button', { name: '貼上文字到遠端畫面' })).toBeEnabled()
       expect((await facts()).control.lease_id).not.toBe(firstLease)
       await pb
         .getByRole('application', { name: '遠端電腦畫面' })
@@ -170,12 +170,12 @@ test(
         await expect(pa.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
         await clipboardCaps.pending
         await expect(pa.getByRole('button', { name: '傳送 Ctrl Alt Delete' })).toBeEnabled()
-        expect(await pa.getByRole('button', { name: '貼上到角色的電腦' }).isDisabled()).toBe(true)
+        expect(await pa.getByRole('button', { name: '貼上文字到遠端畫面' }).isDisabled()).toBe(true)
         expect((await facts()).clipboard).toBe('')
       } finally {
         clipboardCaps.release()
       }
-      await expect(pa.getByRole('button', { name: '貼上到角色的電腦' })).toBeEnabled()
+      await expect(pa.getByRole('button', { name: '貼上文字到遠端畫面' })).toBeEnabled()
       const beforePaste = await facts()
       expect(
         beforePaste.events
@@ -183,7 +183,7 @@ test(
           .every((event) => !!(event.flags! & 0x01000000)),
       ).toBe(true)
       await a.evaluate(({ clipboard }) => clipboard.writeText('從預覽接手後明確貼上的中文 🙂'))
-      await pa.getByRole('button', { name: '貼上到角色的電腦' }).click()
+      await pa.getByRole('button', { name: '貼上文字到遠端畫面' }).click()
       await expect.poll(async () => (await facts()).clipboard).toBe('從預覽接手後明確貼上的中文 🙂')
       await pa.getByRole('button', { name: `交回給 ${name}`, exact: true }).click()
       await pa
@@ -195,7 +195,7 @@ test(
       await preview(pa)
       await inspector(pa).getByRole('button', { name: '開啟完整畫面', exact: true }).click()
       await expect(pa.getByRole('application', { name: '遠端電腦畫面' })).toBeVisible()
-      await expect(pa.getByRole('button', { name: '貼上到角色的電腦' })).toBeDisabled()
+      await expect(pa.getByRole('button', { name: '貼上文字到遠端畫面' })).toBeDisabled()
       expect((await facts()).control.holder).toBe('none')
       await writeFile(
         test.info().outputPath('preview-facts.json'),

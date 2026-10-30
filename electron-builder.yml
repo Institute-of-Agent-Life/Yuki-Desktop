@@ -51,7 +51,7 @@ mac:
   entitlements: resources/entitlements.mac.plist
   entitlementsInherit: resources/entitlements.mac.plist
   extendInfo:
-    NSMicrophoneUsageDescription: 錄下你明確開始的語音訊息，傳給所連接的 Yuki 角色。
+    NSMicrophoneUsageDescription: 錄下你明確開始的語音訊息，傳給所連接的 Yuki。
 win:
   icon: resources/icons/app/256x256.png
   target: [nsis]

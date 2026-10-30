@@ -74,7 +74,7 @@ export function LocalBot({
       <section data-glass="card" className={styles.welcomeInner}>
         <h1>在本機部署 Yuki</h1>
         <p>
-          Bot
+          Yuki
           和資料保存在你選的目錄。模型可以使用遠端服務或你已有的本機服務；這裡不附帶模型，也不要求先接
           QQ 或其他聊天平台。
         </p>
@@ -136,7 +136,7 @@ export function LocalBot({
           </div>
           {!state?.configured && (
             <>
-              <label htmlFor="local-character">角色名稱</label>
+              <label htmlFor="local-character">Yuki 的名稱</label>
               <TextField
                 id="local-character"
                 value={characterName}

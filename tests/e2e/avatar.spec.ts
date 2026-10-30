@@ -120,7 +120,10 @@ test('real image crop works in a short window; two devices resolve CAS, sync and
     const images = await inputs(rig.base)
     for (const page of [pa, pb]) {
       await about(page)
-      await page.getByRole('button', { name: '更換頭像', exact: true }).click()
+      await page
+        .getByRole('region', { name: '頭像', exact: true })
+        .getByRole('button', { name: '更換頭像', exact: true })
+        .click()
     }
     await choose(a, pa, images.rotated)
     await expect(editor(pa)).toContainText('3000×4000')
@@ -195,7 +198,10 @@ test('real image crop works in a short window; two devices resolve CAS, sync and
       .poll(async () => (await profile(pa, connection.characterId)).avatar_revision)
       .toBe(initial.avatar_revision + 2)
     for (const page of [pa, pb]) await expect.poll(() => sidebarColor(page)).toEqual([232, 53, 74])
-    await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
+    await pa
+      .getByRole('region', { name: '頭像', exact: true })
+      .getByRole('button', { name: '更換頭像', exact: true })
+      .click()
     await editor(pa).getByRole('button', { name: '還原預設', exact: true }).click()
     await expect(editor(pa)).not.toBeVisible()
     const reset = await profile(pa, connection.characterId)
@@ -258,7 +264,10 @@ test('a committed upload with a lost response cold-recovers its original UUID on
     const images = await inputs(rig.base)
     const initial = await profile(page, connection.characterId)
     await about(page)
-    await page.getByRole('button', { name: '更換頭像', exact: true }).click()
+    await page
+      .getByRole('region', { name: '頭像', exact: true })
+      .getByRole('button', { name: '更換頭像', exact: true })
+      .click()
     await choose(app, page, images.large)
     proxy.faults.loseNextSuffix = '/character/avatar'
     await editor(page).getByRole('button', { name: '儲存', exact: true }).click()
@@ -364,13 +373,19 @@ test('revoking one real device clears its private avatar cache while another val
     const connection = await currentConnection(pa)
     const images = await inputs(rig.base)
     await about(pa)
-    await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
+    await pa
+      .getByRole('region', { name: '頭像', exact: true })
+      .getByRole('button', { name: '更換頭像', exact: true })
+      .click()
     await choose(a, pa, images.small)
     await editor(pa).getByRole('button', { name: '儲存', exact: true }).click()
     await expect(editor(pa)).not.toBeVisible()
     const current = await profile(pa, connection.characterId)
     for (const page of [pa, pb]) await expect.poll(() => sidebarColor(page)).toEqual([232, 53, 74])
-    await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
+    await pa
+      .getByRole('region', { name: '頭像', exact: true })
+      .getByRole('button', { name: '更換頭像', exact: true })
+      .click()
     const revoked = await fetch(`${rig.base}/__test/revoke-character-device`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -379,7 +394,11 @@ test('revoking one real device clears its private avatar cache while another val
     expect(revoked.status).toBe(200)
     expect(await revoked.json()).toMatchObject({ device_id: connection.deviceId, revoked: true })
     await expect(editor(pa)).not.toBeVisible()
-    await expect(pa.getByRole('button', { name: '更換頭像', exact: true })).toHaveCount(0)
+    await expect(
+      pa
+        .getByRole('region', { name: '頭像', exact: true })
+        .getByRole('button', { name: '更換頭像', exact: true }),
+    ).toHaveCount(0)
     const noAccess = await pa.evaluate(
       async ({ id, sha }) => {
         const result = await window.yuki.client.avatarBytes(id, sha, 64)
@@ -399,7 +418,11 @@ test('revoking one real device clears its private avatar cache while another val
     )
     expect(typeof readable).toBe('number')
     await about(pb)
-    await expect(pb.getByRole('button', { name: '更換頭像', exact: true })).toBeVisible()
+    await expect(
+      pb
+        .getByRole('region', { name: '頭像', exact: true })
+        .getByRole('button', { name: '更換頭像', exact: true }),
+    ).toBeVisible()
     const changed = await pb.evaluate(
       async ({ id, revision }) => {
         const result = await window.yuki.client.avatarCommand(id, revision)

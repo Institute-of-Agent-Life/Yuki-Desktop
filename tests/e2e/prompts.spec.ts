@@ -127,7 +127,7 @@ test('another paired person updates the name and SOUL, preserves conflicts and k
     expect(denied).toBe('unauthenticated')
     await expect(editor).not.toBeVisible()
     await expect(page.getByRole('button', { name: '編輯提示詞', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: '編輯角色資料', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '編輯名稱與簡介', exact: true })).toHaveCount(0)
     await expect(page.locator('body')).not.toContainText('local private draft')
     const remaining = await fetch(rig.base + '/client/v1/character/soul', { headers })
     expect(remaining.status).toBe(200)

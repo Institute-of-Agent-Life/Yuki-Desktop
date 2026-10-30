@@ -257,7 +257,7 @@ export class LocalBot {
       'webui-config',
     ])
       await mkdir(join(directory, name), { recursive: true })
-    this.options.progress('初始化角色與資料庫')
+    this.options.progress('初始化 Yuki 與資料庫')
     await this.compose(item, [
       'run',
       '--rm',

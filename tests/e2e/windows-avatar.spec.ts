@@ -82,7 +82,10 @@ test('Windows native avatar selection preserves EXIF, crop, second-device conver
       noSandbox: false,
     })
     await navigate(pa, `關於 ${original.display_name}`)
-    await pa.getByRole('button', { name: '更換頭像', exact: true }).click()
+    await pa
+      .getByRole('region', { name: '頭像', exact: true })
+      .getByRole('button', { name: '更換頭像', exact: true })
+      .click()
     const sheet = pa.getByRole('dialog', {
       name: `更換 ${original.display_name} 的頭像`,
       exact: true,
@@ -117,10 +120,11 @@ test('Windows native avatar selection preserves EXIF, crop, second-device conver
       .evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL())
     await crop.press('+')
     await crop.press('Shift+ArrowDown')
-    await expect(sheet.getByRole('slider', { name: '頭像縮放' })).toHaveAttribute(
-      'aria-valuenow',
-      '110',
-    )
+    await expect
+      .poll(async () =>
+        Number(await sheet.getByRole('slider', { name: '頭像縮放' }).getAttribute('aria-valuenow')),
+      )
+      .toBeCloseTo(110)
     const box = (await crop.boundingBox())!
     await pa.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
     await pa.mouse.down()
