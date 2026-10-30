@@ -16,7 +16,7 @@ async function selected(page: Page) {
 }
 async function security(page: Page) {
   await page.keyboard.press('ControlOrMeta+,')
-  await page.getByRole('tab', { name: '裝置與安全', exact: true }).click()
+  await page.getByRole('tab', { name: '裝置', exact: true }).click()
   await expect(page.getByRole('button', { name: '登出…', exact: true })).toBeVisible()
 }
 async function prepare(page: Page) {

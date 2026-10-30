@@ -307,8 +307,8 @@ test('plays and seeks both actual media sources, renders local rich text and kee
     // Role sessions intentionally remain mounted; their existing active context owns previews.
     second = await yukiFixture()
     await page.keyboard.press('ControlOrMeta+,')
-    await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
-    await page.getByRole('button', { name: '連接另一個 Yuki', exact: true }).click()
+    await page.getByRole('tab', { name: '所有 Yuki', exact: true }).click()
+    await page.getByRole('button', { name: '連接…', exact: true }).click()
     await pairUI(page, second.base, await second.code())
     const oldUrlStatus = await page.evaluate(async (url) => (await fetch(url!)).status, oldUrl)
     expect(oldUrlStatus).toBe(404)

@@ -13,7 +13,7 @@ import type { Me } from '../../src/shared/api'
 import type { components } from '../../src/shared/contract.gen'
 async function security(page: Page) {
   await page.keyboard.press('ControlOrMeta+,')
-  await page.getByRole('tab', { name: '裝置與安全', exact: true }).click()
+  await page.getByRole('tab', { name: '裝置', exact: true }).click()
   await expect(page.getByRole('button', { name: '產生綁定碼', exact: true })).toBeEnabled()
 }
 async function selected(page: Page) {
@@ -352,7 +352,7 @@ test('device and one-time-code sheets keep actual controls reachable in four the
         const toggle = page.getByRole('switch', { name: label, exact: true })
         if ((await toggle.getAttribute('aria-checked')) !== String(value)) await toggle.click()
       }
-      await page.getByRole('tab', { name: '裝置與安全', exact: true }).click()
+      await page.getByRole('tab', { name: '裝置', exact: true }).click()
       for (const [width, height] of [
         [1440, 900],
         [1100, 760],

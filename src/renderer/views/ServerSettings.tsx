@@ -10,12 +10,10 @@ export function ServerSettings({
   connection,
   onConnection,
   about,
-  onAddCharacter,
 }: {
   connection: Connection
   onConnection(connection: Connection): void
   about(): void
-  onAddCharacter(): void
 }) {
   const id = connection.characterId,
     query = useQueryClient()
@@ -131,9 +129,6 @@ export function ServerSettings({
   return (
     <>
       <div className={styles.group}>
-        <Row title="其他 Yuki" description="連接同一台或不同伺服器上已部署的獨立 Yuki 後端實例。">
-          <Button onClick={onAddCharacter}>連接另一個 Yuki</Button>
-        </Row>
         <Row title="伺服器位址" description={connection.baseUrl}>
           <Button
             onClick={() => {

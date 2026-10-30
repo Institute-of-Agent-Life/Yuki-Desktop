@@ -1,12 +1,13 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { join } from 'node:path'
+import { writeFile } from 'node:fs/promises'
 import { currentConnection, currentEvents, pairUI, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
 import { navigate, sidebar } from '../fixtures/navigation'
 import { captureViewport, contentSize } from '../fixtures/visual'
 
 async function expectUnconfigured(page: Page) {
-  await sidebar(page)
+  await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
   expect(await page.evaluate(() => window.yuki.client.connections())).toEqual({
     ok: true,
     value: [],
@@ -16,8 +17,11 @@ async function expectUnconfigured(page: Page) {
 }
 
 async function serverSettings(page: Page) {
-  await navigate(page, '設定')
-  await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
+  await page.keyboard.press('ControlOrMeta+,')
+  await page.getByRole('tab', { name: '所有 Yuki', exact: true }).click()
+  await expect(page.getByRole('navigation', { name: '主要導覽', exact: true })).toBeHidden()
+  for (const name of ['連線', '裝置', '這台電腦'])
+    await expect(page.getByRole('tab', { name, exact: true })).toHaveCount(0)
 }
 
 async function sizeWorkspace(app: ElectronApplication, page: Page) {
@@ -44,14 +48,14 @@ test('an unconfigured workspace can connect later and opens the actual paired Pe
     await expectUnconfigured(page)
     await serverSettings(page)
     const panel = page.getByRole('tabpanel')
-    await expect(panel.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
-    await expect(panel.getByRole('button', { name: '本機部署與管理', exact: true })).toBeVisible()
+    await expect(panel.getByRole('button', { name: '連接…', exact: true })).toBeVisible()
+    await expect(panel.getByRole('button', { name: '部署與管理…', exact: true })).toBeVisible()
     await captureViewport(
       app,
       page,
       test.info().outputPath('configure-bot-after-entering-workspace.png'),
     )
-    await panel.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
+    await panel.getByRole('button', { name: '連接…', exact: true }).click()
     const pairingInput = page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })
     await expect(pairingInput).toBeVisible()
     await pairingInput.fill('尚未送出的配對內容')
@@ -60,7 +64,7 @@ test('an unconfigured workspace can connect later and opens the actual paired Pe
     await expectUnconfigured(page)
 
     await serverSettings(page)
-    await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
+    await page.getByRole('button', { name: '連接…', exact: true }).click()
     await expect(pairingInput).toHaveValue('')
     await expect(page.getByRole('button', { name: '繼續', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '確認並連接', exact: true })).toHaveCount(0)
@@ -100,7 +104,7 @@ test('local Yuki configuration stays reachable later and survives settings witho
     await serverSettings(page)
     await page
       .getByRole('tabpanel')
-      .getByRole('button', { name: '本機部署與管理', exact: true })
+      .getByRole('button', { name: '部署與管理…', exact: true })
       .click()
     await expect(page.getByRole('heading', { name: '在本機部署 Yuki', exact: true })).toBeVisible()
     const fields = {
@@ -131,6 +135,21 @@ test('local Yuki configuration stays reachable later and survives settings witho
     await app.close()
     app = await rig.launch('deferred-local-bot')
     page = await app.firstWindow()
+    await writeFile(
+      test.info().outputPath('local-bot-cold-before-stage.json'),
+      JSON.stringify({
+        renderer: await page.evaluate(() => ({
+          width: innerWidth,
+          height: innerHeight,
+          dpr: devicePixelRatio,
+        })),
+        native: await app.evaluate(({ BrowserWindow }) => {
+          const window = BrowserWindow.getAllWindows()[0]!
+          return { visible: window.isVisible(), contentBounds: window.getContentBounds() }
+        }),
+      }),
+    )
+    await sizeWorkspace(app, page)
     await expectUnconfigured(page)
     await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '在本機部署 Yuki', exact: true })).toBeVisible()
@@ -215,10 +234,10 @@ test('a late repair of an original role does not interrupt local Yuki configurat
     await page.getByRole('button', { name: '確認並連接', exact: true }).click()
     await expect.poll(() => proxy.held.has(pairPath)).toBe(true)
     await page.keyboard.press('ControlOrMeta+,')
-    await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
+    await page.getByRole('tab', { name: '所有 Yuki', exact: true }).click()
     await page
       .getByRole('tabpanel')
-      .getByRole('button', { name: '本機部署與管理', exact: true })
+      .getByRole('button', { name: '部署與管理…', exact: true })
       .click()
     const localHeading = page.getByRole('heading', { name: '在本機部署 Yuki', exact: true })
     await expect(localHeading).toBeVisible()

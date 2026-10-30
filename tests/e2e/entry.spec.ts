@@ -32,13 +32,8 @@ test('reads another actual personal ingress and quotes its exact original event 
     await expect(navigation.locator('[aria-current=page]')).toHaveCount(1)
     await page.keyboard.press('ControlOrMeta+,')
     await expect(page.getByRole('region', { name: '設定', exact: true })).toBeVisible()
-    await sidebar(page)
-    await expect(navigation.locator('[aria-current=page]')).toHaveCount(1)
-    await expect(navigation.getByRole('button', { name: '設定', exact: true })).toHaveAttribute(
-      'aria-current',
-      'page',
-    )
-    await page.keyboard.press('Escape')
+    await expect(navigation).toBeHidden()
+    await expect(page.getByRole('tablist', { name: '設定分類', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await sidebar(page)
     await expect(navigation.locator('[aria-current=page]')).toHaveCount(1)

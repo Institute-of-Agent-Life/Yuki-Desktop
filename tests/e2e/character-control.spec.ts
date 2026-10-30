@@ -26,8 +26,8 @@ test(
         return value.value[0]!
       })
       await page.keyboard.press('ControlOrMeta+,')
-      await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
-      await page.getByRole('button', { name: '連接另一個 Yuki', exact: true }).click()
+      await page.getByRole('tab', { name: '所有 Yuki', exact: true }).click()
+      await page.getByRole('button', { name: '連接…', exact: true }).click()
       await pairUI(page, second.base, await second.code())
       await navigate(page, `關於 ${await activeCharacterName(page)}`)
       await page.getByRole('button', { name: '編輯名稱與簡介', exact: true }).click()

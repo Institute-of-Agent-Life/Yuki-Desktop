@@ -130,7 +130,7 @@ async function configure(app: ElectronApplication, values: Partial<FixtureState>
   }, values)
 }
 async function download(page: Page) {
-  await page.getByRole('tab', { name: '一般', exact: true }).click()
+  await page.getByRole('tab', { name: '更新', exact: true }).click()
   await page.getByRole('button', { name: '檢查更新', exact: true }).click()
   await page.getByRole('button', { name: '下載更新', exact: true }).click()
   await expect(page.getByRole('button', { name: '重新啟動以更新', exact: true })).toBeVisible()
@@ -226,7 +226,7 @@ test('minimum client rejection precedes credentials and opens App updates for ne
     ).toBeVisible()
     expect(proxy.calls.every((call) => !call.bearer)).toBe(true)
     await page.getByRole('button', { name: '查看 App 更新', exact: true }).click()
-    await expect(page.getByRole('tab', { name: '一般', exact: true })).toHaveAttribute(
+    await expect(page.getByRole('tab', { name: '更新', exact: true })).toHaveAttribute(
       'aria-selected',
       'true',
     )
@@ -267,7 +267,7 @@ test('minimum client rejection precedes credentials and opens App updates for ne
       ),
     )
     await page.getByRole('button', { name: '查看 App 更新', exact: true }).click()
-    await expect(page.getByRole('tab', { name: '一般', exact: true })).toHaveAttribute(
+    await expect(page.getByRole('tab', { name: '更新', exact: true })).toHaveAttribute(
       'aria-selected',
       'true',
     )
@@ -303,7 +303,8 @@ test('update controls cancel an active download, reject corrupt content, retain 
     await pairUI(page, rig.base, await rig.code())
     expect((await snapshot(app)).checks).toBe(0)
     await page.keyboard.press('ControlOrMeta+,')
-    await page.getByRole('tab', { name: '測試版本', exact: true }).click()
+    await page.getByRole('tab', { name: '更新', exact: true }).click()
+    await page.getByRole('radio', { name: '測試版本', exact: true }).click()
     await expect.poll(async () => (await updateState(page)).channel).toBe('beta')
     await configure(app, { holdDownload: true })
     await page.getByRole('button', { name: '檢查更新', exact: true }).click()
@@ -342,7 +343,7 @@ test('update controls cancel an active download, reject corrupt content, retain 
         const toggle = page.getByRole('switch', { name, exact: true })
         if ((await toggle.getAttribute('aria-checked')) !== String(checked)) await toggle.click()
       }
-      await page.getByRole('tab', { name: '一般', exact: true }).click()
+      await page.getByRole('tab', { name: '更新', exact: true }).click()
       for (const [width, height] of [
         [1600, 900],
         [1280, 800],
@@ -378,8 +379,9 @@ test('update controls cancel an active download, reject corrupt content, retain 
       }),
     ).toBeVisible()
     await page.keyboard.press('ControlOrMeta+,')
-    await expect(page.getByRole('tab', { name: '測試版本', exact: true })).toHaveAttribute(
-      'aria-selected',
+    await page.getByRole('tab', { name: '更新', exact: true }).click()
+    await expect(page.getByRole('radio', { name: '測試版本', exact: true })).toHaveAttribute(
+      'aria-checked',
       'true',
     )
     expect((await updateState(page)).phase).toBe('idle')

@@ -8,9 +8,9 @@ import { pairUI, yukiFixture } from '../fixtures/backend'
 
 async function add(page: Page, app?: ElectronApplication) {
   await page.keyboard.press('ControlOrMeta+,')
-  await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
+  await page.getByRole('tab', { name: '所有 Yuki', exact: true }).click()
   if (app) await captureViewport(app, page, test.info().outputPath('yuki-connections.png'))
-  await page.getByRole('button', { name: '連接另一個 Yuki', exact: true }).click()
+  await page.getByRole('button', { name: '連接…', exact: true }).click()
   await expect(page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })).toBeVisible()
 }
 async function switchRole(page: Page, name: string) {

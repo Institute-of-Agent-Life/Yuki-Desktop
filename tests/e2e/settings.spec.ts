@@ -1,8 +1,7 @@
 import { activeCharacterName } from '../fixtures/active-character'
-import { sidebar as openSidebar } from '../fixtures/navigation'
 import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test } from '@playwright/test'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 
@@ -88,15 +87,18 @@ test('actual settings paths retain native preferences, timezone, notifications a
         ),
       ).toEqual([true, false])
     } else await expect(login).toBeDisabled()
+    await page.getByLabel('時間顯示', { exact: true }).selectOption('system')
     await page.getByRole('tab', { name: '一般', exact: true }).focus()
     await page.keyboard.press('ArrowDown')
     await expect(page.getByRole('tab', { name: '外觀', exact: true })).toBeFocused()
-    await page.getByLabel('時間顯示', { exact: true }).selectOption('system')
+    await expect(page.getByLabel('時間顯示', { exact: true })).toHaveCount(0)
     await page.getByRole('radio', { name: '深色', exact: true }).click()
     await page.getByRole('switch', { name: '永遠不透明', exact: true }).click()
     await page.getByRole('switch', { name: '減少動態', exact: true }).click()
     await page.getByRole('tab', { name: '通知', exact: true }).click()
     await page.getByRole('switch', { name: 'Yuki 主動傳來的訊息', exact: true }).click()
+    await page.getByRole('tab', { name: '更新', exact: true }).click()
+    await expect(page.getByRole('heading', { name: '更新', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '返回', exact: true }).click()
     const expectedSystem = await page.evaluate(
       (timestamp) =>
@@ -180,7 +182,7 @@ test('settings categories remain keyboard reachable in all four themes and small
           await expect
             .poll(() => page.evaluate(() => [innerWidth, innerHeight]))
             .toEqual([width, height])
-        for (const category of ['一般', '外觀', '通知', '進階']) {
+        for (const category of ['一般', '外觀', '通知', '更新', '所有 Yuki', '進階']) {
           await page.getByRole('tab', { name: category, exact: true }).click()
           await expect(page.getByRole('heading', { name: category, exact: true })).toBeVisible()
           await captureViewport(
@@ -206,7 +208,7 @@ test('settings categories remain keyboard reachable in all four themes and small
   }
 })
 
-test('settings use the original role workspace, preserve its inspector and restore navigation from a small overlay', async () => {
+test('full-window settings hide the workspace and restore its draft, reader position and layout', async () => {
   test.setTimeout(120000)
   const rig = await yukiFixture({ character: true }),
     app = await rig.launch('settings-workspace')
@@ -214,10 +216,13 @@ test('settings use the original role workspace, preserve its inspector and resto
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
+    const seeded = await fetch(rig.base + '/__test/history?count=61', { method: 'POST' })
+    expect(seeded.status).toBe(200)
+    await page.reload()
     await contentSize(app, page, 1440, 900)
     const draft = '設定導覽切換仍保留的原角色草稿'
     const composer = page.getByRole('textbox', {
-      name: `和 ${await activeCharacterName(page)} 說點什麼`,
+      name: '和 ' + (await activeCharacterName(page)) + ' 說點什麼',
       exact: true,
     })
     await composer.fill(draft)
@@ -227,80 +232,69 @@ test('settings use the original role workspace, preserve its inspector and resto
     await page.keyboard.press('ArrowRight')
     await expect(divider).toHaveAttribute('aria-valuenow', '264')
     await page.getByRole('button', { name: '檢視器', exact: true }).click()
-    await expect(page.getByRole('complementary', { name: '檢視器', exact: true })).toBeVisible()
-    await page.keyboard.press('ControlOrMeta+,')
-    await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeVisible()
-    await openSidebar(page)
-    await expect(sidebar).toBeVisible()
-    await expect(sidebar.getByRole('button', { name: '設定', exact: true })).toHaveAttribute(
-      'aria-current',
-      'page',
-    )
-    await expect(divider).toHaveAttribute('aria-valuenow', '264')
-    expect(
-      await sidebar.evaluate((node) => {
-        const style = getComputedStyle(node)
-        return (
-          node.getBoundingClientRect().width +
-          parseFloat(style.marginLeft) +
-          parseFloat(style.marginRight)
-        )
-      }),
-    ).toBe(264)
-    expect(
-      (await page.getByRole('tablist', { name: '設定分類', exact: true }).boundingBox())!.width,
-    ).toBe(200)
-    await expect(page.getByRole('complementary', { name: '檢視器', exact: true })).toHaveCount(0)
-    await page.screenshot({
-      path: test.info().outputPath('settings-with-original-role-sidebar.png'),
+    const inspector = page.getByRole('complementary', { name: '檢視器', exact: true })
+    await expect(inspector).toBeVisible()
+    const log = page.getByRole('log', { name: '對話訊息', exact: true })
+    await expect(log.locator('article[data-event-id]')).toHaveCount(50)
+    const readerBefore = await log.evaluate((node) => {
+      node.scrollTop = (node.scrollHeight - node.clientHeight) / 2
+      return { top: node.scrollTop, height: node.scrollHeight, viewport: node.clientHeight }
     })
-    await page.keyboard.press('Escape')
+    expect(readerBefore.top).toBeGreaterThan(0)
+    await page.keyboard.press('ControlOrMeta+,')
+    await expect(sidebar).toBeHidden()
+    await expect(inspector).toBeHidden()
+    await expect(page.getByRole('tablist', { name: '設定分類', exact: true })).toBeVisible()
+    await expect(page.locator('section[aria-label="設定"] > header > strong')).toHaveText('設定')
+    await expect(page.getByRole('button', { name: '側邊欄', exact: true })).toHaveCount(0)
+    await captureViewport(app, page, test.info().outputPath('settings-single-navigation.png'))
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await expect(composer).toHaveValue(draft)
-    await expect(page.getByRole('complementary', { name: '檢視器', exact: true })).toBeVisible()
+    await expect(inspector).toBeVisible()
+    await expect(divider).toHaveAttribute('aria-valuenow', '264')
+    await expect.poll(() => log.evaluate((node) => node.scrollTop)).toBe(readerBefore.top)
+    const readerAfter = await log.evaluate((node) => ({
+      top: node.scrollTop,
+      height: node.scrollHeight,
+      viewport: node.clientHeight,
+    }))
     await page.getByRole('button', { name: '展開工作區', exact: true }).click()
     await expect(page.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+,')
-    await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeVisible()
-    await openSidebar(page)
-    await expect(sidebar).toBeVisible()
-    await expect(page.getByRole('complementary', { name: '檢視器', exact: true })).toHaveCount(0)
-    await page.keyboard.press('Escape')
+    await expect(sidebar).toBeHidden()
+    await expect(page.getByRole('tablist', { name: '設定分類', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await expect(page.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '收合工作區', exact: true }).click()
     await page.keyboard.press('ControlOrMeta+,')
-    await openSidebar(page)
-    await sidebar.getByRole('button', { name: '工作', exact: true }).click()
+    await expect(page.getByRole('tablist', { name: '設定分類', exact: true })).toBeVisible()
+    await page.keyboard.press('ControlOrMeta+2')
     await expect(page.getByRole('tablist', { name: '設定分類', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('heading', { name: '工作', exact: true })).toBeVisible()
+    await expect(page.getByRole('tablist', { name: '工作來源', exact: true })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+1')
     await expect(composer).toHaveValue(draft)
     await page.keyboard.press('ControlOrMeta+,')
-    await openSidebar(page)
-    await sidebar
-      .getByRole('button', { name: `關於 ${await activeCharacterName(page)}`, exact: true })
-      .click()
-    await expect(page.getByRole('tablist', { name: '設定分類', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: '編輯名稱與簡介', exact: true })).toBeVisible()
-    await page.keyboard.press('ControlOrMeta+,')
     const method = await contentSize(app, page, 960, 492)
     await expect(sidebar).toBeHidden()
-    await page.getByRole('button', { name: '側邊欄', exact: true }).click()
-    await expect(sidebar).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(sidebar).toBeHidden()
+    await expect(page.getByRole('button', { name: '側邊欄', exact: true })).toHaveCount(0)
     await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeVisible()
-    await captureViewport(app, page, test.info().outputPath(`settings-small-${method}.png`))
-    await page.getByRole('button', { name: '側邊欄', exact: true }).click()
-    await sidebar.getByRole('button', { name: '對話', exact: true }).click()
+    await captureViewport(app, page, test.info().outputPath('settings-small-' + method + '.png'))
+    await page.getByRole('button', { name: '返回', exact: true }).click()
     await expect(composer).toHaveValue(draft)
-    await expect(sidebar).toBeHidden()
-    await page.getByRole('button', { name: '側邊欄', exact: true }).click()
-    await expect(sidebar).toBeVisible()
-    await page.keyboard.press('ControlOrMeta+,')
-    await expect(sidebar).toBeHidden()
-    await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeVisible()
+    await writeFile(
+      test.info().outputPath('settings-workspace.json'),
+      JSON.stringify(
+        {
+          readerBefore,
+          readerAfter,
+          draft,
+          sidebarWidth: 264,
+          narrowViewportMethod: method,
+        },
+        null,
+        2,
+      ),
+    )
     success = true
   } finally {
     await app.close().catch(() => {})

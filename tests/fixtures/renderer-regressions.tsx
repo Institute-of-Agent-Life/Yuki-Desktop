@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SoulEditor } from '../../src/renderer/views/SoulEditor'
@@ -8,9 +8,10 @@ import { ConversationWork, WorkList, WorkDetail } from '../../src/renderer/views
 import { MessageAttachment, AttachmentPreview } from '../../src/renderer/views/Media'
 import { Conversation, Message } from '../../src/renderer/views/Conversation'
 import { ComputerInspector } from '../../src/renderer/views/Computer'
-import { Settings } from '../../src/renderer/views/Settings'
+import { Settings, type SettingsCategory } from '../../src/renderer/views/Settings'
 import { Workspace } from '../../src/renderer/components/Workspace'
 import { useCommands } from '../../src/renderer/state/commands'
+import { WorkspaceSession } from '../../src/renderer/state/workspace'
 import { defaultPreferences } from '../../src/shared/desktop'
 import appStyles from '../../src/renderer/App.module.css'
 import messageStyles from '../../src/renderer/views/Conversation.module.css'
@@ -19,6 +20,7 @@ import type {
   Activity,
   AttachmentSource,
   ConversationBridge,
+  Connection,
   Computer,
   CharacterStatus,
   CachedContent,
@@ -553,46 +555,89 @@ Object.assign(window, {
   },
 })
 
-function SettingsTransition() {
-  const root = useRef<HTMLElement>(null)
-  const [settings, setSettings] = useState(false)
-  const [observed, setObserved] = useState('')
-  useCommands((command) => {
-    if (command === 'settings') setSettings(true)
-  })
-  useLayoutEffect(() => {
-    if (settings)
-      queueMicrotask(() => {
-        const navigation = root.current!.querySelector<HTMLElement>('[data-region="sidebar"]')!
-        setObserved(getComputedStyle(navigation).visibility)
-      })
-  }, [settings])
-  return (
-    <main ref={root} className={appStyles.app}>
-      <Workspace
-        name="Yuki"
-        status=""
-        platform="linux"
-        settings={settings ? <section aria-label="轉場設定">設定內容</section> : undefined}
-        onSettings={() => setSettings(true)}
-        onView={() => setSettings(false)}
-      >
-        原對話內容
-      </Workspace>
-      <output data-testid="settings-transition-state">{observed}</output>
-    </main>
-  )
-}
-
 function Case() {
+  const parameters = new URLSearchParams(location.search)
+  const mode = parameters.get('case')
   const [value, setValue] = useState('original message')
   const [preferences, setPreferences] = useState(defaultPreferences)
   const [calls, setCalls] = useState(0)
   const [conversationSettings, setConversationSettings] = useState(false)
+  const [category, setCategory] = useState<SettingsCategory>(
+    parameters.get('category') === 'computer' ? 'computer' : 'general',
+  )
   const [selected, setSelected] = useState('')
   const [attachment, setAttachment] = useState<AttachmentSource>()
-  const mode = new URLSearchParams(location.search).get('case')
-  if (mode === 'settings-transition') return <SettingsTransition />
+  const connection: Connection = {
+    characterId: 'role',
+    name: 'Yuki',
+    baseUrl: 'https://example.invalid',
+    personId: 'person',
+    bindingId: 'binding',
+    conversationId: mode === 'conversation-scroll' ? imageConversation : 'conversation',
+    persistentCredentials: false,
+    ...(parameters.get('logout') === 'true'
+      ? {
+          deviceId: 'desktop-device',
+          persistentCredentials: true,
+          logout: { drafts: 1, pending: 0, attachments: 0 },
+        }
+      : {}),
+  }
+  const settingsConnection = mode === 'settings' && !connection.logout ? undefined : connection
+  const openSettings = (next?: SettingsCategory) => {
+    if (next) setCategory(next)
+    setConversationSettings(true)
+  }
+  useCommands((command) => {
+    if (command === 'settings') openSettings()
+  })
+  const settings = (
+    <Settings
+      boot={{
+        nativeMaterial: 'none',
+        platform: 'linux',
+        version: 'fixture',
+        deviceLabel: 'Fixture desktop',
+        dark: false,
+        reducedTransparency: false,
+        highContrast: false,
+        preferences,
+        pairLink: null,
+        openTarget: null,
+      }}
+      category={category}
+      onCategory={setCategory}
+      connections={settingsConnection ? [settingsConnection] : []}
+      onSelect={() => {}}
+      connection={settingsConnection}
+      preferences={preferences}
+      save={async (patch) => setPreferences((current) => ({ ...current, ...patch }))}
+      back={() => setConversationSettings(false)}
+      onConnection={() => {}}
+      about={() => {}}
+      onLoggedOut={async () => {}}
+      onAddCharacter={() => setSelected('connect')}
+      onDeployLocal={() => setSelected('deploy')}
+    />
+  )
+  if (mode === 'settings-transition')
+    return (
+      <main className={appStyles.app}>
+        <div
+          data-testid="workspace-session"
+          className={appStyles.roleSession}
+          hidden={conversationSettings}
+          inert={conversationSettings}
+        >
+          <WorkspaceSession scope="settings-transition-fixture" active={!conversationSettings}>
+            <Workspace name="Yuki" status="" platform="linux" onSettings={() => openSettings()}>
+              原對話內容
+            </Workspace>
+          </WorkspaceSession>
+        </div>
+        {conversationSettings && settings}
+      </main>
+    )
   if (mode === 'work-help')
     return (
       <>
@@ -634,80 +679,31 @@ function Case() {
   )
     return (
       <main className={appStyles.app}>
-        <Conversation
-          connection={{
-            characterId: 'role',
-            name: 'Yuki',
-            baseUrl: 'https://example.invalid',
-            personId: 'person',
-            bindingId: 'binding',
-            conversationId: mode === 'conversation-scroll' ? imageConversation : 'conversation',
-            persistentCredentials: false,
-          }}
-          platform="linux"
-          preferences={preferences}
-          settings={
-            conversationSettings ? <section aria-label="原設定內容">設定內容</section> : undefined
-          }
-          onSettings={() => setConversationSettings(true)}
-          onSettingsBack={() => setConversationSettings(false)}
-          onPairAgain={() => {}}
-        />
+        <div
+          className={appStyles.roleSession}
+          hidden={conversationSettings}
+          inert={conversationSettings}
+        >
+          <WorkspaceSession scope="conversation-fixture" active={!conversationSettings}>
+            <Conversation
+              connection={connection}
+              platform="linux"
+              preferences={preferences}
+              onSettings={openSettings}
+              onPairAgain={() => {}}
+            />
+          </WorkspaceSession>
+        </div>
+        {conversationSettings && settings}
       </main>
     )
   if (mode === 'settings')
     return (
       <main className={appStyles.app}>
-        <Workspace
-          name="Yuki Desktop"
-          status="尚未連接 Yuki"
-          platform="linux"
-          floating={false}
-          settings={
-            <Settings
-              boot={{
-                nativeMaterial: 'none',
-                platform: 'linux',
-                version: 'fixture',
-                deviceLabel: 'Fixture desktop',
-                dark: false,
-                reducedTransparency: false,
-                highContrast: false,
-                preferences,
-                pairLink: null,
-                openTarget: null,
-              }}
-              embedded
-              agentRequest={new URLSearchParams(location.search).get('agent') === 'true'}
-              connection={
-                new URLSearchParams(location.search).get('logout') === 'true'
-                  ? {
-                      characterId: 'role',
-                      name: 'Yuki',
-                      baseUrl: 'https://example.invalid',
-                      personId: 'person',
-                      bindingId: 'binding',
-                      conversationId: 'conversation',
-                      deviceId: 'desktop-device',
-                      persistentCredentials: true,
-                      logout: { drafts: 1, pending: 0, attachments: 0 },
-                    }
-                  : undefined
-              }
-              preferences={preferences}
-              save={async (patch) => setPreferences((current) => ({ ...current, ...patch }))}
-              back={() => {}}
-              onConnection={() => {}}
-              about={() => {}}
-              onLoggedOut={async () => {}}
-              onAddCharacter={() => setSelected('connect')}
-              onDeployLocal={() => setSelected('deploy')}
-            />
-          }
-        >
-          {null}
-        </Workspace>
-        <output data-testid="settings-action">{selected}</output>
+        {settings}
+        <output data-testid="settings-action" hidden>
+          {selected}
+        </output>
       </main>
     )
   if (mode === 'messages') {
