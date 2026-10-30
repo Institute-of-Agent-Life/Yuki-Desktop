@@ -643,6 +643,7 @@ function Case() {
       <>
         <WorkDetail
           id="role"
+          platform="linux"
           workId={work.work_id}
           open={() => {}}
           replyInChat={() => {}}
@@ -656,6 +657,7 @@ function Case() {
     return (
       <WorkDetail
         id="role"
+        platform="linux"
         workId={historicalWork.work_id}
         open={() => {}}
         replyInChat={() => {}}
@@ -788,6 +790,7 @@ function Case() {
         {selected && (
           <WorkDetail
             id="role"
+            platform="linux"
             workId={selected}
             open={setSelected}
             replyInChat={() => {}}
@@ -829,6 +832,7 @@ function Case() {
       <output data-testid="calls">{calls}</output>
       <Composer
         name="Yuki"
+        platform="linux"
         draft={value}
         onDraft={setValue}
         onSubmit={async () => {

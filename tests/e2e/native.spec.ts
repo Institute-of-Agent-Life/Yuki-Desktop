@@ -85,8 +85,14 @@ test('uses the real paste/copy, send-key and close/reopen UI paths with isolated
       path: test.info().outputPath('conversation-code.png'),
     })
     await page.keyboard.press('ControlOrMeta+,')
-    await page.getByRole('radio', { name: '⌘ / Ctrl Enter', exact: true }).click()
-    const keepInTray = page.getByRole('switch', { name: '關閉視窗時保持在選單列', exact: true })
+    const platform = await page.evaluate(async () => (await globalThis.window.yuki.boot()).platform)
+    await page
+      .getByRole('radio', { name: platform === 'darwin' ? '⌘ Enter' : 'Ctrl Enter', exact: true })
+      .click()
+    const keepInTray = page.getByRole('switch', {
+      name: `關閉視窗後保留在${platform === 'darwin' ? '選單列' : '系統匣'}`,
+      exact: true,
+    })
     await expect(keepInTray).toHaveAttribute('aria-checked', 'false')
     await keepInTray.click()
     await expect(keepInTray).toHaveAttribute('aria-checked', 'true')

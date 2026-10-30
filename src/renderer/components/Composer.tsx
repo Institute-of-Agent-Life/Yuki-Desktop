@@ -7,6 +7,7 @@ import { normalizeMessageText } from '../../shared/message'
 
 export function Composer({
   name,
+  platform,
   draft,
   onDraft,
   onSubmit,
@@ -18,6 +19,7 @@ export function Composer({
   children,
 }: {
   name: string
+  platform: string
   draft: string
   onDraft(value: string): void
   onSubmit(): Promise<void>
@@ -87,7 +89,14 @@ export function Composer({
           <Mic size={18} strokeWidth={1.6} />
         </IconButton>
         <small id={feedbackId} aria-live="polite">
-          {error || (commandEnter ? '⌘ / Ctrl ↩ 送出' : '↩ 送出 · ⇧↩ 換行')}
+          {error ||
+            (platform === 'darwin'
+              ? commandEnter
+                ? '⌘↩ 送出'
+                : '↩ 送出 · ⇧↩ 換行'
+              : commandEnter
+                ? 'Ctrl+Enter 送出'
+                : 'Enter 送出 · Shift+Enter 換行')}
         </small>
         <IconButton
           label="送出"

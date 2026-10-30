@@ -887,6 +887,7 @@ export function Conversation({
             <WorkDetail
               key={selectedWork}
               id={id}
+              platform={platform}
               workId={selectedWork}
               open={openWork}
               replyInChat={answerWork}
@@ -1211,6 +1212,7 @@ export function Conversation({
               <WorkReply
                 key={replyWork.work_id}
                 id={id}
+                platform={platform}
                 work={replyWork}
                 done={refresh}
                 close={() => setReplyWork(undefined)}
@@ -1227,6 +1229,7 @@ export function Conversation({
             ) : isMain ? (
               <Composer
                 name={name}
+                platform={platform}
                 draft={draft}
                 onDraft={updateDraft}
                 onSubmit={send}

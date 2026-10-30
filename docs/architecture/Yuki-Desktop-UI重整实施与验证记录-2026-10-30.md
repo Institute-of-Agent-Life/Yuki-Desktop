@@ -7,7 +7,7 @@
 - Desktop 基线：`79ee0359ba04bb6bb509142a086c52cf6f586ebb`，从已同步的 `origin/main` 建立独立 worktree `D:\Code\My_Github_Repo\Yuki-Desktop-ui-20261030`。
 - 后端仅作测试与合同参考：干净 worktree `D:\Code\My_Github_Repo\Yuki-Desktop-ui-backend-20261030`，修订 `34167dd4c158478ef89f3ac7892ac9d51cfaafa0`；未修改后端源码。
 - 实际 Desktop 与后端均为 API 7，任务书的 API 6 旧描述已更正；未修改 API 合同。
-- Windows x64；独立安装 Desktop 依赖、Python 3.12 测试环境及 vec1 DLL。原生测试使用本轮构建的 `dist/win-unpacked/Yuki.exe` 与隔离的本地后端、用户资料目录。
+- Windows x64；独立安装 Desktop 依赖、Python 3.12 测试环境及 vec1 DLL。早期原生测试使用本轮构建的 `dist/win-unpacked/Yuki.exe`；用户要求测试窗口留在后台后，使用另行标识的 `dist/background-tests/win-unpacked/Yuki.exe`。后端和用户资料目录均独立。
 - 通用命令：`npm run lint`、`npm run typecheck`。E2E 显式设置 `YUKI_BACKEND_TEST_ROOT`、`YUKI_BACKEND_TEST_PYTHON`；默认配置产物由 `YUKI_E2E_OUTPUT` 指定，原生配置产物由 `YUKI_NATIVE_TEST_OUTPUT` 指定。
 
 ## PR-1：术语清理
@@ -100,12 +100,32 @@
 - 档案预览先于完整信息卡，ID／版本／发布路径默认折叠；保存、复制、引用和比较仍在外部且走原版本。工作／档案删除重复列表标题，工作来源为全部／桌面／其他入口，原取消确认入口与状态同排，用量默认折叠。缩放按钮明确文字与 aria-pressed，不改变接手权限或缩放执行。
 - 复核发现 PR-4 搬迁时漏了原 `characterId + deviceId` 组件 key，已恢复既有设备身份边界，专门修复提交 `e7de882`。新增真实组件回归同时保留同设备切 Tab 的原 UUID／分页／草稿，证明换设备后旧回执、权限、会话与终端控制不会混入新目标；旧详情仍能按原 ID 读取，未靠拒绝旧读掩盖问题。交付整理时将此修复归回 PR-4。
 - `npm run lint`、`npm run build`（含 typecheck）、`git diff --check`：通过。首批 `artifacts.spec.ts work-components.spec.ts computer-toolbar.spec.ts unconfigured-workspace.spec.ts`：4 通过、2 失败，产物 `.cache/pr6-e2e/`。Windows 配置排除 `computer-toolbar.spec.ts` 的 1 项 Unix manager 用例，未宣称远端电脑接手／缩放原生流程在 Windows 通过。
-- 两个失败为测试问题：冷重启后宽窗口使用切换型 sidebar helper，与现行默认展开状态竞争，改为等待现有导航可见；新增用量定位在 has 中重复包含外层 complementary 祖先，改为真正相对的纯文本定位。没有增加超时、重试或修改产品行为。
+- 两个失败为测试问题：冷重启后的 trace 停在切换型 sidebar helper，而目标是默认展开的宽窗口导航，删除切换操作并等待现有导航可见；新增用量定位在 has 中重复包含外层 complementary 祖先，改为真正相对的纯文本定位。没有增加超时、重试或修改产品行为。
 - 定向补跑失效用例、用量组件及完整 `local-computer.spec.ts`：7 通过，产物 `.cache/pr6-fixed/`、日志 `.cache/pr6-fixed.log`。工作真实请求、原 Main／Work 回执、筛选、取消确认的保持执行、三尺寸同排／折叠及预算均验证，命令回执与原工作身份不变。另适配预算折叠影响的 renderer／native-work 既有断言，不删除原预算或焦点校验。
 - 后台测试包：`.cache/package-background.ps1` 在最终构建后复制测试 hook 并生成启动入口，通过 `extraMetadata.main` 单独输出 `dist/background-tests/`；仓库 package.json、正式入口与业务模块不变。包内 202 个 out 文件逐一 SHA-256 与构建一致，证据 `.cache/pr6-painted-native-proof/background-package.json`；真实 packaged=true、encryptionAvailable=true，前台 HWND 未变化。后台入口不代表正式入口或 OS 前台焦点验收。
 - 首次 `native-file-layout.spec.ts` 程序断言 1 通过，但人工查看为黑色 HWND 图，因此没有计作像素验收。后台测试 hook 改为不可见且鼠标穿透地调用 Electron showInactive 完成绘制，再按原 HWND 置底后恢复显示；前台不激活，业务窗口代码不改。清晰自有窗口图 `.cache/pr6-painted-native-proof/owned-hwnd.png`。
 - 随后的原生截图遇到命令超时／取消。文件和工作纯截图明确选择 captureOnly，删除无关 UIA 整树枚举；保留默认 caption 校验路径。进一步日志明确定位 Windows CIM 查询取消 `0x80041032`，删除 CIM 依赖并复用既有 Diagnostics.Process 读取真实 exe 与会话；PID、HWND、同会话及物理 DPI 校验保持，没有兜底或重试。失败证据 `.cache/pr6-native-files-painted/`、`.cache/pr6-native-final/` 保留。
 - 最终原生命令：`npm exec playwright -- test --config playwright.shell.config.ts native-file-layout.spec.ts native-work-layout.spec.ts --reporter=list`，`YUKI_ELECTRON_EXECUTABLE` 指向后台测试包。2 通过，产物 `.cache/pr6-native-process/`、日志 `.cache/pr6-native-process.log`；三尺寸／四外观的自有 HWND 实像、原文件版本、工作继续执行和原回执均保留。已人工查看深色档案和窄窗工作图，确认有完整界面像素；这些后台截图未代替前台 caption／拖放／系统文件对话框验收。
-- 原成果截图与 `artifact-view-layout.json` 位于 `.cache/pr6-e2e/artifacts-reads-real-deliv-a7815-nd-removes-revoked-previews/`；6 张工作用量图与 `original-work-view-layout.json` 位于 `.cache/pr6-fixed/work-components-the-actual-1215f-hed-to-the-original-receipt/`；设备切换 JSON 位于 `.cache/pr6-fixed/local-computer-a-changed-lo*/`。PR-6 对应本地验证完成。
+- 原成果截图与 `artifact-versions-and-layout.json` 位于 `.cache/pr6-e2e/artifacts-reads-real-deliv-a7815-nd-removes-revoked-previews/`；6 张工作用量图与 `original-work-view-layout.json` 位于 `.cache/pr6-fixed/work-components-the-actual-1215f-hed-to-the-original-receipt/`；设备切换 JSON 位于 `.cache/pr6-fixed/local-computer-a-changed-l-b95a7-or-terminal-control-request/`。PR-6 对应本地验证完成。
 
-当前仅本地实施与验证；未推送、未创建远端 PR、未合并、未发布或安装到用户环境。
+## PR-7：平台文案
+
+分支：`codex/ui-platform-20261030`，接续 PR-6 `7230ab0`。
+
+- 设置的托盘标题和 Toggle 可访问名统一按实际 `boot.platform` 显示 macOS「選單列」或其他平台「系統匣」；发送键显示「⌘ Enter」或「Ctrl Enter」。Composer 显式接收已有 platform，沿 Conversation、WorkDetail、QuestionBox、WorkReply 传播，不新增查询、默认值或全局状态。提示文案匹配现有按键行为；命令面板的通用确认提示为 Enter。
+- `npm run lint`、`npm run typecheck`、`npm run build`、`git diff --check`：通过。日志 `.cache/pr7-final-lint.log`、`.cache/pr7-final-typecheck.log`、`.cache/pr7-build.log`。`rg -n '角色' src` 无命中；renderer 的 ⌘／↩ 仅位于 Composer、Settings、SoulEditor 的平台分支。独立只读复核未发现 platform 漏传。
+- renderer 定向验证 Composer 提交失败保留输入及 IME、命令面板 IME、工作列表／详情原步骤：3 通过，产物 `.cache/pr7-renderer/`、日志 `.cache/pr7-renderer.log`。
+- 源程序命令 `npm exec playwright -- test tests/e2e/settings.spec.ts tests/e2e/native.spec.ts --reporter=list`：首批 2 通过、2 失败，产物 `.cache/pr7-source/`。两处失败均为测试定位：Row 的文本包含描述，改为匹配完整标题的子串（Toggle 仍精确匹配）；PR-6 已删除重复工作标题，改为等待真实「工作來源」tablist。原原生适配器用例和设置全尺寸用例已通过，失败两例定向补跑 2 通过，产物 `.cache/pr7-fixed/`、日志 `.cache/pr7-fixed.log`。没有修改产品行为、放宽身份断言或增加重试／超时。
+- 实际 Windows boot 记录、托盘名、两类发送提示、持久设置及诊断计数位于 `.cache/pr7-fixed/settings-actual-settings-p-e2f03-d-private-diagnostic-export/settings-platform.json`。实际按 Enter 提交第一条，改设置后 Enter 保留换行、Ctrl+Enter 提交第二条；诊断仍仅统计导出时已接纳的一条，不包含消息原文。冷重启继续使用同一发送设置。全窗口设置往返继续保留同一草稿、阅读位置与布局，模拟音源 MediaRecorder 不自动发送。
+- 最终构建打包到单独的后台测试目录，202 个 out 文件逐一核对 SHA-256。证据 `.cache/pr7-final-native-background-proof/background-package.json` 与 `owned-hwnd.png`：真实 packaged=true、加密可用；窗口 visible=true、focused=false、focusable=false，显示前后外部前台 HWND 相同。仅测试入口隔离默认协议注册和原生通知展示，不修改正式入口、业务模块或打包配置；这些系统适配器不计为协议注册、系统通知或前台焦点验收。
+- 最终原生命令 `npm exec playwright -- test --config playwright.shell.config.ts tests/e2e/windows-client.spec.ts --reporter=list`，`YUKI_ELECTRON_EXECUTABLE` 指向上述后台包，连接本轮固定后端：1 通过（24.1 秒），产物 `.cache/pr7-native-client-final/`、日志 `.cache/pr7-native-client-final.log`。实际 packaged、sandbox、Windows 交互会话、DPAPI 凭据持久化、强杀原进程、同资料冷恢复、原 owner／request UUID／payload hash、原引用事件、唯一原消息及草稿仅提交一次均验证。先前同例 `.cache/pr7-native-client/` 亦通过，最终验收采用隔离系统副作用后的这一轮。
+- 收尾发现早期原生启动将当前用户 yuki 协议和开始菜单快捷方式指向本 worktree 测试包。先保存本轮残留值与快捷方式，再以既有桌面快捷方式核实的已安装 Yuki 为目标恢复；仅在路径属于本 worktree 时写入。备份 `.cache/test-registrations-before.json`、`.cache/test-start-menu-before.lnk`，恢复结果 `.cache/test-registrations-after.json`。最终后台原生测试后复查 `.cache/pr7-final-host-registrations.json`，协议和开始菜单仍指向 `C:\Users\bymay\AppData\Local\Programs\Yuki\Yuki.exe`。这不代表恢复了任务开始前未采样的逐字注册内容；用户资料、聊天历史和已安装程序未改动。
+- 本轮没有 macOS 实机或 Linux 原生窗口验收；组件 fixture 的 platform 为既有 Linux 上下文，实际发送与托盘路径为 Windows。未配置的 Xvnc／Unix manager 用例及正向宿主连接器边界见前述各批记录，不计为通过。
+
+## 交付状态
+
+七个批次均已完成本地实现及对应可运行验证，保留七条顺序依赖的本地分支。任务书要求的截图、JSON、失败记录和补验路径见各批；没有以新增业务兜底、重试、经验阈值、辅助完成状态或重建执行身份解决问题。恢复原设备 key 属于保留原身份边界。
+
+最后一个手动后端已通过其测试 shutdown 入口关闭并确认 exit 0；任务持有的 Vite PID／监听端口核实后已关闭，证据和 worktree 保留。
+
+当前仅本地实施、提交与验证；未推送、未创建远端 PR、未合并、未发布或安装到用户环境。

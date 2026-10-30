@@ -42,11 +42,19 @@ test('actual settings paths retain native preferences, timezone, notifications a
       }
     }, exportPath)
     await pairUI(page, rig.base, await rig.code())
+    const platform = await page.evaluate(async () => (await window.yuki.boot()).platform)
+    const trayLabel = `關閉視窗後保留在${platform === 'darwin' ? '選單列' : '系統匣'}`
+    const modEnter = platform === 'darwin' ? '⌘ Enter' : 'Ctrl Enter'
+    const enterHint = platform === 'darwin' ? '↩ 送出 · ⇧↩ 換行' : 'Enter 送出 · Shift+Enter 換行'
+    const modifierHint = platform === 'darwin' ? '⌘↩ 送出' : 'Ctrl+Enter 送出'
     const privateText = '這是診斷檔不得包含的原訊息 /private/project/source-secret.md'
-    await page
-      .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` })
-      .fill(privateText)
-    await page.getByRole('button', { name: '送出', exact: true }).click()
+    const composer = page.getByRole('textbox', {
+      name: `和 ${await activeCharacterName(page)} 說點什麼`,
+    })
+    await expect(page.getByText(enterHint, { exact: true })).toBeVisible()
+    await composer.fill(privateText)
+    await composer.press('Enter')
+    await expect(composer).toHaveValue('')
     await expect(page.getByText('Desktop reference reply', { exact: true })).toBeVisible()
     const cdp = await app.context().newCDPSession(page)
     await cdp.send('Emulation.setTimezoneOverride', { timezoneId: 'America/Los_Angeles' })
@@ -67,6 +75,14 @@ test('actual settings paths retain native preferences, timezone, notifications a
       'aria-selected',
       'true',
     )
+    await expect(page.getByText(trayLabel)).toBeVisible()
+    await expect(page.getByRole('switch', { name: trayLabel, exact: true })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
+    await expect(page.getByRole('radio', { name: 'Enter', exact: true })).toBeChecked()
+    await page.getByRole('radio', { name: modEnter, exact: true }).click()
+    await expect(page.getByRole('radio', { name: modEnter, exact: true })).toBeChecked()
     const login = page.getByRole('switch', { name: '登入時開啟', exact: true })
     if (process.env.YUKI_DESKTOP_EXECUTABLE) {
       await login.click()
@@ -107,6 +123,7 @@ test('actual settings paths retain native preferences, timezone, notifications a
     )
     await expect(time).toHaveText(expectedSystem)
     expect(await time.getAttribute('datetime')).toBe(originalTimestamp)
+    await expect(page.getByText(modifierHint, { exact: true })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '進階', exact: true }).click()
     await page.getByRole('button', { name: '匯出…', exact: true }).click()
@@ -127,6 +144,14 @@ test('actual settings paths retain native preferences, timezone, notifications a
         return !summary.includes(secret)
       }, raw),
     ).toBe(true)
+    await page.getByRole('button', { name: '返回', exact: true }).click()
+    const keyboardText = '用平台對應的修飾鍵送出第二個原請求'
+    await expect(page.getByText(modifierHint, { exact: true })).toBeVisible()
+    await composer.fill(keyboardText)
+    await composer.press('Enter')
+    await expect(composer).toHaveValue(keyboardText + '\n')
+    await composer.press('ControlOrMeta+Enter')
+    await expect(composer).toHaveValue('')
     const saved = await page.evaluate(async () => (await window.yuki.boot()).preferences)
     expect(saved).toMatchObject({
       timeZone: 'system',
@@ -134,13 +159,32 @@ test('actual settings paths retain native preferences, timezone, notifications a
       opaque: true,
       reducedMotion: true,
       notifyProactive: false,
+      sendKey: 'command-enter',
     })
+    await captureViewport(app, page, test.info().outputPath('settings-platform-send-key.png'))
+    await writeFile(
+      test.info().outputPath('settings-platform.json'),
+      JSON.stringify(
+        {
+          platform,
+          trayLabel,
+          modEnter,
+          enterHint,
+          modifierHint,
+          saved,
+          diagnosticMessages: snapshot.local.messages,
+        },
+        null,
+        2,
+      ),
+    )
     await app.close()
     app = await rig.launch('settings')
     page = await app.firstWindow()
     await expect(
       page.getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` }),
     ).toBeVisible()
+    await expect(page.getByText(modifierHint, { exact: true })).toBeVisible()
     expect(await page.evaluate(async () => (await window.yuki.boot()).preferences)).toEqual(saved)
     success = true
   } finally {
@@ -269,7 +313,7 @@ test('full-window settings hide the workspace and restore its draft, reader posi
     await page.keyboard.press('ControlOrMeta+,')
     await page.keyboard.press('ControlOrMeta+2')
     await expect(page.getByRole('tablist', { name: '設定分類', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('heading', { name: '工作', exact: true })).toBeVisible()
+    await expect(page.getByRole('tablist', { name: '工作來源', exact: true })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+1')
     await expect(composer).toHaveValue(draft)
     await page.keyboard.press('ControlOrMeta+,')
