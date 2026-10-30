@@ -77,10 +77,11 @@
 - 真实后端空态／设置跳转补跑：1 通过（24.4 秒），产物 `.cache/pr4-real-empty/`。组件定向补跑：3 通过，产物 `.cache/pr4-fixed/`、日志 `.cache/pr4-fixed.log`。其中修正故障注入，实际覆盖“configure 已保存、随后启动失败”：Sheet／草稿／原实例 ID 保持，同 ID 保存后仍停止，再由明确 Toggle 启动；JSON 记录持久状态与调用。没有将普通成功编辑当作失败恢复验收。
 - 三尺寸空态图与 `local-computer-empty.json` 位于 `.cache/pr4-real-empty/local-computer-a-real-pair-14bd6-ing-or-starting-a-connector/`；双 Tab／NativeRequest／分页及草稿图和 `local-computer.json` 位于 `.cache/pr4-fixed/local-computer-the-compone-bb261--across-local-activity-tabs/`。已查看小窗口空态和活动图。
 - 证据分层：真实后端验证未批准本机连接时的路径；正向连接器、Agent、权限回覆与故障为真实组件配合明确 mock 的 E2E。未启动或授权宿主连接器服务，没有宣称真实宿主 Agent 握手或模型执行通过。
+- 最终分支包含搬迁实现 `03f9075` 及恢复原设备组件 key 的 `43ba2a1`。设备切换补验在 PR-6 复核阶段执行并通过，交付前归回本批；同设备切 Tab 保留状态，不同真实设备重建原身份所属的局部组件。
 
 ## PR-5：侧栏与 Yuki 菜单
 
-分支：`codex/ui-sidebar-20261030`，接续 PR-4 `03f9075`。
+分支：`codex/ui-sidebar-20261030`，接续 PR-4 `43ba2a1`。
 
 - 头像卡作为单个／多个／零连接菜单入口；PresenceCard 只渲染内容，名字和状态作为菜单描述。保留选中连接初焦点、Escape、外点和 inactive 行为；方向键遍历连接及新增／部署／关于动作。新增动作继续经过已有导航守卫。
 - 侧栏明确按桌面对话、私聊入口、工作／档案／远端电脑／这台电脑排列，关于与设定位于底部；删除重复返回入口及旧 CSS。详情、放大／还原文案及两处浮层／焦点选择器同步，内部命令和身份不变。档案行的实际按钮同时保留完整文件名与双击提示。
@@ -94,11 +95,11 @@
 
 ## PR-6：视图细节
 
-分支：`codex/ui-views-20261030`，接续 PR-5 `b8777cb`。
+分支：`codex/ui-views-20261030`，接续 PR-5 `529a968`。
 
 - 删除 Conversation 不可达占位兜底，没有另加替代分支；引用删除改为保留可访问名的图标按钮。移除未连接页重复工具列设置按钮，侧栏设置仍可达。
 - 档案预览先于完整信息卡，ID／版本／发布路径默认折叠；保存、复制、引用和比较仍在外部且走原版本。工作／档案删除重复列表标题，工作来源为全部／桌面／其他入口，原取消确认入口与状态同排，用量默认折叠。缩放按钮明确文字与 aria-pressed，不改变接手权限或缩放执行。
-- 复核发现 PR-4 搬迁时漏了原 `characterId + deviceId` 组件 key，已恢复既有设备身份边界，专门修复提交 `e7de882`。新增真实组件回归同时保留同设备切 Tab 的原 UUID／分页／草稿，证明换设备后旧回执、权限、会话与终端控制不会混入新目标；旧详情仍能按原 ID 读取，未靠拒绝旧读掩盖问题。交付整理时将此修复归回 PR-4。
+- 复核发现 PR-4 搬迁时漏了原 `characterId + deviceId` 组件 key，已恢复既有设备身份边界，原修复提交 `e7de882`，交付前归回 PR-4 为 `43ba2a1`。新增真实组件回归同时保留同设备切 Tab 的原 UUID／分页／草稿，证明换设备后旧回执、权限、会话与终端控制不会混入新目标；旧详情仍能按原 ID 读取，未靠拒绝旧读掩盖问题。
 - `npm run lint`、`npm run build`（含 typecheck）、`git diff --check`：通过。首批 `artifacts.spec.ts work-components.spec.ts computer-toolbar.spec.ts unconfigured-workspace.spec.ts`：4 通过、2 失败，产物 `.cache/pr6-e2e/`。Windows 配置排除 `computer-toolbar.spec.ts` 的 1 项 Unix manager 用例，未宣称远端电脑接手／缩放原生流程在 Windows 通过。
 - 两个失败为测试问题：冷重启后的 trace 停在切换型 sidebar helper，而目标是默认展开的宽窗口导航，删除切换操作并等待现有导航可见；新增用量定位在 has 中重复包含外层 complementary 祖先，改为真正相对的纯文本定位。没有增加超时、重试或修改产品行为。
 - 定向补跑失效用例、用量组件及完整 `local-computer.spec.ts`：7 通过，产物 `.cache/pr6-fixed/`、日志 `.cache/pr6-fixed.log`。工作真实请求、原 Main／Work 回执、筛选、取消确认的保持执行、三尺寸同排／折叠及预算均验证，命令回执与原工作身份不变。另适配预算折叠影响的 renderer／native-work 既有断言，不删除原预算或焦点校验。
@@ -110,7 +111,7 @@
 
 ## PR-7：平台文案
 
-分支：`codex/ui-platform-20261030`，接续 PR-6 `7230ab0`。
+分支：`codex/ui-platform-20261030`，接续 PR-6 `03fb1e4`。
 
 - 设置的托盘标题和 Toggle 可访问名统一按实际 `boot.platform` 显示 macOS「選單列」或其他平台「系統匣」；发送键显示「⌘ Enter」或「Ctrl Enter」。Composer 显式接收已有 platform，沿 Conversation、WorkDetail、QuestionBox、WorkReply 传播，不新增查询、默认值或全局状态。提示文案匹配现有按键行为；命令面板的通用确认提示为 Enter。
 - `npm run lint`、`npm run typecheck`、`npm run build`、`git diff --check`：通过。日志 `.cache/pr7-final-lint.log`、`.cache/pr7-final-typecheck.log`、`.cache/pr7-build.log`。`rg -n '角色' src` 无命中；renderer 的 ⌘／↩ 仅位于 Composer、Settings、SoulEditor 的平台分支。独立只读复核未发现 platform 漏传。
@@ -125,6 +126,18 @@
 ## 交付状态
 
 七个批次均已完成本地实现及对应可运行验证，保留七条顺序依赖的本地分支。任务书要求的截图、JSON、失败记录和补验路径见各批；没有以新增业务兜底、重试、经验阈值、辅助完成状态或重建执行身份解决问题。恢复原设备 key 属于保留原身份边界。
+
+| 批次 | 本地分支 | 实现提交末端 | 依赖 |
+| --- | --- | --- | --- |
+| PR-1 | `codex/ui-terms-20261030` | `1f560ea` | `79ee035` |
+| PR-2 | `codex/ui-settings-shell-20261030` | `a8d69c5` | PR-1 |
+| PR-3 | `codex/ui-settings-yuki-20261030` | `75a0338` | PR-2 |
+| PR-4 | `codex/ui-local-computer-20261030` | `43ba2a1`（含 `03f9075`） | PR-3 |
+| PR-5 | `codex/ui-sidebar-20261030` | `529a968` | PR-4 |
+| PR-6 | `codex/ui-views-20261030` | `03fb1e4` | PR-5 |
+| PR-7 | `codex/ui-platform-20261030` | `27d5299`（另含交付记录提交） | PR-6 |
+
+整理前七个分支的提交保存于 `refs/codex/ui-taskbook-before-identity/*`，索引 `.cache/branches-before-identity.json`。归回身份修复并重排后，最终整棵受控文件树与已验证末端 `dd8d308` 完全一致（`git diff --exit-code refs/codex/ui-taskbook-before-identity/platform HEAD` 通过）；随后仅更新本记录的分支与交付说明，无产品或测试源码变动。
 
 最后一个手动后端已通过其测试 shutdown 入口关闭并确认 exit 0；任务持有的 Vite PID／监听端口核实后已关闭，证据和 worktree 保留。
 
