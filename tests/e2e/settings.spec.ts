@@ -96,7 +96,7 @@ test('actual settings paths retain native preferences, timezone, notifications a
     await page.getByRole('switch', { name: '永遠不透明', exact: true }).click()
     await page.getByRole('switch', { name: '減少動態', exact: true }).click()
     await page.getByRole('tab', { name: '通知', exact: true }).click()
-    await page.getByRole('switch', { name: '角色主動訊息', exact: true }).click()
+    await page.getByRole('switch', { name: 'Yuki 主動傳來的訊息', exact: true }).click()
     await page.getByRole('button', { name: '返回', exact: true }).click()
     const expectedSystem = await page.evaluate(
       (timestamp) =>
@@ -282,7 +282,7 @@ test('settings use the original role workspace, preserve its inspector and resto
       .getByRole('button', { name: `關於 ${await activeCharacterName(page)}`, exact: true })
       .click()
     await expect(page.getByRole('tablist', { name: '設定分類', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: '編輯角色資料', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '編輯名稱與簡介', exact: true })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+,')
     const method = await contentSize(app, page, 960, 492)
     await expect(sidebar).toBeHidden()

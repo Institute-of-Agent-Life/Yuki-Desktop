@@ -270,7 +270,7 @@ else {
         reveal?.()
         const options = {
           type: 'question' as const,
-          title: '你正在控制角色的電腦',
+          title: '你正在控制 Yuki 的電腦',
           message: `${held.some((item) => item.offline) ? '你上次仍在控制' : '你正在控制'} ${held.map((item) => item.connection.name).join('、')} 的電腦`,
           detail: `${held.some((item) => item.offline) ? '目前無法連線確認；交回時會核對伺服器目前的控制權。' : ''}保持控制時，需要用電腦的步驟會一直等待交回；其他步驟照常進行。`,
           buttons: ['交回並結束', '保持控制並結束', '取消'],

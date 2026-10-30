@@ -69,7 +69,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
     ).toHaveAttribute('aria-selected', 'true')
     await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
     await navigate(page, `關於 ${await activeCharacterName(page)}`)
-    await page.getByRole('button', { name: '編輯角色資料', exact: true }).click()
+    await page.getByRole('button', { name: '編輯名稱與簡介', exact: true }).click()
     await page.getByLabel('名稱', { exact: true }).fill('Mika')
     await page.getByLabel('淺色外觀', { exact: true }).fill('#b0466b')
     await page.getByLabel('深色外觀', { exact: true }).fill('#e5a2bc')
@@ -127,7 +127,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
       }),
     ).toBeVisible()
     await navigate(page, `關於 ${await activeCharacterName(page)}`)
-    await page.getByRole('button', { name: '更換角色頭像', exact: true }).click()
+    await page.locator('header').getByRole('button', { name: '更換頭像', exact: true }).click()
     await expect(page.getByRole('dialog', { name: `更換 ${firstName} 的頭像` })).toBeVisible()
     await app.evaluate(
       ({ dialog }, path) => {
@@ -150,7 +150,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
       .locator('[data-region="toolbar"]')
       .getByRole('button', { name: '關於 Mika', exact: true })
       .click()
-    await page.getByRole('button', { name: '更換角色頭像', exact: true }).click()
+    await page.locator('header').getByRole('button', { name: '更換頭像', exact: true }).click()
     await expect(page.getByRole('dialog', { name: '更換 Mika 的頭像' })).toBeVisible()
     await expect(page.getByRole('button', { name: '選擇圖片…', exact: true })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+Shift+BracketLeft')
@@ -161,7 +161,9 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
       zoom!,
     )
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: '更換角色頭像', exact: true })).toBeFocused()
+    await expect(
+      page.locator('header').getByRole('button', { name: '更換頭像', exact: true }),
+    ).toBeFocused()
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     await expect(editor).not.toContainText('只屬於 Mika 的提示詞')
     await navigate(page, '對話')

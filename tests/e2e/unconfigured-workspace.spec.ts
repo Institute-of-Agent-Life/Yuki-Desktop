@@ -88,7 +88,7 @@ test('an unconfigured workspace can connect later and opens the actual paired Pe
   }
 })
 
-test('local Bot configuration stays reachable later and survives settings without a connection', async () => {
+test('local Yuki configuration stays reachable later and survives settings without a connection', async () => {
   test.setTimeout(120000)
   const rig = await yukiFixture()
   let app = await rig.launch('deferred-local-bot'),
@@ -104,7 +104,7 @@ test('local Bot configuration stays reachable later and survives settings withou
       .click()
     await expect(page.getByRole('heading', { name: '在本機部署 Yuki', exact: true })).toBeVisible()
     const fields = {
-      角色名稱: '稍後部署的角色',
+      'Yuki 的名稱': '稍後部署的角色',
       你的名稱: '稍後配置的本人',
       模型服務位址: 'http://127.0.0.1:11434/v1',
       模型名稱: 'deferred-local-model',
@@ -141,7 +141,7 @@ test('local Bot configuration stays reachable later and survives settings withou
   }
 })
 
-test('a late repair of an original role does not interrupt local Bot configuration or lose its original draft', async () => {
+test('a late repair of an original role does not interrupt local Yuki configuration or lose its original draft', async () => {
   test.setTimeout(120000)
   const rig = await yukiFixture(),
     proxy = await forwardProxy(rig.base, '/late-original-repair'),

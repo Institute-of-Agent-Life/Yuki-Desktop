@@ -54,7 +54,7 @@ const matcher = new MatchDecorator({
   regexp: /\{\{name\}\}/g,
   decoration: Decoration.mark({
     class: 'cm-soul-name',
-    attributes: { title: '目前角色名稱' },
+    attributes: { title: '目前的名稱' },
   }),
 })
 const placeholders = ViewPlugin.fromClass(

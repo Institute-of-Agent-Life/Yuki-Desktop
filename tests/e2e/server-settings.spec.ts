@@ -327,7 +327,7 @@ test('two actual devices keep proactive route CAS and recover the original lost 
     expect(await route(pa, original)).toEqual(accepted)
     await pa.getByRole('button', { name: '重新讀取目的地', exact: true }).click()
     await pa.screenshot({ path: test.info().outputPath(`${process.platform}-server-settings.png`) })
-    await pa.getByRole('button', { name: '開啟角色資料', exact: true }).click()
+    await pa.getByRole('button', { name: '開啟資料', exact: true }).click()
     await expect(
       pa.getByRole('heading', { name: await activeCharacterName(pa), exact: true }),
     ).toBeVisible()

@@ -532,7 +532,7 @@ function RemoteScreen({
             {fit ? '適合' : '100%'}
           </Button>
           <IconButton
-            label="貼上到角色的電腦"
+            label="貼上文字到遠端畫面"
             disabled={!held || !connected || !clipboardReady}
             onClick={() =>
               void action(async () => {

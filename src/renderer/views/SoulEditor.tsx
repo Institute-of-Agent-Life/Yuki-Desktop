@@ -298,7 +298,7 @@ export function SoulEditor({
   const conflicted = !!draft && conflict(draft)
   const applied = !!documents && documents.active_revision !== documents.revision
   const returnToAbout = () => requestNavigation(back)
-  const effectExplanation = `SOUL 決定性格與表達，{{name}} 使用目前角色名稱。儲存後，${name}下一次開始新的回覆或恢復工作時採用新版；正在進行的那一段用原本的內容做完。記憶與歷史不變。`
+  const effectExplanation = `SOUL 決定性格與表達，{{name}} 會換成目前的名稱。儲存後，${name}下一次開始新的回覆或恢復工作時採用新版；正在進行的那一段用原本的內容做完。記憶與歷史不變。`
   const cacheExplanation = !commands.some((item) => item.command.kind === 'save')
     ? '修改可能影響模型的前綴快取，實際情況以上游 Provider 回報的 usage 為準。'
     : ''

@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { AutomationPage, Connection, MemoryPage } from '../../src/shared/api'
 import { expectContainedText } from '../fixtures/contained-text'
-import { pairUI } from '../fixtures/backend'
+import { pairUI, waitForMainEnded } from '../fixtures/backend'
 import { launchShell } from '../fixtures/shell-app'
 
 async function connection(page: Page) {
@@ -94,15 +94,35 @@ test('Windows native character data keeps original memory receipts across crashe
     pa.on('pageerror', (error) => errors.push(error.message))
     pb.on('pageerror', (error) => errors.push(error.message))
     await pairUI(pa, base!, await code(), 'Windows 記憶主裝置', 20000)
-    await pa
-      .getByRole('textbox', { name: `和 ${await activeCharacterName(pa)} 說點什麼` })
-      .fill(sourceText)
+    const owner = await connection(pa)
+    const composer = pa.getByRole('textbox', {
+      name: `和 ${await activeCharacterName(pa)} 說點什麼`,
+    })
+    await composer.fill(sourceText)
     await pa.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(pa.getByText('Desktop reference reply', { exact: true })).toBeVisible()
+    await expect(composer).toHaveValue('')
+    const sent = await pa.evaluate(
+      async ({ id, text }) => {
+        const result = await window.yuki.client.outbox(id)
+        if (!result.ok) throw Error(result.code)
+        const item = result.value.find((item) => item.body.text === text)
+        if (!item?.eventId) throw Error('Original accepted request is missing')
+        return { requestId: item.requestId, eventId: item.eventId }
+      },
+      { id: owner.characterId, text: sourceText },
+    )
+    const receipt = await waitForMainEnded(pa, owner.characterId, sent.requestId)
+    expect(receipt.event_id).toBe(sent.eventId)
+    expect(receipt.result_event_ids).toHaveLength(1)
+    await expect(
+      pa
+        .locator(`article[data-event-id="${receipt.result_event_ids![0]}"]`)
+        .getByText('Desktop reference reply', { exact: true }),
+    ).toBeVisible()
     const seed = await post('character-data')
     const seeded = await seed.json()
     expect(seed.status, JSON.stringify(seeded)).toBe(200)
-    const owner = await connection(pa)
+    expect(seeded.source_event_id).toBe(sent.eventId)
     expect(owner.persistentCredentials).toBe(true)
     proof.owner = owner
     proof.seeded = seeded
@@ -316,19 +336,19 @@ test('Windows native character data keeps original memory receipts across crashe
     await pa.getByRole('tab', { name: '能力', exact: true }).click()
     await expect(pa.getByText('目前沒有已啟用的擴充。')).toBeVisible()
     await expect(pa.getByText('目前沒有環境工具清單。')).toBeVisible()
-    await pa.getByRole('button', { name: '編輯角色資料' }).click()
+    await pa.getByRole('button', { name: '編輯名稱與簡介' }).click()
     await pa.getByRole('textbox', { name: '名稱', exact: true }).fill('新名稱')
-    await pb.getByRole('button', { name: '編輯角色資料' }).click()
+    await pb.getByRole('button', { name: '編輯名稱與簡介' }).click()
     await pb.getByRole('textbox', { name: '名稱', exact: true }).fill('另一裝置的名稱')
     await pb.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(pb.getByRole('heading', { name: '另一裝置的名稱', exact: true })).toBeVisible()
     await pa.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(pa.getByRole('textbox', { name: '名稱', exact: true })).toHaveValue('新名稱')
     await expect(
-      pa.getByText('角色資料已更新。你的輸入仍保留，儲存仍使用編輯前的版本。'),
+      pa.getByText('資料已在其他地方更新。你的輸入仍保留，儲存仍使用編輯前的版本。'),
     ).toBeVisible()
     await pa.getByRole('button', { name: '放棄並重新讀取' }).click()
-    await pa.getByRole('button', { name: '編輯角色資料' }).click()
+    await pa.getByRole('button', { name: '編輯名稱與簡介' }).click()
     await pa.getByRole('textbox', { name: '名稱', exact: true }).fill('新名稱')
     await pa.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(pa.getByRole('heading', { name: '新名稱', exact: true })).toBeVisible()
@@ -348,8 +368,8 @@ test('Windows native character data keeps original memory receipts across crashe
       return result.ok ? 'unexpected-success' : result.code
     }, owner.characterId)
     expect(denied).toBe('unauthenticated')
-    await expect(pa.getByRole('button', { name: '編輯角色資料' })).toHaveCount(0)
-    await pb.getByRole('button', { name: '編輯角色資料' }).click()
+    await expect(pa.getByRole('button', { name: '編輯名稱與簡介' })).toHaveCount(0)
+    await pb.getByRole('button', { name: '編輯名稱與簡介' }).click()
     await pb.getByRole('textbox', { name: '簡介', exact: true }).fill('另一台有效裝置仍可編輯')
     await pb.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(pb.getByText('另一台有效裝置仍可編輯', { exact: true })).toBeVisible()

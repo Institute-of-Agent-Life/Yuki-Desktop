@@ -120,7 +120,7 @@ test('actual headed Chromium preserves its lease while real pointer, keyboard, U
     await expect.poll(() => input.at(-1)).toBe(typed)
     await page.keyboard.press('Control+Alt')
     await app.evaluate(({ clipboard }, text) => clipboard.writeText(text), pasted)
-    await page.getByRole('button', { name: '貼上到角色的電腦', exact: true }).click()
+    await page.getByRole('button', { name: '貼上文字到遠端畫面', exact: true }).click()
     const bounds = await canvas.boundingBox()
     expect(bounds).not.toBeNull()
     await canvas.click({
@@ -173,7 +173,9 @@ test('actual headed Chromium preserves its lease while real pointer, keyboard, U
     await sheet.getByRole('button', { name: '交回', exact: true }).click()
     await expect.poll(async () => (await facts()).control.holder).toBe('none')
     await expect(page.getByRole('button', { name: '接手', exact: true })).toBeEnabled()
-    await expect(page.getByRole('button', { name: '貼上到角色的電腦', exact: true })).toBeDisabled()
+    await expect(
+      page.getByRole('button', { name: '貼上文字到遠端畫面', exact: true }),
+    ).toBeDisabled()
   } finally {
     await app.close().catch(() => {})
     receiver.closeAllConnections()

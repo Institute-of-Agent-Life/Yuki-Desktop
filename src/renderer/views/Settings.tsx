@@ -295,10 +295,10 @@ export function Settings({
             <div className={styles.group}>
               {(
                 [
-                  { key: 'notifyProactive', label: '角色主動訊息' },
-                  { key: 'notifyWaiting', label: '等待你回覆' },
+                  { key: 'notifyProactive', label: 'Yuki 主動傳來的訊息' },
+                  { key: 'notifyWaiting', label: '等待你回覆的工作' },
                   { key: 'notifyCompleted', label: '工作完成' },
-                  { key: 'notifyHelp', label: '電腦協助請求' },
+                  { key: 'notifyHelp', label: 'Yuki 的電腦請求協助' },
                 ] as const
               ).map((item) => (
                 <Row key={item.key} title={item.label}>

@@ -40,7 +40,7 @@ export default defineConfig({
   // Asynchronous assertions share each test's existing overall deadline.
   expect: { timeout: 0 },
   webServer: {
-    command: 'npm exec vite -- --config tests/fixtures/vite.config.ts',
+    command: 'node node_modules/vite/bin/vite.js --config tests/fixtures/vite.config.ts',
     url: 'http://127.0.0.1:4178/components.html',
     reuseExistingServer: !process.env.CI,
   },

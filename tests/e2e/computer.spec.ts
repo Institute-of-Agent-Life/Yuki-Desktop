@@ -77,7 +77,7 @@ test(
       await pa.keyboard.press('Control+Alt')
       const pasted = '中文與表情 🙂，從觀看後第一次接手。'
       await a.evaluate(({ clipboard }, text) => clipboard.writeText(text), pasted)
-      await pa.getByRole('button', { name: '貼上到角色的電腦' }).click()
+      await pa.getByRole('button', { name: '貼上文字到遠端畫面' }).click()
       await expect.poll(async () => (await facts()).clipboard).toBe(pasted)
       if (process.env.YUKI_DESKTOP_TEST_EVIDENCE)
         await pa.screenshot({
@@ -119,10 +119,10 @@ test(
         .getByRole('button', { name: '改由這台控制', exact: true })
         .click()
       await expect.poll(async () => (await facts()).control.lease_id).not.toBe(firstLease)
-      await expect(pa.getByRole('button', { name: '貼上到角色的電腦' })).toBeDisabled()
-      await expect(pb.getByRole('button', { name: '貼上到角色的電腦' })).toBeEnabled()
+      await expect(pa.getByRole('button', { name: '貼上文字到遠端畫面' })).toBeDisabled()
+      await expect(pb.getByRole('button', { name: '貼上文字到遠端畫面' })).toBeEnabled()
       await b.evaluate(({ clipboard }) => clipboard.writeText('另一台接手後的 Unicode 🦊'))
-      await pb.getByRole('button', { name: '貼上到角色的電腦' }).click()
+      await pb.getByRole('button', { name: '貼上文字到遠端畫面' }).click()
       await expect.poll(async () => (await facts()).clipboard).toBe('另一台接手後的 Unicode 🦊')
       await pb.getByRole('button', { name: `交回給 ${name}`, exact: true }).click()
       const sheet = pb.getByRole('dialog', { name: `交回給 ${name}` })
@@ -185,7 +185,7 @@ test(
       const name = await characterName(page)
       await navigate(page, `${name} 的電腦`)
       await page.getByRole('button', { name: '接手', exact: true }).click()
-      await expect(page.getByRole('button', { name: '貼上到角色的電腦' })).toBeEnabled()
+      await expect(page.getByRole('button', { name: '貼上文字到遠端畫面' })).toBeEnabled()
       const original = await control()
       await app.evaluate(({ dialog, app }) => {
         dialog.showMessageBox = async (
@@ -214,7 +214,7 @@ test(
       app = await rig.launch('computer-quit')
       page = await app.firstWindow()
       await navigate(page, `${name} 的電腦`)
-      await expect(page.getByRole('button', { name: '貼上到角色的電腦' })).toBeEnabled()
+      await expect(page.getByRole('button', { name: '貼上文字到遠端畫面' })).toBeEnabled()
       expect((await control()).lease_id).toBe(original.lease_id)
       await app.evaluate(({ dialog }) => {
         dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false })

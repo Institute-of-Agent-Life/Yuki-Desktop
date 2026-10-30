@@ -692,9 +692,14 @@ export function Conversation({
       })
   }
   const paletteCommands: PaletteCommand[] = [
-    ...(['chat', 'works', 'files', 'about'] as const).map((view, index) => ({
+    ...(['chat', 'works', 'files', 'about'] as const).map((view) => ({
       id: `command/${view}`,
-      title: ['開啟對話', '開啟工作', '開啟檔案與成果', '開啟角色資料'][index]!,
+      title: {
+        chat: '開啟對話',
+        works: '開啟工作',
+        files: '開啟檔案與成果',
+        about: `開啟 ${name} 的資料`,
+      }[view],
       run: () =>
         paletteNavigate(() =>
           view === 'chat' ? choose(connection.conversationId) : workspace.setView(view),
@@ -1004,7 +1009,7 @@ export function Conversation({
               />
             )
           ) : (
-            <EmptyState title="角色資料">{profile.error?.message ?? '正在讀取…'}</EmptyState>
+            <EmptyState title={name}>{profile.error?.message ?? '正在讀取…'}</EmptyState>
           )
         ) : view !== 'chat' && !focusMode ? (
           <EmptyState

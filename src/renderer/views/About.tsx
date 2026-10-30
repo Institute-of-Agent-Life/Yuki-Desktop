@@ -119,7 +119,7 @@ export function About({
                 ref={avatarPress}
                 data-press="icon"
                 className={styles.avatarEdit}
-                aria-label="更換角色頭像"
+                aria-label="更換頭像"
                 onClick={() => {
                   setAvatarRestore(undefined)
                   setAvatarEditing(true)
@@ -134,7 +134,11 @@ export function About({
             <div className={styles.name}>
               <h1>{profile.display_name}</h1>
               {!editing && (
-                <Button variant="plain" aria-label="編輯角色資料" onClick={() => setEditing(true)}>
+                <Button
+                  variant="plain"
+                  aria-label="編輯名稱與簡介"
+                  onClick={() => setEditing(true)}
+                >
                   <Pencil size={14} />
                   編輯
                 </Button>
@@ -151,8 +155,8 @@ export function About({
               />
             ) : (
               <>
-                <h2 className={styles.sectionTitle}>角色資料</h2>
-                <p>{profile.bio || '尚未設定角色簡介。'}</p>
+                <h2 className={styles.sectionTitle}>簡介</h2>
+                <p>{profile.bio || '尚未設定簡介。'}</p>
                 <p className={styles.description}>
                   名稱、簡介、頭像與提示詞由連接這個 Yuki 的使用者共享。
                 </p>
@@ -189,7 +193,7 @@ export function About({
           />
         )}
         <Segmented
-          label="角色資料"
+          label={`${profile.display_name} 的資料`}
           value={tab}
           onChange={setTab}
           items={[
@@ -213,7 +217,7 @@ export function About({
                   ? '記憶修正'
                   : item.command.kind === 'automation'
                     ? '安排變更'
-                    : '角色資料變更'}
+                    : '資料變更'}
                 ：結果尚未確認
               </span>
               <Button
@@ -340,7 +344,9 @@ function ProfileEditor({
         </label>
       </div>
       {conflict && (
-        <Banner status="waiting">角色資料已更新。你的輸入仍保留，儲存仍使用編輯前的版本。</Banner>
+        <Banner status="waiting">
+          資料已在其他地方更新。你的輸入仍保留，儲存仍使用編輯前的版本。
+        </Banner>
       )}
       <div className={styles.actions}>
         <Button
@@ -699,8 +705,8 @@ function CapabilityList({ id }: { id: string }) {
           {!capability.data.plugins.length && (
             <p className={styles.description}>目前沒有已啟用的擴充。</p>
           )}
-          <h2 className={styles.sectionTitle}>角色環境</h2>
-          <p>{capability.data.environment.desktop ? '提供角色電腦' : '環境尚未提供電腦資訊'}</p>
+          <h2 className={styles.sectionTitle}>執行環境</h2>
+          <p>{capability.data.environment.desktop ? '提供遠端電腦' : '環境尚未提供電腦資訊'}</p>
           <div className={styles.tools}>
             {capability.data.environment.tools.map((tool) => (
               <span className={styles.tag} key={tool.name}>
