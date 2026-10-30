@@ -7,7 +7,7 @@ import { navigate, sidebar } from '../fixtures/navigation'
 import { captureViewport, contentSize } from '../fixtures/visual'
 
 async function expectUnconfigured(page: Page) {
-  await expect(page.getByRole('navigation', { name: '主要導覽', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
   expect(await page.evaluate(() => window.yuki.client.connections())).toEqual({
     ok: true,
     value: [],
