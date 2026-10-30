@@ -20,7 +20,7 @@ async function expectUnconfigured(page: Page) {
 }
 
 async function serverSettings(page: Page) {
-  await navigate(page, '設定')
+  await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: '所有 Yuki', exact: true }).click()
   await expect(page.getByRole('navigation', { name: '主要導覽', exact: true })).toBeHidden()
   for (const name of ['連線', '裝置', '這台電腦'])
