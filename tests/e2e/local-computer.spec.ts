@@ -221,3 +221,129 @@ test('the component fixture keeps the original request, loaded progress and draf
     ),
   )
 })
+
+test('a changed local device does not inherit the original operation, draft or terminal control request', async ({
+  page,
+}) => {
+  await page.goto('http://127.0.0.1:4178/components.html?connector=terminal-detail')
+  await page.getByRole('switch', { name: '背景連接', exact: true }).click()
+  await page.getByRole('button', { name: '新增 Agent', exact: true }).click()
+  const editor = page.getByRole('dialog', { name: '新增本機 Agent', exact: true })
+  await editor.getByRole('button', { name: '尋找已安裝的 Codex', exact: true }).click()
+  await editor.getByRole('button', { name: '儲存', exact: true }).click()
+  await expect(editor).toBeHidden()
+  await page.getByRole('button', { name: '顯示本機活動', exact: true }).click()
+  const tabs = page.getByRole('tablist', { name: '這台電腦的活動', exact: true })
+  const native = page.getByRole('tabpanel', { name: '原生 Agent 任務', exact: true })
+  await native.getByRole('button', { name: '讀取原生會話', exact: true }).click()
+  await native
+    .getByRole('combobox', { name: '原生會話', exact: true })
+    .selectOption('original-session')
+  await native.getByRole('button', { name: '查看原回執', exact: true }).click()
+  await native.getByRole('button', { name: '讀取後續進度', exact: true }).click()
+  await page.evaluate(() =>
+    (
+      window as Window & {
+        __connectorAdvance?: (phase: string) => void
+      }
+    ).__connectorAdvance!('permission'),
+  )
+  await native.getByRole('button', { name: 'accept', exact: true }).click()
+  const receipt = await native.getByRole('status').filter({ hasText: '要求已交給' }).innerText()
+  const originalRequest = receipt.match(/請求 (fixture-request-\d+)/)![1]!
+  const draft = '只屬於原裝置與原任務的待送草稿'
+  await native.getByRole('textbox', { name: '原生任務要求', exact: true }).fill(draft)
+  await expect(native.getByRole('button', { name: 'accept', exact: true })).toBeVisible()
+  await tabs.getByRole('tab', { name: '終端執行', exact: true }).click()
+  const terminals = page.getByRole('tabpanel', { name: '終端執行', exact: true })
+  await terminals.getByRole('button', { name: '查看終端回執', exact: true }).click()
+  await expect(terminals.locator('pre').filter({ hasText: 'hello' })).toBeVisible()
+  await terminals.getByRole('button', { name: '停止原終端執行', exact: true }).click()
+  await expect(terminals.getByRole('button', { name: '查證原停止請求', exact: true })).toBeVisible()
+  const originalStop = await page.evaluate(
+    () =>
+      (
+        window as Window & {
+          __connectorCalls?: { method: string; input?: { request: string; run: string } }[]
+        }
+      ).__connectorCalls!.find((call) => call.method === 'controlTerminal')!.input!,
+  )
+  expect(originalStop.run).toBe('original-terminal')
+  expect(originalStop.request).toMatch(/^[0-9a-f-]{36}$/)
+  await page.screenshot({ path: test.info().outputPath('local-device-before-change.png') })
+  await page.evaluate(() =>
+    (
+      window as Window & {
+        __connectorAdvance?: (phase: string) => void
+      }
+    ).__connectorAdvance!('deviceChanged'),
+  )
+  await expect(tabs.getByRole('tab', { name: '原生 Agent 任務', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await expect(native.getByRole('combobox', { name: '任務 Agent', exact: true })).toHaveValue(
+    'fixture-changed-server-instance',
+  )
+  await expect(native.getByRole('textbox', { name: '原生任務要求', exact: true })).toHaveValue('')
+  await expect(native.getByRole('combobox', { name: '原生會話', exact: true })).toHaveValue('')
+  await expect(native.getByRole('option', { name: '原會話', exact: true })).toHaveCount(0)
+  await expect(
+    native.getByRole('heading', { name: '原操作 original-operation', exact: true }),
+  ).toHaveCount(0)
+  await expect(native.getByRole('button', { name: 'accept', exact: true })).toHaveCount(0)
+  await expect(native.getByText('第一頁原進度', { exact: true })).toHaveCount(0)
+  await expect(native.getByRole('status').filter({ hasText: originalRequest })).toHaveCount(0)
+  await tabs.getByRole('tab', { name: '終端執行', exact: true }).click()
+  await expect(terminals.getByRole('button', { name: '查看終端回執', exact: true })).toHaveCount(0)
+  await expect(
+    terminals.getByRole('heading', { name: '原終端執行 original-terminal', exact: true }),
+  ).toHaveCount(0)
+  await expect(terminals.locator('pre').filter({ hasText: 'hello' })).toHaveCount(0)
+  for (const name of ['停止原終端執行', '重送原停止請求', '查證原停止請求'])
+    await expect(terminals.getByRole('button', { name, exact: true })).toHaveCount(0)
+  await expect(terminals.getByRole('status').filter({ hasText: originalStop.request })).toHaveCount(
+    0,
+  )
+  await page.screenshot({ path: test.info().outputPath('local-device-after-change.png') })
+  await tabs.getByRole('tab', { name: '原生 Agent 任務', exact: true }).click()
+  const newPrompt = '交給新裝置的獨立要求'
+  await native.getByRole('textbox', { name: '原生任務要求', exact: true }).fill(newPrompt)
+  await native.getByRole('button', { name: '交給 Yuki 執行', exact: true }).click()
+  const calls = await page.evaluate(
+    () =>
+      (
+        window as Window & {
+          __connectorCalls?: { method: string; input?: unknown }[]
+        }
+      ).__connectorCalls!,
+  )
+  const submissions = calls
+    .filter((call) => call.method === 'submit')
+    .map((call) => call.input as { text: string; agentTarget: ConnectorTarget })
+  expect(submissions).toHaveLength(2)
+  expect(submissions[0]!.agentTarget).toMatchObject({
+    device_id: 'fixture-connector-device',
+    instance_id: 'fixture-server-instance',
+    session_id: 'original-session',
+    operation_id: 'original-operation',
+    permission_id: 'original-permission',
+    intent: 'respond',
+    option_id: 'accept',
+  })
+  expect(submissions[1]).toEqual({
+    text: newPrompt,
+    agentTarget: {
+      device_id: 'fixture-changed-device',
+      instance_id: 'fixture-changed-server-instance',
+      intent: 'prompt',
+    },
+  })
+  expect(
+    calls.filter((call) => call.method === 'controlTerminal').map((call) => call.input),
+  ).toEqual([originalStop])
+  await writeFile(
+    test.info().outputPath('local-device-identity-change.json'),
+    JSON.stringify({ originalRequest, originalStop, draft, calls, submissions }, null, 2),
+  )
+})

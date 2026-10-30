@@ -171,6 +171,36 @@ Object.assign(window, {
   __connectorOperationReads: operationReads,
   __connectorAdvance(phase: string, emit = true) {
     operationPhase = phase
+    if (phase === 'deviceChanged')
+      connectorState = {
+        ...preparedConnector(),
+        paired: true,
+        deviceId: 'fixture-changed-device',
+        server: connectorConnection.baseUrl,
+        instances: [
+          {
+            id: 'fixture-changed-native-instance',
+            label: 'Changed Codex',
+            driver: 'codex',
+            command: '/fixture/Codex/codex',
+          },
+        ],
+        service: { installed: true, running: true },
+        admission: {
+          matched: true,
+          connected: true,
+          instances: [
+            {
+              id: 'fixture-changed-server-instance',
+              localId: 'fixture-changed-native-instance',
+              label: 'Changed Codex',
+              driver: 'codex',
+              online: true,
+              status: 'available',
+            },
+          ],
+        },
+      }
     if (emit)
       for (const listener of hintListeners) listener(connectorConnection.characterId, 'refresh', {})
   },
@@ -361,8 +391,8 @@ window.yuki = {
       ok: true,
       value: {
         operations:
-          connectorMode === 'operation-detail' ||
-          (connectorMode === 'terminal-detail' && device === 'fixture-connector-device')
+          (connectorMode === 'operation-detail' || connectorMode === 'terminal-detail') &&
+          device === 'fixture-connector-device'
             ? [
                 {
                   id: 'original-operation',

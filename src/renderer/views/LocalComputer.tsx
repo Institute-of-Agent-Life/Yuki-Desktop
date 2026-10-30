@@ -62,7 +62,11 @@ export function LocalComputer({
   return (
     <div className={styles.page}>
       {state.error && <Banner status="unknown">{state.error.message}</Banner>}
-      <ConnectorTasks connection={connection} state={available} />
+      <ConnectorTasks
+        key={connection.characterId + available.deviceId}
+        connection={connection}
+        state={available}
+      />
     </div>
   )
 }
