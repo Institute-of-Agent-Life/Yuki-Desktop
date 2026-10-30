@@ -164,3 +164,9 @@ GitHub 连接器创建接口返回 403 后，使用本机已有登录的 gh 创�
 手动预览包 `dist/manual-preview/win-unpacked/Yuki.exe` 包含全部七批产品代码，基于 `7c31010` 的构建；与最终验收包的 202 个 out 文件逐一 SHA-256 一致，证据 `.cache/manual-preview-package-proof.json`。另设生成的手测入口，仅隔离宿主协议注册和原生通知展示，不加载自动化后台窗口 hook，窗口正常可交互。没有覆盖已安装的 Yuki。
 
 使用独立 `.cache/manual-preview-profile/` 和 `.cache/manual-preview-backend/`，已通过真实配对界面连接本地参考后端并确认主界面“已連線”；窗口标题为 `Yuki UI Preview - 7 changes`。参考后端 API／资料／档案走真实代码，回复由脚本模型生成，不连接正式 Yuki，也未自动授权或启动宿主连接器。会话与进程信息保存在 `.cache/manual-preview-session.json`，本地后端与预览窗口为用户手动测试保持运行。已使用 computer-use 完成该测试实例的配对和主界面核对，随后停止 UI 输入。
+
+## 手测反馈：连线页间距与本机 Agent 入口
+
+- 用户指出「技術資訊」与「登出」紧贴。技术资讯 details 复用原有 `styles.section`，沿现有区块间距分开；只改一行样式引用，不增加容器、状态或执行条件。
+- `npm run lint`、`npm run build`（含 typecheck）、`git diff --check` 通过。后台设置布局 E2E `npm exec playwright -- test tests/e2e/settings-layout.spec.ts --reporter=list`：1 通过（40.6 秒），产物 `.cache/feedback-connection-layout/`，日志 `.cache/feedback-connection-layout.log`。三尺寸连线图已生成，已人工查看宽窗口间距；未操作用户正在使用的预览窗口。本次样式修复随 PR #22 更新，已打开的 `7c31010` 预览包仍为之前构建。
+- 本机 Agent 功能与原配置路径保留：设置 → 这台电脑 → 本机 Agent（可选），配置 Codex／Claude／ACP；活动在侧栏“这台电脑”→原生 Agent 任务／终端执行。设置区要求所选安装 available 且 paired；只发现旧安装但尚未选用、或未配对时不显示该区。活动另核对当前 Yuki 的真实接纳匹配。独立测试资料未替用户把原连接器改配给测试 Yuki，也没有进行宿主 Agent 执行验收；原生 Agent 独立授权不由通用完整访问开关决定。本次仅说明现有入口，没有放宽真实身份或授权检查。
