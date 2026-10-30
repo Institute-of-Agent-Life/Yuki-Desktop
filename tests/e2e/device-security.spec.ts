@@ -292,22 +292,35 @@ test('a code created before its response is lost can be verified but never silen
     const pending = (await requests(page, original.characterId))[0]!
     expect(pending.state).toBe('submitted')
     expect(proxy.lostStatuses).toEqual([200])
+    const writesAfterLoss = proxy.calls.filter(
+      (c) => c.method === 'POST' && c.path.endsWith('/link-codes'),
+    ).length
     await sheet.getByRole('button', { name: '完成', exact: true }).click()
     await expect(
       page.getByText('結果尚未確認，會以原請求查詢，不會建立新請求。', { exact: true }),
     ).toBeVisible()
     proxy.faults.holdReceipts = false
-    await page.getByRole('button', { name: '重新確認', exact: true }).click()
+    await page.getByRole('button', { name: '查看上次結果', exact: true }).click()
     await expect(sheet.getByText(/綁定碼明文無法重新取得/)).toBeVisible()
     await expect(sheet.getByRole('img')).toHaveCount(0)
+    await expect(sheet.getByLabel('一次性綁定碼', { exact: true })).toHaveCount(0)
     expect(
       proxy.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/link-codes')),
     ).toHaveLength(1)
-    expect((await requests(page, original.characterId))[0]).toMatchObject({
+    const recovered = (await requests(page, original.characterId))[0]!
+    expect(recovered).toMatchObject({
       requestId: pending.requestId,
       state: 'result',
       problem: null,
     })
+    const connectionAfterVerify = await selected(page)
+    expect(connectionAfterVerify).toEqual(original)
+    const codeRestored = (await sheet.getByLabel('一次性綁定碼', { exact: true }).count()) > 0,
+      qrRestored = (await sheet.getByRole('img').count()) > 0,
+      writesAfterVerify = proxy.calls.filter(
+        (c) => c.method === 'POST' && c.path.endsWith('/link-codes'),
+      ).length
+    await page.screenshot({ path: test.info().outputPath('original-code-receipt.png') })
     await sheet.getByRole('button', { name: '再產生一個', exact: true }).click()
     await expect(sheet.getByLabel('一次性綁定碼', { exact: true })).toHaveText(
       /^[A-Za-z0-9_-]{32}$/,
@@ -315,7 +328,39 @@ test('a code created before its response is lost can be verified but never silen
     expect(
       proxy.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/link-codes')),
     ).toHaveLength(2)
-    expect((await requests(page, original.characterId))[1]!.requestId).not.toBe(pending.requestId)
+    const regenerated = (await requests(page, original.characterId))[1]!
+    expect(regenerated.requestId).not.toBe(pending.requestId)
+    const codeWrites = proxy.calls.filter(
+      (c) => c.method === 'POST' && c.path.endsWith('/link-codes'),
+    )
+    const background = await app.evaluate(
+      () =>
+        (globalThis as typeof globalThis & { __yukiBackgroundWindows?: unknown })
+          .__yukiBackgroundWindows,
+    )
+    await writeFile(
+      test.info().outputPath('original-code-receipt.json'),
+      JSON.stringify(
+        {
+          originalConnection: original,
+          connectionAfterVerify,
+          originalRequest: pending,
+          recoveredRequest: recovered,
+          regeneratedRequestId: regenerated.requestId,
+          codeRestored,
+          qrRestored,
+          postCounts: {
+            afterLoss: writesAfterLoss,
+            afterVerify: writesAfterVerify,
+            afterExplicitRegenerate: codeWrites.length,
+          },
+          codeWrites,
+          background,
+        },
+        null,
+        2,
+      ),
+    )
     success = true
   } finally {
     await app.close().catch(() => {})
