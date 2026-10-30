@@ -100,6 +100,25 @@ test('native file library keeps real long names and distinct original artifacts 
     await expect(other).toHaveCount(1)
     await row.click()
     await expect(stage.getByRole('heading', { name: 'First artifact', exact: true })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: '檔案與成果', exact: true, level: 2 }),
+    ).toHaveCount(0)
+    const information = stage.getByRole('region', { name: '成果資訊', exact: true })
+    const technical = information
+      .locator('details')
+      .filter({ has: page.getByText('詳細資料', { exact: true }) })
+    await expect(technical).toHaveJSProperty('open', false)
+    await expect(technical.getByText(first.artifact_id, { exact: true })).toBeHidden()
+    await technical.getByText('詳細資料', { exact: true }).click()
+    await expect(technical.getByText(first.artifact_id, { exact: true })).toBeVisible()
+    const originalVersion = await technical.locator('code[title]').getAttribute('title')
+    expect(originalVersion).toBeTruthy()
+    proof.technicalDetails = {
+      artifactId: first.artifact_id,
+      version: originalVersion,
+      text: await technical.innerText(),
+    }
+    await technical.getByText('詳細資料', { exact: true }).click()
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
       await contentSize(app, page, sizes[0]![0]!, sizes[0]![1]!)
       await page.keyboard.press('ControlOrMeta+,')
@@ -165,7 +184,16 @@ test('native file library keeps real long names and distinct original artifacts 
             previewHeader: rect(header),
             previewBackground: getComputedStyle(preview).backgroundColor,
             informationCard: card
-              ? { rect: rect(card), background: getComputedStyle(card).backgroundColor }
+              ? {
+                  rect: rect(card),
+                  background: getComputedStyle(card).backgroundColor,
+                  preview: rect(card.previousElementSibling!),
+                  previewBeforeInfo: !!(
+                    card.previousElementSibling!.compareDocumentPosition(card) &
+                    Node.DOCUMENT_POSITION_FOLLOWING
+                  ),
+                  technicalOpen: card.querySelector('details')!.open,
+                }
               : null,
             metadata: {
               font: style.fontSize,
@@ -190,6 +218,7 @@ test('native file library keeps real long names and distinct original artifacts 
         if (native.platform === 'win32') {
           const receipt = await nativeWindowsControls(await windowsFileDialogOwner(app), {
             outputPath: screenshot,
+            captureOnly: true,
           })
           expect(receipt.processId).toBe(native.pid)
         } else await captureViewport(app, page, screenshot)
@@ -200,6 +229,12 @@ test('native file library keeps real long names and distinct original artifacts 
           mode === 'dark' ? 'rgb(22, 24, 28)' : 'rgb(241, 243, 247)',
         )
         expect(metrics.informationCard).not.toBeNull()
+        expect(metrics.informationCard!.previewBeforeInfo).toBe(true)
+        expect(metrics.informationCard!.technicalOpen).toBe(false)
+        await expect(technical.locator('code[title]')).toHaveAttribute('title', originalVersion!)
+        expect(metrics.informationCard!.rect.y).toBeGreaterThanOrEqual(
+          metrics.informationCard!.preview.y + metrics.informationCard!.preview.height,
+        )
         await expect(stage.getByRole('button', { name: '存到…', exact: true })).toBeInViewport({
           ratio: 1,
         })
@@ -207,7 +242,7 @@ test('native file library keeps real long names and distinct original artifacts 
         expect(metrics.ink.right).toBeLessThanOrEqual(metrics.size.x - 9)
         expect(metrics.ink.right).toBeLessThanOrEqual(metrics.label.right + 1)
         expect(metrics.visibleName).toMatch(/….*\.md$/)
-        expect(metrics.fullName).toBe(first.name)
+        expect(metrics.fullName).toBe(`${first.name}\n按兩下放大詳情`)
         expect(metrics.metadata).toMatchObject({
           font: '11px',
           line: '14px',

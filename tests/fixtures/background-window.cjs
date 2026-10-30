@@ -13,6 +13,9 @@ if (process.platform === 'win32') {
   app.on('browser-window-created', (_event, window) => {
     window.setFocusable(false)
     window.show = () => {
+      window.setOpacity(0)
+      window.setIgnoreMouseEvents(true)
+      window.showInactive()
       const handle = window.getNativeWindowHandle().readBigUInt64LE().toString()
       const call = { handle, completed: false }
       evidence.showCalls.push(call)
@@ -68,6 +71,8 @@ $after=[BackgroundTestWindow]::GetForegroundWindow()
             app.exit(1)
             return
           }
+          window.setOpacity(1)
+          window.setIgnoreMouseEvents(false)
           Object.assign(call, JSON.parse(stdout.trim()), { completed: true })
         },
       )

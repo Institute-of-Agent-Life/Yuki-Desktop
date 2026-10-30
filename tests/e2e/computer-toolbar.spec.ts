@@ -4,7 +4,7 @@ import { crashElectron } from '../fixtures/electron-process'
 import { writeFile } from 'node:fs/promises'
 import type { Profile } from '../../src/shared/api'
 import { recordBusinessState, currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
-import { captureWorkspace, contentSize } from '../fixtures/visual'
+import { captureViewport, captureWorkspace, contentSize } from '../fixtures/visual'
 
 test(
   'computer controls stay in the 52px toolbar through viewing, takeover, transfer and return',
@@ -36,6 +36,27 @@ test(
       await expect(
         controls.getByRole('heading', { name: `${name} 的電腦`, exact: true }),
       ).toBeVisible()
+      const fit = pa.getByRole('button', { name: '縮放：適合', exact: true })
+      await expect(fit).toHaveAttribute('aria-pressed', 'false')
+      const beforeZoom = (await facts()).control
+      await fit.click()
+      const originalSize = pa.getByRole('button', { name: '縮放：100%', exact: true })
+      await expect(originalSize).toHaveAttribute('aria-pressed', 'true')
+      await captureViewport(a, pa, test.info().outputPath('computer-zoom-100.png'))
+      const zoom = {
+        originalSize: {
+          label: await originalSize.innerText(),
+          pressed: await originalSize.getAttribute('aria-pressed'),
+        },
+        before: beforeZoom,
+        after: (await facts()).control,
+      }
+      expect({ holder: zoom.after.holder, leaseId: zoom.after.lease_id }).toEqual({
+        holder: zoom.before.holder,
+        leaseId: zoom.before.lease_id,
+      })
+      await originalSize.click()
+      await expect(fit).toHaveAttribute('aria-pressed', 'false')
       await captureWorkspace(
         a,
         pa,
@@ -48,6 +69,7 @@ test(
           verify: async () => {
             const box = await toolbar.boundingBox()
             expect(box?.height).toBe(52)
+            await expect(fit).toHaveAttribute('aria-pressed', 'false')
             await expect(
               controls.getByRole('button', { name: '接手', exact: true }),
             ).toBeInViewport({
@@ -116,7 +138,6 @@ test(
       await expect(longReturn).toBeInViewport({ ratio: 1 })
       expect((await toolbar.boundingBox())!.height).toBe(52)
       expect((await controls.getByRole('heading').boundingBox())!.height).toBe(18)
-      const { captureViewport } = await import('../fixtures/visual')
       await captureViewport(
         a,
         pa,
@@ -130,7 +151,7 @@ test(
       await expect.poll(async () => (await facts()).control.holder).toBe('none')
       await writeFile(
         test.info().outputPath('computer-toolbar-receipts.json'),
-        JSON.stringify({ first, final: (await facts()).control }, null, 2) + '\n',
+        JSON.stringify({ zoom, first, final: (await facts()).control }, null, 2) + '\n',
       )
       success = true
     } finally {

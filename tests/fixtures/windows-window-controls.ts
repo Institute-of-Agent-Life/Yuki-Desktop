@@ -27,12 +27,12 @@ export interface NativeWindowReceipt {
 }
 export async function nativeWindowsControls(
   owner: NativeFileDialogOwner,
-  options: { outputPath?: string; invokeName?: string } = {},
+  options: { outputPath?: string; invokeName?: string; captureOnly?: boolean } = {},
 ): Promise<NativeWindowReceipt> {
   if (process.platform !== 'win32') throw Error('Requires a Windows interactive desktop')
   const source = await readFile(new URL('./windows-window-controls.ps1', import.meta.url), 'utf8')
   const payload = Buffer.from(JSON.stringify({ ...owner, ...options }), 'utf8').toString('base64')
-  const script = `$ErrorActionPreference='Stop'; [Console]::OutputEncoding=[Text.Encoding]::UTF8; $captionInput=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${payload}')) | ConvertFrom-Json; & ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(source, 'utf8').toString('base64')}')))) -ExpectedProcessId $captionInput.processId -WindowHandle $captionInput.handle -Executable $captionInput.executable -OutputPath $captionInput.outputPath -InvokeName $captionInput.invokeName`
+  const script = `$ErrorActionPreference='Stop'; [Console]::OutputEncoding=[Text.Encoding]::UTF8; $captionInput=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${payload}')) | ConvertFrom-Json; & ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(source, 'utf8').toString('base64')}')))) -ExpectedProcessId $captionInput.processId -WindowHandle $captionInput.handle -Executable $captionInput.executable -OutputPath $captionInput.outputPath -InvokeName $captionInput.invokeName -CaptureOnly:([bool]$captionInput.captureOnly)`
   const { stdout } = await promisify(execFile)(
     'powershell.exe',
     [

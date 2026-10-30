@@ -528,8 +528,8 @@ function RemoteScreen({
       )}
       {!preview && (
         <div className={styles.floating} aria-label="電腦畫面控制列">
-          <Button variant="plain" onClick={() => setFit((value) => !value)}>
-            {fit ? '適合' : '100%'}
+          <Button variant="plain" aria-pressed={!fit} onClick={() => setFit((value) => !value)}>
+            {fit ? '縮放：適合' : '縮放：100%'}
           </Button>
           <IconButton
             label="貼上文字到遠端畫面"

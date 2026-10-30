@@ -149,7 +149,6 @@ export function Files({
         }}
       >
         <header>
-          <h2>檔案與成果</h2>
           <Segmented
             label="成果類型"
             value={category}
@@ -238,18 +237,47 @@ export function Files({
               </Button>
             </header>
             <div className={styles.stageBody}>
+              <div className={styles.preview}>
+                {comparison && (
+                  <header className={styles.actions}>
+                    <strong>並排比較原版本</strong>
+                    <code>
+                      {comparison.artifactId}@{shortVersion(comparison.version)}
+                    </code>
+                    <IconButton label="結束比較" onClick={() => setComparison(undefined)}>
+                      <X size={15} />
+                    </IconButton>
+                  </header>
+                )}
+                {other.error && <Banner status="failed">{other.error.message}</Banner>}
+                {comparison && !other.error && other.data ? (
+                  <ArtifactComparison id={id} left={data} right={other.data} />
+                ) : (
+                  <Content
+                    id={id}
+                    key={data.sha256}
+                    content={data}
+                    open={() =>
+                      void act(window.yuki.client.openArtifact(id, selected).then(unwrap))
+                    }
+                  />
+                )}
+              </div>
               <section className={styles.info} aria-label="成果資訊">
-                <p>
-                  <span>artifact ID</span> <code>{selected.artifactId}</code>
-                </p>
-                <p>
-                  <span>內容版本</span>{' '}
-                  <code title={selected.version}>{shortVersion(selected.version)}</code>
-                </p>
-                <p>
-                  <span>發布路徑</span>{' '}
-                  {item ? (item.published_path ?? '未提供') : '尚未讀取發布資訊'}
-                </p>
+                <details>
+                  <summary>詳細資料</summary>
+                  <p>
+                    <span>artifact ID</span> <code>{selected.artifactId}</code>
+                  </p>
+                  <p>
+                    <span>內容版本</span>{' '}
+                    <code title={selected.version}>{shortVersion(selected.version)}</code>
+                  </p>
+                  <p>
+                    <span>發布路徑</span>{' '}
+                    {item ? (item.published_path ?? '未提供') : '尚未讀取發布資訊'}
+                  </p>
+                </details>
                 <div className={styles.actions}>
                   <Button
                     variant="plain"
@@ -320,32 +348,6 @@ export function Files({
                   )}
                 </details>
               </section>
-              <div className={styles.preview}>
-                {comparison && (
-                  <header className={styles.actions}>
-                    <strong>並排比較原版本</strong>
-                    <code>
-                      {comparison.artifactId}@{shortVersion(comparison.version)}
-                    </code>
-                    <IconButton label="結束比較" onClick={() => setComparison(undefined)}>
-                      <X size={15} />
-                    </IconButton>
-                  </header>
-                )}
-                {other.error && <Banner status="failed">{other.error.message}</Banner>}
-                {comparison && !other.error && other.data ? (
-                  <ArtifactComparison id={id} left={data} right={other.data} />
-                ) : (
-                  <Content
-                    id={id}
-                    key={data.sha256}
-                    content={data}
-                    open={() =>
-                      void act(window.yuki.client.openArtifact(id, selected).then(unwrap))
-                    }
-                  />
-                )}
-              </div>
             </div>
           </>
         )}

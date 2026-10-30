@@ -91,6 +91,7 @@ test('native work list and inspector preserve step layout, keyboard focus and or
       if (native.platform === 'win32') {
         const receipt = await nativeWindowsControls(await windowsFileDialogOwner(app), {
           outputPath: path,
+          captureOnly: true,
         })
         expect(receipt.processId).toBe(native.pid)
       } else await captureViewport(app, page, path)
@@ -162,6 +163,15 @@ test('native work list and inspector preserve step layout, keyboard focus and or
         await expect(
           detail.getByRole('heading', { name: '原工作整合測試', exact: true }),
         ).toBeVisible()
+        const usage = detail
+          .locator('details')
+          .filter({ has: page.getByText('用量', { exact: true }) })
+        await expect(usage).toHaveJSProperty('open', false)
+        await usage.getByText('用量', { exact: true }).click()
+        await expect(usage).toHaveJSProperty('open', true)
+        await detail
+          .getByRole('heading', { name: '原工作整合測試', exact: true })
+          .scrollIntoViewIfNeeded()
         const steps = detail.getByRole('heading', { name: '步驟', exact: true }).locator('..')
         await expect(steps.locator(':scope > div').first()).toBeVisible()
         const stepMetrics = await steps.locator(':scope > div').evaluateAll((rows) =>
@@ -191,7 +201,7 @@ test('native work list and inspector preserve step layout, keyboard focus and or
             }
           }),
         )
-        const budget = await detail.getByText(/^模型請求/).evaluate((node) => ({
+        const budget = await usage.evaluate((node) => ({
           font: getComputedStyle(node).fontSize,
           line: getComputedStyle(node).lineHeight,
         }))

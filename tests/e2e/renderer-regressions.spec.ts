@@ -450,6 +450,10 @@ test('work overview and detail preserve real catalog pagination and original ste
   await expect(page.getByRole('heading', { name: 'Original active work' })).toBeVisible()
   await expect(page.getByText('Original result', { exact: true })).toBeVisible()
   await expect(page.getByText('Original terminal step', { exact: true })).toBeVisible()
+  const usage = page.locator('details').filter({ has: page.getByText('用量', { exact: true }) })
+  await expect(usage).toHaveJSProperty('open', false)
+  await usage.getByText('用量', { exact: true }).click()
+  await expect(usage).toHaveJSProperty('open', true)
   await expect(page.getByText(/模型請求 3／無上限/)).toBeVisible()
   expect(
     await page.evaluate(
