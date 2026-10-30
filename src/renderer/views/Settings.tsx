@@ -161,6 +161,12 @@ export function Settings({
       : login.data?.reason === 'system-approval-required'
         ? '需要到系統的登入項目設定中核准。'
         : '登入這台電腦時開啟 Yuki。'
+  const yukiTitle = connection && (
+    <div className={styles.yukiTitle}>
+      <Avatar name={connection.name} size={20} />
+      <span className={styles.yukiName}>{connection.name}</span>
+    </div>
+  )
   const feedback = (section: string) => (
     <>
       {error?.section === section && <Banner status="failed">{error.message}</Banner>}
@@ -193,14 +199,18 @@ export function Settings({
             <div key={group.label ?? 'current-yuki'} className={styles.categoryGroup}>
               {group.label === null && connection ? (
                 <div className={styles.yukiHeader}>
-                  <Avatar name={connection.name} size={20} />
-                  <span className={styles.yukiName}>{connection.name}</span>
-                  {connections.length > 1 && (
+                  {connections.length > 1 ? (
                     <RoleSwitcher
+                      trigger={yukiTitle}
                       connections={connections}
                       selected={connection.characterId}
                       select={onSelect}
+                      onAdd={onAddCharacter}
+                      onDeploy={onDeployLocal}
+                      onAbout={about}
                     />
+                  ) : (
+                    yukiTitle
                   )}
                 </div>
               ) : group.label ? (

@@ -129,6 +129,7 @@ export function WorkList({
       <button
         key={work.work_id}
         className={styles.row}
+        title="按兩下放大詳情"
         aria-current={selected === work.work_id ? 'true' : undefined}
         onClick={() => open(work.work_id)}
         onDoubleClick={() => {

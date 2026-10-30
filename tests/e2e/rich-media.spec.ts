@@ -122,9 +122,9 @@ test('plays and seeks both actual media sources, renders local rich text and kee
         name: string
       }
     }
-    const inspector = () => page.getByRole('complementary', { name: '檢視器', exact: true })
+    const inspector = () => page.getByRole('complementary', { name: '詳情', exact: true })
     const close = async () => {
-      await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+      await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
     }
     for (const name of ['clip.mp4', 'clip.webm', 'voice.wav']) {
       const event = await upload(app, page, rig.root, name, rig.base)
@@ -219,7 +219,7 @@ test('plays and seeks both actual media sources, renders local rich text and kee
       .getByRole('button', { name: /manual.pdf/ })
       .click()
     // Chromium hides pagination in the compact sidebar toolbar.
-    await page.getByRole('button', { name: '展開工作區', exact: true }).click()
+    await page.getByRole('button', { name: '放大詳情', exact: true }).click()
     await expectPdfPages(inspector().locator('iframe'), 1)
     await page.screenshot({ path: test.info().outputPath('pdf-attachment.png') })
     await close()
@@ -364,7 +364,7 @@ test('plays and seeks both actual media sources, renders local rich text and kee
     app = await rig.launch('rich-media')
     page = await app.firstWindow()
     if (!connection.persistentCredentials) await pairUI(page, rig.base, await rig.code())
-    await navigate(page, '對話')
+    await navigate(page, '桌面對話')
     const log = page.getByRole('log', { name: '對話訊息' }).filter({ visible: true })
     await expect(log.locator('article[data-event-id]').first()).toBeVisible()
     const historyBefore = await app.evaluate(({ app }) => app.getAppMetrics())
@@ -411,7 +411,7 @@ test('plays and seeks actual MP3 and OGG audio from event attachments and publis
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
-    const inspector = page.getByRole('complementary', { name: '檢視器', exact: true })
+    const inspector = page.getByRole('complementary', { name: '詳情', exact: true })
     for (const [name, mime] of [
       ['voice.mp3', 'audio/mpeg'],
       ['voice.ogg', 'audio/ogg'],
@@ -451,7 +451,7 @@ test('plays and seeks actual MP3 and OGG audio from event attachments and publis
         expect(actual.currentTime).toBeGreaterThan(2.7)
         facts.push({ filename: name, source, eventId, ...actual })
         await page.screenshot({ path: test.info().outputPath(`${name}-${source}.png`) })
-        await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+        await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
       }
     }
     await writeFile(

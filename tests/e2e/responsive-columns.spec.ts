@@ -5,7 +5,7 @@ import { pairUI, yukiFixture } from '../fixtures/backend'
 import { captureViewport, contentSize } from '../fixtures/visual'
 
 const sidebar = (page: Page) => page.getByRole('separator', { name: '調整側邊欄', exact: true })
-const inspector = (page: Page) => page.getByRole('separator', { name: '調整檢視器', exact: true })
+const inspector = (page: Page) => page.getByRole('separator', { name: '調整詳情寬度', exact: true })
 async function drag(page: Page, handle: Locator, dx: number) {
   const bounds = await handle.boundingBox()
   expect(bounds).not.toBeNull()
@@ -65,7 +65,7 @@ test('real clamped columns move four visible pixels per key and stop an unfinish
         )
       }
     })
-    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '詳情', exact: true }).click()
     await drag(page, inspector(page), -400)
     await expect(inspector(page)).toHaveAttribute('aria-valuenow', '560')
     await drag(page, sidebar(page), 400)
@@ -97,7 +97,7 @@ test('real clamped columns move four visible pixels per key and stop an unfinish
     await expect(inspector(page)).toHaveCount(0)
     await page.mouse.move(x - 100, y, { steps: 4 })
     await page.mouse.up()
-    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '詳情', exact: true }).click()
     await expect(inspector(page)).toHaveAttribute('aria-valuenow', '392')
     await page.screenshot({ path: test.info().outputPath('stopped-column-drag.png') })
     success = true
@@ -147,7 +147,7 @@ test('native large work area uses automatic 440 and retains manual choices and r
       large!.workArea,
     )
     await contentSize(app, page, 1920, 900)
-    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '詳情', exact: true }).click()
     await expect(inspector(page)).toHaveAttribute('aria-valuenow', '440')
     await inspector(page).focus()
     await page.keyboard.press('ArrowLeft')
@@ -171,7 +171,7 @@ test('native large work area uses automatic 440 and retains manual choices and r
     app = await rig.launch('responsive-large')
     page = await app.firstWindow()
     await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1920)
-    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '詳情', exact: true }).click()
     await expect(inspector(page)).toHaveAttribute('aria-valuenow', '440')
     success = true
   } finally {
@@ -229,7 +229,7 @@ test('browser VM independently exercises the large breakpoint and explicit reset
 }) => {
   await page.setViewportSize({ width: 1920, height: 1200 })
   await page.goto('http://127.0.0.1:4178/components.html')
-  await page.getByRole('button', { name: '檢視器', exact: true }).click()
+  await page.getByRole('button', { name: '詳情', exact: true }).click()
   await expect(inspector(page)).toHaveAttribute('aria-valuenow', '440')
   await inspector(page).focus()
   await page.keyboard.press('ArrowLeft')

@@ -200,7 +200,7 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
         .digest('hex'),
     ).toBe(first.sha256)
     await page.getByRole('button').filter({ hasText: pdf.artifact_id }).dblclick()
-    const inspector = page.getByRole('complementary', { name: '檢視器' })
+    const inspector = page.getByRole('complementary', { name: '詳情' })
     await expect(inspector.locator('iframe')).toBeVisible()
     try {
       await expectPdfPages(inspector.locator('iframe'), 1)

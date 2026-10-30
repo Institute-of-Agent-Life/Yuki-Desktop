@@ -64,7 +64,7 @@ test('Windows native diagnostics export uses the real file dialog and excludes p
     expect(
       (await page.getByRole('tablist', { name: '設定分類', exact: true }).boundingBox())!.width,
     ).toBe(200)
-    await expect(page.getByRole('complementary', { name: '檢視器', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('complementary', { name: '詳情', exact: true })).toHaveCount(0)
     await page.getByRole('tab', { name: '進階', exact: true }).click()
     const nativeOwner = await windowsFileDialogOwner(app)
     await page.getByRole('button', { name: '匯出…', exact: true }).click()

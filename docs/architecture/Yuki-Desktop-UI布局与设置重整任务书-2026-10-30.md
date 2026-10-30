@@ -628,7 +628,7 @@ export function PendingRequest({ text, busy, onVerify }: {
 **步骤**
 1. `RoleSwitcher.tsx` 改为接收 `trigger: ReactNode`（头像卡内容）并把**整张卡**作为 `aria-haspopup="menu"` 按钮：按钮可访问名用 `` `${name}，切換 Yuki` ``……**注意**：现有测试找 `name: '切換 Yuki'`。决定：按钮 `aria-label="切換 Yuki"`，卡片里的名字和状态用 `aria-describedby` 关联，这样测试无需大改。
 2. 菜单项：现有 `Role` 列表 + 分隔 `<div role="separator" />` + 三个 `role="menuitem"` 按钮：`連接另一個 Yuki`（`onAdd`）、`在這台電腦部署 Yuki`（`onDeploy`）、`` `關於 ${name}` ``（`onAbout`）。键盘上下键遍历现在只找 `menuitemradio`，改为 `[role="menuitemradio"],[role="menuitem"]`。
-3. 菜单定位：`.menu { left: 0; top: calc(100% + 4px); width: 100% ; min-width: 240px }`，删除 `left: -202px`。`.switcher` 不再 absolute。
+3. 菜单定位：`.menu { left: 0; top: calc(100% + 4px); width: 100%; min-width: min(240px, 100%) }`，删除 `left: -202px`。`.switcher` 不再 absolute。侧栏自身 `overflow-y:auto`，最窄列 220px 时需让菜单适应卡宽，避免固定 240px 被裁切；设置头部在自身可见 overflow 中使用 240px 菜单，不另建 portal 或测量状态。
 4. `PresenceCard.tsx`：删除 `open` prop 与 button 分支，只渲染 `div`（成为 RoleSwitcher 的 trigger 内容）。
 5. `Workspace.tsx`：`sidebarContent` 顶部改为 `{props.roleSwitcher ?? <PresenceCard …/>}`；`App.tsx` 给 Conversation 传 RoleSwitcher **不再判断 `connections.length > 1`**，并传入 `onAdd={adding}`、`onDeploy={deployLocal}`、`onAbout`（`workspaceFor(scope).getState().setView('about')`）、`trigger`（PresenceCard 需要 name/status/avatar——在 Conversation 里构造 trigger 更合适：改为由 `Conversation` 把 `PresenceCard` 作为 `trigger` 传给 `roleSwitcher` 渲染函数。实现方式：`roleSwitcher?: (trigger: ReactNode) => ReactNode`）。
 6. `DisconnectedHome`：`connections.length` 为 0 时也渲染 RoleSwitcher（菜单只有三项新增/部署/关于 Yuki Desktop 不适用——"關於"项在未连接时不渲染）。

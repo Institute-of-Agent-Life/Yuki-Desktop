@@ -666,7 +666,7 @@ function Gallery() {
       name={new URLSearchParams(window.location.search).get('name') ?? '角色'}
       status="元件驗證"
       platform="linux"
-      inspector={<p>檢視器內容</p>}
+      inspector={<p>詳情內容</p>}
     >
       <Banner>離線狀態</Banner>
       <div style={{ padding: 24, maxWidth: 760, width: '100%', margin: '0 auto' }}>

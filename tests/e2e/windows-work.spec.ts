@@ -33,7 +33,7 @@ async function commands(page: Page, owner: Connection) {
     return result.value
   }, owner.characterId)
 }
-const detail = (page: Page) => page.getByRole('complementary', { name: '檢視器', exact: true })
+const detail = (page: Page) => page.getByRole('complementary', { name: '詳情', exact: true })
 const card = (page: Page) =>
   page.getByRole('article').filter({
     has: page.getByRole('heading', { name: '原工作整合測試', exact: true }),

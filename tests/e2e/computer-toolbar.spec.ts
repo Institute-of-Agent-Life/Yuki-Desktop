@@ -96,7 +96,7 @@ test(
       await expect.poll(async () => (await facts()).control.holder).toBe('none')
       await expect(controls.getByRole('button', { name: '接手', exact: true })).toBeEnabled()
       // Changing views removes only this role's portal and restores the common toolbar.
-      await navigate(pa, '對話')
+      await navigate(pa, '桌面對話')
       await expect(toolbar.getByRole('group', { name: '電腦狀態與控制' })).toHaveCount(0)
       await expect(
         pa.getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true }),

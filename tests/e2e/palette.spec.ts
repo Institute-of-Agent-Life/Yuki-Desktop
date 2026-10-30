@@ -41,9 +41,9 @@ test('palette searches only actual loaded entries and exact-event verification n
       ),
     ).toBe(false)
     await page.keyboard.press('Escape')
-    await navigate(page, /^QQ ·/)
+    await navigate(page, /^QQ 私聊 ·/)
     await expect(page.getByText('QQ 原入口的真實帳本內容', { exact: true })).toBeVisible()
-    await navigate(page, '回到桌面對話')
+    await navigate(page, '桌面對話')
     const composer = page.getByRole('textbox', {
       name: `和 ${await activeCharacterName(page)} 說點什麼`,
     })
@@ -71,14 +71,14 @@ test('palette searches only actual loaded entries and exact-event verification n
         .locator(`article[data-event-id="${source.event_id}"]`),
     ).toBeVisible()
     await page.keyboard.press('ControlOrMeta+Shift+e')
-    await navigate(page, '回到桌面對話')
+    await navigate(page, '桌面對話')
     const nextResponse = await fetch(`${rig.base}/__test/qq-entry`, { method: 'POST' })
     expect(nextResponse.status).toBe(200)
     const next = (await nextResponse.json()) as { event_id: number; conversation_id: string }
     expect(next.conversation_id).toBe(source.conversation_id)
-    await navigate(page, /^QQ ·/)
+    await navigate(page, /^QQ 私聊 ·/)
     await expect(page.locator(`article[data-event-id="${next.event_id}"]`)).toBeVisible()
-    await navigate(page, '回到桌面對話')
+    await navigate(page, '桌面對話')
     palette = await open(page, 'QQ 原入口')
     const original = palette.dialog.locator(
       `[data-item-id="message/${source.conversation_id}/${source.event_id}"]`,
@@ -101,7 +101,7 @@ test('palette searches only actual loaded entries and exact-event verification n
     await expect(palette.dialog).toBeVisible()
     proxy.resumeActive('/client/v1/stream?works=active')
     await page.keyboard.press('Escape')
-    await navigate(page, /^QQ ·/)
+    await navigate(page, /^QQ 私聊 ·/)
     await expect(page.locator(`article[data-event-id="${source.event_id}"]`)).toHaveCount(0)
     await expect(page.locator(`article[data-event-id="${next.event_id}"]`)).toBeVisible()
     success = true
@@ -148,11 +148,11 @@ test(
       await page.keyboard.press('ControlOrMeta+Enter')
       await expect(
         page
-          .getByRole('complementary', { name: '檢視器' })
+          .getByRole('complementary', { name: '詳情' })
           .getByText('需要你提供城市', { exact: true })
           .first(),
       ).toBeVisible()
-      await expect(page.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
+      await expect(page.getByRole('button', { name: '還原版面', exact: true })).toBeVisible()
       await page.keyboard.press('ControlOrMeta+Shift+e')
       await fetch(`${rig.base}/__test/artifacts`, { method: 'POST' })
       await page.keyboard.press('ControlOrMeta+4')
@@ -175,10 +175,10 @@ test(
       await files.first().hover()
       await page.keyboard.press('ArrowDown')
       await page.keyboard.press('ControlOrMeta+Enter')
-      await expect(page.getByRole('button', { name: '收合工作區', exact: true })).toBeVisible()
+      await expect(page.getByRole('button', { name: '還原版面', exact: true })).toBeVisible()
       await expect(
         page
-          .getByRole('complementary', { name: '檢視器' })
+          .getByRole('complementary', { name: '詳情' })
           .getByText(/Original immutable content|Different immutable content/)
           .first(),
       ).toBeVisible()

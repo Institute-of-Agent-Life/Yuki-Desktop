@@ -206,9 +206,7 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
     await page
       .getByRole('textbox', { name: '電腦名稱', exact: true })
       .fill('Isolated live Codex acceptance')
-    await page
-      .getByRole('checkbox', { name: '我允許這個 Yuki 連接這台電腦', exact: true })
-      .check()
+    await page.getByRole('checkbox', { name: '我允許這個 Yuki 連接這台電腦', exact: true }).check()
     const connect = page.getByRole('button', { name: '連接這台電腦', exact: true })
     await connect.click()
     await expect(page.getByText('目前本人', { exact: true })).toBeVisible({ timeout: 60_000 })
@@ -418,7 +416,7 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
     await expect(page.getByText(marker, { exact: true }).first()).toBeVisible()
     await navigate(page, '工作')
     await page.getByRole('button', { name: new RegExp(marker) }).click()
-    const detail = page.getByRole('complementary', { name: '檢視器', exact: true })
+    const detail = page.getByRole('complementary', { name: '詳情', exact: true })
     await expect(detail.getByRole('heading', { name: marker, exact: true })).toBeVisible()
     await expect(detail.getByText('已完成', { exact: true }).first()).toBeVisible()
     const originalReceipt = await page.evaluate(

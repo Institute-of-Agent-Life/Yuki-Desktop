@@ -155,7 +155,7 @@ test('actual headed Chromium preserves its lease while real pointer, keyboard, U
     ).toEqual({ width: pixels.width, height: pixels.height })
     await page.screenshot({ path: test.info().outputPath('actual-chinese-headed-desktop.png') })
     await test.info().attach('actual-remote-screen', { path: png, contentType: 'image/png' })
-    await navigate(page, '對話')
+    await navigate(page, '桌面對話')
     await navigate(page, `${profile.display_name} 的電腦`)
     await expect(screenshot).toBeEnabled()
     expect((await facts()).control.lease_id).toBe(lease)

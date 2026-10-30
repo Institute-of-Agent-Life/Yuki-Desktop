@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import type { CharacterStatus, Connection, Profile } from '../../shared/api'
@@ -6,7 +6,7 @@ import { characterPresence } from '../../shared/presence'
 import { unwrap } from '../queries/client'
 import { useSessionActive } from '../state/workspace'
 import { CharacterAvatar, CharacterVisuals } from './CharacterAvatar'
-import { IconButton } from './Controls'
+import { usePress } from '../motion/hooks'
 import styles from './RoleSwitcher.module.css'
 
 function Role({
@@ -62,17 +62,28 @@ function Role({
   )
 }
 export function RoleSwitcher({
+  trigger,
   connections,
   selected,
   select,
+  onAdd,
+  onDeploy,
+  onAbout,
 }: {
+  trigger: ReactNode
   connections: Connection[]
   selected: string
   select(connection: Connection): void
+  onAdd(): void
+  onDeploy(): void
+  onAbout?(): void
 }) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
+  const press = usePress<HTMLButtonElement>()
+  const description = useId()
   const active = useSessionActive()
+  const connection = connections.find((item) => item.characterId === selected)
   const close = () => {
     setOpen(false)
     root.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.focus()
@@ -84,7 +95,7 @@ export function RoleSwitcher({
     if (!open || !active) return
     const focusTarget =
       root.current?.querySelector<HTMLElement>('[aria-checked="true"]') ??
-      root.current?.querySelector<HTMLElement>('[role="menuitemradio"]')
+      root.current?.querySelector<HTMLElement>('[role="menuitemradio"],[role="menuitem"]')
     focusTarget?.focus()
     const outside = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) setOpen(false)
@@ -94,14 +105,22 @@ export function RoleSwitcher({
   }, [open, active])
   return (
     <div ref={root} className={styles.switcher} onClick={(event) => event.stopPropagation()}>
-      <IconButton
-        label="切換 Yuki"
+      <button
+        ref={press}
+        type="button"
+        data-press="button"
+        className={styles.trigger}
+        aria-label="切換 Yuki"
+        aria-describedby={description}
         aria-haspopup="menu"
         aria-expanded={open && active}
         onClick={() => setOpen((value) => !value)}
       >
-        <ChevronsUpDown size={14} strokeWidth={1.5} />
-      </IconButton>
+        <div id={description} className={styles.triggerContent}>
+          {trigger}
+        </div>
+        <ChevronsUpDown size={14} strokeWidth={1.5} aria-hidden="true" />
+      </button>
       {open && active && (
         <div
           role="menu"
@@ -112,7 +131,9 @@ export function RoleSwitcher({
           }}
           onKeyDown={(event) => {
             const buttons = [
-              ...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]'),
+              ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                '[role="menuitemradio"],[role="menuitem"]',
+              ),
             ]
             const at = buttons.indexOf(document.activeElement as HTMLButtonElement)
             if (event.key === 'Escape') {
@@ -143,6 +164,45 @@ export function RoleSwitcher({
               }}
             />
           ))}
+          {connections.length > 0 && <div role="separator" className={styles.separator} />}
+          <button
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            className={styles.action}
+            onClick={() => {
+              close()
+              onAdd()
+            }}
+          >
+            連接另一個 Yuki
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            className={styles.action}
+            onClick={() => {
+              close()
+              onDeploy()
+            }}
+          >
+            在這台電腦部署 Yuki
+          </button>
+          {onAbout && connection && (
+            <button
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              className={styles.action}
+              onClick={() => {
+                close()
+                onAbout()
+              }}
+            >
+              關於 {connection.name}
+            </button>
+          )}
         </div>
       )}
     </div>

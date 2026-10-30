@@ -137,6 +137,9 @@
   padding: 4px 8px;
   margin-top: 16px;
 }
+.navSpacer {
+  flex: 1;
+}
 .nav {
   position: relative;
   flex-shrink: 0;
@@ -445,12 +448,6 @@
 }
 .roleSession[hidden] {
   display: none;
-}
-.presenceRow {
-  position: relative;
-}
-.presenceRow .presence {
-  padding-right: 34px;
 }
 
 .toolbarMenu {

@@ -1,4 +1,4 @@
-import { navigate } from '../fixtures/navigation'
+import { navigate, sidebar } from '../fixtures/navigation'
 import { activeCharacterName } from '../fixtures/active-character'
 import { contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
@@ -18,9 +18,11 @@ async function connections(page: Page) {
   })
 }
 async function add(page: Page) {
-  await page.keyboard.press('ControlOrMeta+,')
-  await page.getByRole('tab', { name: '所有 Yuki', exact: true }).click()
-  await page.getByRole('button', { name: '連接…', exact: true }).click()
+  await (await sidebar(page)).getByRole('button', { name: '切換 Yuki', exact: true }).click()
+  await page
+    .getByRole('menu', { name: 'Yuki', exact: true })
+    .getByRole('menuitem', { name: '連接另一個 Yuki', exact: true })
+    .click()
   await expect(page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })).toBeVisible()
 }
 async function switchRole(page: Page, name: string) {
@@ -89,7 +91,9 @@ test('Windows native roles keep original chats, prompt and avatar drafts and col
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
     await page.getByRole('radio', { name: '淺色', exact: true }).click()
     await page.getByRole('button', { name: '返回', exact: true }).click()
-    await expect(page.getByRole('button', { name: '切換 Yuki', exact: true })).toHaveCount(0)
+    const singleYuki = page.getByRole('button', { name: '切換 Yuki', exact: true })
+    await expect(singleYuki).toBeVisible()
+    await expect(singleYuki).toHaveAccessibleDescription(new RegExp(firstName))
     const native = await app.evaluate(({ app, BrowserWindow, screen }) => {
       const window = BrowserWindow.getAllWindows()[0]!
       return {
@@ -127,12 +131,12 @@ test('Windows native roles keep original chats, prompt and avatar drafts and col
     await separator.focus()
     await page.keyboard.press('ArrowRight')
     await expect(separator).toHaveAttribute('aria-valuenow', '264')
-    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '詳情', exact: true }).click()
     await page
-      .getByRole('tablist', { name: '檢視器內容' })
+      .getByRole('tablist', { name: '詳情內容' })
       .getByRole('tab', { name: '檔案', exact: true })
       .click()
-    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
     await add(page)
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await add(page)
@@ -157,13 +161,13 @@ test('Windows native roles keep original chats, prompt and avatar drafts and col
       }),
     ).toHaveValue('')
     await expect(separator).toHaveAttribute('aria-valuenow', '260')
-    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '詳情', exact: true }).click()
     await expect(
       page
-        .getByRole('tablist', { name: '檢視器內容' })
+        .getByRole('tablist', { name: '詳情內容' })
         .getByRole('tab', { name: '工作', exact: true }),
     ).toHaveAttribute('aria-selected', 'true')
-    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
     await navigate(page, `關於 ${await activeCharacterName(page)}`)
     await page.getByRole('button', { name: '編輯名稱與簡介', exact: true }).click()
     await page.getByLabel('名稱', { exact: true }).fill('Mika')
@@ -171,7 +175,7 @@ test('Windows native roles keep original chats, prompt and avatar drafts and col
     await page.getByLabel('深色外觀', { exact: true }).fill('#e5a2bc')
     await page.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(page.getByRole('button', { name: '關於 Mika', exact: true })).toBeVisible()
-    await navigate(page, '對話')
+    await navigate(page, '桌面對話')
     await page
       .getByRole('textbox', { name: '和 Mika 說點什麼', exact: true })
       .fill('只有 Mika 的草稿')
@@ -187,13 +191,13 @@ test('Windows native roles keep original chats, prompt and avatar drafts and col
       }),
     ).toHaveValue('只有第一角色的草稿')
     await expect(separator).toHaveAttribute('aria-valuenow', '264')
-    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '詳情', exact: true }).click()
     await expect(
       page
-        .getByRole('tablist', { name: '檢視器內容' })
+        .getByRole('tablist', { name: '詳情內容' })
         .getByRole('tab', { name: '檔案', exact: true }),
     ).toHaveAttribute('aria-selected', 'true')
-    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
     await expect
       .poll(() =>
         page.evaluate(() =>
@@ -272,7 +276,7 @@ test('Windows native roles keep original chats, prompt and avatar drafts and col
     ).toBeFocused()
     await page.getByRole('button', { name: '編輯提示詞', exact: true }).click()
     await expect(editor).not.toContainText('只屬於 Mika 的提示詞')
-    await navigate(page, '對話')
+    await navigate(page, '桌面對話')
     await switchRole(page, 'Mika')
     await expect(page.getByRole('dialog', { name: '更換 Mika 的頭像' })).toBeVisible()
     await page.keyboard.press('Escape')
@@ -326,13 +330,13 @@ test('Windows native roles keep original chats, prompt and avatar drafts and col
       'aria-valuenow',
       '264',
     )
-    await page.getByRole('button', { name: '檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '詳情', exact: true }).click()
     await expect(
       page
-        .getByRole('tablist', { name: '檢視器內容' })
+        .getByRole('tablist', { name: '詳情內容' })
         .getByRole('tab', { name: '檔案', exact: true }),
     ).toHaveAttribute('aria-selected', 'true')
-    await page.getByRole('button', { name: '關閉檢視器', exact: true }).click()
+    await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
 
     for (const owner of beforeCrash)
       expect(

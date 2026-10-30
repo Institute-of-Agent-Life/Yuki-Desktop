@@ -182,6 +182,7 @@ export function Files({
               <FileRow
                 selected={selected?.artifactId === item.artifact_id}
                 name={item.name}
+                title={`${item.name}\n按兩下放大詳情`}
                 identity={item.artifact_id}
                 detail={`${date(item.created_at, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })} · ${label(item)}`}
                 size={item.size === null ? undefined : formatBytes(item.size)}

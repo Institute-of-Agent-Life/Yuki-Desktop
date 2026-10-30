@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { Button } from '../components/Controls'
 import { Workspace } from '../components/Workspace'
+import { PresenceCard } from '../components/PresenceCard'
 import { useWorkspace } from '../state/workspace'
 import styles from './DisconnectedHome.module.css'
 
@@ -26,7 +27,7 @@ export function DisconnectedHome({
   deploy(): void
   onSettings(): void
   help(): void
-  roleSwitcher?: ReactNode
+  roleSwitcher?: (trigger: ReactNode) => ReactNode
 }) {
   const view = useWorkspace((state) => state.view)
   const title =
@@ -61,7 +62,14 @@ export function DisconnectedHome({
       presence="offline"
       platform={platform}
       floating={false}
-      roleSwitcher={roleSwitcher}
+      roleSwitcher={roleSwitcher?.(
+        <PresenceCard
+          name="Yuki Desktop"
+          status="尚未連接 Yuki"
+          color="offline"
+          avatar={<Snowflake size={28} strokeWidth={1.5} aria-hidden="true" />}
+        />,
+      )}
       onSettings={onSettings}
       toolbar={
         <>

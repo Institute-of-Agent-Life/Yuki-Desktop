@@ -20,6 +20,7 @@ app.commandLine.removeSwitch('password-store');
 app.commandLine.removeSwitch('use-mock-keychain');
 const fs = require('node:fs'), path = require('node:path');
 const root = ${JSON.stringify(appRoot)};
+if (process.platform === 'win32' && process.env.YUKI_E2E_BACKGROUND_WINDOWS === '1') require(path.join(root, 'tests/fixtures/background-window.cjs'));
 app.getAppPath = () => root;
 app.getVersion = () => JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
 ${

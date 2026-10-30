@@ -189,7 +189,7 @@ test('Windows native attachments recover a lost upload receipt and save identica
       (await fetch(`${base}/__test/expire-attachments/${eventId}`, { method: 'POST' })).ok,
     ).toBe(true)
     expect((await fetch(`${base}/__test/disconnect`, { method: 'POST' })).ok).toBe(true)
-    const preview = page.getByRole('complementary', { name: '檢視器', exact: true })
+    const preview = page.getByRole('complementary', { name: '詳情', exact: true })
     await expect(
       preview.getByText('無法讀取或查證原項目，原文仍保留。', { exact: true }),
     ).toBeVisible()
