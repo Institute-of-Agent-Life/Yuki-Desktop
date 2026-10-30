@@ -92,4 +92,20 @@
 - 用户新增要求：测试窗口留在其他窗口后面。仅在测试入口加入 Windows 后台 fixture，设置不可激活后一次异步按本进程 HWND／PID 显示到底层；不改产品窗口代码、不轮询、不伪造焦点状态。后续源程序测试设置 `YUKI_E2E_BACKGROUND_WINDOWS=1`；默认测试配置保留真实 OS 焦点用例原语义。原生入口无法直接使用源程序入口的 hook，后续使用单独明确标识的后台测试包。
 - 后台启动实证 `.cache/pr5-background-proof/background-window.json`：窗口 visible=true、focused=false、focusable=false，显示前后前台 HWND 相同且均非测试 PID；测试配置变更后再验通过。需要 OS 真焦点的 responsive 用例已在用户提出此约束前通过，不会用后台替身重复宣称同一验收。
 
+## PR-6：视图细节
+
+分支：`codex/ui-views-20261030`，接续 PR-5 `b8777cb`。
+
+- 删除 Conversation 不可达占位兜底，没有另加替代分支；引用删除改为保留可访问名的图标按钮。移除未连接页重复工具列设置按钮，侧栏设置仍可达。
+- 档案预览先于完整信息卡，ID／版本／发布路径默认折叠；保存、复制、引用和比较仍在外部且走原版本。工作／档案删除重复列表标题，工作来源为全部／桌面／其他入口，原取消确认入口与状态同排，用量默认折叠。缩放按钮明确文字与 aria-pressed，不改变接手权限或缩放执行。
+- 复核发现 PR-4 搬迁时漏了原 `characterId + deviceId` 组件 key，已恢复既有设备身份边界，专门修复提交 `e7de882`。新增真实组件回归同时保留同设备切 Tab 的原 UUID／分页／草稿，证明换设备后旧回执、权限、会话与终端控制不会混入新目标；旧详情仍能按原 ID 读取，未靠拒绝旧读掩盖问题。交付整理时将此修复归回 PR-4。
+- `npm run lint`、`npm run build`（含 typecheck）、`git diff --check`：通过。首批 `artifacts.spec.ts work-components.spec.ts computer-toolbar.spec.ts unconfigured-workspace.spec.ts`：4 通过、2 失败，产物 `.cache/pr6-e2e/`。Windows 配置排除 `computer-toolbar.spec.ts` 的 1 项 Unix manager 用例，未宣称远端电脑接手／缩放原生流程在 Windows 通过。
+- 两个失败为测试问题：冷重启后宽窗口使用切换型 sidebar helper，与现行默认展开状态竞争，改为等待现有导航可见；新增用量定位在 has 中重复包含外层 complementary 祖先，改为真正相对的纯文本定位。没有增加超时、重试或修改产品行为。
+- 定向补跑失效用例、用量组件及完整 `local-computer.spec.ts`：7 通过，产物 `.cache/pr6-fixed/`、日志 `.cache/pr6-fixed.log`。工作真实请求、原 Main／Work 回执、筛选、取消确认的保持执行、三尺寸同排／折叠及预算均验证，命令回执与原工作身份不变。另适配预算折叠影响的 renderer／native-work 既有断言，不删除原预算或焦点校验。
+- 后台测试包：`.cache/package-background.ps1` 在最终构建后复制测试 hook 并生成启动入口，通过 `extraMetadata.main` 单独输出 `dist/background-tests/`；仓库 package.json、正式入口与业务模块不变。包内 202 个 out 文件逐一 SHA-256 与构建一致，证据 `.cache/pr6-painted-native-proof/background-package.json`；真实 packaged=true、encryptionAvailable=true，前台 HWND 未变化。后台入口不代表正式入口或 OS 前台焦点验收。
+- 首次 `native-file-layout.spec.ts` 程序断言 1 通过，但人工查看为黑色 HWND 图，因此没有计作像素验收。后台测试 hook 改为不可见且鼠标穿透地调用 Electron showInactive 完成绘制，再按原 HWND 置底后恢复显示；前台不激活，业务窗口代码不改。清晰自有窗口图 `.cache/pr6-painted-native-proof/owned-hwnd.png`。
+- 随后的原生截图遇到命令超时／取消。文件和工作纯截图明确选择 captureOnly，删除无关 UIA 整树枚举；保留默认 caption 校验路径。进一步日志明确定位 Windows CIM 查询取消 `0x80041032`，删除 CIM 依赖并复用既有 Diagnostics.Process 读取真实 exe 与会话；PID、HWND、同会话及物理 DPI 校验保持，没有兜底或重试。失败证据 `.cache/pr6-native-files-painted/`、`.cache/pr6-native-final/` 保留。
+- 最终原生命令：`npm exec playwright -- test --config playwright.shell.config.ts native-file-layout.spec.ts native-work-layout.spec.ts --reporter=list`，`YUKI_ELECTRON_EXECUTABLE` 指向后台测试包。2 通过，产物 `.cache/pr6-native-process/`、日志 `.cache/pr6-native-process.log`；三尺寸／四外观的自有 HWND 实像、原文件版本、工作继续执行和原回执均保留。已人工查看深色档案和窄窗工作图，确认有完整界面像素；这些后台截图未代替前台 caption／拖放／系统文件对话框验收。
+- 原成果截图与 `artifact-view-layout.json` 位于 `.cache/pr6-e2e/artifacts-reads-real-deliv-a7815-nd-removes-revoked-previews/`；6 张工作用量图与 `original-work-view-layout.json` 位于 `.cache/pr6-fixed/work-components-the-actual-1215f-hed-to-the-original-receipt/`；设备切换 JSON 位于 `.cache/pr6-fixed/local-computer-a-changed-lo*/`。PR-6 对应本地验证完成。
+
 当前仅本地实施与验证；未推送、未创建远端 PR、未合并、未发布或安装到用户环境。

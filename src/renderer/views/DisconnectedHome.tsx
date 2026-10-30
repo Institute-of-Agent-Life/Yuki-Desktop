@@ -1,13 +1,5 @@
 import type { ReactNode } from 'react'
-import {
-  BriefcaseBusiness,
-  Folder,
-  MessageCircle,
-  Monitor,
-  Laptop,
-  Settings2,
-  Snowflake,
-} from 'lucide-react'
+import { BriefcaseBusiness, Folder, MessageCircle, Monitor, Laptop, Snowflake } from 'lucide-react'
 import { Button } from '../components/Controls'
 import { Workspace } from '../components/Workspace'
 import { PresenceCard } from '../components/PresenceCard'
@@ -71,15 +63,7 @@ export function DisconnectedHome({
         />,
       )}
       onSettings={onSettings}
-      toolbar={
-        <>
-          <strong className={styles.toolbarTitle}>{title}</strong>
-          <Button variant="plain" onClick={() => onSettings()}>
-            <Settings2 size={16} />
-            設定
-          </Button>
-        </>
-      }
+      toolbar={<strong className={styles.toolbarTitle}>{title}</strong>}
       inspectorTitle="尚未連接 Yuki"
       inspector={
         <p className={styles.inspectorEmpty}>連接 Yuki 後，可以在這裡查看原工作與檔案。</p>

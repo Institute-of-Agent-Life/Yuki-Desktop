@@ -22,7 +22,7 @@ import { CharacterAvatar, CharacterVisuals } from '../components/CharacterAvatar
 import { characterPresence } from '../../shared/presence'
 import { SoulEditor } from './SoulEditor'
 import { useDisplayTime } from '../state/time'
-import { Copy, MessageCircle, Reply } from 'lucide-react'
+import { Copy, MessageCircle, Reply, X } from 'lucide-react'
 import { Workspace } from '../components/Workspace'
 import { PresenceCard } from '../components/PresenceCard'
 import { unwrap, problemText, hidesPrivateData, ClientProblem } from '../queries/client'
@@ -1000,20 +1000,6 @@ export function Conversation({
           ) : (
             <EmptyState title={name}>{profile.error?.message ?? '正在讀取…'}</EmptyState>
           )
-        ) : view !== 'chat' && !focusMode ? (
-          <EmptyState
-            title={
-              view === 'settings'
-                ? '設定'
-                : view === 'computer'
-                  ? `${name} 的電腦`
-                  : view === 'local'
-                    ? '這台電腦'
-                    : '檔案與成果'
-            }
-          >
-            <span>正在接入此單元的伺服器介面。</span>
-          </EmptyState>
         ) : (
           <div
             ref={floatingRef}
@@ -1270,16 +1256,16 @@ export function Conversation({
                       eventId={reference.eventId}
                       onJump={(ref) => void jumpTo(ref)}
                     />
-                    <Button
-                      variant="plain"
+                    <IconButton
+                      label="移除引用"
                       onClick={() =>
                         updateReferences(
                           currentReferences.current.filter((item) => item !== reference),
                         )
                       }
                     >
-                      移除引用
-                    </Button>
+                      <X size={14} />
+                    </IconButton>
                   </div>
                 ))}
               </Composer>

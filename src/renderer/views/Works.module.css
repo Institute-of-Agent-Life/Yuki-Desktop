@@ -84,8 +84,11 @@
   font-weight: 600;
   line-height: 22px;
 }
-.detail > span {
-  align-self: flex-start;
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 .detail section {
   display: flex;

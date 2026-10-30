@@ -7,7 +7,12 @@ import { navigate, sidebar } from '../fixtures/navigation'
 import { captureViewport, contentSize } from '../fixtures/visual'
 
 async function expectUnconfigured(page: Page) {
-  await expect(page.getByRole('navigation', { name: '主要導覽', exact: true })).toBeVisible()
+  const navigation = page.getByRole('navigation', { name: '主要導覽', exact: true })
+  await expect(navigation).toBeVisible()
+  await expect(navigation.getByRole('button', { name: '設定', exact: true })).toBeVisible()
+  await expect(
+    page.locator('[data-region="toolbar"]').getByRole('button', { name: '設定', exact: true }),
+  ).toHaveCount(0)
   expect(await page.evaluate(() => window.yuki.client.connections())).toEqual({
     ok: true,
     value: [],
@@ -41,6 +46,27 @@ test('an unconfigured workspace can connect later and opens the actual paired Pe
     await sizeWorkspace(app, page)
     await expectUnconfigured(page)
     await captureViewport(app, page, test.info().outputPath('unconfigured-workspace.png'))
+    await writeFile(
+      test.info().outputPath('unconfigured-navigation.json'),
+      JSON.stringify(
+        {
+          toolbarButtons: await page
+            .locator('[data-region="toolbar"] button')
+            .evaluateAll((buttons) =>
+              buttons.map(
+                (button) => button.getAttribute('aria-label') ?? button.textContent?.trim(),
+              ),
+            ),
+          navigationButtons: await page
+            .getByRole('navigation', { name: '主要導覽', exact: true })
+            .getByRole('button')
+            .allTextContents(),
+          connections: await page.evaluate(() => window.yuki.client.connections()),
+        },
+        null,
+        2,
+      ),
+    )
     await navigate(page, '工作')
     await expect(
       (await sidebar(page)).getByRole('button', { name: '工作', exact: true }),
@@ -202,7 +228,7 @@ test('a late repair of an original role does not interrupt local Yuki configurat
     app = await rig.launch(profile)
     page = await app.firstWindow()
     await sizeWorkspace(app, page)
-    await sidebar(page)
+    await expect(page.getByRole('navigation', { name: '主要導覽', exact: true })).toBeVisible()
     expect(await currentConnection(page)).toMatchObject({
       characterId: original.characterId,
       personId: original.personId,

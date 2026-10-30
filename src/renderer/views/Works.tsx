@@ -155,15 +155,14 @@ export function WorkList({
   return (
     <div className={styles.list} onScroll={(event) => scroll(event.currentTarget)}>
       <header>
-        <h2>工作</h2>
         <Segmented
           label="工作來源"
           value={origin}
           onChange={setOrigin}
           items={[
             { value: 'all', label: '全部' },
-            { value: 'this_entry', label: '我在桌面交辦的' },
-            { value: 'other', label: '來自其他入口' },
+            { value: 'this_entry', label: '桌面' },
+            { value: 'other', label: '其他入口' },
           ]}
         />
       </header>
@@ -332,7 +331,14 @@ export function WorkDetail({
       )}
       {data && (
         <>
-          <StatusPill status={workState(data)[0]}>{workState(data)[1]}</StatusPill>
+          <div className={styles.status}>
+            <StatusPill status={workState(data)[0]}>{workState(data)[1]}</StatusPill>
+            {!terminal(data) && (
+              <Button variant="destructive" onClick={() => setCancel(data)}>
+                取消工作
+              </Button>
+            )}
+          </div>
           <h2>{data.goal}</h2>
           <p className={styles.secondary}>
             {source(data)} · 結果會傳到：
@@ -440,16 +446,12 @@ export function WorkDetail({
             inline
             readOnly={terminal(data)}
           />
-          <p className={styles.secondary}>
+          <details className={styles.secondary}>
+            <summary>用量</summary>
             模型請求 {data.budget.models}／{data.budget.model_limit ?? '無上限'} · 工具呼叫{' '}
             {data.budget.tools}
             {data.budget.tool_limit === null ? '' : `／${data.budget.tool_limit}`}
-          </p>
-          {!terminal(data) && (
-            <Button variant="destructive" onClick={() => setCancel(data)}>
-              取消工作
-            </Button>
-          )}
+          </details>
           {(commands.data ?? [])
             .filter(
               (item) => item.command.workId === workId && (item.state !== 'result' || item.problem),

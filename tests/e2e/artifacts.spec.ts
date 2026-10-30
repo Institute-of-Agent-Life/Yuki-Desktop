@@ -2,7 +2,7 @@ import { navigate } from '../fixtures/navigation'
 import { expectPdfPages } from '../fixtures/pdf'
 import { expect, test } from '@playwright/test'
 import { createHash } from 'node:crypto'
-import { readFile, stat } from 'node:fs/promises'
+import { readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   recordBusinessState,
@@ -76,6 +76,40 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
     await navigate(page, '檔案與成果')
     const stage = page.getByRole('region', { name: '成果預覽' })
     await expect(stage.getByRole('heading', { name: 'First artifact', exact: true })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: '檔案與成果', exact: true, level: 2 }),
+    ).toHaveCount(0)
+    const information = stage.getByRole('region', { name: '成果資訊', exact: true })
+    const technical = information
+      .locator('details')
+      .filter({ has: page.getByText('詳細資料', { exact: true }) })
+    await expect(technical).toHaveJSProperty('open', false)
+    await expect(technical.getByText(first.artifact_id, { exact: true })).toBeHidden()
+    const layout = await information.evaluate((info) => {
+      const preview = info.previousElementSibling!
+      const rect = (node: Element) => {
+        const { x, y, width, height } = node.getBoundingClientRect()
+        return { x, y, width, height }
+      }
+      return {
+        previewBeforeInfo: !!(
+          preview.compareDocumentPosition(info) & Node.DOCUMENT_POSITION_FOLLOWING
+        ),
+        previewText: preview.textContent,
+        preview: rect(preview),
+        information: rect(info),
+        technicalOpen: info.querySelector('details')!.open,
+      }
+    })
+    expect(layout.previewBeforeInfo).toBe(true)
+    expect(layout.previewText).toContain('First artifact')
+    expect(layout.information.y).toBeGreaterThanOrEqual(layout.preview.y + layout.preview.height)
+    await page.screenshot({ path: test.info().outputPath('artifact-preview-before-metadata.png') })
+    await technical.getByText('詳細資料', { exact: true }).click()
+    await expect(technical.getByText(first.artifact_id, { exact: true })).toBeVisible()
+    const version = await technical.locator('code[title]').getAttribute('title')
+    expect(version).toBeTruthy()
+    await expect(technical.getByText('發布路徑', { exact: true })).toBeVisible()
     const rows = page.getByRole('button').filter({ hasText: 'same.md' })
     await expect(rows).toHaveCount(2)
     await expect(page.getByText('同一路徑的先後發布', { exact: true })).toHaveCount(0)
@@ -95,6 +129,12 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
     await expect(stage.getByText(first.artifact_id, { exact: true })).toBeVisible()
     await expect(stage.locator('code').filter({ hasText: delivered[1]!.artifact_id })).toBeVisible()
     await page.screenshot({ path: test.info().outputPath('actual-immutable-comparison.png') })
+    await technical.getByText('詳細資料', { exact: true }).click()
+    await expect(technical).toHaveJSProperty('open', false)
+    await information.getByRole('button', { name: '複製成果連結文字', exact: true }).click()
+    await expect
+      .poll(() => app.evaluate(() => (globalThis as unknown as { copied: string }).copied))
+      .toBe(`artifact:${first.artifact_id}@${version}`)
     await stage.getByRole('button', { name: '結束比較', exact: true }).click()
     await expect(left).toHaveCount(0)
     await stage.getByText('選擇另一項成果比較', { exact: true }).click()
@@ -213,6 +253,21 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
       animations: 'disabled',
       path: test.info().outputPath('artifact-pdf.png'),
     })
+    await writeFile(
+      test.info().outputPath('artifact-versions-and-layout.json'),
+      JSON.stringify(
+        {
+          layout,
+          source: { artifactId: first.artifact_id, version, sha256: first.sha256 },
+          distinctArtifact: delivered[1]!.artifact_id,
+          references: facts.refs,
+          saved,
+          revokedPreviewRemoved: true,
+        },
+        null,
+        2,
+      ),
+    )
     success = true
   } finally {
     if (!success)

@@ -1,9 +1,11 @@
-param([int]$ExpectedProcessId,[long]$WindowHandle,[string]$Executable,[string]$OutputPath,[string]$InvokeName)
+param([int]$ExpectedProcessId,[long]$WindowHandle,[string]$Executable,[string]$OutputPath,[string]$InvokeName,[switch]$CaptureOnly)
 $ErrorActionPreference='Stop'
 [Console]::OutputEncoding=[Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Drawing
-Add-Type -AssemblyName UIAutomationClient
-Add-Type -AssemblyName UIAutomationTypes
+if(!$CaptureOnly){
+ Add-Type -AssemblyName UIAutomationClient
+ Add-Type -AssemblyName UIAutomationTypes
+}
 Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
 using System;
 using System.Drawing;
@@ -31,18 +33,19 @@ public static class DesktopWindowCapture {
 }
 '@
 if([DesktopWindowCapture]::SetThreadDpiAwarenessContext([IntPtr]::new(-4)) -eq [IntPtr]::Zero){throw 'Unable to select physical pixel coordinates'}
-$ownedProcess=Get-CimInstance Win32_Process -Filter "ProcessId=$ExpectedProcessId"
-if(!$ownedProcess -or $ownedProcess.ExecutablePath -cne $Executable){throw 'Refuse unrelated process'}
-$sessionId=[Diagnostics.Process]::GetProcessById($ExpectedProcessId).SessionId
+$ownedProcess=[Diagnostics.Process]::GetProcessById($ExpectedProcessId)
+if($ownedProcess.MainModule.FileName -cne $Executable){throw 'Refuse unrelated process'}
+$sessionId=$ownedProcess.SessionId
 if($sessionId -ne [Diagnostics.Process]::GetCurrentProcess().SessionId -or $sessionId -eq 0){throw 'Requires the same interactive session'}
 $handle=[IntPtr]::new($WindowHandle)
 [uint32]$ownerId=0
 [void][DesktopWindowCapture]::GetWindowThreadProcessId($handle,[ref]$ownerId)
 if($ownerId -ne $ExpectedProcessId){throw 'Refuse unrelated window'}
-$element=[Windows.Automation.AutomationElement]::FromHandle($handle)
-$condition=[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button)
 $buttons=@()
 $invoked=$null
+if(!$CaptureOnly){
+$element=[Windows.Automation.AutomationElement]::FromHandle($handle)
+$condition=[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button)
 $target=$null
 foreach($button in $element.FindAll([Windows.Automation.TreeScope]::Descendants,$condition)){
  $current=$button.Current;$r=$current.BoundingRectangle
@@ -57,9 +60,11 @@ if($InvokeName){
  $pattern.Invoke()
  $invoked=$InvokeName
 }
+}
 $rect=$null
 if($OutputPath){
  if(Test-Path -LiteralPath $OutputPath){throw 'Preserve existing capture'}
  $rect=[DesktopWindowCapture]::Save($handle,$OutputPath)
 }
-[pscustomobject]@{invoked=$invoked;processId=$ExpectedProcessId;sessionId=$sessionId;handle=$WindowHandle;method='native-uia-caption-and-own-hwnd-printwindow';physicalCoordinates=$true;windowDpi=[DesktopWindowCapture]::GetDpiForWindow($handle);rect=$rect;output=$OutputPath;buttons=$buttons}|ConvertTo-Json -Depth 6 -Compress
+$method=if($CaptureOnly){'own-hwnd-printwindow'}else{'native-uia-caption-and-own-hwnd-printwindow'}
+[pscustomobject]@{invoked=$invoked;processId=$ExpectedProcessId;sessionId=$sessionId;handle=$WindowHandle;method=$method;physicalCoordinates=$true;windowDpi=[DesktopWindowCapture]::GetDpiForWindow($handle);rect=$rect;output=$OutputPath;buttons=$buttons}|ConvertTo-Json -Depth 6 -Compress
