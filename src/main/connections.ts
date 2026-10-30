@@ -331,10 +331,23 @@ export class Connections {
     return value
   }
   async changeAddress(id: string, server: string) {
-    const attempt = Symbol(),
-      original = this.connection(id),
-      baseUrl = normalizeServer(server)
+    const baseUrl = normalizeServer(server),
+      attempt = Symbol()
     this.addressChanges.set(id, attempt)
+    const client = await this.verifyAddress(id, baseUrl)
+    if (this.addressChanges.get(id) !== attempt) throw new ApiError('precondition_failed')
+    const updated = { ...this.connection(id), baseUrl: client.base }
+    this.store.set(
+      'connections',
+      this.list().map((item) => (item.characterId === id ? updated : item)),
+    )
+    this.start(id)
+    this.emit(id, 'address', { baseUrl: client.base })
+    return updated
+  }
+  private async verifyAddress(id: string, server: string, deviceId?: string) {
+    const original = this.connection(id),
+      baseUrl = normalizeServer(server)
     // A new address receives no credential until its public identity and minimum
     // versions have been checked. The original App namespace must then still match.
     const meta = await this.meta(baseUrl)
@@ -342,13 +355,25 @@ export class Connections {
     const key = `device/${id}/${original.personId}`,
       token = this.credentials.get(key)
     if (!token) throw new ApiError('unauthenticated')
-    const me = await this.box(id).verifyOwner(
-      new ApiClient(baseUrl, token, original.bindingId, this.version),
-    )
+    const client = new ApiClient(baseUrl, token, original.bindingId, this.version)
+    const me = await this.box(id).verifyOwner(client)
     if (me.source_person_id !== original.personId) throw new ApiError('outbox_owner_mismatch')
+    if (deviceId) {
+      const agents = new ApiClient(
+        client.base,
+        client.token,
+        undefined,
+        this.version,
+        fetch,
+        'agents/v1',
+      )
+      const response = await agents.response('devices')
+      const catalog = (await response.json()) as components['schemas']['NativeDirectory']
+      if (!catalog.devices.some((device) => device.id === deviceId))
+        throw new ApiError('connector_other_person')
+    }
     const current = this.connection(id)
     if (
-      this.addressChanges.get(id) !== attempt ||
       current.baseUrl !== original.baseUrl ||
       current.personId !== original.personId ||
       current.bindingId !== original.bindingId ||
@@ -356,14 +381,10 @@ export class Connections {
       this.credentials.get(key) !== token
     )
       throw new ApiError('precondition_failed')
-    const updated = { ...current, baseUrl }
-    this.store.set(
-      'connections',
-      this.list().map((item) => (item.characterId === id ? updated : item)),
-    )
-    this.start(id)
-    this.emit(id, 'address', { baseUrl })
-    return updated
+    return client
+  }
+  async verifyConnectorServer(id: string, server: string, deviceId: string) {
+    return (await this.verifyAddress(id, server, deviceId)).base
   }
   client(id: string, entry?: string) {
     const connection = this.connection(id)
@@ -1224,9 +1245,7 @@ export class Connections {
     )
   }
 
-  async connectorAdmission(id: string, server: string, deviceId: string) {
-    if (normalizeServer(server) !== this.connection(id).baseUrl)
-      return { matched: false, connected: false, problem: 'connector_other_server' }
+  async connectorAdmission(id: string, deviceId: string) {
     const catalog = await this.agentRead<components['schemas']['NativeDirectory']>(id, 'devices')
     const device = catalog.devices.find((item) => item.id === deviceId)
     return {

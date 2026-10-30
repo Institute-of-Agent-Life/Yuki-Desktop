@@ -70,6 +70,7 @@ function fixture(
     bundledRuntime: join(tmpdir(), 'not-bundled'),
     store: store(),
     authorize: vi.fn(async () => ({ server: 'https://yuki.example', code: 'private-code' })),
+    verifyServer: vi.fn(async (_id: string, server: string) => server),
     admission: vi.fn(async () => ({ matched: true, connected: false })),
   }
   const connector = new AgentConnector(options, run)
@@ -257,7 +258,6 @@ it('a pending management read keeps the captured data and admission when another
   })
   expect(options.admission).toHaveBeenCalledExactlyOnceWith(
     'original-character',
-    publicStatus.server,
     publicStatus.device_id,
   )
   expect(connector.installations.selected()).toEqual(other)
@@ -303,6 +303,7 @@ it('first connection prepares its runtime and pairs only the explicitly selected
     bundledRuntime: join(tmpdir(), 'not-bundled'),
     store: store(),
     authorize: vi.fn(async () => ({ server: 'https://yuki.example', code: 'private-code' })),
+    verifyServer: vi.fn(async (_id: string, server: string) => server),
     admission: vi.fn(async () => ({ matched: true, connected: false })),
   }
   const connector = new AgentConnector(options, run)
@@ -420,6 +421,7 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
         bundledRuntime: actualBundle,
         store: store(),
         authorize: vi.fn(),
+        verifyServer: vi.fn(async (_id: string, server: string) => server),
         admission: vi.fn(),
       },
       execute,
@@ -541,6 +543,7 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
         bundledRuntime: actualBundle,
         store: store(),
         authorize: vi.fn(),
+        verifyServer: vi.fn(async (_id: string, server: string) => server),
         admission: vi.fn(),
       },
       execute,
@@ -759,6 +762,7 @@ it('saving a managed instance keeps its running service and runtime while a bund
         bundledRuntime: bundle,
         store: store(),
         authorize,
+        verifyServer: vi.fn(async (_id: string, server: string) => server),
         admission: vi.fn(),
       },
       run,
@@ -988,6 +992,7 @@ it('a separate installation leaves the other role configuration, journal and run
       bundledRuntime: bundle,
       store: store(),
       authorize: vi.fn(),
+      verifyServer: vi.fn(async (_id: string, server: string) => server),
       admission: vi.fn(),
     },
     run,
@@ -1190,11 +1195,7 @@ it('reads a pre-upgrade installation through the bundled reader and keeps the ac
     instances: [{ ...publicStatus.instances[0], command }],
   })
   await connector.state('character')
-  expect(options.admission).toHaveBeenCalledExactlyOnceWith(
-    'character',
-    publicStatus.server,
-    'original-device',
-  )
+  expect(options.admission).toHaveBeenCalledExactlyOnceWith('character', 'original-device')
   expect(
     run.mock.calls.filter(([selected]) => selected !== reader).map(([, args]) => args),
   ).toEqual([['--version']])
@@ -1250,6 +1251,7 @@ it.each([
       bundledRuntime: bundle,
       store: store(),
       authorize: vi.fn(),
+      verifyServer: vi.fn(async (_id: string, server: string) => server),
       admission: vi.fn(),
     }
     const connector = new AgentConnector(options, async (selected, args) => {
@@ -1367,6 +1369,7 @@ it.each(['preview', 'use', 'connect'])(
       bundledRuntime: join(root, 'bundle'),
       store: store(),
       authorize: vi.fn(),
+      verifyServer: vi.fn(async (_id: string, server: string) => server),
       admission: vi.fn(async () => ({ matched: true, connected: true })),
     }
     const connector = new AgentConnector(options, run)
@@ -1460,7 +1463,6 @@ it('connecting a discovered old installation keeps its original owner while anot
   expect(connector.installations.selected()).toEqual(other)
   expect(options.admission).toHaveBeenCalledExactlyOnceWith(
     'original-character',
-    publicStatus.server,
     publicStatus.device_id,
   )
   expect(options.authorize).not.toHaveBeenCalled()

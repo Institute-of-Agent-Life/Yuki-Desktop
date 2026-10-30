@@ -296,6 +296,12 @@ window.yuki = {
       }
       return { ok: true, value: connectorState }
     },
+    server: async (input) => {
+      connectorCalls.push({ method: 'server', input })
+      if (!connectorState.available) throw Error('Select the original installation first')
+      connectorState = { ...connectorState, server: input.server }
+      return { ok: true, value: connectorState }
+    },
     discover: async (driver = 'codex') => {
       connectorCalls.push({ method: 'discover', input: driver })
       return {

@@ -41,7 +41,8 @@ export interface ConnectorOptions {
   bundledRuntime: string
   store: Pick<LocalStore, 'get' | 'set'>
   authorize(characterId: string): Promise<{ server: string; code: string }>
-  admission(characterId: string, server: string, deviceId: string): Promise<ConnectorAdmission>
+  admission(characterId: string, deviceId: string): Promise<ConnectorAdmission>
+  verifyServer(characterId: string, server: string, deviceId: string): Promise<string>
 }
 interface ConnectorStatus {
   data_directory: string
@@ -262,9 +263,9 @@ export class AgentConnector {
         arguments: status.service.arguments,
       },
     }
-    if (characterId && state.deviceId && state.server) {
+    if (characterId && state.deviceId) {
       try {
-        state.admission = await this.options.admission(characterId, state.server, state.deviceId)
+        state.admission = await this.options.admission(characterId, state.deviceId)
       } catch (error) {
         if (!(error instanceof ApiError)) throw error
         state.admission = { matched: null, connected: false, problem: error.code }
@@ -405,6 +406,27 @@ export class AgentConnector {
       this.run(['service', action], undefined, installation),
     )
     return this.state(undefined, installation)
+  }
+  async server(input: { characterId: string; server: string }): Promise<ConnectorState> {
+    const installation = this.installations.selected() ?? null
+    if (!installation) throw new ApiError('connector_not_installed')
+    if (valid(installation.runtime.version) === null || !gte(installation.runtime.version, '0.4.1'))
+      throw new ApiError('connector_update_required', 'server')
+    const current = await this.state(undefined, installation)
+    if (!current.available || !current.deviceId)
+      throw new ApiError('connector_authorization_failed', 'server')
+    const normalized = normalizeServer(input.server)
+    const target = new URL(normalized)
+    if (
+      target.protocol !== 'https:' &&
+      !['localhost', '127.0.0.1', '[::1]'].includes(target.hostname)
+    )
+      throw new ApiError('invalid_server', 'server')
+    const server = await this.stage('server', () =>
+      this.options.verifyServer(input.characterId, normalized, current.deviceId!),
+    )
+    await this.stage('server', () => this.run(['server', '--url', server], undefined, installation))
+    return this.state(input.characterId, installation)
   }
   async fullAccess(enabled: boolean): Promise<ConnectorState> {
     const installation = this.installations.selected() ?? null

@@ -1,15 +1,14 @@
 import { navigate, sidebar } from '../fixtures/navigation'
 import { activeCharacterName } from '../fixtures/active-character'
 import { captureViewport, contentSize } from '../fixtures/visual'
-import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 
-async function add(page: Page, app?: ElectronApplication) {
+async function add(page: Page) {
   await (await sidebar(page)).getByRole('button', { name: '切換 Yuki', exact: true }).click()
   const menu = page.getByRole('menu', { name: 'Yuki', exact: true })
-  if (app) await menu.screenshot({ path: test.info().outputPath('single-yuki-menu.png') })
   await menu.getByRole('menuitem', { name: '連接另一個 Yuki', exact: true }).click()
   await expect(page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })).toBeVisible()
 }
@@ -61,7 +60,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
       .getByRole('tab', { name: '檔案', exact: true })
       .click()
     await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
-    await add(page, app)
+    await add(page)
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await add(page)
     await pairUI(page, second.base, await second.code())
