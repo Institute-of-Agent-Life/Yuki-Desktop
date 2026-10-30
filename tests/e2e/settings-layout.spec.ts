@@ -54,12 +54,25 @@ test('settings have one navigation column and keep the selected category across 
         const selected = tabs.getByRole('tab', { name: label, exact: true })
         await selected.click()
         await expect(selected).toHaveAttribute('aria-selected', 'true')
-        await expect(
-          page.getByRole('heading', {
-            name: id === 'connection' ? `${secondName} 的連線` : label,
-            exact: true,
-          }),
-        ).toBeVisible()
+        const heading = page.getByRole('heading', {
+          name: id === 'connection' ? `${secondName} 的連線` : label,
+          exact: true,
+        })
+        await expect(heading).toBeVisible()
+        await writeFile(
+          test.info().outputPath(`settings-${id}-${width}x${height}.layout.json`),
+          JSON.stringify(
+            await heading.evaluate((element) => {
+              const { x, y, width, height } = element.getBoundingClientRect()
+              return {
+                heading: { x, y, width, height },
+                paneScrollTop: document.getElementById('settings-panel')!.scrollTop,
+                viewport: { width: innerWidth, height: innerHeight },
+              }
+            }),
+          ),
+        )
+        await expect(heading).toBeInViewport()
         await expect
           .poll(() =>
             tabs.evaluate((nav) => {

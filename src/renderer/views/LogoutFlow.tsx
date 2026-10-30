@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Connection, LogoutSummary } from '../../shared/api'
 import { Banner, Button, Sheet } from '../components/Controls'
 import { unwrap } from '../queries/client'
-import styles from './Settings.module.css'
+import { Row } from './SettingsRow'
 
 export function LogoutFlow({
   connection,
@@ -75,19 +75,23 @@ export function LogoutFlow({
   }
   return (
     <>
-      <h3>這台裝置</h3>
-      <p className={styles.notice}>
-        {connection.logout
-          ? '裝置憑據已失效，請完成本機資料選擇。'
-          : '登出會撤銷這台裝置的憑據，並讓你選擇如何處理本機內容。'}
-      </p>
       {error && <Banner status="failed">{error}</Banner>}
-      <Button
-        disabled={busy}
-        onClick={() => (connection.logout ? void prepare() : setConfirm(true))}
+      <Row
+        title={`登出 ${connection.name}`}
+        description={
+          connection.logout
+            ? '裝置憑據已失效，請完成本機資料選擇。'
+            : '撤銷這台裝置的登入，再選擇保留或刪除本機資料。'
+        }
       >
-        {connection.logout ? '繼續登出' : '登出…'}
-      </Button>
+        <Button
+          variant={connection.logout ? 'secondary' : 'destructive'}
+          disabled={busy}
+          onClick={() => (connection.logout ? void prepare() : setConfirm(true))}
+        >
+          {connection.logout ? '繼續登出' : '登出…'}
+        </Button>
+      </Row>
       <Sheet
         title="登出這個 Yuki？"
         open={confirm}

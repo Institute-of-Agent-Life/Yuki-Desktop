@@ -50,4 +50,18 @@
 - `YUKI_DESKTOP_EXECUTABLE` 指向最终包，补跑默认开发模式跳过的两个更新用例：`npm exec playwright -- test tests/e2e/updates.spec.ts --grep 'actual update buttons|update controls cancel' --reporter=list`，2 通过、0 跳过。产物 `.cache/pr2-updates-packaged/`，使用现有 SDK 安装器替身，不执行真实安装。
 - PR-2 本地实现、对应静态检查、整合及定向修复验证完成；最初失败和跳过均按上述记录补验，未重复未改的整批测试。原生测试的两个手动后端均已关闭并确认 exit 0，证据目录保留。
 
+## PR-3：当前 Yuki 的连线与装置
+
+分支：`codex/ui-settings-yuki-20261030`，接续 PR-2 `a8d69c5`。
+
+- 连线页按服务器、主动讯息、资料、登出重排；技术资料折叠。主动目的地选中即提交选择时的 CAS revision；确定失败回滚选择器，未知结果沿原 UUID 查证。删除独立保存、正常刷新与旧刷新函数。
+- 装置按真实用途分组；登出搬到连线页，三份确认 Sheet、prepare／finish 原流程保持。私有读取失权仍隐藏资料，保留本机登出收尾入口。
+- 设置中三类待确认反馈使用 `PendingRequest`；发码 Sheet 底部仅“完成”，明确新建的“再產生一個”位于结果区域之后。沿已有错误／提示状态记录界面归属，不增加执行、授权或完成门槛。
+- 更正任务书查证文案：现有回执查询查无时可能接续同一 UUID，写“不建立新请求”，不改变原执行合同。
+- `npm run lint`、`npm run build`（含 typecheck）：通过。四份 spec 首批 `npm exec playwright -- test tests/e2e/server-settings.spec.ts tests/e2e/device-security.spec.ts tests/e2e/logout.spec.ts tests/e2e/settings-layout.spec.ts --reporter=list`：8 通过、3 失败，产物 `.cache/pr3-e2e/`。
+- 两个失败停在新增的测试 visibility 辅助断言，本机 native hide 后仍报告 `visible`。已直接删除该门槛及 helper；装置用原 SSE，延迟读取用现有设置重开触发真实请求，不增加超时或重试。第三处为测试误写冲突码，按真实回执与现有映射更正为 `version_conflict`，保留旧 revision、回滚及写入次数断言。
+- 三个失败用例定向 `--grep 'real QR pixels|logout drains|two actual devices keep proactive'` 重跑：3 通过，产物 `.cache/pr3-fixed/`、日志 `.cache/pr3-fixed.log`。没有放宽 CAS、写入计数或身份断言。
+- 补充检查每个分类标题的实际几何与视口可见性，重跑 `settings-layout.spec.ts`：1 通过，27 张图及逐页 `*.layout.json` 位于 `.cache/pr3-heading-layout/`。已查看小窗口连线／装置页面；标题与分类高亮可见，连线技术资料折叠，装置按组呈现。记录实际 DPI 尺寸，不将请求尺寸当作实际窗口尺寸。
+- 最新静态检查通过。PR-3 本地实现及对应验证完成，按该分支提交；未推送或创建远端 PR。
+
 当前仅本地实施与验证；未推送、未创建远端 PR、未合并、未发布或安装到用户环境。

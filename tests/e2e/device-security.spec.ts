@@ -4,7 +4,7 @@ import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { readFile, readdir } from 'node:fs/promises'
+import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { pairUI, yukiFixture } from '../fixtures/backend'
@@ -15,6 +15,8 @@ async function security(page: Page) {
   await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: '裝置', exact: true }).click()
   await expect(page.getByRole('button', { name: '產生綁定碼', exact: true })).toBeEnabled()
+  await expect(page.getByRole('heading', { name: '登入的裝置', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '重新讀取裝置', exact: true })).toHaveCount(0)
 }
 async function selected(page: Page) {
   return page.evaluate(async () => {
@@ -123,15 +125,22 @@ test('real QR pixels pair a second device once; original device revocation survi
     await pairUI(pa, proxy.base, await rig.code(), 'Mac A')
     const original = await selected(pa)
     await security(pa)
+    await expect(pa.getByText('Mac A（目前這台）')).toBeVisible()
+    await expect(pa.getByRole('heading', { name: '電腦連接器', exact: true })).toHaveCount(0)
     await pa.getByRole('button', { name: '產生綁定碼', exact: true }).click()
     const sheet = pa.getByRole('dialog', { name: '連接另一台裝置', exact: true })
+    await expect(sheet.locator('footer').getByRole('button')).toHaveText(['完成'])
+    await expect(
+      sheet.locator('footer').getByRole('button', { name: '再產生一個', exact: true }),
+    ).toHaveCount(0)
+    await expect(sheet.getByRole('button', { name: '再產生一個', exact: true })).toBeEnabled()
     const code = await sheet.getByLabel('一次性綁定碼', { exact: true }).textContent()
     expect(code).toMatch(/^[A-Za-z0-9_-]{32}$/)
     const link = (await sheet.getByLabel('一次性綁定連結', { exact: true }).textContent())!
     await expect(sheet.getByRole('img', { name: '綁定連結 QR', exact: true })).toBeVisible()
     if (process.platform === 'darwin') {
       const qr = sheet.getByRole('img', { name: '綁定連結 QR', exact: true })
-      await expect(sheet.getByRole('button', { name: '另外產生綁定碼', exact: true })).toBeEnabled()
+      await expect(sheet.getByRole('button', { name: '再產生一個', exact: true })).toBeEnabled()
       await expect(qr).toHaveCSS('width', '120px')
       await expect(qr).toBeInViewport({ ratio: 1 })
       const path = join(rig.root, 'actual-rendered-qr.png')
@@ -152,7 +161,7 @@ test('real QR pixels pair a second device once; original device revocation survi
     expect(JSON.stringify(issued)).not.toContain(code!)
     await sheet.getByRole('button', { name: '完成', exact: true }).click()
     await expect(pa.getByLabel('一次性綁定碼', { exact: true })).toHaveCount(0)
-    await pa.getByRole('button', { name: '查看上次發碼結果', exact: true }).click()
+    await pa.getByRole('button', { name: '查看上次結果', exact: true }).click()
     await expect(sheet.getByText(/綁定碼明文無法重新取得/)).toBeVisible()
     await expect(sheet.getByRole('img')).toHaveCount(0)
     await sheet.getByRole('button', { name: '完成', exact: true }).click()
@@ -168,7 +177,7 @@ test('real QR pixels pair a second device once; original device revocation survi
       body: JSON.stringify({ code, device_label: 'must not pair twice' }),
     })
     expect(reused.status).toBe(401)
-    await pa.getByRole('button', { name: '重新讀取裝置', exact: true }).click()
+    await pa.bringToFront()
     const button = pa.getByRole('button', { name: '撤銷 Mac B', exact: true })
     await expect(button).toBeVisible()
     await button.click()
@@ -186,7 +195,11 @@ test('real QR pixels pair a second device once; original device revocation survi
       .getByRole('dialog', { name: '撤銷裝置？', exact: true })
       .getByRole('button', { name: '撤銷裝置', exact: true })
       .click()
-    await expect(pa.getByText('裝置撤銷：結果尚未確認。', { exact: true })).toBeVisible()
+    await expect(pa.getByText('裝置撤銷：結果尚未確認。')).toBeVisible()
+    await expect(
+      pa.getByText('結果尚未確認，會以原請求查詢，不會建立新請求。', { exact: true }),
+    ).toBeVisible()
+    await expect(pa.getByRole('button', { name: '重新確認', exact: true })).toBeVisible()
     await expect(secondSheet).not.toBeVisible()
     await expect(pb.getByLabel('一次性綁定碼', { exact: true })).toHaveCount(0)
     expect(proxy.lostStatuses).toEqual([200])
@@ -231,6 +244,21 @@ test('real QR pixels pair a second device once; original device revocation survi
     await expect(pa.getByRole('button', { name: '撤銷 Mac B', exact: true })).toHaveCount(0)
     await expect(pa.getByText('已撤銷', { exact: true })).toBeVisible()
     await pa.screenshot({ path: test.info().outputPath(`${process.platform}-device-security.png`) })
+    await writeFile(
+      test.info().outputPath('device-security.json'),
+      JSON.stringify(
+        {
+          headings: await pa.getByRole('heading').allTextContents(),
+          originalDeviceId: original.deviceId,
+          revokedDeviceId: second.deviceId,
+          revocationRequestId: revocation.requestId,
+          revocationWrites: writes(),
+          codeRequestId: issued.requestId,
+        },
+        null,
+        2,
+      ),
+    )
     await a.close()
     await b.close()
     await assertNotOnDisk(join(rig.root, 'security-a'), code!)
@@ -265,8 +293,11 @@ test('a code created before its response is lost can be verified but never silen
     expect(pending.state).toBe('submitted')
     expect(proxy.lostStatuses).toEqual([200])
     await sheet.getByRole('button', { name: '完成', exact: true }).click()
+    await expect(
+      page.getByText('結果尚未確認，會以原請求查詢，不會建立新請求。', { exact: true }),
+    ).toBeVisible()
     proxy.faults.holdReceipts = false
-    await page.getByRole('button', { name: '查看上次發碼結果', exact: true }).click()
+    await page.getByRole('button', { name: '重新確認', exact: true }).click()
     await expect(sheet.getByText(/綁定碼明文無法重新取得/)).toBeVisible()
     await expect(sheet.getByRole('img')).toHaveCount(0)
     expect(
@@ -277,7 +308,7 @@ test('a code created before its response is lost can be verified but never silen
       state: 'result',
       problem: null,
     })
-    await sheet.getByRole('button', { name: '另外產生綁定碼', exact: true }).click()
+    await sheet.getByRole('button', { name: '再產生一個', exact: true }).click()
     await expect(sheet.getByLabel('一次性綁定碼', { exact: true })).toHaveText(
       /^[A-Za-z0-9_-]{32}$/,
     )
@@ -375,10 +406,9 @@ test('device and one-time-code sheets keep actual controls reachable in four the
         await page.getByRole('button', { name: '產生綁定碼', exact: true }).click()
         const sheet = page.getByRole('dialog', { name: '連接另一台裝置', exact: true })
         const qr = sheet.getByRole('img', { name: '綁定連結 QR', exact: true })
+        await expect(sheet.locator('footer').getByRole('button')).toHaveText(['完成'])
         await expect(qr).toBeVisible()
-        await expect(
-          sheet.getByRole('button', { name: '另外產生綁定碼', exact: true }),
-        ).toBeEnabled()
+        await expect(sheet.getByRole('button', { name: '再產生一個', exact: true })).toBeEnabled()
         await expect(sheet).toHaveCSS('width', '480px')
         await expect(sheet.getByRole('button', { name: '完成', exact: true })).toBeFocused()
         await expect(qr).toHaveCSS('width', '120px')

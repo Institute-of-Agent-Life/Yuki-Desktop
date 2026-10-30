@@ -5,22 +5,10 @@ import type { Connection, Me, LinkCodeReply, CharacterCommandItem } from '../../
 import { Banner, Button, Sheet, Spinner } from '../components/Controls'
 import { hidesPrivateData, unwrap, problemText } from '../queries/client'
 import { useDisplayTime } from '../state/time'
-import { Row } from './SettingsRow'
+import { Row, SettingsSection, PendingRequest } from './SettingsRow'
 import styles from './Settings.module.css'
-import { LogoutFlow } from './LogoutFlow'
 
-const purposeLabel = (purpose: string) =>
-  purpose === 'chat' ? '聊天登入' : purpose === 'connector' ? '本機電腦連接器' : purpose
-
-export function DeviceSecurity({
-  connection,
-  onConnection,
-  onLoggedOut,
-}: {
-  connection: Connection
-  onConnection(connection: Connection): void
-  onLoggedOut(): Promise<void>
-}) {
+export function DeviceSecurity({ connection }: { connection: Connection }) {
   const id = connection.characterId,
     query = useQueryClient(),
     { date } = useDisplayTime()
@@ -40,8 +28,8 @@ export function DeviceSecurity({
     queryFn: () => window.yuki.client.linkCodeRequests(id).then(unwrap),
     enabled: !connection.logout,
   })
-  const [error, setError] = useState(''),
-    [notice, setNotice] = useState(''),
+  const [error, setError] = useState<{ section: string; message: string }>(),
+    [notice, setNotice] = useState<{ section: string; message: string }>(),
     [busy, setBusy] = useState(false),
     [revoked, setRevoked] = useState(false),
     [revoke, setRevoke] = useState<Me['devices'][number]>()
@@ -137,8 +125,8 @@ export function DeviceSecurity({
     setOpen(true)
     setIssued(undefined)
     setQR('')
-    setError('')
-    setNotice('')
+    setError(undefined)
+    setNotice(undefined)
     setBusy(true)
     try {
       const result = unwrap(
@@ -150,15 +138,22 @@ export function DeviceSecurity({
       await refresh()
     } catch (error) {
       if (generation.current === attempt)
-        setError(error instanceof Error ? error.message : '無法產生綁定碼。')
+        setError({
+          section: 'codes',
+          message: error instanceof Error ? error.message : '無法產生綁定碼。',
+        })
     } finally {
       setBusy(false)
     }
   }
-  const revokeDevice = async (deviceId: string, requestId?: string) => {
+  const revokeDevice = async (
+    deviceId: string,
+    section: Me['devices'][number]['purpose'] | 'pending',
+    requestId?: string,
+  ) => {
     setBusy(true)
-    setError('')
-    setNotice('')
+    setError(undefined)
+    setNotice(undefined)
     try {
       const item: CharacterCommandItem = unwrap(
         requestId
@@ -167,12 +162,15 @@ export function DeviceSecurity({
       )
       setRevoke(undefined)
       if (item.state === 'result') {
-        if (item.problem) setError(problemText(item.problem))
-        else setNotice('裝置已撤銷。')
+        if (item.problem) setError({ section, message: problemText(item.problem) })
+        else setNotice({ section, message: '裝置已撤銷。' })
       }
       await refresh()
     } catch (error) {
-      setError(error instanceof Error ? error.message : '撤銷結果尚未確認。')
+      setError({
+        section,
+        message: error instanceof Error ? error.message : '撤銷結果尚未確認。',
+      })
     } finally {
       setBusy(false)
     }
@@ -180,41 +178,55 @@ export function DeviceSecurity({
   const copy = async (value: string) => {
     try {
       unwrap(await window.yuki.client.copy(value))
-      setNotice('已複製。')
+      setNotice({ section: 'codes', message: '已複製。' })
     } catch (error) {
-      setError(error instanceof Error ? error.message : '無法複製。')
+      setError({ section: 'codes', message: error instanceof Error ? error.message : '無法複製。' })
     }
   }
   const pending =
     commands.data?.filter(
       (item) => item.command.kind === 'device-revoke' && item.state !== 'result',
     ) ?? []
+  const feedback = (section: string) => (
+    <>
+      {error?.section === section && <Banner status="failed">{error.message}</Banner>}
+      {notice?.section === section && (
+        <p className={styles.notice} role="status">
+          {notice.message}
+        </p>
+      )}
+    </>
+  )
   return (
     <>
-      {connection.logout ? (
-        <LogoutFlow connection={connection} onConnection={onConnection} onLoggedOut={onLoggedOut} />
-      ) : (
-        <>
-          {me.isPending && <Spinner />}
-          {revoked && !me.isError && (
-            <Banner status="failed">{problemText('unauthenticated')}</Banner>
-          )}
-          {me.isError && <Banner status="failed">{me.error.message}</Banner>}
-          {error && <Banner status="failed">{error}</Banner>}
-          {notice && (
-            <p className={styles.notice} role="status">
-              {notice}
-            </p>
-          )}
-          <p className={styles.notice}>
-            這裡列出你的登入與 Agent 授權。同一台電腦可以有不同用途的連線；撤銷只作用於選定的授權。
-          </p>
-          <div className={styles.group}>
-            {data?.devices.map((device) => (
+      <p className={styles.notice}>
+        這裡列出你在 {connection.name} 的登入與電腦連接器。撤銷只影響選定的一項。
+      </p>
+      {[
+        { purpose: 'chat', title: '登入的裝置' },
+        { purpose: 'connector', title: '電腦連接器' },
+      ].map(({ purpose, title }) => {
+        const devices = data?.devices.filter((device) => device.purpose === purpose)
+        return purpose === 'connector' &&
+          !devices?.length &&
+          error?.section !== purpose &&
+          notice?.section !== purpose ? null : (
+          <SettingsSection key={purpose} title={title}>
+            {purpose === 'chat' && (
+              <>
+                {me.isPending && <Spinner />}
+                {revoked && !me.isError && (
+                  <Banner status="failed">{problemText('unauthenticated')}</Banner>
+                )}
+                {me.isError && <Banner status="failed">{me.error.message}</Banner>}
+              </>
+            )}
+            {feedback(purpose)}
+            {devices?.map((device) => (
               <Row
                 key={device.device_id}
-                title={`${device.label || '未命名裝置'}${device.device_id === connection.deviceId ? '（目前桌面登入）' : ''}`}
-                description={`${purposeLabel(device.purpose)} · 建立於 ${date(device.created_at)}${device.revoked_at ? ` · 已撤銷 ${date(device.revoked_at)}` : ''}`}
+                title={`${device.label || '未命名裝置'}${device.device_id === connection.deviceId ? '（目前這台）' : ''}`}
+                description={`建立於 ${date(device.created_at)}${device.revoked_at ? ` · 已撤銷 ${date(device.revoked_at)}` : ''}`}
               >
                 {device.revoked_at ? (
                   <span className={styles.notice}>已撤銷</span>
@@ -238,54 +250,52 @@ export function DeviceSecurity({
                 )}
               </Row>
             ))}
-          </div>
-          <Button disabled={busy} onClick={() => void refresh()}>
-            重新讀取裝置
-          </Button>
+          </SettingsSection>
+        )
+      })}
+      {(pending.length > 0 || error?.section === 'pending' || notice?.section === 'pending') && (
+        <SettingsSection>
+          {feedback('pending')}
           {pending.map((item) => (
-            <div className={styles.actions} key={item.requestId}>
-              <p className={styles.notice}>裝置撤銷：結果尚未確認。</p>
-              <Button
-                loading={busy}
-                onClick={() => {
-                  if (item.command.kind === 'device-revoke')
-                    void revokeDevice(item.command.deviceId, item.requestId)
-                }}
-              >
-                查證原撤銷請求
-              </Button>
-            </div>
+            <PendingRequest
+              key={item.requestId}
+              text="裝置撤銷：結果尚未確認。"
+              busy={busy}
+              onVerify={() => {
+                if (item.command.kind === 'device-revoke')
+                  void revokeDevice(item.command.deviceId, 'pending', item.requestId)
+              }}
+            />
           ))}
-          <h3>連接另一台裝置</h3>
-          <p className={styles.notice}>綁定碼在 10 分鐘內可使用一次，請勿分享給他人。</p>
+        </SettingsSection>
+      )}
+      <SettingsSection title="連接另一台裝置">
+        {feedback('codes')}
+        <Row title="產生一次性綁定碼" description="10 分鐘內可使用一次，請勿分享給他人。">
           <Button disabled={busy || !data} onClick={() => void issue()}>
             產生綁定碼
           </Button>
           {codes.data?.at(-1) && (
             <Button
+              variant="plain"
               disabled={busy || !data}
               onClick={() => void issue(codes.data!.at(-1)!.requestId)}
             >
-              查看上次發碼結果
+              查看上次結果
             </Button>
           )}
-          {codes.data
-            ?.filter((item) => item.state !== 'result')
-            .map((item) => (
-              <div className={styles.actions} key={item.requestId}>
-                <p className={styles.notice}>發碼結果尚未確認，原請求已保留。</p>
-                <Button loading={busy} onClick={() => void issue(item.requestId)}>
-                  查證原發碼請求
-                </Button>
-              </div>
-            ))}
-          <LogoutFlow
-            connection={connection}
-            onConnection={onConnection}
-            onLoggedOut={onLoggedOut}
-          />
-        </>
-      )}
+        </Row>
+        {codes.data
+          ?.filter((item) => item.state !== 'result')
+          .map((item) => (
+            <PendingRequest
+              key={item.requestId}
+              text="發碼結果尚未確認，原請求已保留。"
+              busy={busy}
+              onVerify={() => void issue(item.requestId)}
+            />
+          ))}
+      </SettingsSection>
       <Sheet
         title="撤銷裝置？"
         open={!!revoke}
@@ -300,7 +310,7 @@ export function DeviceSecurity({
             <Button
               variant="destructive"
               loading={busy}
-              onClick={() => void revokeDevice(revoke!.device_id)}
+              onClick={() => void revokeDevice(revoke!.device_id, revoke!.purpose)}
             >
               撤銷裝置
             </Button>
@@ -314,24 +324,19 @@ export function DeviceSecurity({
         open={open}
         onClose={close}
         actions={
-          <>
-            <Button disabled={busy || lost} onClick={() => void issue()}>
-              另外產生綁定碼
-            </Button>
-            <Button variant="primary" autoFocus onClick={close}>
-              完成
-            </Button>
-          </>
+          <Button variant="primary" autoFocus onClick={close}>
+            完成
+          </Button>
         }
       >
         <p>10 分鐘內、一次使用。請勿分享給他人。</p>
         {notice && (
           <p role="status" className={styles.notice}>
-            {notice}
+            {notice.message}
           </p>
         )}
         {busy && <Spinner />}
-        {error && <Banner status="failed">{error}</Banner>}
+        {error && <Banner status="failed">{error.message}</Banner>}
         {issued &&
           (issued.request.problem ? (
             <Banner status="failed">
@@ -378,6 +383,9 @@ export function DeviceSecurity({
                 : '已確認原發碼請求。綁定碼明文無法重新取得；需要時可明確產生另一個碼，先前的碼仍會按原期限失效。'}
             </p>
           ))}
+        <Button variant="plain" disabled={busy || lost} onClick={() => void issue()}>
+          再產生一個
+        </Button>
       </Sheet>
     </>
   )
