@@ -237,6 +237,7 @@ export function WorkList({
 
 export function WorkDetail({
   id,
+  platform,
   workId,
   open,
   replyInChat,
@@ -245,6 +246,7 @@ export function WorkDetail({
   computer,
 }: {
   id: string
+  platform: string
   workId: string
   open(workId: string): void
   replyInChat(work: Work): void
@@ -356,6 +358,7 @@ export function WorkDetail({
             <QuestionBox
               key={`${data.waiting_question.conversation_id}/${data.waiting_question.event_id}`}
               id={id}
+              platform={platform}
               work={data}
               question={data.waiting_question}
               done={refresh}
@@ -440,6 +443,7 @@ export function WorkDetail({
           />
           <WorkReply
             id={id}
+            platform={platform}
             work={data}
             done={refresh}
             commandEnter={commandEnter}
@@ -506,6 +510,7 @@ function RetainedAnswers({ drafts }: { drafts: WorkQuestionDraft[] }) {
 
 function QuestionBox({
   id,
+  platform,
   work,
   question,
   done,
@@ -513,6 +518,7 @@ function QuestionBox({
   commandEnter,
 }: {
   id: string
+  platform: string
   work: Work
   question: NonNullable<Work['waiting_question']>
   done(): void
@@ -530,6 +536,7 @@ function QuestionBox({
       {answer ? (
         <WorkReply
           id={id}
+          platform={platform}
           work={work}
           done={done}
           commandEnter={commandEnter}
@@ -559,6 +566,7 @@ function QuestionBox({
 
 export function WorkReply({
   id,
+  platform,
   work,
   done,
   close,
@@ -569,6 +577,7 @@ export function WorkReply({
   readOnly = false,
 }: {
   id: string
+  platform: string
   work: Work
   done(): void
   close?: () => void
@@ -727,6 +736,7 @@ export function WorkReply({
       ) : (
         <Composer
           name={work.goal}
+          platform={platform}
           commandEnter={commandEnter}
           draft={draft}
           onDraft={update}

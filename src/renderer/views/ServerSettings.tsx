@@ -223,7 +223,7 @@ export function ServerSettings({
               <Button onClick={about}>開啟</Button>
             </Row>
           </SettingsSection>
-          <details>
+          <details className={styles.section}>
             <summary>技術資訊</summary>
             <Row title="伺服器版本">
               <span>{info.data?.server_version ?? '—'}</span>

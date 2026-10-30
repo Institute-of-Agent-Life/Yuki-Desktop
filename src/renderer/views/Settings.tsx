@@ -108,6 +108,8 @@ export function Settings({
   onAddCharacter(): void
   onDeployLocal(): void
 }) {
+  const tray = boot.platform === 'darwin' ? '選單列' : '系統匣'
+  const modEnter = boot.platform === 'darwin' ? '⌘ Enter' : 'Ctrl Enter'
   const shown = connection?.logout ? 'connection' : category
   const visibleGroups = groups.filter(
     (group) => group.label !== null || (connection && !connection.needsPairing),
@@ -292,7 +294,7 @@ export function Settings({
                   </Row>
                 )}
                 <Row
-                  title="關閉視窗時保持在選單列"
+                  title={`關閉視窗後保留在${tray}`}
                   description={
                     boot.platform === 'linux'
                       ? 'Linux 桌面需支援 AppIndicator 才會顯示系統匣圖示。'
@@ -300,7 +302,7 @@ export function Settings({
                   }
                 >
                   <Toggle
-                    label="關閉視窗時保持在選單列"
+                    label={`關閉視窗後保留在${tray}`}
                     checked={preferences.keepInTray}
                     onChange={(keepInTray) => void change({ keepInTray }, 'startup')}
                   />
@@ -315,7 +317,7 @@ export function Settings({
                     value={preferences.sendKey}
                     items={[
                       { value: 'enter', label: 'Enter' },
-                      { value: 'command-enter', label: '⌘ / Ctrl Enter' },
+                      { value: 'command-enter', label: modEnter },
                     ]}
                     onChange={(sendKey) => void change({ sendKey }, 'input')}
                   />
