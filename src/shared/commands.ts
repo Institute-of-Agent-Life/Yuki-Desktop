@@ -29,6 +29,7 @@ export function keyboardCommand(
                       '3': 'computer',
                       '4': 'files',
                       '5': 'about',
+                      '6': 'local',
                     } as Record<string, Command>
                   )[key]
 }

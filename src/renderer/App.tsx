@@ -211,7 +211,10 @@ export function App({ boot }: { boot: BootInfo }) {
       const offset = command === 'next-character' ? 1 : -1
       select(connections[(at + offset + connections.length) % connections.length]!, settingsOpen)
     }
-    if (settingsOpen && ['chat', 'works', 'computer', 'files', 'about'].includes(command)) {
+    if (
+      settingsOpen &&
+      ['chat', 'works', 'computer', 'local', 'files', 'about'].includes(command)
+    ) {
       requestNavigation(() => {
         if (command === 'chat' && connection)
           workspace.navigate({

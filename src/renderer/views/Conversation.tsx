@@ -42,6 +42,7 @@ import { Files, ArtifactInspector } from './Files'
 import { Computer, ComputerInspector } from './Computer'
 import { About } from './About'
 import type { SettingsCategory } from './Settings'
+import { LocalComputer } from './LocalComputer'
 
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
   window.yuki.client.read<T>(id, route).then(unwrap)
@@ -949,6 +950,12 @@ export function Conversation({
               toolbar={computerToolbar}
             />
           )
+        ) : view === 'local' && !focusMode ? (
+          accessLost ? (
+            <Banner status="failed">{problemText(connectionProblem)}</Banner>
+          ) : (
+            <LocalComputer connection={connection} openSettings={() => onSettings('computer')} />
+          )
         ) : view === 'files' && !focusMode ? (
           accessLost ? (
             <Banner status="failed">{problemText(connectionProblem)}</Banner>
@@ -996,7 +1003,13 @@ export function Conversation({
         ) : view !== 'chat' && !focusMode ? (
           <EmptyState
             title={
-              view === 'settings' ? '設定' : view === 'computer' ? `${name} 的電腦` : '檔案與成果'
+              view === 'settings'
+                ? '設定'
+                : view === 'computer'
+                  ? `${name} 的電腦`
+                  : view === 'local'
+                    ? '這台電腦'
+                    : '檔案與成果'
             }
           >
             <span>正在接入此單元的伺服器介面。</span>

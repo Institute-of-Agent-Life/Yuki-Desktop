@@ -574,7 +574,7 @@ export function PendingRequest({ text, busy, onVerify }: {
    }
    ```
    `styles.page`：新建 `LocalComputer.module.css`，`.page { overflow: auto; padding: 24px; max-width: 880px }`。
-6. `Conversation.tsx` 视图分支：在 `view === 'files' && !focusMode ?` 前加 `view === 'local' && !focusMode ? (<LocalComputer connection={connection} openSettings={() => onSettings('computer')} />) :`。`EmptyState` 兜底分支的 title 映射加 `'local'`（或者直接删掉那个"正在接入此單元"兜底——见 T-V1）。
+6. `Conversation.tsx` 视图分支：在 `view === 'files' && !focusMode ?` 前加 `local` 分支，复用其他私有视图已有的 `accessLost` 提示，否则渲染 `<LocalComputer connection={connection} openSettings={() => onSettings('computer')} />`。`EmptyState` 兜底分支的 title 映射加 `'local'`（或者直接删掉那个"正在接入此單元"兜底——见 T-V1）。
 7. `DisconnectedHome.tsx` 的 `title`/`Icon`/文案三元式加 `local` 分支：`這台電腦` / `Laptop` / `連接 Yuki 後，可以讓她使用這台電腦。`。
 8. `AgentConnector.tsx` 删除 `<ConnectorTasks …/>` 及其 import。
 9. `ConnectorTasks.tsx` 顶部加 `Segmented`（`label="這台電腦的活動"`，items：`原生 Agent 任務`、`終端執行`），切换显示原生任务区或 `ConnectorTerminals`，默认"原生 Agent 任務"。不改任何提交/查证逻辑。
@@ -592,11 +592,13 @@ export function PendingRequest({ text, busy, onVerify }: {
      : !s.available ? (s.existing ? { text: '發現原有連接', status: 'waiting' } : { text: '尚未連接', status: 'offline' })
      : s.paired && s.admission?.matched === false ? { text: '已連接到其他 Yuki', status: 'failed' }
      : s.updateAvailable ? { text: '需要更新', status: 'waiting' }
-     : !s.service.installed || s.service.running === false ? { text: '背景連接已停止', status: 'waiting' }
+     : !s.paired ? { text: '尚未連接', status: 'offline' }
+     : !s.service.installed ? { text: '尚未安裝背景連接', status: 'waiting' }
+     : s.service.running === false ? { text: '背景連接已停止', status: 'waiting' }
      : s.admission?.connected ? { text: '已連線', status: 'done' }
      : { text: '尚未確認連線', status: 'unknown' }
    ```
-   （字段名以 `src/shared/connector.ts` 实际定义为准；若不一致，按真实字段改，不要猜。）
+   （字段名以 `src/shared/connector.ts` 实际定义为准；若不一致，按真实字段改，不要猜。已有安装也检查真实配对、更新与匹配状态；`available` 不代表已配对，`running: null` 不代表已停止。行内“目前连接到”仅在真实接纳匹配时显示。）
 2. 页面结构按 3.2：
    - Section「狀態」第一行：`Row title={`這台電腦 · ${label}`} description={connection ? `目前連接到 ${connection.name}` : undefined}`，右侧 `<StatusPill>` + **唯一主动作**：
      - 未连接 → 原"連接這台電腦"表单（名称 TextField + 同意 checkbox + 提交）挪到这个 Section 内的下一行。

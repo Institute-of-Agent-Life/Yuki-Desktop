@@ -1,0 +1,17 @@
+.page {
+  overflow: auto;
+  padding: 24px;
+  max-width: 880px;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 12px;
+}
+.toolbar h3 {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}

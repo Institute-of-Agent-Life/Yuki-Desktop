@@ -3,6 +3,8 @@ import { useLayoutEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AgentConnector } from '../../src/renderer/views/AgentConnector'
+import { LocalComputer } from '../../src/renderer/views/LocalComputer'
+import { WorkspaceSession } from '../../src/renderer/state/workspace'
 import type { ConnectorOperation, ConnectorState } from '../../src/shared/connector'
 import type { Connection } from '../../src/shared/api'
 import { defaultPreferences } from '../../src/shared/desktop'
@@ -456,10 +458,6 @@ window.yuki = {
     },
     service: async (action) => {
       connectorCalls.push({ method: 'service', input: action })
-      if (action === 'start' && connectorMode === 'service-failure' && !failedServiceStart) {
-        failedServiceStart = true
-        return { ok: false, code: 'connector_failed', reason: 'service-start' }
-      }
       if (!connectorState.available) throw Error('Connector runtime has not been prepared')
       connectorState = {
         ...connectorState,
@@ -747,15 +745,46 @@ function Gallery() {
     </Workspace>
   )
 }
+function ConnectorFixture() {
+  const [view, setView] = useState<'settings' | 'local'>(
+    new URLSearchParams(location.search).get('view') === 'local' ? 'local' : 'settings',
+  )
+  return (
+    <main style={{ maxWidth: 680, padding: 32 }}>
+      <nav
+        aria-label="連接器驗證導覽"
+        style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}
+      >
+        <Button aria-pressed={view === 'local'} onClick={() => setView('local')}>
+          顯示本機活動
+        </Button>
+        <Button aria-pressed={view === 'settings'} onClick={() => setView('settings')}>
+          顯示連接設定
+        </Button>
+      </nav>
+      <div data-fixture-view="settings" hidden={view !== 'settings'} inert={view !== 'settings'}>
+        <WorkspaceSession scope="connector-settings-fixture" active={view === 'settings'}>
+          <AgentConnector
+            connection={connectorMode === 'disconnected' ? undefined : connectorConnection}
+            deviceLabel="My computer"
+          />
+        </WorkspaceSession>
+      </div>
+      <div data-fixture-view="local" hidden={view !== 'local'} inert={view !== 'local'}>
+        <WorkspaceSession scope="local-computer-fixture" active={view === 'local'}>
+          <LocalComputer
+            connection={connectorConnection}
+            openSettings={() => setView('settings')}
+          />
+        </WorkspaceSession>
+      </div>
+    </main>
+  )
+}
 createRoot(document.getElementById('root')!).render(
   connectorMode ? (
     <QueryClientProvider client={new QueryClient()}>
-      <main style={{ maxWidth: 680, padding: 32 }}>
-        <AgentConnector
-          connection={connectorMode === 'disconnected' ? undefined : connectorConnection}
-          deviceLabel="My computer"
-        />
-      </main>
+      <ConnectorFixture />
     </QueryClientProvider>
   ) : (
     <Gallery />
