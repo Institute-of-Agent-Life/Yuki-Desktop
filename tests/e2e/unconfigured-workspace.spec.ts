@@ -226,7 +226,7 @@ test('a late repair of an original role does not interrupt local Yuki configurat
     app = await rig.launch(profile)
     page = await app.firstWindow()
     await sizeWorkspace(app, page)
-    await expect(page.getByRole('navigation', { name: '主要導覽', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
     expect(await currentConnection(page)).toMatchObject({
       characterId: original.characterId,
       personId: original.personId,
@@ -236,7 +236,7 @@ test('a late repair of an original role does not interrupt local Yuki configurat
     })
     await expect(page.locator('[data-character-session]')).toHaveCount(0)
     const chooseOriginal = async () => {
-      await page.getByRole('button', { name: '切換 Yuki', exact: true }).click()
+      await (await sidebar(page)).getByRole('button', { name: '切換 Yuki', exact: true }).click()
       await page.getByRole('menuitemradio').filter({ hasText: original.name }).click()
     }
     const input = page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })
@@ -244,7 +244,6 @@ test('a late repair of an original role does not interrupt local Yuki configurat
     await expect(input).toBeVisible()
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await expect(input).toBeHidden()
-    await sidebar(page)
     expect(await currentConnection(page)).toMatchObject({
       characterId: original.characterId,
       needsPairing: true,
