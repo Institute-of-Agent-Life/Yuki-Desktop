@@ -1,6 +1,7 @@
 import { activeCharacterName } from '../fixtures/active-character'
 import { crashElectron } from '../fixtures/electron-process'
 import { expect, test, type Page } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
 import { ledgerEvents, pairUI, waitForMainEnded, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
 import type { Connection, Me, EventsPage, ProactiveRoute } from '../../src/shared/api'
@@ -242,27 +243,55 @@ test('two actual devices keep proactive route CAS and recover the original lost 
     expect(qq.platform).toBe('qq')
     await settings(pa)
     await settings(pb)
-    await pa.getByRole('combobox', { name: '主動訊息接收入口' }).selectOption(qq.binding_id)
     const before = await route(pa, original)
+    const selector = pa.getByRole('combobox', { name: '主動訊息接收入口', exact: true })
+    await expect(selector).toHaveValue(before.binding_id ?? '')
+    await expect(pa.getByRole('button', { name: '儲存目的地', exact: true })).toHaveCount(0)
+    await expect(pa.getByRole('button', { name: '重新讀取目的地', exact: true })).toHaveCount(0)
+    const streamPath = proxy.calls.find((call) => call.path.startsWith('/client/v1/stream'))!.path
+    const routePath = '/client/v1/me/proactive-route'
+    // Keep A's actually loaded revision while B commits, including any focus read.
+    proxy.pauseActive(streamPath)
+    proxy.faults.holdResponses.add(routePath)
     await pb.getByRole('combobox', { name: '主動訊息接收入口' }).selectOption(original.bindingId)
-    await pb.getByRole('button', { name: '儲存目的地', exact: true }).click()
     await expect(pb.getByText('主動訊息目的地已更新。', { exact: true })).toBeVisible()
-    await pa.getByRole('button', { name: '儲存目的地', exact: true }).click()
+    const committedByB = await route(pb, original)
+    expect(committedByB).toMatchObject({
+      binding_id: original.bindingId,
+      revision: before.revision + 1,
+    })
+    await pa.bringToFront()
+    await selector.selectOption(qq.binding_id)
+    await expect
+      .poll(
+        () =>
+          proxy.calls.filter(
+            (call) => call.method === 'PUT' && call.path.endsWith('/me/proactive-route'),
+          ).length,
+      )
+      .toBe(1)
+    proxy.releaseResponses(routePath)
     await expect(
       pa.getByText('資料已在另一台裝置更新，請重新讀取。', { exact: true }),
     ).toBeVisible()
-    await expect(pa.getByRole('combobox', { name: '主動訊息接收入口' })).toHaveValue(qq.binding_id)
+    await expect(selector).toHaveValue(committedByB.binding_id!)
     const conflicted = await pa.evaluate(async (id) => {
       const result = await window.yuki.client.characterCommands(id)
       if (!result.ok) throw Error(result.code)
       return result.value.filter((item) => item.command.kind === 'proactive-route')
     }, original.characterId)
+    expect(conflicted).toHaveLength(1)
     expect(conflicted[0]?.command).toMatchObject({ expectedRevision: before.revision })
-    await pa.getByRole('button', { name: '重新讀取目的地', exact: true }).click()
-    await pa.getByRole('combobox', { name: '主動訊息接收入口' }).selectOption(qq.binding_id)
+    expect(conflicted[0]).toMatchObject({ state: 'result', problem: 'version_conflict' })
+    proxy.resumeActive(streamPath)
+    await expect(selector).toBeEnabled()
     proxy.faults.loseNextSuffix = '/me/proactive-route'
-    await pa.getByRole('button', { name: '儲存目的地', exact: true }).click()
-    await expect(pa.getByText('主動路由變更：結果尚未確認。', { exact: true })).toBeVisible()
+    await selector.selectOption(qq.binding_id)
+    await expect(pa.getByText('主動路由變更：結果尚未確認。')).toBeVisible()
+    await expect(
+      pa.getByText('結果尚未確認，會以原請求查詢，不會建立新請求。', { exact: true }),
+    ).toBeVisible()
+    await expect(pa.getByRole('button', { name: '重新確認', exact: true })).toBeVisible()
     const accepted = await route(pb, original)
     expect(proxy.lostStatuses).toEqual([200])
     expect(accepted.binding_id).toBe(qq.binding_id)
@@ -311,7 +340,8 @@ test('two actual devices keep proactive route CAS and recover the original lost 
     expect(withoutDestination.person_id).toBe(original.personId)
     expect(withoutDestination.platform).toBe('qq')
     expect(withoutDestination.binding_id).not.toBe(qq.binding_id)
-    await pa.getByRole('button', { name: '重新讀取目的地', exact: true }).click()
+    await pa.getByRole('button', { name: '返回', exact: true }).click()
+    await settings(pa)
     await expect(
       pa
         .getByRole('combobox', { name: '主動訊息接收入口' })
@@ -320,19 +350,42 @@ test('two actual devices keep proactive route CAS and recover the original lost 
     await pa
       .getByRole('combobox', { name: '主動訊息接收入口' })
       .selectOption(withoutDestination.binding_id)
-    await pa.getByRole('button', { name: '儲存目的地', exact: true }).click()
     await expect(
       pa.getByText('這個入口目前沒有可用的接收連線。請選擇其他入口。', { exact: true }),
     ).toBeVisible()
     expect(await route(pa, original)).toEqual(accepted)
-    await pa.getByRole('button', { name: '重新讀取目的地', exact: true }).click()
+    await expect(pa.getByRole('combobox', { name: '主動訊息接收入口' })).toHaveValue(
+      accepted.binding_id!,
+    )
     await pa.screenshot({ path: test.info().outputPath(`${process.platform}-server-settings.png`) })
-    await pa.getByRole('button', { name: '開啟資料', exact: true }).click()
+    await writeFile(
+      test.info().outputPath('server-settings.json'),
+      JSON.stringify(
+        {
+          before,
+          committedByB,
+          conflicted,
+          accepted,
+          writes,
+          unavailableBinding: withoutDestination.binding_id,
+        },
+        null,
+        2,
+      ),
+    )
+    await pa.getByRole('button', { name: '開啟', exact: true }).click()
     await expect(
       pa.getByRole('heading', { name: await activeCharacterName(pa), exact: true }),
     ).toBeVisible()
     success = true
   } finally {
+    proxy.releaseResponses('/client/v1/me/proactive-route')
+    for (const path of new Set(
+      proxy.calls
+        .filter((call) => call.path.startsWith('/client/v1/stream'))
+        .map((call) => call.path),
+    ))
+      proxy.resumeActive(path)
     await a.close().catch(() => {})
     await b.close().catch(() => {})
     await proxy.close()

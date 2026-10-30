@@ -492,13 +492,13 @@ export function PendingRequest({ text, busy, onVerify }: {
   text: string; busy: boolean; onVerify(): void
 }) {
   return (
-    <Row title={text} description="結果尚未確認，會以原請求查詢，不會重新送出。">
+    <Row title={text} description="結果尚未確認，會以原請求查詢，不會建立新請求。">
       <Button loading={busy} onClick={onVerify}>重新確認</Button>
     </Row>
   )
 }
 ```
-替换：`ServerSettings.tsx` `主動路由變更：結果尚未確認。` 那段；`DeviceSecurity.tsx` `裝置撤銷：結果尚未確認。`、`發碼結果尚未確認，原請求已保留。` 两段。`onVerify` 传原来的函数（`run(item.requestId)`、`revokeDevice(deviceId, item.requestId)`、`issue(item.requestId)`），**一个字都不改语义**。
+替换：`ServerSettings.tsx` `主動路由變更：結果尚未確認。` 那段；`DeviceSecurity.tsx` `裝置撤銷：結果尚未確認。`、`發碼結果尚未確認，原請求已保留。` 两段。`onVerify` 传原来的查证函数（`run(item.requestId)`、`revokeDevice(deviceId, 'pending', item.requestId)`、`issue(item.requestId)`），**不改执行语义**。`'pending'` 仅决定界面反馈区域，不进入 IPC Payload；原设备 ID 与请求 ID 仍原样传递。现有 verify 在查无回执时可能沿原 UUID 接续原提交，因此文案强调“不建立新请求”，不把既有执行合同写成“永不接续提交”。
 
 #### T-S6b 「連線」页（重写 `ServerSettings.tsx` 的 JSX，逻辑函数保留）
 
@@ -714,5 +714,5 @@ export function PendingRequest({ text, busy, onVerify }: {
 - `grep -rn "角色" src` = 0；
 - 设置页任意尺寸只有一列分类导航，无主侧栏；
 - 设置页内无裸按钮/裸 h3；每个分类刷新按钮 ≤ 1；
-- 所有"未确认请求"使用 `PendingRequest` 且仍走原 UUID；
+- 设置中的主动路由、装置撤销和发码三类"未确认请求"使用 `PendingRequest` 且仍走原 UUID；
 - 本文列出的 E2E 全部运行（skip 单独列明原因），新增 spec 的截图与 JSON 产物路径写进报告。

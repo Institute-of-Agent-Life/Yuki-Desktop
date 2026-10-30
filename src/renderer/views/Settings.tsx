@@ -403,28 +403,24 @@ export function Settings({
               onUpdates={() => onCategory('updates')}
             />
           ) : shown === 'devices' ? (
-            connection && (
-              <DeviceSecurity
-                key={connection.characterId}
-                connection={connection}
-                onConnection={onConnection}
-                onLoggedOut={onLoggedOut}
-              />
-            )
+            connection && <DeviceSecurity key={connection.characterId} connection={connection} />
           ) : shown === 'connection' ? (
             connection &&
             (connection.logout ? (
-              <LogoutFlow
-                key={connection.characterId}
-                connection={connection}
-                onConnection={onConnection}
-                onLoggedOut={onLoggedOut}
-              />
+              <SettingsSection title="登出" danger>
+                <LogoutFlow
+                  key={connection.characterId}
+                  connection={connection}
+                  onConnection={onConnection}
+                  onLoggedOut={onLoggedOut}
+                />
+              </SettingsSection>
             ) : (
               <ServerSettings
                 key={connection.characterId}
                 connection={connection}
                 onConnection={onConnection}
+                onLoggedOut={onLoggedOut}
                 about={about}
               />
             ))

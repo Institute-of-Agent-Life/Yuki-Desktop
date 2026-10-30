@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Button } from '../components/Controls'
 import styles from './Settings.module.css'
 
 export function Row({
@@ -38,5 +39,23 @@ export function SettingsSection({
       {description && <p className={styles.notice}>{description}</p>}
       <div className={styles.group}>{children}</div>
     </section>
+  )
+}
+
+export function PendingRequest({
+  text,
+  busy,
+  onVerify,
+}: {
+  text: string
+  busy: boolean
+  onVerify(): void
+}) {
+  return (
+    <Row title={text} description="結果尚未確認，會以原請求查詢，不會建立新請求。">
+      <Button loading={busy} onClick={onVerify}>
+        重新確認
+      </Button>
+    </Row>
   )
 }

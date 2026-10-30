@@ -14,9 +14,9 @@ async function selected(page: Page) {
     return r.value[0]!
   })
 }
-async function security(page: Page) {
+async function connectionSettings(page: Page) {
   await page.keyboard.press('ControlOrMeta+,')
-  await page.getByRole('tab', { name: '裝置', exact: true }).click()
+  await page.getByRole('tab', { name: '連線', exact: true }).click()
   await expect(page.getByRole('button', { name: '登出…', exact: true })).toBeVisible()
 }
 async function prepare(page: Page) {
@@ -91,10 +91,11 @@ test('logout drains a real delayed read; kept original pending content survives 
         }, original.characterId),
       )
       .toBe(draft)
-    await security(page)
+    await connectionSettings(page)
     proxy.faults.holdResponses.add(mePath)
     const heldRead = proxy.waitForHeldResponse(mePath)
-    await page.getByRole('button', { name: '重新讀取裝置', exact: true }).click()
+    await page.getByRole('button', { name: '返回', exact: true }).click()
+    await connectionSettings(page)
     await heldRead
     await page.getByRole('button', { name: '登出…', exact: true }).click()
     await page.getByRole('button', { name: '撤銷憑據並繼續', exact: true }).click()
@@ -172,7 +173,7 @@ test('logout drains a real delayed read; kept original pending content survives 
     await expect.poll(() => proxy.held.has(memoryPath)).toBe(true)
     await expect(page.getByRole('button', { name: /^已核對的記錄 / })).toHaveCount(0)
     proxy.releaseResponses(memoryPath)
-    await security(page)
+    await connectionSettings(page)
     await prepare(page)
     await page
       .getByRole('dialog', { name: '處理本機內容', exact: true })
@@ -248,7 +249,7 @@ test('offline logout retains credentials; a committed self-revocation with a los
     const page = await app.firstWindow()
     await pairUI(page, proxy.base, await rig.code(), 'Self revoke response')
     const original = await selected(page)
-    await security(page)
+    await connectionSettings(page)
     proxy.faults.offline = true
     await page.getByRole('button', { name: '登出…', exact: true }).click()
     const confirm = page.getByRole('dialog', { name: '登出這個 Yuki？', exact: true })
@@ -318,7 +319,7 @@ test(
         control: { holder: string; device_id: string; lease_id: string }
       }
       expect(before.control.device_id).toBe(original.deviceId)
-      await security(page)
+      await connectionSettings(page)
       await prepare(page)
       await expect
         .poll(
