@@ -3,7 +3,7 @@ import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test } from '@playwright/test'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
 
 test('actual settings paths retain native preferences, timezone, notifications and private diagnostic export', async () => {
   test.setTimeout(120000)
@@ -245,6 +245,85 @@ test('settings categories remain keyboard reachable in all four themes and small
     await expect(
       page.getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` }),
     ).toBeVisible()
+    success = true
+  } finally {
+    await app.close().catch(() => {})
+    await rig.close(success)
+  }
+})
+
+test('a workspace command at the settings commit uses the current App state and original draft', async () => {
+  test.setTimeout(120000)
+  const rig = await yukiFixture(),
+    app = await rig.launch('settings-command-commit')
+  let success = false
+  try {
+    const page = await app.firstWindow()
+    await pairUI(page, rig.base, await rig.code())
+    await contentSize(app, page, 1440, 900)
+    const original = await currentConnection(page)
+    const draft = '設定提交邊界仍保留的原草稿'
+    const composer = page.getByRole('textbox', {
+      name: `和 ${await activeCharacterName(page)} 說點什麼`,
+      exact: true,
+    })
+    await composer.fill(draft)
+    const committed = await page.evaluate(
+      () =>
+        new Promise<{
+          atCommit: { settingsVisible: boolean }
+          afterCommand: { settingsVisible: boolean; worksVisible: boolean }
+        }>((resolve) => {
+          const visible = (element: Element | null) =>
+            !!element &&
+            element.getClientRects().length > 0 &&
+            getComputedStyle(element).visibility !== 'hidden'
+          const observer = new MutationObserver(() => {
+            const settings = document.querySelector('section[aria-label="設定"]')
+            if (!settings) return
+            observer.disconnect()
+            const atCommit = { settingsVisible: visible(settings) }
+            window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'works' }))
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                resolve({
+                  atCommit,
+                  afterCommand: {
+                    settingsVisible: visible(document.querySelector('section[aria-label="設定"]')),
+                    worksVisible: visible(
+                      document.querySelector('[role="tablist"][aria-label="工作來源"]'),
+                    ),
+                  },
+                })
+              }),
+            )
+          })
+          observer.observe(document.getElementById('root')!, { childList: true, subtree: true })
+          window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'settings' }))
+        }),
+    )
+    await writeFile(
+      test.info().outputPath('settings-command-commit.json'),
+      JSON.stringify({ original, draft, committed }, null, 2) + '\n',
+    )
+    expect(committed.atCommit.settingsVisible).toBe(true)
+    expect(committed.afterCommand.settingsVisible).toBe(false)
+    expect(committed.afterCommand.worksVisible).toBe(true)
+    await expect(page.getByRole('tablist', { name: '工作來源', exact: true })).toBeVisible()
+    await page.screenshot({ path: test.info().outputPath('settings-command-workspace.png') })
+    await page.keyboard.press('ControlOrMeta+1')
+    await expect(composer).toHaveValue(draft)
+    const recovered = await currentConnection(page)
+    expect(recovered).toMatchObject({
+      characterId: original.characterId,
+      personId: original.personId,
+      bindingId: original.bindingId,
+      conversationId: original.conversationId,
+    })
+    await writeFile(
+      test.info().outputPath('settings-command-original-draft.json'),
+      JSON.stringify({ original, recovered, draft: await composer.inputValue() }, null, 2) + '\n',
+    )
     success = true
   } finally {
     await app.close().catch(() => {})

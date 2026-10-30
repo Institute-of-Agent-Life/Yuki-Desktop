@@ -138,13 +138,36 @@ test('real workspace handles long conversations, separate entries, work details 
         ).toBeVisible()
         await page
           .getByRole('heading', { name: '長文字與中英混排', exact: true })
-          .scrollIntoViewIfNeeded()
+          .evaluate((element) =>
+            element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }),
+          )
         await expect(composer).toBeVisible()
       },
       {
         verify: async () => {
           const heading = page.getByRole('heading', { name: '長文字與中英混排', exact: true })
-          await heading.scrollIntoViewIfNeeded()
+          const layout = await heading.evaluate((element) => {
+            element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' })
+            const rect = (node: Element) => {
+              const { x, y, width, height } = node.getBoundingClientRect()
+              return { x, y, width, height }
+            }
+            const log = element.closest<HTMLElement>('[role="log"]')!
+            return {
+              viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio },
+              appearance: { ...document.documentElement.dataset },
+              heading: rect(element),
+              log: { rect: rect(log), scrollTop: log.scrollTop },
+            }
+          })
+          await writeFile(
+            test
+              .info()
+              .outputPath(
+                `longtext-heading-${layout.appearance.theme}-opaque-${layout.appearance.opaque}-contrast-${layout.appearance.contrast}-${layout.viewport.width}x${layout.viewport.height}.json`,
+              ),
+            JSON.stringify(layout, null, 2) + '\n',
+          )
           await expect(heading).toBeInViewport({ ratio: 1 })
           await expect(composer).toBeInViewport({ ratio: 1 })
           await expect(page.getByRole('button', { name: '送出', exact: true })).toBeInViewport({
