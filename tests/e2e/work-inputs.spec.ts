@@ -142,7 +142,7 @@ test('inline answers and supplements retain distinct multiline drafts, survive a
     await expect(answer).toHaveValue(answerText)
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('button', { name: '返回', exact: true }).click()
-    await detail(page).getByRole('button', { name: '回覆', exact: true }).click()
+    await expect(answer).toBeVisible()
     await expect(answer).toHaveValue(answerText)
     await expect(supplement).toHaveValue(supplementText)
     await captureWorkspace(
@@ -150,8 +150,7 @@ test('inline answers and supplements retain distinct multiline drafts, survive a
       page,
       'work-inline-answer',
       async () => {
-        if (!(await answer.count()))
-          await detail(page).getByRole('button', { name: '回覆', exact: true }).click()
+        await expect(answer).toBeVisible()
         await expect(answer).toHaveValue(answerText)
         await expect(supplement).toHaveValue(supplementText)
       },
@@ -339,8 +338,8 @@ test('two real roles keep both inline draft scopes separate through actual role 
     await inputs.answer.fill('只有第一角色的原問題草稿')
     await inputs.supplement.fill('只有第一角色的補充')
     await page.keyboard.press('ControlOrMeta+,')
-    await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
-    await page.getByRole('button', { name: '連接另一個 Yuki', exact: true }).click()
+    await page.getByRole('tab', { name: '所有 Yuki', exact: true }).click()
+    await page.getByRole('button', { name: '連接…', exact: true }).click()
     await pairUI(page, second.base, await second.code())
     const secondWork = await create(page, second.base)
     await open(page, secondWork.connection.characterId)

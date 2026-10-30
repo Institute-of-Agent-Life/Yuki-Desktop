@@ -89,8 +89,14 @@ export function UpdatePanel({
           </Button>
         )}
       </Row>
-      {state?.mode === 'development' && <p>開發模式不檢查或安裝更新。</p>}
-      {state?.phase === 'current' && <p role="status">此通道目前沒有可用的更新。</p>}
+      {state?.mode === 'development' && (
+        <Row title="開發模式" description="開發模式不檢查或安裝更新。" />
+      )}
+      {state?.phase === 'current' && (
+        <Row title="更新狀態">
+          <span role="status">此通道目前沒有可用的更新。</span>
+        </Row>
+      )}
       {state?.phase === 'available' && (
         <Row
           title={`有新版本 ${state.version}`}

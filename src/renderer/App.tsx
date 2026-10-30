@@ -12,7 +12,7 @@ import { WorkspaceSession, workspaceFor, workspaceScope, forgetWorkspace } from 
 import { problemText, unwrap } from './queries/client'
 import { requestNavigation } from './state/navigation'
 import { TimeZoneContext } from './state/time'
-import { Settings } from './views/Settings'
+import { Settings, type SettingsCategory } from './views/Settings'
 import { UpdatePending } from './components/Updates'
 import { UpdateProvider } from './state/updates'
 import { RoleSwitcher } from './components/RoleSwitcher'
@@ -26,11 +26,9 @@ export function App({ boot }: { boot: BootInfo }) {
     boot.pairLink ? 'adding' : 'welcome',
   )
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [serverSettings, setServerSettings] = useState(false)
-  const [agentSettings, setAgentSettings] = useState(false)
-  const openSettings = (target?: 'agent') => {
-    setAgentSettings(target === 'agent')
-    setServerSettings(false)
+  const [settingsCategory, setSettingsCategory] = useState<SettingsCategory>('general')
+  const openSettings = (category?: SettingsCategory) => {
+    if (category) setSettingsCategory(category)
     setSettingsOpen(true)
   }
   const [preferences, setPreferences] = useState(boot.preferences)
@@ -65,14 +63,14 @@ export function App({ boot }: { boot: BootInfo }) {
     setConnection(value)
     selection.current = value.characterId
   }
-  const select = (value: Connection) => {
+  const select = (value: Connection, stayInSettings = false) => {
     requestNavigation(() => {
       updateConnection(value)
       setTarget(null)
       setPairLink(null)
       setPairingTarget(value.needsPairing ? value : undefined)
       setNavigationError('')
-      setSettingsOpen(false)
+      setSettingsOpen(stayInSettings && !value.needsPairing)
       setStep('welcome')
     })
   }
@@ -98,8 +96,10 @@ export function App({ boot }: { boot: BootInfo }) {
         setConnection(first)
         selection.current = first.characterId
         setPairingTarget(first.needsPairing ? first : undefined)
-        if (first.logout) setSettingsOpen(true)
-        else if (target && !first.needsPairing) {
+        if (first.logout) {
+          setSettingsCategory('connection')
+          setSettingsOpen(true)
+        } else if (target && !first.needsPairing) {
           workspaceFor(workspaceScope(first)).getState().navigate(target)
           void window.yuki.client.acknowledgeTarget(target)
         }
@@ -188,7 +188,6 @@ export function App({ boot }: { boot: BootInfo }) {
   )
   const adding = () =>
     requestNavigation(() => {
-      setServerSettings(true)
       setPairLink(null)
       setPairingTarget(undefined)
       setSettingsOpen(false)
@@ -210,11 +209,17 @@ export function App({ boot }: { boot: BootInfo }) {
       if (!connections.length) return
       const at = connections.findIndex((item) => item.characterId === connection?.characterId)
       const offset = command === 'next-character' ? 1 : -1
-      select(connections[(at + offset + connections.length) % connections.length]!)
+      select(connections[(at + offset + connections.length) % connections.length]!, settingsOpen)
     }
     if (settingsOpen && ['chat', 'works', 'computer', 'files', 'about'].includes(command)) {
       requestNavigation(() => {
-        workspace.setView(command as import('../shared/desktop').View)
+        if (command === 'chat' && connection)
+          workspace.navigate({
+            characterId: connection.characterId,
+            conversationId: connection.conversationId,
+            view: 'chat',
+          })
+        else workspace.setView(command as import('../shared/desktop').View)
         setSettingsOpen(false)
         setStep('welcome')
       })
@@ -243,21 +248,16 @@ export function App({ boot }: { boot: BootInfo }) {
   }
   const pairing = step === 'adding' || !!pairingTarget
   const showingSettings = settingsOpen || (step === 'welcome' && !!connection?.logout)
-  const settingsInWorkspace =
-    showingSettings &&
-    !pairing &&
-    step !== 'local' &&
-    (!connection || (!connection.logout && !connection.needsPairing))
   const settings = (
     <Settings
-      key={connection?.characterId ?? 'desktop'}
-      embedded={!!settingsInWorkspace}
-      serverRequest={serverSettings}
-      agentRequest={agentSettings}
+      category={settingsCategory}
+      onCategory={setSettingsCategory}
       boot={boot}
       preferences={preferences}
       save={save}
       connection={connection}
+      connections={connections}
+      onSelect={(value) => select(value, true)}
       onConnection={updateConnection}
       onAddCharacter={adding}
       onDeployLocal={deployLocal}
@@ -273,6 +273,7 @@ export function App({ boot }: { boot: BootInfo }) {
         const first = remaining.find((item) => !item.needsPairing || item.logout)
         setConnections(remaining)
         setConnection(first)
+        if (!first) setSettingsCategory('yukis')
         setPairingTarget(first?.needsPairing ? first : undefined)
         selection.current = first?.characterId
         setSettingsOpen(false)
@@ -297,7 +298,10 @@ export function App({ boot }: { boot: BootInfo }) {
             .filter((item) => !item.logout && !item.needsPairing)
             .map((item) => {
               const active =
-                item.characterId === connection?.characterId && !pairing && step !== 'local'
+                item.characterId === connection?.characterId &&
+                !pairing &&
+                step !== 'local' &&
+                !showingSettings
               const scope = workspaceScope(item)
               return (
                 <WorkspaceSession key={scope} scope={scope} active={active}>
@@ -311,8 +315,6 @@ export function App({ boot }: { boot: BootInfo }) {
                       connection={item}
                       platform={boot.platform}
                       preferences={preferences}
-                      settings={settingsInWorkspace && active ? settings : undefined}
-                      onSettingsBack={() => setSettingsOpen(false)}
                       roleSwitcher={
                         connections.length > 1 ? (
                           <RoleSwitcher
@@ -340,7 +342,7 @@ export function App({ boot }: { boot: BootInfo }) {
                 </WorkspaceSession>
               )
             })}
-          {showingSettings && !settingsInWorkspace && settings}
+          {showingSettings && settings}
           {step === 'local' && (
             <div className={styles.roleSession} hidden={showingSettings} inert={showingSettings}>
               <LocalBot
@@ -360,26 +362,26 @@ export function App({ boot }: { boot: BootInfo }) {
             </div>
           )}
           {!pairing && !connection && step !== 'local' && (
-            <WorkspaceSession scope="desktop" active>
-              <DisconnectedHome
-                platform={boot.platform}
-                connect={adding}
-                deploy={deployLocal}
-                onSettings={openSettings}
-                onSettingsBack={() => setSettingsOpen(false)}
-                settings={settingsInWorkspace ? settings : undefined}
-                roleSwitcher={
-                  connections.length ? (
-                    <RoleSwitcher connections={connections} selected="" select={select} />
-                  ) : undefined
-                }
-                help={() => {
-                  void window.yuki.client.external(
-                    'https://github.com/Institute-of-Agent-Life/Yuki-Desktop',
-                  )
-                }}
-              />
-            </WorkspaceSession>
+            <div className={styles.roleSession} hidden={showingSettings} inert={showingSettings}>
+              <WorkspaceSession scope="desktop" active={!showingSettings}>
+                <DisconnectedHome
+                  platform={boot.platform}
+                  connect={adding}
+                  deploy={deployLocal}
+                  onSettings={openSettings}
+                  roleSwitcher={
+                    connections.length ? (
+                      <RoleSwitcher connections={connections} selected="" select={select} />
+                    ) : undefined
+                  }
+                  help={() => {
+                    void window.yuki.client.external(
+                      'https://github.com/Institute-of-Agent-Life/Yuki-Desktop',
+                    )
+                  }}
+                />
+              </WorkspaceSession>
+            </div>
           )}
           {pairing && (
             <div
@@ -390,7 +392,7 @@ export function App({ boot }: { boot: BootInfo }) {
                 key={pairingTarget?.characterId ?? 'new'}
                 active={!showingSettings && step !== 'local'}
                 label={boot.deviceLabel}
-                onUpdate={openSettings}
+                onUpdate={() => openSettings('updates')}
                 initialLink={pairLink}
                 initialServer={pairingTarget?.baseUrl}
                 reconnect={!!pairingTarget}
@@ -414,6 +416,7 @@ export function App({ boot }: { boot: BootInfo }) {
                   setPairLink(null)
                   setPairingTarget(undefined)
                   updateConnection(candidate)
+                  setSettingsCategory('connection')
                   setSettingsOpen(true)
                   setStep('welcome')
                 }}

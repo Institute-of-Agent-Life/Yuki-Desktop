@@ -1,6 +1,104 @@
 import { expect, test } from '@playwright/test'
 import type { Profile } from '../../src/shared/api'
 import { currentConnection, ledgerEvents, yukiFixture, pairUI } from '../fixtures/backend'
+import { writeFile } from 'node:fs/promises'
+
+test('opening full-window settings ends real recording and retains its unsent attachment', async () => {
+  test.setTimeout(120000)
+  const rig = await yukiFixture(),
+    app = await rig.launch('voice-settings', [
+      '--use-fake-device-for-media-stream',
+      '--use-fake-ui-for-media-stream',
+    ])
+  let success = false
+  try {
+    const page = await app.firstWindow()
+    await app.evaluate(({ systemPreferences }) => {
+      systemPreferences.askForMediaAccess = async () => true
+    })
+    await pairUI(page, rig.base, await rig.code())
+    const connection = await currentConnection(page)
+    const before = (await ledgerEvents(rig.base)).map((event) => event.event_id)
+    const probe = await page.evaluateHandle(() => {
+      const original = MediaRecorder.prototype.start
+      let started!: () => void
+      let stopped!: () => void
+      const recording = new Promise<void>((resolve) => {
+        started = resolve
+      })
+      const ended = new Promise<void>((resolve) => {
+        stopped = resolve
+      })
+      MediaRecorder.prototype.start = function (...args) {
+        MediaRecorder.prototype.start = original
+        this.addEventListener('start', started, { once: true })
+        this.addEventListener('stop', stopped, { once: true })
+        return original.apply(this, args)
+      }
+      return {
+        recording,
+        ended,
+        restore() {
+          MediaRecorder.prototype.start = original
+        },
+      }
+    })
+    try {
+      await page.getByRole('button', { name: '語音輸入', exact: true }).click()
+      await probe.evaluate((value) => value.recording)
+      await expect(page.getByRole('button', { name: '結束錄音', exact: true })).toBeVisible()
+      await expect
+        .poll(async () => {
+          const label = await page
+            .getByRole('status')
+            .filter({ hasText: /^錄音 \d+:\d{2}$/ })
+            .textContent()
+          const time = /^錄音 (\d+):(\d{2})$/.exec(label!.trim())!
+          return Number(time[1]) * 60 + Number(time[2])
+        })
+        .toBeGreaterThanOrEqual(1)
+      await page.keyboard.press('ControlOrMeta+,')
+      await expect(page.getByRole('tablist', { name: '設定分類', exact: true })).toBeVisible()
+      await expect(page.getByRole('navigation', { name: '主要導覽', exact: true })).toBeHidden()
+      await probe.evaluate((value) => value.ended)
+      await page.getByRole('button', { name: '返回', exact: true }).click()
+      await expect(page.getByRole('button', { name: '語音輸入', exact: true })).toBeVisible()
+      await expect(page.getByRole('button', { name: '結束錄音', exact: true })).toHaveCount(0)
+      await expect(page.getByLabel('待送出附件')).toContainText('voice.webm')
+      await expect(page.getByLabel('待送出附件')).toContainText('可送出')
+      const recordings = await page.evaluate(async (id) => {
+        const result = await window.yuki.client.uploads(id)
+        if (!result.ok) throw Error(result.code)
+        return result.value.filter((item) => item.kind === 'record')
+      }, connection.characterId)
+      expect(recordings).toHaveLength(1)
+      expect(recordings[0]).toMatchObject({ filename: 'voice.webm', state: 'ready' })
+      const after = (await ledgerEvents(rig.base)).map((event) => event.event_id)
+      expect(after).toEqual(before)
+      await page.screenshot({ path: test.info().outputPath('recording-draft-after-settings.png') })
+      await writeFile(
+        test.info().outputPath('recording-settings.json'),
+        JSON.stringify(
+          {
+            before,
+            after,
+            recordings,
+            endedWhenInactive: true,
+          },
+          null,
+          2,
+        ),
+      )
+    } finally {
+      await probe.evaluate((value) => value.restore())
+      await probe.dispose()
+    }
+    success = true
+  } finally {
+    await app.close().catch(() => {})
+    await rig.close(success)
+  }
+})
 
 test('records through MediaRecorder, persists the original ASR transcript and converges on another device', async () => {
   test.setTimeout(120000)

@@ -22,7 +22,7 @@ import { CharacterAvatar, CharacterVisuals } from '../components/CharacterAvatar
 import { characterPresence } from '../../shared/presence'
 import { SoulEditor } from './SoulEditor'
 import { useDisplayTime } from '../state/time'
-import { ArrowLeft, Copy, Reply } from 'lucide-react'
+import { Copy, Reply } from 'lucide-react'
 import { Workspace } from '../components/Workspace'
 import { unwrap, problemText, hidesPrivateData, ClientProblem } from '../queries/client'
 import { useWorkspace, useSessionActive } from '../state/workspace'
@@ -41,6 +41,7 @@ import { ConversationWork, WorkDetail, WorkList, WorkReply } from './Works'
 import { Files, ArtifactInspector } from './Files'
 import { Computer, ComputerInspector } from './Computer'
 import { About } from './About'
+import type { SettingsCategory } from './Settings'
 
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
   window.yuki.client.read<T>(id, route).then(unwrap)
@@ -52,17 +53,13 @@ export function Conversation({
   onSettings,
   onPairAgain,
   roleSwitcher,
-  settings,
-  onSettingsBack,
 }: {
   connection: Connection
   platform: string
   preferences: Preferences
-  onSettings(target?: 'agent'): void
+  onSettings(category?: SettingsCategory): void
   onPairAgain(): void
   roleSwitcher?: React.ReactNode
-  settings?: React.ReactNode
-  onSettingsBack?(): void
 }) {
   const floatingRef = useFloatingInsets()
   const workspace = useWorkspace()
@@ -77,8 +74,8 @@ export function Conversation({
   const [soulToolbar, setSoulToolbar] = useState<HTMLDivElement | null>(null)
   const [computerToolbar, setComputerToolbar] = useState<HTMLDivElement | null>(null)
   useEffect(() => {
-    if (settings || view !== 'about' || focusMode) setSoulEditing(false)
-  }, [view, focusMode, settings])
+    if (view !== 'about' || focusMode) setSoulEditing(false)
+  }, [view, focusMode])
   const { artifact, preview, selectedWork, messageStage } = workspace
   const conversation = workspace.conversationId ?? connection.conversationId
   const [draft, setDraft] = useState('')
@@ -243,7 +240,7 @@ export function Conversation({
   const upgradeNotice = updateRequired && (
     <Banner status="failed">
       {problemText('client_upgrade_required')}
-      <Button variant="plain" onClick={() => onSettings()}>
+      <Button variant="plain" onClick={() => onSettings('updates')}>
         查看 App 更新
       </Button>
     </Banner>
@@ -390,13 +387,12 @@ export function Conversation({
     [id, refresh],
   )
   useEffect(() => {
-    if (!active || settings) return
+    if (!active) return
     const search = () => setPalette(true)
     window.addEventListener('yuki:search', search)
     return () => window.removeEventListener('yuki:search', search)
-  }, [active, settings])
+  }, [active])
   useCommands((command) => {
-    if (settings) return
     if (command === 'focus-composer')
       document
         .querySelector<HTMLTextAreaElement>(`[data-character-session="${id}"] textarea`)
@@ -465,8 +461,8 @@ export function Conversation({
     }
   }, [profileData?.accent, preferences.theme, active])
   useEffect(() => {
-    if (!active || settings) setPalette(false)
-  }, [active, settings])
+    if (!active) setPalette(false)
+  }, [active])
   const choose = (next: string) =>
     requestNavigation(() => {
       needsEarlier.current = false
@@ -730,7 +726,7 @@ export function Conversation({
     {
       id: 'command/agent',
       title: '連接這台電腦',
-      run: () => paletteNavigate(() => onSettings('agent')),
+      run: () => paletteNavigate(() => onSettings('computer')),
     },
     ...(!accessLost
       ? [
@@ -777,18 +773,8 @@ export function Conversation({
         scrolled={scrolled}
         mainConversation={isMain}
         onChat={() => choose(connection.conversationId)}
-        settings={settings}
-        onView={settings ? onSettingsBack : undefined}
         toolbar={
-          settings ? (
-            <>
-              <Button variant="plain" onClick={onSettingsBack}>
-                <ArrowLeft size={16} />
-                返回
-              </Button>
-              <strong>設定</strong>
-            </>
-          ) : soulEditing && view === 'about' && !focusMode ? (
+          soulEditing && view === 'about' && !focusMode ? (
             <div className={styles.soulToolbar} ref={setSoulToolbar} />
           ) : undefined
         }
@@ -816,14 +802,11 @@ export function Conversation({
                   className={styles.entry}
                   key={item.conversation_id}
                   aria-current={
-                    !settings && view === 'chat' && item.conversation_id === conversation
-                      ? 'page'
-                      : undefined
+                    view === 'chat' && item.conversation_id === conversation ? 'page' : undefined
                   }
                   onClick={() =>
                     requestNavigation(() => {
                       choose(item.conversation_id)
-                      if (settings) onSettingsBack?.()
                     })
                   }
                 >
@@ -835,7 +818,6 @@ export function Conversation({
                 variant="plain"
                 onClick={() => {
                   choose(connection.conversationId)
-                  if (settings) onSettingsBack?.()
                 }}
               >
                 回到桌面對話

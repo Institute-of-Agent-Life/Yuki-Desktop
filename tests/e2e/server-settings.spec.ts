@@ -7,7 +7,7 @@ import type { Connection, Me, EventsPage, ProactiveRoute } from '../../src/share
 async function settings(page: Page) {
   await page.bringToFront()
   await page.keyboard.press('ControlOrMeta+,')
-  await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
+  await page.getByRole('tab', { name: '連線', exact: true }).click()
   await expect(
     page.getByRole('region', { name: '設定', exact: true }).getByText('已連線', { exact: true }),
   ).toBeVisible()
@@ -199,7 +199,7 @@ test('new server address proves real identity before bearer and resumes the orig
 async function settingsWithoutWaiting(page: Page) {
   await page.bringToFront()
   await page.keyboard.press('ControlOrMeta+,')
-  await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
+  await page.getByRole('tab', { name: '連線', exact: true }).click()
 }
 
 test('two actual devices keep proactive route CAS and recover the original lost response after a cold App restart', async () => {

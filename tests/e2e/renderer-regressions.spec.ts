@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
 import { navigate, sidebar } from '../fixtures/navigation'
 
 interface ConversationScrollFixture {
@@ -150,18 +151,29 @@ for (const position of ['reader', 'quoted-history'] as const) {
     }
     await renderedFrames(page)
     const before = await conversationPosition(log)
+    const draft = page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+    await draft.fill(`開關設定仍保留的 ${position} 草稿`)
     await navigate(page, '設定')
     await expect(log).toHaveCount(0)
+    await expect(page.getByRole('navigation', { name: '主要導覽', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('tablist', { name: '設定分類', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await expect(log).toHaveCount(1)
     await renderedFrames(page)
-    expect((await conversationPosition(log)).top).toBe(before.top)
+    const after = await conversationPosition(log)
+    expect(after.top).toBe(before.top)
+    await expect(draft).toHaveValue(`開關設定仍保留的 ${position} 草稿`)
     if (position === 'quoted-history')
       await expect(page.getByRole('button', { name: '回到最新訊息', exact: true })).toBeVisible()
+    await page.screenshot({ path: test.info().outputPath(`settings-return-${position}.png`) })
+    await writeFile(
+      test.info().outputPath(`settings-return-${position}.json`),
+      JSON.stringify({ position, before, after, draft: await draft.inputValue() }, null, 2),
+    )
   })
 }
 
-test('opening settings closes the floating sidebar before the next observer and keeps explicit navigation usable', async ({
+test('full-window settings hide the mounted workspace and return through the Settings header', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1000, height: 760 })
@@ -170,16 +182,26 @@ test('opening settings closes the floating sidebar before the next observer and 
   await page.evaluate(() => {
     window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'settings' }))
   })
-  await expect(page.getByRole('region', { name: '轉場設定', exact: true })).toBeVisible()
-  await expect(page.getByTestId('settings-transition-state')).toHaveText('hidden')
+  const settings = page.getByRole('region', { name: '設定', exact: true })
+  await expect(settings).toBeVisible()
   await expect(navigation).not.toBeVisible()
-  await sidebar(page)
-  await expect(navigation.getByRole('button', { name: '設定', exact: true })).toHaveAttribute(
-    'aria-current',
-    'page',
+  await expect(page.getByRole('button', { name: '側邊欄', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('tablist', { name: '設定分類', exact: true })).toBeVisible()
+  const workspace = page.getByTestId('workspace-session')
+  await expect(workspace).toBeAttached()
+  await expect(workspace).not.toBeVisible()
+  const mounted = await workspace.evaluate((element) => ({
+    hidden: !!element.closest('[hidden]'),
+    inert: !!element.closest('[inert]'),
+  }))
+  expect(mounted).toEqual({ hidden: true, inert: true })
+  await page.screenshot({ path: test.info().outputPath('settings-replaces-workspace.png') })
+  await writeFile(
+    test.info().outputPath('settings-replaces-workspace.json'),
+    JSON.stringify({ mounted, tabs: await settings.getByRole('tab').allTextContents() }, null, 2),
   )
-  await navigation.getByRole('button', { name: '對話', exact: true }).click()
-  await expect(page.getByRole('region', { name: '轉場設定', exact: true })).toHaveCount(0)
+  await settings.getByRole('button', { name: '返回', exact: true }).click()
+  await expect(settings).toHaveCount(0)
   await expect(page.getByText('原對話內容', { exact: true })).toBeVisible()
 })
 
@@ -231,13 +253,11 @@ for (const recovery of ['online', 'refresh'] as const) {
   })
 }
 
-test('logout recovery has priority over a retained direct Agent settings request', async ({
-  page,
-}) => {
+test('logout recovery opens Connection before a retained Computer category', async ({ page }) => {
   await page.goto(
-    'http://127.0.0.1:4178/renderer-regressions.html?case=settings&agent=true&logout=true',
+    'http://127.0.0.1:4178/renderer-regressions.html?case=settings&category=computer&logout=true',
   )
-  await expect(page.getByRole('tab', { name: '裝置與安全', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: '連線', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )
@@ -547,42 +567,42 @@ test('an attachment without invented availability is clickable and original fail
   ).toEqual([{ conversationId: 'conversation', eventId: 31, index: 0 }])
 })
 
-test('settings use the available column and expose one native Agent entry before Bot setup', async ({
+test('unpaired settings use one full-window navigation and keep both Yuki connection entries reachable', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=settings')
-  const content = page.locator('[data-region="content"]')
+  const settings = page.getByRole('region', { name: '設定', exact: true })
   const pane = page.getByRole('tabpanel', { name: '一般', exact: true })
   await expect(pane).toBeVisible()
   const bounds = await pane.boundingBox()
-  const contentBounds = await content.boundingBox()
+  const settingsBounds = await settings.boundingBox()
   expect(bounds!.width).toBeGreaterThan(680)
   expect(
-    Math.abs(bounds!.x + bounds!.width - contentBounds!.x - contentBounds!.width),
+    Math.abs(bounds!.x + bounds!.width - settingsBounds!.x - settingsBounds!.width),
   ).toBeLessThanOrEqual(1)
   expect(await pane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
-  await expect(page.getByRole('tab', { name: '這台電腦', exact: true })).toBeVisible()
-  await expect(page.getByRole('tab', { name: '本機連接', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('tab', { name: '編程 Agent', exact: true })).toHaveCount(0)
-  await page.getByRole('tab', { name: 'Yuki 連接', exact: true }).click()
-  await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
+  await expect(page.getByRole('navigation', { name: '主要導覽', exact: true })).toHaveCount(0)
+  const tabs = page.getByRole('tablist', { name: '設定分類', exact: true })
+  await expect(tabs.getByRole('tab')).toHaveText([
+    '一般',
+    '外觀',
+    '通知',
+    '更新',
+    '所有 Yuki',
+    '進階',
+  ])
+  await expect(page.getByRole('tab', { name: '這台電腦', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('tab', { name: '連線', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('tab', { name: '裝置', exact: true })).toHaveCount(0)
+  await tabs.getByRole('tab', { name: '所有 Yuki', exact: true }).click()
+  await page.getByRole('button', { name: '連接…', exact: true }).click()
   await expect(page.getByTestId('settings-action')).toHaveText('connect')
-  await page.getByRole('button', { name: '本機部署與管理', exact: true }).click()
+  await page.getByRole('button', { name: '部署與管理…', exact: true }).click()
   await expect(page.getByTestId('settings-action')).toHaveText('deploy')
   await page.screenshot({ path: test.info().outputPath('settings-full-column.png') })
-})
-
-test('a direct Agent settings request opens the single native connection entry without requiring Bot pairing', async ({
-  page,
-}) => {
-  await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=settings&agent=true')
-  await expect(page.getByRole('tab', { name: '這台電腦', exact: true })).toHaveAttribute(
-    'aria-selected',
-    'true',
+  await writeFile(
+    test.info().outputPath('settings-full-column.json'),
+    JSON.stringify({ tabs: await tabs.getByRole('tab').allTextContents(), pane: bounds }, null, 2),
   )
-  await expect(
-    page.getByText('先連接一位 Yuki，再授權這台電腦。你可以直接離開此頁。'),
-  ).toBeVisible()
-  await expect(page.getByRole('tab', { name: 'Yuki 連接', exact: true })).toBeEnabled()
 })

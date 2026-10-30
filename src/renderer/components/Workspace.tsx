@@ -43,8 +43,6 @@ interface Props {
   scrolled?: boolean
   floating?: boolean
   mainConversation?: boolean
-  settings?: ReactNode
-  onView?(): void
 }
 const views = [
   ['chat', '對話', MessageCircle],
@@ -59,14 +57,13 @@ export function Workspace(props: Props) {
   const glass = useGlass<HTMLDivElement>('toolbar')
   const state = useWorkspace()
   const active = useSessionActive()
-  const focusMode = !props.settings && state.focusMode
-  const inspector = !props.settings && state.inspector
-  const selectedView = props.settings ? 'settings' : state.view
+  const focusMode = state.focusMode
+  const inspector = state.inspector
+  const selectedView = state.view
   const selectView = (view: View) =>
     requestNavigation(() => {
       if (view === 'chat' && props.onChat) props.onChat()
       else state.setView(view)
-      props.onView?.()
     })
   const [width, setWidth] = useState(window.innerWidth)
   const stopDrag = useRef<(() => void) | undefined>(undefined)
@@ -75,10 +72,6 @@ export function Workspace(props: Props) {
     [active, width, state.sidebar, inspector, focusMode],
   )
   const [overlaySidebar, setOverlaySidebar] = useState(false)
-  const showingSettings = !!props.settings
-  useLayoutEffect(() => {
-    if (showingSettings) setOverlaySidebar(false)
-  }, [showingSettings])
   const toggleSidebar = () => {
     if (focusMode)
       requestNavigation(() => {
@@ -120,8 +113,8 @@ export function Workspace(props: Props) {
   }, [])
   useCommands((command) => {
     if (command === 'sidebar') toggleSidebar()
-    else if (!props.settings && command === 'inspector') toggleInspector()
-    else if (!props.settings && command === 'focus-mode') state.toggle('focusMode')
+    else if (command === 'inspector') toggleInspector()
+    else if (command === 'focus-mode') state.toggle('focusMode')
     else if (command !== 'settings' && views.some(([view]) => view === command))
       selectView(command as View)
   })
@@ -249,7 +242,6 @@ export function Workspace(props: Props) {
       <div className={styles.group} />
       <button
         className={styles.nav}
-        aria-current={selectedView === 'settings' ? 'page' : undefined}
         onClick={() => {
           requestNavigation(() => {
             if (props.onSettings) props.onSettings()
@@ -333,12 +325,12 @@ export function Workspace(props: Props) {
         </>
       )}
       <section
-        className={`${styles.main} ${(props.floating ?? (!props.settings && (state.view === 'chat' || focusMode))) ? styles.floating : ''}`}
+        className={`${styles.main} ${(props.floating ?? (state.view === 'chat' || focusMode)) ? styles.floating : ''}`}
         style={{ gridColumn: focusMode ? 1 : 3, gridRow: 1 }}
       >
         <header
           data-region="toolbar"
-          className={`${styles.toolbar} ${props.toolbar ? styles.customToolbar : ''} ${props.scrolled && !showingSettings ? styles.toolbarScrolled : ''}`}
+          className={`${styles.toolbar} ${props.toolbar ? styles.customToolbar : ''} ${props.scrolled ? styles.toolbarScrolled : ''}`}
         >
           <IconButton label="側邊欄" onClick={toggleSidebar}>
             <PanelLeft size={16} strokeWidth={1.5} />
@@ -385,7 +377,7 @@ export function Workspace(props: Props) {
           />
         </header>
         <div className={styles.content} data-region="content" tabIndex={-1}>
-          {props.settings ?? props.children}
+          {props.children}
         </div>
       </section>
       {(inspector || focusMode) && (

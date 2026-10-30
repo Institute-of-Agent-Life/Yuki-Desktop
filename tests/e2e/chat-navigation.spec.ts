@@ -45,7 +45,7 @@ test('the main chat entry, shortcut and palette return from another actual ingre
       } else {
         await page.keyboard.press('ControlOrMeta+,')
         await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeVisible()
-        await navigate(page, '對話')
+        await page.keyboard.press('ControlOrMeta+1')
         await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeHidden()
       }
       await expect(composer).toBeVisible()
@@ -57,6 +57,7 @@ test('the main chat entry, shortcut and palette return from another actual ingre
     }
     await page.keyboard.press('ControlOrMeta+,')
     await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: '返回', exact: true }).click()
     await navigate(page, /^QQ ·/)
     await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeHidden()
     await expect(page.locator(`article[data-event-id="${source.event_id}"]`)).toBeVisible()

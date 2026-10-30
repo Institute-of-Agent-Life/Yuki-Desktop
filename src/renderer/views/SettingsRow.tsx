@@ -8,7 +8,7 @@ export function Row({
 }: {
   title: string
   description?: string
-  children: ReactNode
+  children?: ReactNode
 }) {
   return (
     <div className={styles.row}>
@@ -18,5 +18,25 @@ export function Row({
       </div>
       <div className={styles.rowValue}>{children}</div>
     </div>
+  )
+}
+
+export function SettingsSection({
+  title,
+  description,
+  danger = false,
+  children,
+}: {
+  title?: string
+  description?: string
+  danger?: boolean
+  children: ReactNode
+}) {
+  return (
+    <section className={`${styles.section} ${danger ? styles.danger : ''}`}>
+      {title && <h3>{title}</h3>}
+      {description && <p className={styles.notice}>{description}</p>}
+      <div className={styles.group}>{children}</div>
+    </section>
   )
 }

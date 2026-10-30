@@ -36,9 +36,9 @@
   position: relative;
   padding: 8px 12px;
   border-right: var(--line) solid var(--separator);
-  overflow: auto;
+  overflow: visible;
 }
-.categories button {
+.categories button[role='tab'] {
   position: relative;
   width: 100%;
   display: flex;
@@ -53,18 +53,60 @@
   color: var(--text-primary);
   cursor: pointer;
 }
-.categories button:hover {
+.categories button[role='tab']:hover {
   background: var(--fill-hover);
 }
-.categories button[aria-selected='true'] {
+.categories button[role='tab'][aria-selected='true'] {
   background: transparent;
   color: var(--accent-strong);
   font-weight: 600;
+}
+.categoryGroup:last-child {
+  margin-top: 16px;
+}
+.navGroup {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  margin-top: 16px;
+}
+.categoryGroup:first-of-type .navGroup {
+  margin-top: 4px;
+}
+.yukiHeader {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  margin-top: 16px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.yukiName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.yukiHeader > div {
+  position: static;
+  flex: 0 0 22px;
+}
+.yukiHeader [role='menu'] {
+  left: 0;
+  top: calc(100% + 4px);
+  max-height: min(400px, calc(100vh - 280px));
 }
 .pane {
   padding: 8px 32px 32px;
   overflow: auto;
   min-width: 0;
+}
+.pane > * {
+  max-width: 720px;
 }
 .pane h2 {
   font-size: 17px;
@@ -130,11 +172,23 @@
   border-radius: 6px;
   padding: 4px 8px;
 }
-.notice,
-.version {
+.notice {
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 18px;
+}
+.section {
+  margin-bottom: 24px;
+}
+.pane .section > h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.section > .group {
+  margin-bottom: 0;
+}
+.danger .group {
+  border-color: color-mix(in srgb, var(--status-failed) 35%, var(--separator));
 }
 .pane h3 {
   font-size: 13px;
@@ -197,6 +251,6 @@
   margin-left: auto;
 }
 
-:global([data-contrast='true']) .categories button[aria-selected='true'] {
+:global([data-contrast='true']) .categories button[role='tab'][aria-selected='true'] {
   color: var(--accent-on);
 }

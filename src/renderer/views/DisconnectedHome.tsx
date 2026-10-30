@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import {
-  ArrowLeft,
   BriefcaseBusiness,
   Folder,
   MessageCircle,
@@ -18,18 +17,14 @@ export function DisconnectedHome({
   connect,
   deploy,
   onSettings,
-  onSettingsBack,
   help,
-  settings,
   roleSwitcher,
 }: {
   platform: string
   connect(): void
   deploy(): void
   onSettings(): void
-  onSettingsBack(): void
   help(): void
-  settings?: ReactNode
   roleSwitcher?: ReactNode
 }) {
   const view = useWorkspace((state) => state.view)
@@ -62,24 +57,14 @@ export function DisconnectedHome({
       platform={platform}
       floating={false}
       roleSwitcher={roleSwitcher}
-      settings={settings}
       onSettings={onSettings}
-      onView={settings ? onSettingsBack : undefined}
       toolbar={
         <>
-          {settings && (
-            <Button variant="plain" onClick={onSettingsBack}>
-              <ArrowLeft size={16} />
-              返回
-            </Button>
-          )}
-          <strong className={styles.toolbarTitle}>{settings ? '設定' : title}</strong>
-          {!settings && (
-            <Button variant="plain" onClick={onSettings}>
-              <Settings2 size={16} />
-              設定
-            </Button>
-          )}
+          <strong className={styles.toolbarTitle}>{title}</strong>
+          <Button variant="plain" onClick={() => onSettings()}>
+            <Settings2 size={16} />
+            設定
+          </Button>
         </>
       }
       inspectorTitle="尚未連接 Yuki"
@@ -119,7 +104,7 @@ export function DisconnectedHome({
             在本機部署 Yuki
           </Button>
         </div>
-        <p className={styles.hint}>隨時可以從設定中的「Yuki 連接」繼續配置連線。</p>
+        <p className={styles.hint}>隨時可以從設定中的「所有 Yuki」繼續配置連線。</p>
         <Button variant="plain" onClick={help}>
           使用說明
         </Button>

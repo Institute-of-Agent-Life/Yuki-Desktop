@@ -64,7 +64,7 @@
 
 1. **`aria-label` 被当作 DOM 选择器用。** `src/renderer/components/Workspace.tsx` 里有 `button[aria-label="檢視器"]`、`button[aria-label="側邊欄"]`（`closeInspector` 与 `onPointerDown` 中）。改按钮文案时必须同时改这些选择器。
 2. **E2E 用可访问名定位元素**（`getByRole('button', { name: '切換 Yuki', exact: true })`）。改任何按钮/标签文案，都要 `grep -rn "<旧文案>" tests` 并同步修改。
-3. **多个 Yuki 会话同时挂载、只有一个 active。** `App.tsx` 用 `<WorkspaceSession active>` + `hidden`/`inert` 隐藏其他会话。`useSessionActive()` 为 false 时：命令不响应（`state/commands.ts`）、Sheet 关闭（`Controls.tsx` `Sheet`）、录音取消（`VoiceRecorder.tsx`）、媒体与富文本暂停加载。改动"什么时候 active"会影响这些行为，必须在 E2E 里验证。
+3. **多个 Yuki 会话同时挂载、只有一个 active。** `App.tsx` 用 `<WorkspaceSession active>` + `hidden`/`inert` 隐藏其他会话。`useSessionActive()` 为 false 时：命令不响应（`state/commands.ts`）、Sheet 关闭（`Controls.tsx` `Sheet`）、录音按既有流程结束并保留待送语音草稿（`VoiceRecorder.tsx`，不自动发送）、媒体与富文本暂停加载。改动"什么时候 active"会影响这些行为，必须在 E2E 里验证。
 4. **`<Settings key={connection?.characterId}>`**：key 变化会重建设置组件、丢失内部 state。
 5. 工作区布局按 scope 存在 `localStorage['workspace-layout/<scope>']`（`state/workspace.ts`），只存宽度和 `inspectorTab`，不要往里加东西。
 6. UI 文案一律**繁体中文**。
@@ -372,7 +372,7 @@ Yuki 菜单（点击头像卡弹出）：已连接的 Yuki 列表（单选），
 
 **要特别验证的副作用**（坑 3）：打开设置时当前会话 inactive——
 - 输入框草稿在关闭设置后仍在；
-- 正在录音时打开设置会取消录音（这是现有 inactive 行为，可接受，报告中写明）；
+- 正在录音时打开设置按现有 inactive 流程结束录音并保留待送语音草稿，不自动发送（报告中写明）；
 - 打开设置再关，消息列表滚动位置不变。
 
 #### T-S2 分类状态提升到 App，删除布尔请求 prop
