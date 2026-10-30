@@ -1,0 +1,44 @@
+.guide {
+  width: 100%;
+  min-width: 0;
+  margin-top: 8px;
+  text-align: left;
+  font-size: 13px;
+  line-height: 20px;
+}
+.guide summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0 4px;
+}
+.guide .body p {
+  max-width: none;
+  margin: 0;
+  font-size: inherit;
+  line-height: inherit;
+  color: var(--text-secondary);
+}
+.body ol {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+  padding-left: 22px;
+}
+.body li > * + * {
+  margin-top: 6px;
+}
+.body code {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--fill-code);
+  font: 12px/18px var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

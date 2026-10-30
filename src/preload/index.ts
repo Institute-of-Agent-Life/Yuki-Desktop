@@ -10,6 +10,7 @@ const bridge: DesktopBridge = {
     useInstallation: (input) => ipcRenderer.invoke('yuki:connector-use-installation', input),
     connect: (input) => ipcRenderer.invoke('yuki:connector-connect', input),
     pair: (input) => ipcRenderer.invoke('yuki:connector-pair', input),
+    server: (input) => ipcRenderer.invoke('yuki:connector-server', input),
     service: (action) => ipcRenderer.invoke('yuki:connector-service', action),
     fullAccess: (enabled, id) => ipcRenderer.invoke('yuki:connector-full-access', enabled, id),
     discover: (driver?: ConnectorDriver) => ipcRenderer.invoke('yuki:connector-discover', driver),

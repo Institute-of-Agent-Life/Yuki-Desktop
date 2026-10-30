@@ -32,9 +32,11 @@ Desktop 與連接器版本分別顯示。更新保留原服務狀態：停止中
 
 Codex 尋找範圍包括 Store、PATH、目前活動 npm 安裝與 daemon 包的穩定 `current` 入口。原設定若寫死已移除的版本，先按「更新連接器，保留原資料」，再從「修改原設定」選擇尋找到的安裝，即可沿原 instance 保存其來源，之後跟隨正常升級。通用 ACP 直接選擇實際執行檔，啟動參數逐項填寫，保留順序、空格與空參數；未編輯時保留原值。
 
-一般遠端接入復用同一個 Yuki HTTPS 網址與 443 的 `/agents/v1/` WebSocket 入口，由伺服器部署者一次配置；使用者電腦只需連出。伺服器未提供入口時需先完成[配套部署](https://github.com/YuanYeYouTao/Yuki/blob/main/docs/operations/desktop-local-deployment.zh-CN.md)，SSH 隧道保留為進階方式。改變既有 Connector 的網址前須核原操作 namespace，不能覆蓋設定後自稱未決任務已遷移。
+一般遠端接入使用 Yuki 的完整 HTTPS 網址及 `/agents/v1/` WebSocket 入口，由伺服器部署者配置；使用者電腦只需連出。伺服器未提供入口時需先完成[配套部署](https://github.com/YuanYeYouTao/Yuki-QQbot/blob/main/docs/operations/desktop-local-deployment.zh-CN.md)，SSH 隧道保留為進階方式。
 
-已有 SSH、VPN 或 Tailscale 網路時，先由原工具建立可達入口，再使用該 Yuki 網址。Desktop 不另外啟動隧道或安裝 VPN；原位址恢復後可以重新連線，不因普通斷網要求重新配對。遠端 Connector 使用 HTTPS/WSS，SSH 轉發至本機 loopback 可使用 HTTP/WS。
+透過 Tailscale 接入時，電腦和伺服器分別安裝並登入[官方 Tailscale](https://tailscale.com/download)，加入獲准互通的網路。**Serve 指令只在執行 Yuki 的伺服器宿主機操作**；設定 →「連線」與原配對頁提供說明，Desktop 不執行 Serve，也不要求本機有 Tailscale CLI 才能填寫 HTTPS 網址或配對連結。可依[手動或 AI 輔助接入指南](https://github.com/YuanYeYouTao/Yuki-QQbot/blob/main/docs/operations/tailscale-connection.zh-CN.md)完成兩端設定。
+
+客戶端網址與電腦 Connector 網址各自保存，可以用不同地址連向同一個 Yuki；修改其中一邊不會自動改另一邊。保留原配對設定換線時，`device_id`、憑據、原生實例與操作回執不變，不需重新配對。已有 SSH 或 VPN 仍可繼續使用；遠端 Connector 使用 HTTPS/WSS，SSH 轉發至本機 loopback 可使用 HTTP/WS。
 
 「這台電腦」依這台裝置顯示原終端輸出、狀態與完成回執，也可選擇原生會話、提交要求及回應原權限或問題請求。移除原生設定不會抹去該裝置的舊操作回執。停止請求沿原 run 與 request ID 查證，連線中斷時查詢原回執。伺服器接納、背景服務、原生就緒與實際執行結果分別顯示。Codex 連接原 daemon；Claude 沿原生 SDK 的會話與執行能力，不把讀取歷史說成接管任意執行中的終端。桌面不改原生登入或權限設定。
 

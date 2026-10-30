@@ -124,6 +124,7 @@ export interface ConnectorBridge {
   }): Promise<ApiReply<ConnectorState>>
   connect(input: { characterId: string; label: string }): Promise<ApiReply<ConnectorState>>
   pair(input: ConnectorPairing): Promise<ApiReply<ConnectorState>>
+  server(input: { characterId: string; server: string }): Promise<ApiReply<ConnectorState>>
   service(action: ConnectorServiceAction): Promise<ApiReply<ConnectorState>>
   fullAccess(enabled: boolean, characterId?: string): Promise<ApiReply<ConnectorState>>
   discover(driver?: ConnectorDriver): Promise<ApiReply<ConnectorCandidate[]>>

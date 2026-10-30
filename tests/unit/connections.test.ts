@@ -105,13 +105,7 @@ it.each([undefined, 3])(
         ],
       })
     })
-    expect(
-      await connections.connectorAdmission(
-        original.characterId,
-        original.baseUrl,
-        'original-device',
-      ),
-    ).toEqual({
+    expect(await connections.connectorAdmission(original.characterId, 'original-device')).toEqual({
       matched: true,
       connected: true,
       ...(serverProtocol !== undefined ? { serverProtocol } : {}),

@@ -23,6 +23,7 @@ import { Row, SettingsSection } from './SettingsRow'
 import styles from './Settings.module.css'
 
 const problems: Record<string, string> = {
+  invalid_server: '遠端位址請使用 https://；連向這台電腦時才可使用 http://。',
   unknown: '本機連接器操作未確認，請重新開啟設定確認。',
   connector_runtime_invalid: '隨附連接器的檔案不完整，請重新安裝完整的 Yuki Desktop 發行包。',
   connector_owner_mismatch:
@@ -39,8 +40,6 @@ const problems: Record<string, string> = {
   connector_authorization_failed: '電腦授權未完成，請確認目前的 Yuki 連線後重新授權。',
   connector_server_error:
     '伺服器未接納連接器，請確認同一個 Yuki 網址已提供 /agents/v1/ HTTPS 與 WebSocket 入口。',
-  connector_other_server:
-    '這份安裝連接另一個 Yuki 網址。請保留原安裝，為目前的 Yuki 建立獨立安裝。',
   connector_other_person: '伺服器目前未提供這份原連接。原身份與回執會保留，可以建立新連接。',
   connector_runtime_platform: '這份連接器不適用於目前系統，請安裝對應平台的 Desktop 發行包。',
   connector_not_installed: '連接器原位置已不存在，請重新準備隨附連接器或選用原安裝。',
@@ -50,7 +49,7 @@ const problems: Record<string, string> = {
   connector_instance_missing:
     '這份原生設定已不存在，請關閉編輯視窗，再選擇「新增 Agent」建立新設定。',
   connector_update_required:
-    '原連接器版本尚未支援這項原生工具功能，請先更新連接器；原身份與操作記錄會保留。',
+    '原連接器版本尚未支援這項功能，請先更新連接器；原身份與操作記錄會保留。',
   connector_invalid_response:
     '無法解析連接器回傳的資料，請重新開啟設定或更新連接器。原設定會保留。',
 }
@@ -82,9 +81,13 @@ const summary = (state: ConnectorState | undefined): { text: string; status: Sta
     : { text: '尚未確認連線', status: 'unknown' }
 }
 
-type Feedback = { section: 'status' | 'permission' | 'agents' | 'installation'; text: string }
+type Feedback = {
+  section: 'status' | 'permission' | 'agents' | 'installation' | 'server'
+  text: string
+}
 
 const stages: Record<string, string> = {
+  server: '儲存連接器位址',
   prepare: '準備執行環境',
   authorize: '目前本人授權',
   pair: '電腦配對',
@@ -119,6 +122,8 @@ export function AgentConnector({
   const [notice, setNotice] = useState<Feedback>()
   const [editorOpen, setEditorOpen] = useState(false)
   const editorForm = useId()
+  const [serverAddress, setServerAddress] = useState<string>()
+  const serverForm = useId()
   const [consent, setConsent] = useState(false)
   const [candidates, setCandidates] = useState<ConnectorCandidate[]>([])
   const [candidateId, setCandidateId] = useState('')
@@ -345,6 +350,23 @@ export function AgentConnector({
             </Button>
           ) : null}
         </Row>
+        {connection && available?.paired && (
+          <Row
+            title="連接器伺服器位址"
+            description="這份電腦連接使用的位址，與桌面聊天的伺服器位址分開保存。"
+          >
+            <Button
+              disabled={busy}
+              onClick={() => {
+                setError(undefined)
+                setNotice(undefined)
+                setServerAddress(available.server ?? '')
+              }}
+            >
+              修改連接器位址
+            </Button>
+          </Row>
+        )}
         {existing && (
           <Row
             title="沿用原有連接"
@@ -439,6 +461,64 @@ export function AgentConnector({
           </Row>
         )}
       </SettingsSection>
+      {connection && (
+        <Sheet
+          title="修改連接器位址"
+          open={serverAddress !== undefined}
+          onClose={() => {
+            if (!busy) setServerAddress(undefined)
+          }}
+          actions={
+            <>
+              <Button disabled={busy} onClick={() => setServerAddress(undefined)}>
+                取消
+              </Button>
+              <Button
+                type="submit"
+                form={serverForm}
+                variant="primary"
+                loading={busy}
+                disabled={!serverAddress?.trim()}
+              >
+                儲存
+              </Button>
+            </>
+          }
+        >
+          <form
+            id={serverForm}
+            onSubmit={(event) => {
+              event.preventDefault()
+              void perform(async () => {
+                unwrap(
+                  await window.yuki.connector.server({
+                    characterId: connection.characterId,
+                    server: serverAddress!,
+                  }),
+                )
+                setServerAddress(undefined)
+                setNotice({
+                  section: 'status',
+                  text: '位址已儲存，下次啟動背景連接時使用。',
+                })
+              }, 'server')
+            }}
+          >
+            <p>
+              只儲存這份連接器的位址，不修改桌面聊天連線，也不啟停背景連接。下次啟動時使用新位址。
+            </p>
+            <TextField
+              aria-label="連接器伺服器位址"
+              value={serverAddress ?? ''}
+              onChange={(event) => setServerAddress(event.target.value)}
+              placeholder="https://"
+              autoComplete="url"
+              required
+            />
+          </form>
+          {feedback('server')}
+        </Sheet>
+      )}
       {available?.paired && (
         <>
           <SettingsSection title="權限">

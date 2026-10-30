@@ -354,7 +354,8 @@ else {
         : join(app.getAppPath(), '.cache', 'connector-runtime'),
       store,
       authorize: (id) => connections.authorizeConnector(id),
-      admission: (id, server, device) => connections.connectorAdmission(id, server, device),
+      admission: (id, device) => connections.connectorAdmission(id, device),
+      verifyServer: (id, server, device) => connections.verifyConnectorServer(id, server, device),
     })
     action('connector-state', (id?: string) => connector.state(id))
     action('connector-install', (separate?: boolean) => connector.install(separate))
@@ -366,6 +367,9 @@ else {
       connector.connect(input),
     )
     action('connector-pair', (input: ConnectorPairing) => connector.pair(input))
+    action('connector-server', (input: { characterId: string; server: string }) =>
+      connector.server(input),
+    )
     action('connector-service', (command: ConnectorServiceAction) => connector.service(command))
     action('connector-full-access', async (enabled: boolean, id?: string) => {
       const state = await connector.fullAccess(enabled)

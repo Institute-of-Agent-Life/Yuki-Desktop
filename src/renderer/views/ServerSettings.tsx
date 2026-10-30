@@ -5,6 +5,7 @@ import { Banner, Button, Sheet, TextField } from '../components/Controls'
 import { unwrap, problemText, hidesPrivateData } from '../queries/client'
 import { PendingRequest, Row, SettingsSection } from './SettingsRow'
 import { LogoutFlow } from './LogoutFlow'
+import { TailscaleGuide } from './TailscaleGuide'
 import styles from './Settings.module.css'
 
 export function ServerSettings({
@@ -168,6 +169,10 @@ export function ServerSettings({
                 </Button>
               )}
             </Row>
+            <TailscaleGuide onError={setAddressError} />
+            {address === undefined && addressError && (
+              <Banner status="failed">{addressError}</Banner>
+            )}
           </SettingsSection>
           <SettingsSection title="主動訊息">
             {route.isError && <Banner status="failed">{route.error.message}</Banner>}
