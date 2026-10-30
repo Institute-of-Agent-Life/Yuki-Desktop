@@ -244,7 +244,7 @@ test('real workspace handles long conversations, separate entries, work details 
       'flow-09-files-original',
       async () => {
         await page.keyboard.press('ControlOrMeta+4')
-        const versions = page.getByRole('button').and(page.getByTitle(name, { exact: true }))
+        const versions = page.getByRole('button').and(page.getByTitle(name))
         await expect(versions).toHaveCount(2)
         for (const item of delivered.slice(0, 2))
           await expect(versions.filter({ hasText: item.artifact_id })).toHaveCount(1)

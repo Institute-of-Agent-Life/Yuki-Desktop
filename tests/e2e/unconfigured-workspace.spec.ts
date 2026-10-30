@@ -7,9 +7,7 @@ import { navigate, sidebar } from '../fixtures/navigation'
 import { captureViewport, contentSize } from '../fixtures/visual'
 
 async function expectUnconfigured(page: Page) {
-  const navigation = page.getByRole('navigation', { name: '主要導覽', exact: true })
-  await expect(navigation).toBeVisible()
-  await expect(navigation.getByRole('button', { name: '設定', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
   await expect(
     page.locator('[data-region="toolbar"]').getByRole('button', { name: '設定', exact: true }),
   ).toHaveCount(0)
