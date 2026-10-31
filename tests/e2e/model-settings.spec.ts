@@ -12,6 +12,7 @@ test('model connections add grouped profiles with write-only keys and edit real 
   app.process().stdout?.on('data', (chunk: Buffer) => logs.push(chunk.toString()))
   app.process().stderr?.on('data', (chunk: Buffer) => logs.push(chunk.toString()))
   try {
+    const page = await app.firstWindow()
     await app.evaluate(() => {
       const scope = globalThis as typeof globalThis & { modelApplyBody?: Promise<unknown> }
       const originalFetch = globalThis.fetch
@@ -26,7 +27,6 @@ test('model connections add grouped profiles with write-only keys and edit real 
         }
       })
     })
-    const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
     await page.evaluate(() =>
       window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'settings' })),

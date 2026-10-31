@@ -233,9 +233,11 @@ test('editing a model keeps its original profile parameters key and server-only 
     editedProfile.capabilities = [...editedProfile.capabilities!].sort()
     expect(editedProfile).toEqual(priorProfile)
     expect(after.value.document.routes).toEqual(seed.saved.value.document.routes)
-    expect(after.value.document.profiles['pro-existing-16k']).toEqual(
-      seed.saved.value.document.profiles['pro-existing-16k'],
-    )
+    const priorOtherProfile = { ...seed.saved.value.document.profiles['pro-existing-16k'] },
+      otherProfile = { ...after.value.document.profiles['pro-existing-16k'] }
+    priorOtherProfile.capabilities = [...priorOtherProfile.capabilities!].sort()
+    otherProfile.capabilities = [...otherProfile.capabilities!].sort()
+    expect(otherProfile).toEqual(priorOtherProfile)
     expect(after.value.saved_api_key_profiles).toContain('main')
     expect(await readFile(file, 'utf8')).toContain('X-Fixture-Header = "synthetic-retained-header"')
     expect(JSON.stringify({ seed, after })).not.toContain(state.model_upstream_key)
