@@ -3,10 +3,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Connection } from '../../shared/api'
 import type { ModelApplyInput, ModelDocument } from '../../shared/models'
 import { Banner, Button, Segmented, Spinner } from '../components/Controls'
-import { ClientProblem, unwrap } from '../queries/client'
-import { PendingRequest, SettingsSection } from './SettingsRow'
+import { ClientProblem, unwrap, useMe } from '../queries/client'
+import { PendingRequest } from './SettingsRow'
 import { ModelConnections } from './ModelConnections'
 import { ModelPurposes } from './ModelPurposes'
+import { ModelUsage } from './ModelUsage'
 import styles from './ModelSettings.module.css'
 
 export function useModelConfiguration(id: string) {
@@ -72,14 +73,16 @@ export function useModelConfiguration(id: string) {
 
 export function ModelSettings({ connection }: { connection: Connection }) {
   const model = useModelConfiguration(connection.characterId)
+  const authority = useMe(connection.characterId)
   const [tab, setTab] = useState('connections')
   const data = model.bundle.data
   if (
-    model.bundle.error instanceof ClientProblem &&
-    model.bundle.error.code === 'capability_denied'
+    authority.data?.is_superuser === false ||
+    (model.bundle.error instanceof ClientProblem && model.bundle.error.code === 'capability_denied')
   )
     return <Banner>只有 Yuki 的管理員可以修改模型設定</Banner>
-  if (model.bundle.isPending) return <Spinner />
+  if (authority.error) return <Banner status="failed">{authority.error.message}</Banner>
+  if (authority.isPending || model.bundle.isPending) return <Spinner />
   if (model.bundle.error) return <Banner status="failed">{model.bundle.error.message}</Banner>
   if (!data!.valid)
     return <Banner status="failed">Yuki 上的模型設定檔無法解析，請由管理員檢查</Banner>
@@ -135,17 +138,7 @@ export function ModelSettings({ connection }: { connection: Connection }) {
           feedback={feedback}
         />
       ) : (
-        <SettingsSection
-          title={tab === 'connections' ? '模型連接' : tab === 'purposes' ? '模型用途' : '模型用量'}
-        >
-          <p className={styles.notice}>
-            {tab === 'connections'
-              ? `${Object.keys(data!.document.profiles).length} 個模型`
-              : tab === 'purposes'
-                ? '選擇每項用途使用的模型。'
-                : '按用途與模型查看實際用量。'}
-          </p>
-        </SettingsSection>
+        <ModelUsage characterId={connection.characterId} />
       )}
     </div>
   )
