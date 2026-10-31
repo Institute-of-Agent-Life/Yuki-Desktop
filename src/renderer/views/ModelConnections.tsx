@@ -1,42 +1,14 @@
 import { useState, type ReactNode } from 'react'
-import type { ModelBundle, ModelDocument, ModelProfile } from '../../shared/models'
+import type { ModelBundle, ModelProfile } from '../../shared/models'
 import { Button, Sheet, TextField } from '../components/Controls'
 import { SettingsSection } from './SettingsRow'
 import { ModelConnectionForm, type ConnectionDraft } from './ModelConnectionForm'
 import { ModelSchemaFields, modelLabel, schemaDefaults, type JsonSchema } from './ModelSchemaFields'
 import styles from './ModelSettings.module.css'
 import { ModelDraftProbes, ModelTest } from './ModelProbes'
+import { modelSlug, newKeyAlias, modelTaskLabel, type ModelSave } from './model-document'
 
 type Bundle = Extract<ModelBundle, { valid: true }>
-type Save = (document: ModelDocument, keys?: Record<string, string>, saved?: () => void) => void
-export const modelSlug = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[^a-z0-9_.-]/g, (character) =>
-      character.codePointAt(0)! > 127 ? `u${character.codePointAt(0)!.toString(16)}` : '-',
-    )
-    .replace(/^-+|-+$/g, '')
-
-function newKeyAlias(document: ModelDocument, name: string) {
-  const aliases = new Set([
-    ...Object.values(document.profiles).map((profile) => profile.api_key_env),
-    ...Object.values(document.semantic_observation?.connections ?? {}).map(
-      (connection) => connection.api_key_env,
-    ),
-    document.embedding?.api_key_env,
-    document.vision?.api_key_env,
-    document.asr?.api_key_env,
-    document.search?.tavily_api_key_env,
-  ])
-  const base = `YUKI_KEY_${modelSlug(name)
-    .replace(/[^a-z0-9_]/g, '_')
-    .toUpperCase()}`
-  let alias = base,
-    suffix = 2
-  while (aliases.has(alias)) alias = `${base}_${suffix++}`
-  return alias
-}
 
 function references(data: Bundle, id: string) {
   const document = data.document,
@@ -44,7 +16,7 @@ function references(data: Bundle, id: string) {
     resolved = data.resolved_profiles?.[id]
   const used = Object.entries(document.routes)
     .filter(([, value]) => value === id)
-    .map(([task]) => task)
+    .map(([task]) => modelTaskLabel(task))
   if (document.search_connection === id) used.push('聯網搜尋')
   for (const [otherId, other] of Object.entries(document.profiles))
     if (other.search_connection === id) used.push(`${otherId} 搜尋`)
@@ -76,7 +48,7 @@ export function ModelConnections({
   data: Bundle
   busy: boolean
   pending: boolean
-  save: Save
+  save: ModelSave
   feedback: ReactNode
   characterId: string
 }) {

@@ -6,6 +6,7 @@ import { Banner, Button, Segmented, Spinner } from '../components/Controls'
 import { ClientProblem, unwrap } from '../queries/client'
 import { PendingRequest, SettingsSection } from './SettingsRow'
 import { ModelConnections } from './ModelConnections'
+import { ModelPurposes } from './ModelPurposes'
 import styles from './ModelSettings.module.css'
 
 export function useModelConfiguration(id: string) {
@@ -62,7 +63,11 @@ export function useModelConfiguration(id: string) {
     setPending(request)
     void run(request)
   }
-  return { bundle, save, busy, error, conflict, pending, verify: () => void run(pending!) }
+  const reload = async () => {
+    const result = await bundle.refetch()
+    if (!result.isError) setConflict(false)
+  }
+  return { bundle, save, busy, error, conflict, pending, reload, verify: () => void run(pending!) }
 }
 
 export function ModelSettings({ connection }: { connection: Connection }) {
@@ -83,7 +88,10 @@ export function ModelSettings({ connection }: { connection: Connection }) {
       {model.error && <Banner status="failed">{model.error}</Banner>}
       {model.conflict && (
         <Banner status="failed">
-          設定已在其他地方變更 <Button onClick={() => void model.bundle.refetch()}>重新載入</Button>
+          設定已在其他地方變更{' '}
+          <Button loading={model.bundle.isFetching} onClick={() => void model.reload()}>
+            重新載入
+          </Button>
         </Banner>
       )}
       {model.pending && !model.busy && (
@@ -117,6 +125,14 @@ export function ModelSettings({ connection }: { connection: Connection }) {
           save={model.save}
           feedback={feedback}
           characterId={connection.characterId}
+        />
+      ) : tab === 'purposes' ? (
+        <ModelPurposes
+          data={data!}
+          busy={model.busy}
+          pending={!!model.pending}
+          save={model.save}
+          feedback={feedback}
         />
       ) : (
         <SettingsSection
