@@ -116,6 +116,7 @@ export function ModelSettings({ connection }: { connection: Connection }) {
           pending={!!model.pending}
           save={model.save}
           feedback={feedback}
+          characterId={connection.characterId}
         />
       ) : (
         <SettingsSection

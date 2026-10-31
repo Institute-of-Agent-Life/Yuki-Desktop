@@ -5,6 +5,7 @@ import { SettingsSection } from './SettingsRow'
 import { ModelConnectionForm, type ConnectionDraft } from './ModelConnectionForm'
 import { ModelSchemaFields, modelLabel, schemaDefaults, type JsonSchema } from './ModelSchemaFields'
 import styles from './ModelSettings.module.css'
+import { ModelDraftProbes, ModelTest } from './ModelProbes'
 
 type Bundle = Extract<ModelBundle, { valid: true }>
 type Save = (document: ModelDocument, keys?: Record<string, string>, saved?: () => void) => void
@@ -70,12 +71,14 @@ export function ModelConnections({
   pending,
   save,
   feedback,
+  characterId,
 }: {
   data: Bundle
   busy: boolean
   pending: boolean
   save: Save
   feedback: ReactNode
+  characterId: string
 }) {
   const schema = data.profile_schema as JsonSchema
   const [adding, setAdding] = useState(false)
@@ -200,6 +203,12 @@ export function ModelConnections({
                     <small>{profile.capabilities?.map(modelLabel).join(' · ')}</small>
                   </div>
                   <div className={styles.cardActions}>
+                    <ModelTest
+                      key={JSON.stringify([profile, data.resolved_profiles?.[id]])}
+                      characterId={characterId}
+                      input={{ profile_id: id }}
+                      disabled={busy || pending}
+                    />
                     <Button
                       aria-label={`編輯 ${id}`}
                       disabled={busy || pending}
@@ -273,7 +282,20 @@ export function ModelConnections({
             </Button>
             <p>{data.provider_presets[preset]!.protocol}</p>
             <fieldset className={styles.editor} disabled={busy || pending}>
-              <ModelConnectionForm value={draft} change={setDraft}>
+              <ModelConnectionForm
+                value={draft}
+                change={setDraft}
+                actions={
+                  <ModelDraftProbes
+                    characterId={characterId}
+                    preset={data.provider_presets[preset]!}
+                    draft={draft}
+                    defaults={defaults}
+                    change={setDraft}
+                    disabled={busy || pending}
+                  />
+                }
+              >
                 <details className={styles.advanced} open>
                   <summary>進階</summary>
                   <ModelSchemaFields

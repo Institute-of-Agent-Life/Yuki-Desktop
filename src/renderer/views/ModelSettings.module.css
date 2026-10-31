@@ -136,6 +136,33 @@
   margin: 0;
   min-width: 0;
 }
+.probe {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.modelList {
+  display: grid;
+  gap: 10px;
+  max-height: 220px;
+  overflow: auto;
+}
+.modelList label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+}
+.modelList span {
+  display: grid;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+.modelList small {
+  color: var(--text-secondary);
+}
 .fieldset legend {
   color: var(--text-secondary);
   font-size: 12px;

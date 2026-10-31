@@ -73,16 +73,16 @@ export function ModelConnectionForm({
       {value.models.length > 0 && (
         <div className={styles.checks}>
           {value.models.map((model) => (
-            <label key={model}>
-              <input
-                type="checkbox"
-                checked
-                onChange={() =>
-                  change({ ...value, models: value.models.filter((id) => id !== model) })
-                }
-              />
-              {model}
-            </label>
+            <Button
+              key={model}
+              aria-label={`移除模型 ${model}`}
+              variant="plain"
+              onClick={() =>
+                change({ ...value, models: value.models.filter((id) => id !== model) })
+              }
+            >
+              {model} ×
+            </Button>
           ))}
         </div>
       )}
