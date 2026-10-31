@@ -20,7 +20,7 @@ const original: Connection = {
 }
 const merged = '00000000-0000-4000-8000-000000000005'
 const meta: Meta = {
-  api_revision: 8,
+  api_revision: 9,
   capabilities: ['character', 'soul'],
   server_version: 'test',
   character: {

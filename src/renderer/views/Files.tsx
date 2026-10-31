@@ -383,9 +383,6 @@ export function ArtifactInspector({
       {data && (
         <>
           <h2>{data.filename}</h2>
-          <code>
-            {source.artifactId} · {shortVersion(source.version)}
-          </code>
           <div className={styles.actions}>
             <Button
               onClick={() => void act(saveArtifact(id, source).then(() => content.refetch()))}
@@ -402,6 +399,12 @@ export function ArtifactInspector({
             content={data}
             open={() => void act(window.yuki.client.openArtifact(id, source).then(unwrap))}
           />
+          <details>
+            <summary>詳細資料</summary>
+            <code title={source.version}>
+              {source.artifactId} · {shortVersion(source.version)}
+            </code>
+          </details>
         </>
       )}
     </div>

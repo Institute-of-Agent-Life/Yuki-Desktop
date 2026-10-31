@@ -4,7 +4,7 @@ import type { NavigationTarget } from './desktop'
 import type { MessageReference } from './message'
 import type { ModelsBridge } from './models'
 
-export const REQUIRED_API_REVISION = 8
+export const REQUIRED_API_REVISION = 9
 
 export type Meta = ServerComponents['schemas']['Meta']
 export type Me = components['schemas']['Me']

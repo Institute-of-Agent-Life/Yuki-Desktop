@@ -11,13 +11,14 @@ test('draft model listing and probes use the real upstream without saving or cou
     const page = await app.firstWindow(),
       state = await rig.state()
     await pairUI(page, rig.base, await rig.code())
-    const original = await currentConnection(page)
+    const original = await currentConnection(page),
+      query = { range: 'all' as const, timezone: 'Asia/Taipei', end: new Date().toISOString() }
     const before = await page.evaluate(
-      async (id) => ({
+      async ({ id, query }) => ({
         bundle: await window.yuki.client.models.read(id),
-        stats: await window.yuki.client.models.stats(id),
+        stats: await window.yuki.client.models.stats(id, query),
       }),
-      original.characterId,
+      { id: original.characterId, query },
     )
     await page.evaluate(() =>
       window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'settings' })),
@@ -34,6 +35,7 @@ test('draft model listing and probes use the real upstream without saving or cou
     expect(await list.count()).toBe(1)
     await sheet.getByLabel('服務位址', { exact: true }).fill(state.model_upstream_url)
     await sheet.getByLabel('金鑰', { exact: true }).fill(state.model_upstream_key)
+    await sheet.getByText('進階', { exact: true }).click()
     await sheet.getByLabel('逾時（秒）', { exact: true }).fill('20')
     await sheet.getByLabel('重試次數', { exact: true }).fill('0')
     await sheet.getByLabel('溫度', { exact: true }).fill('0.2')
@@ -59,11 +61,11 @@ test('draft model listing and probes use the real upstream without saving or cou
       sheet.getByText('這個服務不提供模型清單，請手動輸入模型 ID', { exact: true }),
     ).toBeVisible()
     const after = await page.evaluate(
-      async (id) => ({
+      async ({ id, query }) => ({
         bundle: await window.yuki.client.models.read(id),
-        stats: await window.yuki.client.models.stats(id),
+        stats: await window.yuki.client.models.stats(id, query),
       }),
-      original.characterId,
+      { id: original.characterId, query },
     )
     expect(after).toEqual(before)
     const calls = await fetch(`${rig.base}/__test/model-upstream-calls`).then((response) =>

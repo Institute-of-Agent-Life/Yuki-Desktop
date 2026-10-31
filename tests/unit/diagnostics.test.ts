@@ -21,5 +21,5 @@ it('exports explicit diagnostic fields rather than copying stored private payloa
   expect(raw).not.toContain(secret)
   expect(raw).not.toContain(body)
   expect(value.local).toEqual({ connections: 2, subscriptions: 1, messages: { submitted: 3 } })
-  expect(value).toHaveProperty('required_api_revision', 8)
+  expect(value).toHaveProperty('required_api_revision', 9)
 })

@@ -42,7 +42,12 @@ import type {
   SoulCommand,
   SoulEdit,
 } from '../shared/api'
-import type { ModelApplyInput, ModelTestInput, ModelDiscoverInput } from '../shared/models'
+import type {
+  ModelApplyInput,
+  ModelTestInput,
+  ModelDiscoverInput,
+  ModelStatsQuery,
+} from '../shared/models'
 import { Connections } from './connections'
 import { ApiError } from './api/client'
 import { avatarInput } from './avatar-input'
@@ -707,7 +712,9 @@ else {
     clientAction('models-discover', (id: string, input: ModelDiscoverInput) =>
       connections.discoverModels(id, input),
     )
-    clientAction('models-stats', (id: string) => connections.modelStats(id))
+    clientAction('models-stats', (id: string, query: ModelStatsQuery) =>
+      connections.modelStats(id, query),
+    )
     clientAction('soul-document', (id: string) => connections.soulDocument(id))
     clientAction('soul-edit', (id: string, edit: SoulEdit) => connections.soulEdit(id, edit))
     clientAction('soul-draft', (id: string) => connections.soul(id).draft())

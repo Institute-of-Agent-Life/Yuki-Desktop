@@ -12,6 +12,9 @@ export type ModelDiscoverInput =
   paths['/admin/v1/models/discover']['post']['requestBody']['content']['application/json']
 export type ModelDiscoverResult = components['schemas']['ModelDiscoverResult']
 export type ModelStatsView = components['schemas']['ModelStatsView']
+export type ModelStatsQuery = paths['/admin/v1/models/stats']['get']['parameters']['query']
+export type ModelUsageStats = components['schemas']['ModelUsageStats']
+export type ModelUsageGroup = components['schemas']['ModelUsageGroup']
 export type ProviderPreset = components['schemas']['ProviderPresetView']
 type ModelsBody = components['schemas']['ModelsBody']
 export interface ModelApplyInput {
@@ -25,5 +28,5 @@ export interface ModelsBridge {
   apply(characterId: string, input: ModelApplyInput): Promise<ApiReply<ModelControlResult>>
   test(characterId: string, input: ModelTestInput): Promise<ApiReply<ModelTestResult>>
   discover(characterId: string, input: ModelDiscoverInput): Promise<ApiReply<ModelDiscoverResult>>
-  stats(characterId: string): Promise<ApiReply<ModelStatsView>>
+  stats(characterId: string, query: ModelStatsQuery): Promise<ApiReply<ModelStatsView>>
 }

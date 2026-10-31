@@ -1,7 +1,8 @@
 import { activeCharacterName } from '../fixtures/active-character'
 import { crashElectron } from '../fixtures/electron-process'
 import { expect, test } from '@playwright/test'
-import { writeFile } from 'node:fs/promises'
+import { copyFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { Home, Work } from '../../src/shared/api'
 import {
   recordBusinessState,
@@ -217,6 +218,38 @@ test('two actual devices submit different answers to one work and recover their 
   const a = await rig.launch('concurrent-input-a')
   const b = await rig.launch('concurrent-input-b')
   let success = false
+  let identity:
+    { characterId: string; requestId: string; eventId: number; workId: string } | undefined
+  const observedCommands: unknown[] = []
+  const recordLedger = (events: Awaited<ReturnType<typeof ledgerEvents>>, phase: string) =>
+    writeFile(
+      test.info().outputPath(`concurrent-${phase}-ledger.json`),
+      JSON.stringify(
+        {
+          observedAt: new Date().toISOString(),
+          identity,
+          events: events.map(
+            ({
+              event_id,
+              conversation_id,
+              author_kind,
+              author_person_id,
+              direction,
+              observed_at,
+            }) => ({
+              event_id,
+              conversation_id,
+              author_kind,
+              author_person_id,
+              direction,
+              observed_at,
+            }),
+          ),
+        },
+        null,
+        2,
+      ),
+    )
   try {
     const pa = await a.firstWindow()
     const pb = await b.firstWindow()
@@ -236,6 +269,12 @@ test('two actual devices submit different answers to one work and recover their 
     const receipt = await waitForMainEnded(pa, connection.characterId, submitted.requestId)
     expect(receipt.event_id).toBe(submitted.eventId)
     if (!receipt.work) throw Error('Original Work association is missing')
+    identity = {
+      characterId: connection.characterId,
+      requestId: submitted.requestId,
+      eventId: submitted.eventId,
+      workId: receipt.work.work_id,
+    }
     for (const page of [pa, pb])
       await expect(
         page
@@ -270,17 +309,33 @@ test('two actual devices submit different answers to one work and recover their 
         detail.getByRole('button', { name: '傳送給這項工作', exact: true }).click(),
       ),
     )
-    for (const page of [pa, pb])
+    for (const [index, page] of [pa, pb].entries())
       await expect
         .poll(
-          () =>
-            page.evaluate(async (id) => {
+          async () => {
+            const result = await page.evaluate(async (id) => {
               const commands = await window.yuki.client.workCommands(id)
-              return commands.ok ? commands.value.map((item) => [item.state, item.problem]) : []
-            }, original.characterId),
+              return {
+                states: commands.ok ? commands.value.map((item) => [item.state, item.problem]) : [],
+                commands: commands.ok
+                  ? commands.value.map(({ command, ...item }) => ({
+                      ...item,
+                      kind: command.kind,
+                      workId: command.workId,
+                    }))
+                  : commands,
+              }
+            }, original.characterId)
+            observedCommands[index] = { observedAt: new Date().toISOString(), ...result }
+            return result.states
+          },
           { timeout: 20000 },
         )
         .toEqual([['result', null]])
+    await writeFile(
+      test.info().outputPath('concurrent-accepted-local.json'),
+      JSON.stringify({ identity, devices: observedCommands }, null, 2),
+    ).catch(console.error)
     await waitForWorkState(pb, original.characterId, original.work.work_id, 'completed')
     for (const detail of details)
       await expect(detail.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
@@ -345,14 +400,27 @@ test('two actual devices submit different answers to one work and recover their 
       JSON.stringify({ original, results }, null, 2) + '\n',
     )
     success = true
+    await recordLedger(events, 'final').catch(console.error)
   } finally {
+    await writeFile(
+      test.info().outputPath(`concurrent-${success ? 'final' : 'failure'}-local.json`),
+      JSON.stringify({ identity, devices: observedCommands }, null, 2),
+    ).catch(console.error)
+    await copyFile(
+      join(rig.root, 'server.log'),
+      test.info().outputPath(`concurrent-${success ? 'final' : 'failure'}-backend.log`),
+    ).catch(console.error)
+    for (const [index, app] of [a, b].entries()) {
+      await app
+        .firstWindow()
+        .then((page) => recordBusinessState(page, `business-state-${index}.json`))
+        .catch(console.error)
+      if (!success) await crashElectron(app).catch(() => {})
+    }
     if (!success)
-      for (const [index, app] of [a, b].entries()) {
-        await recordBusinessState(await app.firstWindow(), `business-state-${index}.json`).catch(
-          console.error,
-        )
-        await crashElectron(app).catch(() => {})
-      }
+      await ledgerEvents(rig.base)
+        .then((events) => recordLedger(events, 'failure'))
+        .catch(console.error)
     await Promise.all([a.close().catch(() => {}), b.close().catch(() => {})])
     await rig.close(success)
   }

@@ -1113,6 +1113,41 @@
           }
         ]
       },
+      "ModelCacheRead": {
+        "properties": {
+          "cached_prompt_tokens": {
+            "title": "Cached Prompt Tokens",
+            "type": "integer"
+          },
+          "prompt_tokens": {
+            "title": "Prompt Tokens",
+            "type": "integer"
+          },
+          "ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratio"
+          },
+          "reported_calls": {
+            "title": "Reported Calls",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reported_calls",
+          "prompt_tokens",
+          "cached_prompt_tokens",
+          "ratio"
+        ],
+        "title": "ModelCacheRead",
+        "type": "object"
+      },
       "ModelCapability": {
         "description": "Features a profile must explicitly advertise.",
         "enum": [
@@ -1490,94 +1525,43 @@
         "title": "ModelSearchMode",
         "type": "string"
       },
-      "ModelStats": {
-        "additionalProperties": false,
-        "description": "Aggregated model usage without prompts, users, or tool payloads.",
-        "properties": {
-          "average_latency_seconds": {
-            "default": 0,
-            "title": "Average Latency Seconds",
-            "type": "number"
-          },
-          "cache_creation_1h_input_tokens": {
-            "default": 0,
-            "title": "Cache Creation 1H Input Tokens",
-            "type": "integer"
-          },
-          "cache_creation_5m_input_tokens": {
-            "default": 0,
-            "title": "Cache Creation 5M Input Tokens",
-            "type": "integer"
-          },
-          "cache_creation_input_tokens": {
-            "default": 0,
-            "title": "Cache Creation Input Tokens",
-            "type": "integer"
-          },
-          "cached_prompt_tokens": {
-            "default": 0,
-            "title": "Cached Prompt Tokens",
-            "type": "integer"
-          },
-          "completion_tokens": {
-            "default": 0,
-            "title": "Completion Tokens",
-            "type": "integer"
-          },
-          "failures": {
-            "default": 0,
-            "title": "Failures",
-            "type": "integer"
-          },
-          "invocations": {
-            "default": 0,
-            "title": "Invocations",
-            "type": "integer"
-          },
-          "prompt_tokens": {
-            "default": 0,
-            "title": "Prompt Tokens",
-            "type": "integer"
-          },
-          "successes": {
-            "default": 0,
-            "title": "Successes",
-            "type": "integer"
-          },
-          "total_tokens": {
-            "default": 0,
-            "title": "Total Tokens",
-            "type": "integer"
-          },
-          "unknown_usage": {
-            "default": 0,
-            "title": "Unknown Usage",
-            "type": "integer"
-          }
-        },
-        "title": "ModelStats",
-        "type": "object"
-      },
       "ModelStatsView": {
         "properties": {
-          "by_profile": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/ModelStats"
-            },
-            "title": "By Profile",
-            "type": "object"
+          "filters": {
+            "$ref": "#/components/schemas/ModelUsageFilters"
           },
-          "by_task": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/ModelStats"
+          "group_by": {
+            "enum": [
+              "model",
+              "task"
+            ],
+            "title": "Group By",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ModelUsageGroup"
             },
-            "title": "By Task",
-            "type": "object"
+            "title": "Groups",
+            "type": "array"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ModelUsageOptions"
+          },
+          "range": {
+            "$ref": "#/components/schemas/ModelUsageWindow"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ModelUsageStats"
           }
         },
         "required": [
-          "by_task",
-          "by_profile"
+          "range",
+          "group_by",
+          "filters",
+          "options",
+          "summary",
+          "groups"
         ],
         "title": "ModelStatsView",
         "type": "object"
@@ -1621,6 +1605,351 @@
           "latency_seconds"
         ],
         "title": "ModelTestResult",
+        "type": "object"
+      },
+      "ModelUsageCoverage": {
+        "description": "Calls reporting each field, including reported partial total/output usage.",
+        "properties": {
+          "cache_creation_1h_input_tokens": {
+            "title": "Cache Creation 1H Input Tokens",
+            "type": "integer"
+          },
+          "cache_creation_5m_input_tokens": {
+            "title": "Cache Creation 5M Input Tokens",
+            "type": "integer"
+          },
+          "cache_creation_input_tokens": {
+            "title": "Cache Creation Input Tokens",
+            "type": "integer"
+          },
+          "cached_prompt_tokens": {
+            "title": "Cached Prompt Tokens",
+            "type": "integer"
+          },
+          "completion_tokens": {
+            "title": "Completion Tokens",
+            "type": "integer"
+          },
+          "prompt_tokens": {
+            "title": "Prompt Tokens",
+            "type": "integer"
+          },
+          "total_tokens": {
+            "title": "Total Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "prompt_tokens",
+          "completion_tokens",
+          "total_tokens",
+          "cached_prompt_tokens",
+          "cache_creation_input_tokens",
+          "cache_creation_5m_input_tokens",
+          "cache_creation_1h_input_tokens"
+        ],
+        "title": "ModelUsageCoverage",
+        "type": "object"
+      },
+      "ModelUsageFilters": {
+        "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Id"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task"
+          }
+        },
+        "title": "ModelUsageFilters",
+        "type": "object"
+      },
+      "ModelUsageGroup": {
+        "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/ModelUsageSource"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/ModelUsageStats"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task"
+          }
+        },
+        "required": [
+          "task",
+          "provider",
+          "model",
+          "stats",
+          "sources"
+        ],
+        "title": "ModelUsageGroup",
+        "type": "object"
+      },
+      "ModelUsageModel": {
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "ModelUsageModel",
+        "type": "object"
+      },
+      "ModelUsageOptions": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelUsageModel"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "tasks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tasks",
+          "models"
+        ],
+        "title": "ModelUsageOptions",
+        "type": "object"
+      },
+      "ModelUsageSource": {
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "profile_id": {
+            "title": "Profile Id",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/ModelUsageStats"
+          },
+          "task": {
+            "title": "Task",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task",
+          "provider",
+          "model",
+          "profile_id",
+          "stats"
+        ],
+        "title": "ModelUsageSource",
+        "type": "object"
+      },
+      "ModelUsageStats": {
+        "additionalProperties": false,
+        "description": "Known sums, field coverage and cache ratio from the same reporting calls.",
+        "properties": {
+          "average_latency_seconds": {
+            "default": 0,
+            "title": "Average Latency Seconds",
+            "type": "number"
+          },
+          "cache_creation_1h_input_tokens": {
+            "default": 0,
+            "title": "Cache Creation 1H Input Tokens",
+            "type": "integer"
+          },
+          "cache_creation_5m_input_tokens": {
+            "default": 0,
+            "title": "Cache Creation 5M Input Tokens",
+            "type": "integer"
+          },
+          "cache_creation_input_tokens": {
+            "default": 0,
+            "title": "Cache Creation Input Tokens",
+            "type": "integer"
+          },
+          "cache_read": {
+            "$ref": "#/components/schemas/ModelCacheRead"
+          },
+          "cached_prompt_tokens": {
+            "default": 0,
+            "title": "Cached Prompt Tokens",
+            "type": "integer"
+          },
+          "completion_tokens": {
+            "default": 0,
+            "title": "Completion Tokens",
+            "type": "integer"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/ModelUsageCoverage"
+          },
+          "failures": {
+            "default": 0,
+            "title": "Failures",
+            "type": "integer"
+          },
+          "invocations": {
+            "default": 0,
+            "title": "Invocations",
+            "type": "integer"
+          },
+          "prompt_tokens": {
+            "default": 0,
+            "title": "Prompt Tokens",
+            "type": "integer"
+          },
+          "successes": {
+            "default": 0,
+            "title": "Successes",
+            "type": "integer"
+          },
+          "total_tokens": {
+            "default": 0,
+            "title": "Total Tokens",
+            "type": "integer"
+          },
+          "unknown_usage": {
+            "default": 0,
+            "title": "Unknown Usage",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "coverage",
+          "cache_read"
+        ],
+        "title": "ModelUsageStats",
+        "type": "object"
+      },
+      "ModelUsageWindow": {
+        "properties": {
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "range": {
+            "enum": [
+              "today",
+              "24h",
+              "7d",
+              "all"
+            ],
+            "title": "Range",
+            "type": "string"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "range",
+          "timezone",
+          "start",
+          "end"
+        ],
+        "title": "ModelUsageWindow",
         "type": "object"
       },
       "ModelsBody": {
@@ -3754,6 +4083,118 @@
       "get": {
         "operationId": "model_stats_admin_v1_models_stats_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "task",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Task"
+            }
+          },
+          {
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Provider"
+            }
+          },
+          {
+            "in": "query",
+            "name": "model",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            }
+          },
+          {
+            "in": "query",
+            "name": "profile_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Profile Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "range",
+            "required": true,
+            "schema": {
+              "enum": [
+                "today",
+                "24h",
+                "7d",
+                "all"
+              ],
+              "title": "Range",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timezone",
+            "required": true,
+            "schema": {
+              "title": "Timezone",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "group_by",
+            "required": false,
+            "schema": {
+              "default": "model",
+              "enum": [
+                "model",
+                "task"
+              ],
+              "title": "Group By",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "title": "End",
+              "type": "string"
+            }
+          },
           {
             "in": "header",
             "name": "authorization",

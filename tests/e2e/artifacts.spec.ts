@@ -1,4 +1,5 @@
 import { navigate } from '../fixtures/navigation'
+import { artifactRow } from '../fixtures/artifact-row'
 import { expectPdfPages } from '../fixtures/pdf'
 import { expect, test } from '@playwright/test'
 import { createHash } from 'node:crypto'
@@ -166,7 +167,7 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
     await expect
       .poll(() => app.evaluate(() => (globalThis as unknown as { copied: string }).copied))
       .toBe('# First artifact\n\nOriginal immutable content.\n')
-    await page.getByRole('button').filter({ hasText: delivered[3]!.artifact_id }).click()
+    await artifactRow(page, delivered[3]!.artifact_id).click()
     await stage.getByRole('button', { name: '以預設程式開啟', exact: true }).click()
     await expect
       .poll(() => app.evaluate(() => (globalThis as unknown as { opened: string }).opened))
@@ -178,7 +179,7 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
         .update(await readFile(opened))
         .digest('hex'),
     ).toBe(delivered[3]!.sha256)
-    await rows.filter({ hasText: first.artifact_id }).click()
+    await artifactRow(page, first.artifact_id).click()
     const facts = await page.evaluate(async (artifactId) => {
       const connections = await window.yuki.client.connections()
       if (!connections.ok || !connections.value[0]) throw new Error('No paired connection')
@@ -239,7 +240,7 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
         .update(await readFile(saved))
         .digest('hex'),
     ).toBe(first.sha256)
-    await page.getByRole('button').filter({ hasText: pdf.artifact_id }).dblclick()
+    await artifactRow(page, pdf.artifact_id).dblclick()
     const inspector = page.getByRole('complementary', { name: '詳情' })
     await expect(inspector.locator('iframe')).toBeVisible()
     try {

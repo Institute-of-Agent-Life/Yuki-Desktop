@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { artifactRow } from '../fixtures/artifact-row'
 import { createHash } from 'node:crypto'
 import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -151,7 +152,7 @@ test('delivers an approved plugin original through the real notification worker 
     expect(await readFile(saved)).toEqual(original)
     await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
     await navigate(page, '檔案與成果')
-    await page.getByRole('button').filter({ hasText: reference.artifact_id }).click()
+    await artifactRow(page, reference.artifact_id).click()
     await expect(
       page
         .getByRole('region', { name: '成果預覽' })

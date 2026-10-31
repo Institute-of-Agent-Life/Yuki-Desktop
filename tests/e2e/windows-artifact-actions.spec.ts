@@ -1,4 +1,5 @@
 import { activeCharacterName } from '../fixtures/active-character'
+import { artifactRow } from '../fixtures/artifact-row'
 import { expect, test } from '@playwright/test'
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -110,7 +111,7 @@ test('Windows artifact actions use a real Save picker, Explorer selection and na
     probe = await artifactDropTarget(directory, first.name, first.sha256)
     proof.dropTarget = probe.target
     await save()
-    const row = page.getByRole('button').filter({ hasText: first.artifact_id })
+    const row = artifactRow(page, first.artifact_id)
     await expect(row).toHaveAttribute('draggable', 'true')
     const box = await row.boundingBox()
     proof.gesture = await dragOriginalArtifact(

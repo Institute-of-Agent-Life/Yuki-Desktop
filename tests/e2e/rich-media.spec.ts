@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { artifactRow } from '../fixtures/artifact-row'
 import { copyFile, readFile, writeFile, open } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ElectronApplication } from '@playwright/test'
@@ -227,7 +228,7 @@ test('plays and seeks both actual media sources, renders local rich text and kee
       await fetch(`${rig.base}/__test/artifacts`, { method: 'POST' })
     ).json()) as { artifact_id: string; sha256: string; name: string }[]
     await navigate(page, '檔案與成果')
-    await page.getByRole('button').filter({ hasText: defaults[2]!.artifact_id }).click()
+    await artifactRow(page, defaults[2]!.artifact_id).click()
     await expectPdfPages(page.getByRole('region', { name: '成果預覽' }).locator('iframe'), 1)
     await page.screenshot({ path: test.info().outputPath('pdf-artifact.png') })
     // 128 MiB valid MP4 with trailing padding: only the main-process disk stream holds its bytes.
@@ -265,7 +266,7 @@ test('plays and seeks both actual media sources, renders local rich text and kee
     }, metadata.preview!.url)
     expect(range).toEqual({ status: 206, length: 16384, range: 'bytes 16384-32767/134217728' })
     await navigate(page, '檔案與成果')
-    await page.getByRole('button').filter({ hasText: largeArtifact.artifact_id }).click()
+    await artifactRow(page, largeArtifact.artifact_id).click()
     await playback(page.getByRole('region', { name: '成果預覽' }).locator('video'))
     const after = await app.evaluate(({ app }) =>
       app
@@ -292,7 +293,7 @@ test('plays and seeks both actual media sources, renders local rich text and kee
     page = await app.firstWindow()
     if (!connection.persistentCredentials) await pairUI(page, rig.base, await rig.code())
     await navigate(page, '檔案與成果')
-    await page.getByRole('button').filter({ hasText: image.artifact_id }).click()
+    await artifactRow(page, image.artifact_id).click()
     await expect(
       page.getByRole('region', { name: '成果預覽' }).getByRole('img', { name: 'animated.gif' }),
     ).toBeVisible()

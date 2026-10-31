@@ -143,8 +143,6 @@ export function FileRow({
       <span className={styles.fileText}>
         <FileName name={name} />
         <small title={`${identity} · ${detail}`}>
-          <span className={styles.fileIdentity}>{identity}</span>
-          <span aria-hidden="true">·</span>
           <span className={styles.fileDetail}>{detail}</span>
         </small>
       </span>

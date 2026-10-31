@@ -12,6 +12,8 @@
   gap: 8px;
 }
 .workTitle h3 {
+  min-width: 0;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -88,14 +90,10 @@
   gap: 4px;
   white-space: nowrap;
 }
-.fileIdentity,
 .fileDetail {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
-}
-.fileIdentity {
-  flex: 0 1 64px;
 }
 .fileDetail {
   flex: 1;

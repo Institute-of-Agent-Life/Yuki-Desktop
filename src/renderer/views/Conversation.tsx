@@ -1169,7 +1169,6 @@ export function Conversation({
                           work={workId}
                           open={openWork}
                           reply={answerWork}
-                          artifact={openArtifact}
                         />
                       ))}
                 </Fragment>

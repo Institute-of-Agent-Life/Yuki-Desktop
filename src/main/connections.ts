@@ -32,6 +32,7 @@ import type {
   ModelDiscoverInput,
   ModelDiscoverResult,
   ModelStatsView,
+  ModelStatsQuery,
 } from '../shared/models'
 import { ApiClient, ApiError, normalizeServer } from './api/client'
 import { meetsMinimum } from '../shared/version'
@@ -378,8 +379,12 @@ export class Connections {
   async discoverModels(id: string, input: ModelDiscoverInput) {
     return (await this.modelClient(id)).post<ModelDiscoverResult>('models/discover', input)
   }
-  async modelStats(id: string) {
-    return (await this.modelClient(id)).get<ModelStatsView>('models/stats')
+  async modelStats(id: string, query: ModelStatsQuery) {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null) params.set(key, value)
+    }
+    return (await this.modelClient(id)).get<ModelStatsView>(`models/stats?${params}`)
   }
   private async verifyAddress(id: string, server: string, deviceId?: string) {
     const original = this.connection(id),

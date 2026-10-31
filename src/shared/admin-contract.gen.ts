@@ -1186,6 +1186,17 @@ export interface components {
         };
         JsonValue: unknown;
         ModelBundle: components["schemas"]["ValidModelBundle"] | components["schemas"]["InvalidModelBundle"];
+        /** ModelCacheRead */
+        ModelCacheRead: {
+            /** Cached Prompt Tokens */
+            cached_prompt_tokens: number;
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Ratio */
+            ratio: number | null;
+            /** Reported Calls */
+            reported_calls: number;
+        };
         /**
          * ModelCapability
          * @description Features a profile must explicitly advertise.
@@ -1294,11 +1305,108 @@ export interface components {
          * @enum {string}
          */
         ModelSearchMode: "external" | "native" | "both" | "bridge";
+        /** ModelStatsView */
+        ModelStatsView: {
+            filters: components["schemas"]["ModelUsageFilters"];
+            /**
+             * Group By
+             * @enum {string}
+             */
+            group_by: "model" | "task";
+            /** Groups */
+            groups: components["schemas"]["ModelUsageGroup"][];
+            options: components["schemas"]["ModelUsageOptions"];
+            range: components["schemas"]["ModelUsageWindow"];
+            summary: components["schemas"]["ModelUsageStats"];
+        };
         /**
-         * ModelStats
-         * @description Aggregated model usage without prompts, users, or tool payloads.
+         * ModelTask
+         * @description Stable business purpose attached to every main-model invocation.
+         * @enum {string}
          */
-        ModelStats: {
+        ModelTask: "chat_agent" | "memory_extraction" | "memory_self_reflection" | "memory_dream" | "plugin_agent_session" | "utility_structured";
+        /** ModelTestResult */
+        ModelTestResult: {
+            error_category?: components["schemas"]["ModelConnectionError"] | null;
+            /** Latency Seconds */
+            latency_seconds: number;
+            /** Ok */
+            ok: boolean;
+        };
+        /**
+         * ModelUsageCoverage
+         * @description Calls reporting each field, including reported partial total/output usage.
+         */
+        ModelUsageCoverage: {
+            /** Cache Creation 1H Input Tokens */
+            cache_creation_1h_input_tokens: number;
+            /** Cache Creation 5M Input Tokens */
+            cache_creation_5m_input_tokens: number;
+            /** Cache Creation Input Tokens */
+            cache_creation_input_tokens: number;
+            /** Cached Prompt Tokens */
+            cached_prompt_tokens: number;
+            /** Completion Tokens */
+            completion_tokens: number;
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Total Tokens */
+            total_tokens: number;
+        };
+        /** ModelUsageFilters */
+        ModelUsageFilters: {
+            /** Model */
+            model?: string | null;
+            /** Profile Id */
+            profile_id?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Task */
+            task?: string | null;
+        };
+        /** ModelUsageGroup */
+        ModelUsageGroup: {
+            /** Model */
+            model: string | null;
+            /** Provider */
+            provider: string | null;
+            /** Sources */
+            sources: components["schemas"]["ModelUsageSource"][];
+            stats: components["schemas"]["ModelUsageStats"];
+            /** Task */
+            task: string | null;
+        };
+        /** ModelUsageModel */
+        ModelUsageModel: {
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
+        };
+        /** ModelUsageOptions */
+        ModelUsageOptions: {
+            /** Models */
+            models: components["schemas"]["ModelUsageModel"][];
+            /** Tasks */
+            tasks: string[];
+        };
+        /** ModelUsageSource */
+        ModelUsageSource: {
+            /** Model */
+            model: string;
+            /** Profile Id */
+            profile_id: string;
+            /** Provider */
+            provider: string;
+            stats: components["schemas"]["ModelUsageStats"];
+            /** Task */
+            task: string;
+        };
+        /**
+         * ModelUsageStats
+         * @description Known sums, field coverage and cache ratio from the same reporting calls.
+         */
+        ModelUsageStats: {
             /**
              * Average Latency Seconds
              * @default 0
@@ -1319,6 +1427,7 @@ export interface components {
              * @default 0
              */
             cache_creation_input_tokens: number;
+            cache_read: components["schemas"]["ModelCacheRead"];
             /**
              * Cached Prompt Tokens
              * @default 0
@@ -1329,6 +1438,7 @@ export interface components {
              * @default 0
              */
             completion_tokens: number;
+            coverage: components["schemas"]["ModelUsageCoverage"];
             /**
              * Failures
              * @default 0
@@ -1360,30 +1470,22 @@ export interface components {
              */
             unknown_usage: number;
         };
-        /** ModelStatsView */
-        ModelStatsView: {
-            /** By Profile */
-            by_profile: {
-                [key: string]: components["schemas"]["ModelStats"];
-            };
-            /** By Task */
-            by_task: {
-                [key: string]: components["schemas"]["ModelStats"];
-            };
-        };
-        /**
-         * ModelTask
-         * @description Stable business purpose attached to every main-model invocation.
-         * @enum {string}
-         */
-        ModelTask: "chat_agent" | "memory_extraction" | "memory_self_reflection" | "memory_dream" | "plugin_agent_session" | "utility_structured";
-        /** ModelTestResult */
-        ModelTestResult: {
-            error_category?: components["schemas"]["ModelConnectionError"] | null;
-            /** Latency Seconds */
-            latency_seconds: number;
-            /** Ok */
-            ok: boolean;
+        /** ModelUsageWindow */
+        ModelUsageWindow: {
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /**
+             * Range
+             * @enum {string}
+             */
+            range: "today" | "24h" | "7d" | "all";
+            /** Start */
+            start: string | null;
+            /** Timezone */
+            timezone: string;
         };
         /** ModelsBody */
         ModelsBody: {
@@ -2432,7 +2534,16 @@ export interface operations {
     };
     model_stats_admin_v1_models_stats_get: {
         parameters: {
-            query?: never;
+            query: {
+                task?: string | null;
+                provider?: string | null;
+                model?: string | null;
+                profile_id?: string | null;
+                range: "today" | "24h" | "7d" | "all";
+                timezone: string;
+                group_by?: "model" | "task";
+                end?: string;
+            };
             header?: {
                 authorization?: string | null;
             };

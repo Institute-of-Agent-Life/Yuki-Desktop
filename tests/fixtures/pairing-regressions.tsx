@@ -16,7 +16,7 @@ const client: Pick<ConversationBridge, 'pendingPairings' | 'meta' | 'pair'> = {
   meta: async (server) => {
     const target = new URL(server).hostname.startsWith('a.') ? 'a' : 'b'
     const value: Meta = {
-      api_revision: 8,
+      api_revision: 9,
       capabilities: ['character', 'soul'],
       server_version: 'fixture',
       character: {

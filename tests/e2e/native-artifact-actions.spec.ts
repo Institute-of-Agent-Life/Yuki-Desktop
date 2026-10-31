@@ -1,4 +1,5 @@
 import { activeCharacterName } from '../fixtures/active-character'
+import { artifactRow } from '../fixtures/artifact-row'
 import { expect, test, type ElectronApplication } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, stat, unlink, writeFile } from 'node:fs/promises'
@@ -87,7 +88,7 @@ test('native artifact bridge stages authorized original bytes and restores actua
     ).toBeVisible()
     await expect(stage().getByRole('button', { name: '在資料夾顯示', exact: true })).toBeDisabled()
     await instrumentNativeBoundary(app, destination)
-    const row = page.getByRole('button').filter({ hasText: first.artifact_id })
+    const row = artifactRow(page, first.artifact_id)
     await expect(row).toHaveAttribute('draggable', 'true')
     const box = await row.boundingBox()
     await page.mouse.move(box!.x + 24, box!.y + 20)
@@ -218,7 +219,7 @@ test('native artifact bridge stages authorized original bytes and restores actua
       .getByRole('navigation', { name: '主要導覽' })
       .getByRole('button', { name: '檔案與成果', exact: true })
       .click()
-    await page.getByRole('button').filter({ hasText: remaining.artifact_id }).click()
+    await artifactRow(page, remaining.artifact_id).click()
     await expect(
       stage().getByRole('heading', { name: 'Another artifact', exact: true }),
     ).toBeVisible()
