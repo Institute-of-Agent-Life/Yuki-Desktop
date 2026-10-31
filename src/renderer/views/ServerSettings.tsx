@@ -169,11 +169,13 @@ export function ServerSettings({
                 </Button>
               )}
             </Row>
+          </SettingsSection>
+          <div className={styles.section}>
             <TailscaleGuide onError={setAddressError} />
             {address === undefined && addressError && (
               <Banner status="failed">{addressError}</Banner>
             )}
-          </SettingsSection>
+          </div>
           <SettingsSection title="主動訊息">
             {route.isError && <Banner status="failed">{route.error.message}</Banner>}
             {error && <Banner status="failed">{error}</Banner>}
