@@ -2100,6 +2100,16 @@
       "SearchConnection": {
         "additionalProperties": false,
         "properties": {
+          "mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WebMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "tavily_api_key_env": {
             "default": "",
             "title": "Tavily Api Key Env",
@@ -2693,6 +2703,17 @@
         },
         "title": "VisionConnection",
         "type": "object"
+      },
+      "WebMode": {
+        "description": "Configured backend strategy for model-approved web access.",
+        "enum": [
+          "disabled",
+          "native",
+          "tavily",
+          "both"
+        ],
+        "title": "WebMode",
+        "type": "string"
       }
     }
   },

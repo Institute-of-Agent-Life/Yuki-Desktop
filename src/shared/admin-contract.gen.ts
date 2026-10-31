@@ -1582,6 +1582,7 @@ export interface components {
         };
         /** SearchConnection */
         SearchConnection: {
+            mode?: components["schemas"]["WebMode"] | null;
             /**
              * Tavily Api Key Env
              * @default
@@ -1825,6 +1826,12 @@ export interface components {
              */
             protocol: "chat_completions";
         };
+        /**
+         * WebMode
+         * @description Configured backend strategy for model-approved web access.
+         * @enum {string}
+         */
+        WebMode: "disabled" | "native" | "tavily" | "both";
     };
     responses: never;
     parameters: never;
