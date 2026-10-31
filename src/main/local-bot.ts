@@ -186,6 +186,7 @@ export class LocalBot {
       personName: input.personName.trim(),
       personRequestId: randomUUID(),
       pairRequestId: randomUUID(),
+      superuserRequestId: randomUUID(),
     }
     await mkdir(directory, { recursive: true })
     for (const name of [
@@ -296,9 +297,8 @@ export class LocalBot {
         (value) => value.characterId === meta.character.id && !value.needsPairing && !value.logout,
       )
     if (existing) return existing
-    if (newCode) item.pairRequestId = randomUUID()
-    if (newCode || item.superuserRequestId === undefined) {
-      item.superuserRequestId ??= randomUUID()
+    if (newCode) {
+      item.pairRequestId = randomUUID()
       this.options.store.set('local-bot', item)
     }
     this.options.progress('建立本人入口並連接桌面')
