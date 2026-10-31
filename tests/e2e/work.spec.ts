@@ -1,4 +1,5 @@
 import { navigate } from '../fixtures/navigation'
+import { contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
 import {
   currentConnection,
@@ -226,6 +227,7 @@ test('rejects the original stale cancellation after another device completes the
     second = await rig.launch('another-work-device')
     const other = await second.firstWindow()
     await pairUI(other, rig.base, await rig.code())
+    await contentSize(second, other, 1440, 900)
     await expect(other.getByRole('navigation', { name: '主要導覽', exact: true })).toBeVisible()
     await navigate(other, '工作')
     await other.getByRole('button', { name: /等你回覆.*原工作整合測試/ }).click()
