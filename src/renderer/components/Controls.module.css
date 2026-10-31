@@ -100,7 +100,9 @@
 }
 .pill {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
+  white-space: nowrap;
   gap: 6px;
   height: 20px;
   border-radius: 10px;

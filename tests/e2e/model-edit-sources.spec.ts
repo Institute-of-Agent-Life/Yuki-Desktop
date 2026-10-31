@@ -34,6 +34,7 @@ test('same-name model connections retain separate original profiles and saved cr
       await sheet.getByLabel('金鑰', { exact: true }).fill(key)
       await sheet.getByLabel('模型 ID', { exact: true }).fill('fixture-chat-a')
       await sheet.getByRole('button', { name: '加入模型', exact: true }).click()
+      await sheet.getByText('進階', { exact: true }).click()
       await sheet.getByLabel('逾時（秒）', { exact: true }).fill('20')
       await sheet.getByLabel('重試次數', { exact: true }).fill('0')
       await sheet.getByLabel('溫度', { exact: true }).fill('0.2')
@@ -170,8 +171,9 @@ test('editing resolved public environment fields retires only their original ind
       window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'settings' })),
     )
     await page.getByRole('tab', { name: '模型', exact: true }).click()
-    await page.getByRole('button', { name: '編輯 main', exact: true }).click()
+    await page.getByRole('button', { name: /^編輯 fake-model ·/ }).click()
     const edit = page.getByRole('dialog', { name: '編輯模型' })
+    await edit.getByText('進階', { exact: true }).click()
     await expect(edit.getByLabel('服務位址', { exact: true })).toHaveValue(
       String(effective.base_url),
     )

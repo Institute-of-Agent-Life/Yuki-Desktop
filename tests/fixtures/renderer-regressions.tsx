@@ -777,7 +777,6 @@ function Case() {
                 work={work}
                 open={() => {}}
                 reply={() => {}}
-                artifact={() => {}}
               />
             )}
           </Fragment>

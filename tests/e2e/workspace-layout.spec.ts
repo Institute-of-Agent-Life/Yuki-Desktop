@@ -1,4 +1,5 @@
 import { activeCharacterName } from '../fixtures/active-character'
+import { artifactRow } from '../fixtures/artifact-row'
 import { expect, test, type Page } from '@playwright/test'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
@@ -51,7 +52,7 @@ test(
       const artifacts = (await response.json()) as { artifact_id: string }[]
       await inspector(page).getByRole('button', { name: '開啟檔案與成果', exact: true }).click()
       await expect(inspector(page)).toHaveCount(0)
-      await page.getByRole('button').filter({ hasText: artifacts[1]!.artifact_id }).click()
+      await artifactRow(page, artifacts[1]!.artifact_id).click()
       await expect(page.getByRole('region', { name: '成果預覽' })).toContainText(
         'Different immutable content.',
       )

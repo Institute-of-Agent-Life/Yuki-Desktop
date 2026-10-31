@@ -50,6 +50,11 @@ test('model connections add grouped profiles with write-only keys and edit real 
       await sheet.getByLabel('模型 ID', { exact: true }).fill(id)
       await sheet.getByRole('button', { name: '加入模型', exact: true }).click()
     }
+    const advanced = sheet
+      .locator('details')
+      .filter({ has: page.getByText('進階', { exact: true }) })
+    expect(await advanced.evaluate((element) => (element as HTMLDetailsElement).open)).toBe(false)
+    await advanced.getByText('進階', { exact: true }).click()
     await sheet.getByLabel('逾時（秒）', { exact: true }).fill('20')
     await sheet.getByLabel('重試次數', { exact: true }).fill('0')
     await sheet.getByLabel('溫度', { exact: true }).fill('0.2')
@@ -79,17 +84,12 @@ test('model connections add grouped profiles with write-only keys and edit real 
     expect(await sheet.isVisible()).toBe(false)
     const group = page.getByRole('region', { name: '自訂（OpenAI 相容）', exact: true })
     await expect(group.getByText('已儲存', { exact: true })).toBeVisible()
-    await expect(
-      group.getByText('fixture-connection-fixture-chat-a', { exact: true }),
-    ).toBeVisible()
-    await expect(
-      group.getByText('fixture-connection-fixture-chat-b', { exact: true }),
-    ).toBeVisible()
-    await group
-      .getByRole('button', { name: '編輯 fixture-connection-fixture-chat-a', exact: true })
-      .click()
+    await expect(group.getByText('fixture-chat-a', { exact: true })).toBeVisible()
+    await expect(group.getByText('fixture-chat-b', { exact: true })).toBeVisible()
+    await group.getByRole('button', { name: /^編輯 fixture-chat-a ·/ }).click()
     const edit = page.getByRole('dialog', { name: '編輯模型' })
     await expect(edit.getByLabel('金鑰', { exact: true })).toHaveValue('')
+    await edit.getByText('進階', { exact: true }).click()
     await edit.getByLabel('溫度', { exact: true }).fill('0.4')
     await edit.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(edit).not.toBeVisible()

@@ -1,4 +1,5 @@
 import { navigate } from '../fixtures/navigation'
+import { artifactRow } from '../fixtures/artifact-row'
 import { activeCharacterName } from '../fixtures/active-character'
 import { crashElectron } from '../fixtures/electron-process'
 import { expect, test } from '@playwright/test'
@@ -270,7 +271,7 @@ test('real workspace handles long conversations, separate entries, work details 
         const versions = page.getByRole('button').and(page.getByTitle(name))
         await expect(versions).toHaveCount(2)
         for (const item of delivered.slice(0, 2))
-          await expect(versions.filter({ hasText: item.artifact_id })).toHaveCount(1)
+          await expect(versions.and(artifactRow(page, item.artifact_id))).toHaveCount(1)
         await expect(
           page
             .getByRole('region', { name: '成果預覽' })

@@ -1,4 +1,4 @@
-import type { ModelDocument } from '../../shared/models'
+import type { ModelBundle, ModelDocument } from '../../shared/models'
 
 export type ModelSave = (
   document: ModelDocument,
@@ -43,3 +43,42 @@ const tasks: Record<string, string> = {
   utility_structured: '結構化處理',
 }
 export const modelTaskLabel = (task: string) => tasks[task] ?? task
+
+export function modelProfileLabel(data: Extract<ModelBundle, { valid: true }>, id: string) {
+  const profile = data.document.profiles[id]!,
+    resolved = data.resolved_profiles?.[id],
+    name = String(resolved?.model ?? profile.model),
+    address = resolved?.base_url ?? profile.base_url,
+    presets = data.provider_presets.filter(
+      (preset) => preset.provider === profile.provider && preset.protocol === profile.protocol,
+    ),
+    provider =
+      (presets.find((preset) => preset.default_base_url === address) ?? presets[0])?.display_name ??
+      profile.provider!,
+    peers = Object.entries(data.document.profiles).filter(
+      ([otherId, other]) =>
+        String(data.resolved_profiles?.[otherId]?.model ?? other.model) === name &&
+        other.provider === profile.provider,
+    ),
+    detail = [provider]
+  if (peers.some(([, other]) => other.protocol !== profile.protocol)) detail.push(profile.protocol!)
+  if (
+    peers.some(([, other]) => other.default_max_output_tokens !== profile.default_max_output_tokens)
+  ) {
+    const tokens = profile.default_max_output_tokens
+    if (tokens !== undefined) detail.push(`輸出 ${tokens.toLocaleString()} tokens`)
+  }
+  if (
+    peers.filter(
+      ([, other]) =>
+        other.protocol === profile.protocol &&
+        other.default_max_output_tokens === profile.default_max_output_tokens,
+    ).length > 1
+  ) {
+    const uses = Object.entries(data.document.routes)
+      .filter(([, value]) => value === id)
+      .map(([task]) => modelTaskLabel(task))
+    detail.push(...uses)
+  }
+  return { name, detail: detail.join(' · ') }
+}

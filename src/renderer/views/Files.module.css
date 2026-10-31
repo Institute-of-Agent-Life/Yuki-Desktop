@@ -16,6 +16,14 @@
   font: 11px/16px var(--font-mono);
   overflow-wrap: anywhere;
 }
+.inspector details {
+  font-size: 12px;
+}
+.inspector summary {
+  cursor: pointer;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
 .list {
   overflow: auto;
   min-height: 0;

@@ -1,4 +1,5 @@
 import { activeCharacterName } from '../fixtures/active-character'
+import { artifactRow } from '../fixtures/artifact-row'
 import { expect, test } from '@playwright/test'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -93,8 +94,8 @@ test('native file library keeps real long names and distinct original artifacts 
     expect(first.name).toBe(second.name)
     expect(first.artifact_id).not.toBe(second.artifact_id)
     await page.keyboard.press('ControlOrMeta+4')
-    const row = page.getByRole('button').filter({ hasText: first.artifact_id })
-    const other = page.getByRole('button').filter({ hasText: second.artifact_id })
+    const row = artifactRow(page, first.artifact_id)
+    const other = artifactRow(page, second.artifact_id)
     const stage = page.getByRole('region', { name: '成果預覽', exact: true })
     await expect(row).toHaveCount(1)
     await expect(other).toHaveCount(1)
@@ -198,7 +199,8 @@ test('native file library keeps real long names and distinct original artifacts 
             metadata: {
               font: style.fontSize,
               line: style.lineHeight,
-              identity: metadata.firstElementChild?.textContent,
+              source: metadata.getAttribute('title'),
+              visibleText: metadata.textContent,
               detail: metadata.lastElementChild?.textContent,
               detailWidth: metadata.lastElementChild?.clientWidth,
               detailScrollWidth: metadata.lastElementChild?.scrollWidth,
@@ -246,8 +248,9 @@ test('native file library keeps real long names and distinct original artifacts 
         expect(metrics.metadata).toMatchObject({
           font: '11px',
           line: '14px',
-          identity: first.artifact_id,
         })
+        expect(metrics.metadata.source).toContain(first.artifact_id)
+        expect(metrics.metadata.visibleText).not.toContain(first.artifact_id)
         expect(metrics.metadata.detail).toContain('桌面對話')
         expect(metrics.metadata.detailScrollWidth).toBeLessThanOrEqual(
           metrics.metadata.detailWidth!,

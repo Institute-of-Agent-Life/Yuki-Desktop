@@ -34,6 +34,7 @@ test('draft model listing and probes use the real upstream without saving or cou
     expect(await list.count()).toBe(1)
     await sheet.getByLabel('服務位址', { exact: true }).fill(state.model_upstream_url)
     await sheet.getByLabel('金鑰', { exact: true }).fill(state.model_upstream_key)
+    await sheet.getByText('進階', { exact: true }).click()
     await sheet.getByLabel('逾時（秒）', { exact: true }).fill('20')
     await sheet.getByLabel('重試次數', { exact: true }).fill('0')
     await sheet.getByLabel('溫度', { exact: true }).fill('0.2')

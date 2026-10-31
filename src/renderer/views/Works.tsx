@@ -785,13 +785,11 @@ export function ConversationWork({
   work,
   open,
   reply,
-  artifact,
 }: {
   id: string
   work: Work | string
   open(workId: string): void
   reply(work: Work): void
-  artifact(source: ArtifactSource): void
 }) {
   const { zone } = useDisplayTime()
   const [cancel, setCancel] = useState<Work | null>(null)
@@ -810,14 +808,12 @@ export function ConversationWork({
         title={data.goal}
         status={status}
         statusLabel={label}
-        detail={`${data.step_count ?? 0} 個步驟 · ${data.child_count} 個子工作${data.wait ? ` · ${waitText(data.wait, zone)}` : ''}`}
+        detail={data.wait ? waitText(data.wait, zone) : undefined}
         question={data.waiting_question?.text}
         onOpen={() => open(data.work_id)}
         onReply={() => reply(data)}
         onCancel={!terminal(data) ? () => setCancel(data) : undefined}
-      >
-        <WorkArtifacts work={data} open={artifact} limit={3} all={() => open(data.work_id)} />
-      </WorkCard>
+      />
       <CancelWorkSheet id={id} work={cancel} close={() => setCancel(null)} />
     </>
   )
@@ -881,17 +877,7 @@ function CancelWorkSheet({ id, work, close }: { id: string; work: Work | null; c
     </>
   )
 }
-function WorkArtifacts({
-  work,
-  open,
-  limit,
-  all,
-}: {
-  work: Work
-  open(source: ArtifactSource): void
-  limit?: number
-  all?: () => void
-}) {
+function WorkArtifacts({ work, open }: { work: Work; open(source: ArtifactSource): void }) {
   const items = [
     ...new Map(
       work.results
@@ -915,7 +901,7 @@ function WorkArtifacts({
   if (!items.length) return null
   return (
     <div className={styles.artifactList}>
-      {items.slice(0, limit).map((item) => (
+      {items.map((item) => (
         <button
           className={styles.artifact}
           key={`${item.artifactId}/${item.version}`}
@@ -931,11 +917,6 @@ function WorkArtifacts({
           </span>
         </button>
       ))}
-      {limit !== undefined && items.length > limit && all && (
-        <Button variant="plain" onClick={all}>
-          其他 {items.length - limit} 個
-        </Button>
-      )}
     </div>
   )
 }

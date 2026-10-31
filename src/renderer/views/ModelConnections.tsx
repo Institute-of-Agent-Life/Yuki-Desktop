@@ -3,10 +3,16 @@ import type { ModelBundle, ModelProfile } from '../../shared/models'
 import { Button, Sheet, TextField } from '../components/Controls'
 import { SettingsSection } from './SettingsRow'
 import { ModelConnectionForm, type ConnectionDraft } from './ModelConnectionForm'
-import { ModelSchemaFields, modelLabel, schemaDefaults, type JsonSchema } from './ModelSchemaFields'
+import { ModelSchemaFields, schemaDefaults, type JsonSchema } from './ModelSchemaFields'
 import styles from './ModelSettings.module.css'
 import { ModelDraftProbes, ModelTest } from './ModelProbes'
-import { modelSlug, newKeyAlias, modelTaskLabel, type ModelSave } from './model-document'
+import {
+  modelProfileLabel,
+  modelSlug,
+  newKeyAlias,
+  modelTaskLabel,
+  type ModelSave,
+} from './model-document'
 
 type Bundle = Extract<ModelBundle, { valid: true }>
 
@@ -143,9 +149,7 @@ export function ModelConnections({
             <header className={styles.cardHeader}>
               <div>
                 <h3>{title}</h3>
-                <small>
-                  {address} · {first.protocol}
-                </small>
+                <small>{address}</small>
               </div>
               <div className={styles.cardActions}>
                 <span>
@@ -166,13 +170,13 @@ export function ModelConnections({
               </div>
             </header>
             {entries.map(([id, profile]) => {
-              const used = references(data, id)
+              const used = references(data, id),
+                label = modelProfileLabel(data, id)
               return (
                 <div className={styles.profileRow} key={id}>
                   <div className={styles.profileLabel}>
-                    <strong>{id}</strong>
-                    <span>{data.resolved_profiles?.[id]?.model ?? profile.model}</span>
-                    <small>{profile.capabilities?.map(modelLabel).join(' · ')}</small>
+                    <strong>{label.name}</strong>
+                    <small>{label.detail}</small>
                   </div>
                   <div className={styles.cardActions}>
                     <ModelTest
@@ -182,7 +186,7 @@ export function ModelConnections({
                       disabled={busy || pending}
                     />
                     <Button
-                      aria-label={`編輯 ${id}`}
+                      aria-label={`編輯 ${label.name} · ${label.detail}`}
                       disabled={busy || pending}
                       onClick={() => {
                         setKey('')
@@ -192,7 +196,7 @@ export function ModelConnections({
                       編輯
                     </Button>
                     <Button
-                      aria-label={`刪除 ${id}`}
+                      aria-label={`刪除 ${label.name} · ${label.detail}`}
                       title={used.length ? `仍被「${used.join('、')}」使用` : undefined}
                       disabled={busy || pending || used.length > 0}
                       onClick={() => setDeleting([id])}
@@ -252,7 +256,6 @@ export function ModelConnections({
             <Button variant="plain" disabled={busy || pending} onClick={() => setPreset(undefined)}>
               更換預設
             </Button>
-            <p>{data.provider_presets[preset]!.protocol}</p>
             <fieldset className={styles.editor} disabled={busy || pending}>
               <ModelConnectionForm
                 value={draft}
@@ -268,8 +271,9 @@ export function ModelConnections({
                   />
                 }
               >
-                <details className={styles.advanced} open>
+                <details className={styles.advanced}>
                   <summary>進階</summary>
+                  <p>API 協定：{data.provider_presets[preset]!.protocol}</p>
                   <ModelSchemaFields
                     schema={schema}
                     value={defaults}
@@ -324,8 +328,7 @@ export function ModelConnections({
       >
         {feedback}
         {editing && (
-          <fieldset className={styles.editor} disabled={busy || pending}>
-            <p>{editing.id}</p>
+          <fieldset className={`${styles.editor} ${styles.formFields}`} disabled={busy || pending}>
             <label className={styles.formField}>
               金鑰
               <TextField
@@ -340,15 +343,21 @@ export function ModelConnections({
               schema={schema}
               value={editing.profile as Record<string, unknown>}
               effective={data.resolved_profiles?.[editing.id]}
-              fields={Object.keys(schema.properties!).filter((name) => name !== 'wire_options')}
+              fields={['base_url', 'model']}
               change={(profile) => setEditing({ ...editing, profile: profile as ModelProfile })}
             />
             <details className={styles.advanced}>
               <summary>進階</summary>
+              <p>
+                設定 ID：<code>{editing.id}</code>
+              </p>
               <ModelSchemaFields
                 schema={schema}
                 value={editing.profile as Record<string, unknown>}
-                fields={['wire_options']}
+                effective={data.resolved_profiles?.[editing.id]}
+                fields={Object.keys(schema.properties!).filter(
+                  (name) => !['base_url', 'model'].includes(name),
+                )}
                 change={(profile) => setEditing({ ...editing, profile: profile as ModelProfile })}
               />
             </details>
@@ -379,7 +388,16 @@ export function ModelConnections({
         }
       >
         {feedback}
-        <p>確定刪除 {deleting?.join('、')}？</p>
+        <p>
+          確定刪除{' '}
+          {deleting
+            ?.map((id) => {
+              const label = modelProfileLabel(data, id)
+              return `${label.name} · ${label.detail}`
+            })
+            .join('、')}
+          ？
+        </p>
       </Sheet>
     </>
   )

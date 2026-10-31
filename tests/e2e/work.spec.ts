@@ -32,6 +32,8 @@ test('continues the original work through an actual reply and confirms cancellat
       .getByRole('article')
       .filter({ has: page.getByRole('heading', { name: '原工作整合測試', exact: true }) })
     await expect(card.getByText('等你回覆', { exact: true })).toBeVisible({ timeout: 20000 })
+    expect(await card.innerText()).not.toMatch(/\d+ 個步驟|\d+ 個子工作/)
+    await page.screenshot({ path: test.info().outputPath('work-card-waiting-question.png') })
     const original = await page.evaluate(async () => {
       const list = await window.yuki.client.connections()
       if (!list.ok || !list.value[0]) throw new Error('No paired connection')

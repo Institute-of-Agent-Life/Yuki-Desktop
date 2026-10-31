@@ -7,8 +7,10 @@ async function editor(page: Page) {
     window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'settings' })),
   )
   await page.getByRole('tab', { name: '模型', exact: true }).click()
-  await page.getByRole('button', { name: '編輯 main', exact: true }).click()
-  return page.getByRole('dialog', { name: '編輯模型', exact: true })
+  await page.getByRole('button', { name: /^編輯 fake-model ·/ }).click()
+  const sheet = page.getByRole('dialog', { name: '編輯模型', exact: true })
+  await sheet.getByText('進階', { exact: true }).click()
+  return sheet
 }
 
 test('model conflict reload keeps the unsaved write-only key and edits original fields', async () => {
