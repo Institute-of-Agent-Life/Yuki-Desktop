@@ -28,6 +28,7 @@ const terminalProblems = new Set([
   'precondition_failed',
   'validation_error',
   'owner_required',
+  'forbidden',
 ])
 function checkQuestion(question: WorkDraftQuestion | undefined) {
   if (

@@ -7,12 +7,14 @@ export function AvatarStatus({
   profile,
   status,
   supported,
+  editable,
   retry,
   edit,
 }: {
   profile: Profile
   status: 'pending' | 'error' | 'success'
   supported: boolean
+  editable: boolean
   retry(): void
   edit(): void
 }) {
@@ -32,7 +34,7 @@ export function AvatarStatus({
       ) : supported ? (
         <>
           <p>更換後，連接這個 Yuki 的裝置會同步顯示新頭像。</p>
-          <Button onClick={edit}>更換頭像</Button>
+          {editable && <Button onClick={edit}>更換頭像</Button>}
         </>
       ) : (
         <p>這個 Yuki 目前尚未提供更換頭像的功能。</p>

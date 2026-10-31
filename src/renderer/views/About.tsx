@@ -25,7 +25,7 @@ import {
   Spinner,
   TextField,
 } from '../components/Controls'
-import { hidesPrivateData, problemText, unwrap } from '../queries/client'
+import { hidesPrivateData, problemText, unwrap, useMe } from '../queries/client'
 import styles from './About.module.css'
 import { CharacterAvatar } from '../components/CharacterAvatar'
 import { AvatarEditor, AvatarPending } from './AvatarEditor'
@@ -58,6 +58,8 @@ export function About({
   editSoul(): void
 }) {
   const query = useQueryClient()
+  const me = useMe(id)
+  const administrator = me.data?.is_superuser === true && !hidesPrivateData(me.error)
   const info = useQuery({
     queryKey: [id, 'server-info', server],
     queryFn: () => window.yuki.client.serverInfo(id).then(unwrap),
@@ -114,7 +116,7 @@ export function About({
         <header className={styles.hero}>
           <div className={styles.portrait}>
             <CharacterAvatar size={200} />
-            {avatarSupported && (
+            {avatarSupported && administrator && (
               <button
                 ref={avatarPress}
                 data-press="icon"
@@ -133,7 +135,7 @@ export function About({
           <div className={styles.introduction}>
             <div className={styles.name}>
               <h1>{profile.display_name}</h1>
-              {!editing && (
+              {!editing && administrator && (
                 <Button
                   variant="plain"
                   aria-label="編輯名稱與簡介"
@@ -144,7 +146,7 @@ export function About({
                 </Button>
               )}
             </div>
-            {editing ? (
+            {editing && administrator ? (
               <ProfileEditor
                 key={profile.id}
                 profile={profile}
@@ -161,7 +163,11 @@ export function About({
                   名稱、簡介、頭像與提示詞由連接這個 Yuki 的使用者共享。
                 </p>
                 <div className={styles.heroActions}>
-                  <Button onClick={editSoul}>編輯提示詞</Button>
+                  {administrator ? (
+                    <Button onClick={editSoul}>編輯提示詞</Button>
+                  ) : (
+                    <p>只有 Yuki 的管理員可以修改</p>
+                  )}
                 </div>
               </>
             )}
@@ -171,20 +177,23 @@ export function About({
           profile={profile}
           status={info.status}
           supported={avatarSupported}
+          editable={administrator}
           edit={() => {
             setAvatarRestore(undefined)
             setAvatarEditing(true)
           }}
           retry={() => void info.refetch()}
         />
-        <AvatarPending
-          id={id}
-          open={(item) => {
-            setAvatarRestore(item)
-            setAvatarEditing(true)
-          }}
-        />
-        {avatarEditing && avatarSupported && (
+        {administrator && (
+          <AvatarPending
+            id={id}
+            open={(item) => {
+              setAvatarRestore(item)
+              setAvatarEditing(true)
+            }}
+          />
+        )}
+        {avatarEditing && avatarSupported && administrator && (
           <AvatarEditor
             id={id}
             profile={profile}
@@ -587,11 +596,14 @@ function Memories({
 
 function Arrangements({ id, run, busy }: { id: string; run: Run; busy: boolean }) {
   const { date } = useDisplayTime()
+  const me = useMe(id)
+  const administrator = me.data?.is_superuser === true && !hidesPrivateData(me.error)
   const [scope, setScope] = useState<'mine' | 'self'>('mine')
   const [remove, setRemove] = useState<Automation>()
   const items = useQuery({
     queryKey: [id, 'automations', scope],
     queryFn: () => read<AutomationPage>(id, { kind: 'automations', scope }),
+    enabled: scope === 'mine' || administrator,
   })
   const act = (item: Automation, action: 'pause' | 'resume' | 'delete') =>
     run({
@@ -611,9 +623,16 @@ function Arrangements({ id, run, busy }: { id: string; run: Run; busy: boolean }
           { value: 'self', label: '她的安排' },
         ]}
       />
-      {items.isPending && <Spinner />}
-      {items.error && <Banner status="failed">{items.error.message}</Banner>}
-      {!hidesPrivateData(items.error) &&
+      {scope === 'self' && !administrator ? (
+        <Banner>只有 Yuki 的管理員可以查看她的安排</Banner>
+      ) : items.isPending ? (
+        <Spinner />
+      ) : null}
+      {(scope === 'mine' || administrator) && items.error && (
+        <Banner status="failed">{items.error.message}</Banner>
+      )}
+      {(scope === 'mine' || administrator) &&
+        !hidesPrivateData(items.error) &&
         items.data?.items.map((item) => (
           <article key={item.automation_id} className={styles.row}>
             <div className={styles.arrangement}>
@@ -641,9 +660,12 @@ function Arrangements({ id, run, busy }: { id: string; run: Run; busy: boolean }
             )}
           </article>
         ))}
-      {!items.isPending && !items.error && !items.data?.items.length && (
-        <EmptyState title="還沒有安排">在對話中告訴她想安排的事情。</EmptyState>
-      )}
+      {(scope === 'mine' || administrator) &&
+        !items.isPending &&
+        !items.error &&
+        !items.data?.items.length && (
+          <EmptyState title="還沒有安排">在對話中告訴她想安排的事情。</EmptyState>
+        )}
       <Sheet
         title="刪除安排"
         open={!!remove}

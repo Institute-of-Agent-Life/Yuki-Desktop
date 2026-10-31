@@ -12,7 +12,7 @@ import type {
   WorkPage,
 } from '../../shared/api'
 import { Banner, Button, EmptyState, IconButton, Sheet, Spinner } from '../components/Controls'
-import { unwrap, problemText, ClientProblem } from '../queries/client'
+import { unwrap, problemText, ClientProblem, useMe, hidesPrivateData } from '../queries/client'
 import styles from './Computer.module.css'
 
 function useComputer(id: string) {
@@ -52,6 +52,8 @@ export function Computer({
   const id = connection.characterId,
     query = useComputer(id),
     client = useQueryClient()
+  const me = useMe(id)
+  const administrator = me.data?.is_superuser === true && !hidesPrivateData(me.error)
   const state = query.error ? undefined : query.data
   const [problem, setProblem] = useState(''),
     [busy, setBusy] = useState(false)
@@ -105,13 +107,15 @@ export function Computer({
       setSheet({ kind: 'return', snapshot: state })
     }
   }
-  if (query.isPending)
+  if (me.data?.is_superuser === false)
+    return <EmptyState title={`${name} 的電腦`}>只有 Yuki 的管理員可以使用這個共享電腦</EmptyState>
+  if (query.isPending || me.isPending)
     return (
       <EmptyState title="正在讀取電腦狀態">
         <Spinner />
       </EmptyState>
     )
-  if (!state)
+  if (!state || !administrator)
     return (
       <EmptyState title={`${name} 的電腦`}>
         <Banner status="failed">{query.error?.message}</Banner>
@@ -447,7 +451,7 @@ function RemoteScreen({
           setProblem(error.message)
           if (
             !(error instanceof ClientProblem) ||
-            !['unauthenticated', 'owner_required', 'not_found'].includes(error.code)
+            !['unauthenticated', 'forbidden', 'not_found'].includes(error.code)
           )
             retry = setTimeout(() => setAttempt((value) => value + 1), 2000)
         }
@@ -655,38 +659,39 @@ export function ComputerInspector({
       )}
       {files.error && <Banner status="failed">{files.error.message}</Banner>}
       {problem && <Banner status="failed">{problem}</Banner>}
-      {files.data?.pages
-        .flatMap((page) => page.items)
-        .map((file) => (
-          <div key={file.name} className={styles.tab}>
-            {file.kind === 'directory' ? (
-              <Button
-                variant="plain"
-                onClick={() => setPath([path, file.name].filter(Boolean).join('/'))}
-              >
-                {file.name}/
-              </Button>
-            ) : (
-              <span>{file.name}</span>
-            )}
-            <small>{file.size} bytes</small>
-            {file.kind === 'file' && (
-              <Button
-                variant="plain"
-                onClick={() => {
-                  setProblem('')
-                  void window.yuki.client
-                    .saveComputerFile(id, [path, file.name].filter(Boolean).join('/'))
-                    .then(unwrap)
-                    .catch((error) => setProblem(error.message))
-                }}
-              >
-                儲存目前內容
-              </Button>
-            )}
-          </div>
-        ))}
-      {files.hasNextPage && (
+      {!files.error &&
+        files.data?.pages
+          .flatMap((page) => page.items)
+          .map((file) => (
+            <div key={file.name} className={styles.tab}>
+              {file.kind === 'directory' ? (
+                <Button
+                  variant="plain"
+                  onClick={() => setPath([path, file.name].filter(Boolean).join('/'))}
+                >
+                  {file.name}/
+                </Button>
+              ) : (
+                <span>{file.name}</span>
+              )}
+              <small>{file.size} bytes</small>
+              {file.kind === 'file' && (
+                <Button
+                  variant="plain"
+                  onClick={() => {
+                    setProblem('')
+                    void window.yuki.client
+                      .saveComputerFile(id, [path, file.name].filter(Boolean).join('/'))
+                      .then(unwrap)
+                      .catch((error) => setProblem(error.message))
+                  }}
+                >
+                  儲存目前內容
+                </Button>
+              )}
+            </div>
+          ))}
+      {!files.error && files.hasNextPage && (
         <Button variant="plain" onClick={() => void files.fetchNextPage()}>
           載入更多
         </Button>

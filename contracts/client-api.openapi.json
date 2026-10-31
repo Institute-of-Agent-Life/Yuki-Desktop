@@ -873,9 +873,6 @@
           "slug": {
             "title": "Slug",
             "type": "string"
-          },
-          "viewer": {
-            "$ref": "#/components/schemas/Viewer"
           }
         },
         "required": [
@@ -887,8 +884,7 @@
           "revision",
           "avatar_revision",
           "avatar",
-          "default_avatar",
-          "viewer"
+          "default_avatar"
         ],
         "title": "CharacterProfile",
         "type": "object"
@@ -2525,6 +2521,10 @@
             "title": "Display Name",
             "type": "string"
           },
+          "is_superuser": {
+            "title": "Is Superuser",
+            "type": "boolean"
+          },
           "person_id": {
             "title": "Person Id",
             "type": "string"
@@ -2574,6 +2574,7 @@
         },
         "required": [
           "person_id",
+          "is_superuser",
           "source_person_id",
           "request_person_id",
           "request_conversation_id",
@@ -4551,19 +4552,6 @@
         "title": "ValidationError",
         "type": "object"
       },
-      "Viewer": {
-        "properties": {
-          "is_owner": {
-            "title": "Is Owner",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "is_owner"
-        ],
-        "title": "Viewer",
-        "type": "object"
-      },
       "Work": {
         "additionalProperties": {
           "$ref": "#/components/schemas/JsonValue"
@@ -5105,7 +5093,7 @@
   "info": {
     "title": "Yuki personal API",
     "version": "4.0.0",
-    "x-yuki-api-revision": 7
+    "x-yuki-api-revision": 8
   },
   "openapi": "3.1.0",
   "paths": {

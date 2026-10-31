@@ -3,7 +3,7 @@ import type { components } from './contract.gen'
 import type { NavigationTarget } from './desktop'
 import type { MessageReference } from './message'
 
-export const REQUIRED_API_REVISION = 7
+export const REQUIRED_API_REVISION = 8
 
 export type Meta = ServerComponents['schemas']['Meta']
 export type Me = components['schemas']['Me']

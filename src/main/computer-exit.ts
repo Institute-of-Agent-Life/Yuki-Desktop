@@ -20,7 +20,7 @@ export async function heldComputers(connections: Connections): Promise<HeldCompu
         error instanceof ApiError &&
         [
           'unauthenticated',
-          'owner_required',
+          'forbidden',
           'not_found',
           'outbox_owner_mismatch',
           'different_character',

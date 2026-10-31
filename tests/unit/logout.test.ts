@@ -33,7 +33,7 @@ const connection: Connection = {
   persistentCredentials: false,
 }
 const meta: Meta = {
-  api_revision: 7,
+  api_revision: 8,
   capabilities: ['character', 'soul'],
   server_version: 'test',
   character: {
@@ -45,6 +45,7 @@ const meta: Meta = {
   min_client: { desktop: '1.0.0-beta.1', android: null },
 }
 const me: Me = {
+  is_superuser: true,
   person_id: connection.personId,
   source_person_id: connection.personId,
   request_person_id: connection.personId,
