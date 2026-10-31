@@ -1172,7 +1172,6 @@ export interface components {
             revision: number;
             /** Slug */
             slug: string;
-            viewer: components["schemas"]["Viewer"];
         };
         /** CharacterStatus */
         CharacterStatus: {
@@ -1744,6 +1743,8 @@ export interface components {
             devices: components["schemas"]["Device"][];
             /** Display Name */
             display_name: string;
+            /** Is Superuser */
+            is_superuser: boolean;
             /** Person Id */
             person_id: string;
             /** Platform */
@@ -2394,11 +2395,6 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
-        };
-        /** Viewer */
-        Viewer: {
-            /** Is Owner */
-            is_owner: boolean;
         };
         /** Work */
         Work: {

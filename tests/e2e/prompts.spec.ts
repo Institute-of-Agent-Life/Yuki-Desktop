@@ -56,12 +56,18 @@ test('single SOUL saves empty text and preserves a raw draft after process reope
   }
 })
 
-test('another paired person updates the name and SOUL, preserves conflicts and keeps editing after the original device is revoked', async () => {
+test('another administrator updates the name and SOUL, preserves conflicts and keeps editing after the original device is revoked', async () => {
   test.setTimeout(120000)
   const rig = await soulBackend(),
     app = await rig.launch('owner')
   let success = false
   try {
+    const granted = await fetch(rig.base + '/__test/superuser', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person_id: rig.nonownerPersonId, enabled: true }),
+    })
+    expect(granted.ok).toBe(true)
     const page = await app.firstWindow()
     await pairUI(page, rig.base, rig.ownerCode, undefined, 30000)
     const connection = await currentConnection(page)

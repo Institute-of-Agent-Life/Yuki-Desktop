@@ -47,6 +47,7 @@ const terminal = new Set([
   'not_found',
   'unauthenticated',
   'owner_required',
+  'forbidden',
   'outbox_owner_mismatch',
   'request_conflict',
   'precondition_failed',

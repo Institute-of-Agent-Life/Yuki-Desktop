@@ -24,7 +24,6 @@ const profile: Profile = {
   default_avatar: null,
   avatar_revision: 0,
   accent: { light: '#3a6bd6', dark: '#80a6ff' },
-  viewer: { is_owner: parameters.get('owner') === 'true' },
 }
 Object.defineProperty(window, 'yuki', {
   value: {
@@ -45,6 +44,8 @@ Object.defineProperty(window, 'yuki', {
             : [],
       }),
       read: async (_id: string, route: { kind: string; about?: string }) => {
+        if (route.kind === 'me')
+          return { ok: true, value: { is_superuser: parameters.get('administrator') !== 'false' } }
         const full = parameters.get('collections') === 'full'
         if (route.kind === 'capabilities')
           return {

@@ -37,7 +37,13 @@ export async function soulBackend() {
     },
   )
   let state:
-    { base_url: string; owner_pairing_code: string; nonowner_pairing_code: string } | undefined
+    | {
+        base_url: string
+        owner_pairing_code: string
+        nonowner_pairing_code: string
+        nonowner_person_id: string
+      }
+    | undefined
   try {
     await expect
       .poll(
@@ -64,6 +70,7 @@ export async function soulBackend() {
     base: state!.base_url,
     ownerCode: state!.owner_pairing_code,
     nonownerCode: state!.nonowner_pairing_code,
+    nonownerPersonId: state!.nonowner_person_id,
     ...desktop,
     async code() {
       return (await (await fetch(state!.base_url + '/__test/link-code', { method: 'POST' })).json())

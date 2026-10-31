@@ -252,7 +252,6 @@ const profile: Profile = {
   avatar: null,
   default_avatar: null,
   accent: { light: '#3a6bd6', dark: '#80a6ff' },
-  viewer: { is_owner: true },
 }
 const characterStatus: CharacterStatus = {
   observed_at: '2026-10-25T00:00:00Z',
@@ -300,6 +299,7 @@ Object.assign(window, {
       ...client,
       read: async (_id: string, route: ApiRead) => {
         reads.push(route.kind)
+        if (route.kind === 'me') return { ok: true, value: { is_superuser: true } }
         if (route.kind === 'events' && route.limit !== 1) mainHistoryReads++
         const mode = new URLSearchParams(location.search).get('case')
         if (mode === 'conversation-scroll') {

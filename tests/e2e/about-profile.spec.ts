@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-test('an empty profile remains editable when legacy owner metadata is false', async ({ page }) => {
+test('an existing administrator can edit an empty profile', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('http://127.0.0.1:4178/about-profile.html')
   const heading = page.getByRole('heading', { name: 'Yuki', exact: true })
@@ -18,7 +18,7 @@ test('an empty profile remains editable when legacy owner metadata is false', as
     }),
     contentType: 'application/json',
   })
-  await page.screenshot({ path: test.info().outputPath('about-nonowner-empty.png') })
+  await page.screenshot({ path: test.info().outputPath('about-administrator-empty.png') })
   await expect(page.getByText('尚未設定簡介。', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: '簡介', exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: '頭像', exact: true })).toBeInViewport()
@@ -29,9 +29,9 @@ test('an empty profile remains editable when legacy owner metadata is false', as
   await expect(page.getByRole('button', { name: '編輯提示詞', exact: true })).toBeVisible()
 })
 
-test('legacy owner metadata does not change shared profile editing', async ({ page }) => {
+test('administrator identity preserves the original profile editor', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto('http://127.0.0.1:4178/about-profile.html?owner=true')
+  await page.goto('http://127.0.0.1:4178/about-profile.html?administrator=true')
   await expect(page.getByText('尚未設定簡介。', { exact: true })).toBeVisible()
   await expect(
     page.getByText('名稱、簡介、頭像與提示詞由連接這個 Yuki 的使用者共享。'),
@@ -69,7 +69,7 @@ test('a long profile wraps and scrolls inside the existing content column', asyn
 })
 
 test('avatar editing depends on the actual server capability', async ({ page }) => {
-  await page.goto('http://127.0.0.1:4178/about-profile.html?owner=true')
+  await page.goto('http://127.0.0.1:4178/about-profile.html?administrator=true')
   await expect(page.getByText('這個 Yuki 目前尚未提供更換頭像的功能。')).toBeVisible()
   await expect(
     page
@@ -77,7 +77,7 @@ test('avatar editing depends on the actual server capability', async ({ page }) 
       .getByRole('button', { name: '更換頭像', exact: true }),
   ).toHaveCount(0)
   await expect(page.getByRole('button', { name: '編輯名稱與簡介', exact: true })).toBeVisible()
-  await page.goto('http://127.0.0.1:4178/about-profile.html?owner=true&avatar=supported')
+  await page.goto('http://127.0.0.1:4178/about-profile.html?administrator=true&avatar=supported')
   await page
     .getByRole('region', { name: '頭像', exact: true })
     .getByRole('button', { name: '更換頭像', exact: true })
@@ -94,9 +94,7 @@ test('avatar editing depends on the actual server capability', async ({ page }) 
   ).toBeFocused()
 })
 
-test('shared avatar editing and original pending updates remain available without owner metadata', async ({
-  page,
-}) => {
+test('administrator avatar editing retains original pending updates', async ({ page }) => {
   await page.goto('http://127.0.0.1:4178/about-profile.html?avatar=supported')
   await expect(
     page
@@ -123,7 +121,7 @@ test('shared avatar editing and original pending updates remain available withou
 test('an unavailable capability read stays unknown while normal profile editing remains available', async ({
   page,
 }) => {
-  await page.goto('http://127.0.0.1:4178/about-profile.html?owner=true&avatar=error')
+  await page.goto('http://127.0.0.1:4178/about-profile.html?administrator=true&avatar=error')
   await expect(page.getByText('目前無法取得頭像設定，請確認連線後重新讀取。')).toBeVisible()
   await expect(page.getByRole('button', { name: '重新讀取頭像設定', exact: true })).toBeVisible()
   await expect(page.getByText('這個 Yuki 目前尚未提供更換頭像的功能。')).toHaveCount(0)

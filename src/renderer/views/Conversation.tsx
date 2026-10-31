@@ -25,7 +25,7 @@ import { useDisplayTime } from '../state/time'
 import { Copy, MessageCircle, Reply, X } from 'lucide-react'
 import { Workspace } from '../components/Workspace'
 import { PresenceCard } from '../components/PresenceCard'
-import { unwrap, problemText, hidesPrivateData, ClientProblem } from '../queries/client'
+import { unwrap, problemText, hidesPrivateData, ClientProblem, useMe } from '../queries/client'
 import { useWorkspace, useSessionActive } from '../state/workspace'
 import { useCommands } from '../state/commands'
 import styles from './Conversation.module.css'
@@ -143,6 +143,8 @@ export function Conversation({
   activeRange.current = `${conversation}/${anchor}`
   const latestSeen = useRef<{ range: string; event: number }>({ range: '', event: 0 })
   const home = useQuery({ queryKey: [id, 'home'], queryFn: () => read<Home>(id, { kind: 'home' }) })
+  const me = useMe(id)
+  const administrator = me.data?.is_superuser === true && !hidesPrivateData(me.error)
   const profile = useQuery({
     queryKey: [id, 'character'],
     queryFn: () => read<Profile>(id, { kind: 'character' }),
@@ -254,6 +256,7 @@ export function Conversation({
   const refresh = useCallback(() => {
     for (const key of [
       'home',
+      'me',
       'character',
       'events',
       'reference',
@@ -731,7 +734,7 @@ export function Conversation({
       title: '連接這台電腦',
       run: () => paletteNavigate(() => onSettings('computer')),
     },
-    ...(!accessLost
+    ...(!accessLost && administrator
       ? [
           {
             id: 'command/computer',
@@ -777,7 +780,7 @@ export function Conversation({
         mainConversation={isMain}
         onChat={() => choose(connection.conversationId)}
         toolbar={
-          soulEditing && view === 'about' && !focusMode ? (
+          soulEditing && administrator && view === 'about' && !focusMode ? (
             <div className={styles.soulToolbar} ref={setSoulToolbar} />
           ) : undefined
         }
@@ -827,7 +830,10 @@ export function Conversation({
           </>
         }
         inspector={
-          inspectorTab === 'computer' && !(messageStage && view === 'chat') && !accessLost ? (
+          inspectorTab === 'computer' &&
+          !(messageStage && view === 'chat') &&
+          !accessLost &&
+          administrator ? (
             focusMode ? (
               <Computer key={id} connection={connection} name={name} work={openWork} />
             ) : (
@@ -979,7 +985,7 @@ export function Conversation({
           accessLost ? (
             <Banner status="failed">{problemText(connectionProblem)}</Banner>
           ) : profileData ? (
-            soulEditing ? (
+            soulEditing && administrator ? (
               <SoulEditor
                 key={id}
                 id={id}

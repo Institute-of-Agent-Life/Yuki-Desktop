@@ -984,13 +984,9 @@ export class Connections {
       return value
     } catch (error) {
       if (error instanceof ApiError) {
-        if (
-          error.code === 'owner_required' &&
-          route.kind === 'automations' &&
-          route.scope === 'self'
-        )
+        if (error.code === 'forbidden' && route.kind === 'automations' && route.scope === 'self')
           box.db.prepare('DELETE FROM read_cache WHERE key=?').run(path)
-        if (error.code === 'owner_required' && route.kind.startsWith('computer')) {
+        if (error.code === 'forbidden' && route.kind.startsWith('computer')) {
           box.db
             .prepare("DELETE FROM read_cache WHERE key='computer' OR key GLOB 'computer/*'")
             .run()

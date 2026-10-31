@@ -1,4 +1,5 @@
-import type { ApiReply } from '../../shared/api'
+import { useQuery } from '@tanstack/react-query'
+import type { ApiReply, Me } from '../../shared/api'
 import { REQUIRED_API_REVISION } from '../../shared/api'
 
 export class ClientProblem extends Error {
@@ -12,6 +13,12 @@ export class ClientProblem extends Error {
 export function unwrap<T>(result: ApiReply<T>): T {
   if (!result.ok) throw new ClientProblem(result.code, result.reason)
   return result.value
+}
+export function useMe(id: string) {
+  return useQuery({
+    queryKey: [id, 'me'],
+    queryFn: () => window.yuki.client.read<Me>(id, { kind: 'me' }).then(unwrap),
+  })
 }
 function mediaProblem(reason: string) {
   return (
@@ -70,6 +77,7 @@ const messages: Record<string, string> = {
   unknown: '狀態尚未確認，請查詢原回執。',
   internal_failure: '這次處理發生錯誤，原訊息與回執已保留。',
   owner_required: '這項操作目前沒有權限。',
+  forbidden: '這項操作目前沒有權限。',
   outbox_owner_mismatch: '原入口已不屬於這位本人，已停止送出。',
   different_person: '這個 Yuki 的原連線屬於另一位本人。請先處理原連線的本機資料。',
   server_upgrade_required: `伺服器需要升級（api_revision ≥ ${REQUIRED_API_REVISION}）。`,

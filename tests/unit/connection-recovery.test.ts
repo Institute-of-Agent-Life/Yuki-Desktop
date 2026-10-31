@@ -12,7 +12,7 @@ const id = '00000000-0000-4000-8000-000000000001',
   conversation = '00000000-0000-4000-8000-000000000004',
   device = '00000000-0000-4000-8000-000000000005'
 const meta = {
-  api_revision: 7,
+  api_revision: 8,
   capabilities: [],
   character: { id, display_name: 'Fixture' },
   min_client: { desktop: null },

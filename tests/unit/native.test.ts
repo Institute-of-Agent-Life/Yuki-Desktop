@@ -102,7 +102,6 @@ it.each(['darwin', 'win32', 'linux'] as const)(
       avatar: null,
       default_avatar: null,
       accent: { light: '#123456', dark: '#abcdef' },
-      viewer: { is_owner: true },
     })
     const a = avatar('role-a'),
       b = avatar('role-b')

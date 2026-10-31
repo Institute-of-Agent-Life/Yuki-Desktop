@@ -111,7 +111,6 @@ function setup(initial: Work[] = [work()]) {
     id,
     revision: 1,
     slug: 'role',
-    viewer: { is_owner: true },
   }
   const events: EventsPage = {
     generation: 1,

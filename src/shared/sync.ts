@@ -8,7 +8,6 @@ export interface SyncHint {
     id: string
     revision: number
     avatar_revision: number
-    is_owner: boolean
     soul?: { revision: string; active_revision: string }
   }
 }

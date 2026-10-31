@@ -31,6 +31,7 @@ Object.defineProperty(window, 'yuki', {
   value: {
     client: {
       read: async (id: string, route: { kind: string }) => {
+        if (route.kind === 'me') return { ok: true, value: { is_superuser: true } }
         if (route.kind === 'character-status')
           return {
             ok: true,
@@ -59,7 +60,6 @@ Object.defineProperty(window, 'yuki', {
           default_avatar: null,
           avatar_revision: 0,
           accent: { light: '#3a6bd6', dark: '#80a6ff' },
-          viewer: { is_owner: false },
         }
         return { ok: true, value: profile }
       },
