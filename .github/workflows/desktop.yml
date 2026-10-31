@@ -129,7 +129,6 @@ jobs:
     env:
       YUKI_TEST_DOCKER: '1'
       YUKI_E2E_BACKGROUND_WINDOWS: '1'
-      YUKI_E2E_OUTPUT: ${{ runner.temp }}/yuki-local-bot-e2e
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -150,6 +149,8 @@ jobs:
       - name: Prepare matching local deployment templates
         run: node build-tools/prepare-local-bot.mjs --source .cache/backend --image yuki-desktop-local:ci
       - name: Deploy, initialize and pair through the actual services
+        env:
+          YUKI_E2E_OUTPUT: ${{ runner.temp }}/yuki-local-bot-e2e
         run: npm test -- tests/unit/local-bot.test.ts
       - run: npm exec playwright install -- --with-deps chromium
       - run: sudo apt-get install --no-install-recommends -y libnotify4 dbus-x11 gnome-keyring openbox
@@ -164,6 +165,7 @@ jobs:
       - name: Configure models through the real Desktop and local Bot
         env:
           XDG_CURRENT_DESKTOP: GNOME
+          YUKI_E2E_OUTPUT: ${{ runner.temp }}/yuki-local-bot-e2e
         run: |
           dbus-run-session -- xvfb-run --auto-servernum --server-args="-screen 0 1920x1200x24" bash -e -c '
             export XDG_DATA_HOME="$RUNNER_TEMP/yuki-local-keyring-data"
