@@ -1020,7 +1020,10 @@ export interface components {
              * @default
              */
             base_url: string;
-            /** Dimensions */
+            /**
+             * Dimensions
+             * @default 1024
+             */
             dimensions: number;
             /**
              * Document Template Version
@@ -1045,6 +1048,7 @@ export interface components {
             output_type: "dense";
             /**
              * Provider
+             * @default qwen_dashscope
              * @enum {string}
              */
             provider: "qwen_dashscope" | "openai_compatible";
@@ -1578,6 +1582,7 @@ export interface components {
         };
         /** SearchConnection */
         SearchConnection: {
+            mode?: components["schemas"]["WebMode"] | null;
             /**
              * Tavily Api Key Env
              * @default
@@ -1821,6 +1826,12 @@ export interface components {
              */
             protocol: "chat_completions";
         };
+        /**
+         * WebMode
+         * @description Configured backend strategy for model-approved web access.
+         * @enum {string}
+         */
+        WebMode: "disabled" | "native" | "tavily" | "both";
     };
     responses: never;
     parameters: never;
