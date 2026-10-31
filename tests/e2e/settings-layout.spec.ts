@@ -7,8 +7,8 @@ import { captureViewport, contentSize, workspaceSizes } from '../fixtures/visual
 
 test('settings have one navigation column and keep the selected category across actual Yuki switches', async () => {
   test.setTimeout(180000)
-  const first = await yukiFixture({ character: true }),
-    second = await yukiFixture({ character: true }),
+  const first = await yukiFixture({ character: true, modelConfiguration: true }),
+    second = await yukiFixture({ character: true, modelConfiguration: true }),
     app = await first.launch('settings-layout')
   let success = false
   const layouts: unknown[] = []
@@ -94,6 +94,7 @@ test('settings have one navigation column and keep the selected category across 
       ['notify', '通知'],
       ['updates', '更新'],
       ['connection', '連線'],
+      ['models', '模型'],
       ['devices', '裝置'],
       ['computer', '這台電腦'],
       ['yukis', '所有 Yuki'],
