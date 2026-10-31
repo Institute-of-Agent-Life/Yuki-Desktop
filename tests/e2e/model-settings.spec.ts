@@ -3,6 +3,118 @@ import { writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
 
+test('model connections add grouped profiles with write-only keys and edit real schema fields', async () => {
+  test.setTimeout(120000)
+  const rig = await yukiFixture({ modelConfiguration: true }),
+    app = await rig.launch('model-connections')
+  let success = false
+  const logs: string[] = []
+  app.process().stdout?.on('data', (chunk: Buffer) => logs.push(chunk.toString()))
+  app.process().stderr?.on('data', (chunk: Buffer) => logs.push(chunk.toString()))
+  try {
+    await app.evaluate(() => {
+      const scope = globalThis as typeof globalThis & { modelApplyBody?: Promise<unknown> }
+      const originalFetch = globalThis.fetch
+      scope.modelApplyBody = new Promise((resolve) => {
+        globalThis.fetch = (input, init) => {
+          if (String(input).endsWith('/admin/v1/models/apply')) {
+            const body = JSON.parse(String(init!.body))
+            delete body.api_keys
+            resolve(body)
+          }
+          return originalFetch(input, init)
+        }
+      })
+    })
+    const page = await app.firstWindow()
+    await pairUI(page, rig.base, await rig.code())
+    await page.evaluate(() =>
+      window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'settings' })),
+    )
+    await page.getByRole('tab', { name: '模型', exact: true }).click()
+    await expect(page.getByRole('heading', { name: '模型連接' })).toBeVisible()
+    const add = page.getByRole('button', { name: '新增連接', exact: true })
+    await writeFile(
+      test.info().outputPath('model-connections-entry.json'),
+      JSON.stringify({ add: await add.count() }),
+    )
+    expect(await add.count()).toBe(1)
+    await add.click()
+    await page.getByRole('button', { name: '自訂（OpenAI 相容）', exact: true }).click()
+    const sheet = page.getByRole('dialog', { name: '新增連接', includeHidden: true }),
+      state = await rig.state()
+    await sheet.getByLabel('連接名稱', { exact: true }).fill('Fixture connection')
+    await sheet.getByLabel('服務位址', { exact: true }).fill(state.model_upstream_url)
+    await sheet.getByLabel('金鑰', { exact: true }).fill(state.model_upstream_key)
+    for (const id of ['fixture-chat-a', 'fixture-chat-b']) {
+      await sheet.getByLabel('模型 ID', { exact: true }).fill(id)
+      await sheet.getByRole('button', { name: '加入模型', exact: true }).click()
+    }
+    await sheet.getByLabel('逾時（秒）', { exact: true }).fill('20')
+    await sheet.getByLabel('重試次數', { exact: true }).fill('0')
+    await sheet.getByLabel('溫度', { exact: true }).fill('0.2')
+    await sheet.getByLabel('預設輸出 token', { exact: true }).fill('16')
+    for (const label of ['對話', '思考', '結構化'])
+      await sheet.getByRole('checkbox', { name: label, exact: true }).check()
+    await sheet.getByRole('button', { name: '儲存', exact: true }).click()
+    const submitted = await app.evaluate(
+      () => (globalThis as typeof globalThis & { modelApplyBody: Promise<unknown> }).modelApplyBody,
+    )
+    await writeFile(
+      test.info().outputPath('model-connections-submitted.json'),
+      JSON.stringify(submitted, null, 2),
+    )
+    await expect(
+      sheet.getByRole('button', { name: '儲存', exact: true, includeHidden: true }),
+    ).toHaveAttribute('aria-busy', 'false')
+    await page.screenshot({ path: test.info().outputPath('model-connections-first-save.png') })
+    await writeFile(
+      test.info().outputPath('model-connections-first-save.json'),
+      JSON.stringify(
+        { sheetVisible: await sheet.isVisible(), text: await page.locator('body').innerText() },
+        null,
+        2,
+      ),
+    )
+    expect(await sheet.isVisible()).toBe(false)
+    const group = page.getByRole('region', { name: '自訂（OpenAI 相容）', exact: true })
+    await expect(group.getByText('已儲存', { exact: true })).toBeVisible()
+    await expect(
+      group.getByText('fixture-connection-fixture-chat-a', { exact: true }),
+    ).toBeVisible()
+    await expect(
+      group.getByText('fixture-connection-fixture-chat-b', { exact: true }),
+    ).toBeVisible()
+    await group
+      .getByRole('button', { name: '編輯 fixture-connection-fixture-chat-a', exact: true })
+      .click()
+    const edit = page.getByRole('dialog', { name: '編輯模型' })
+    await expect(edit.getByLabel('金鑰', { exact: true })).toHaveValue('')
+    await edit.getByLabel('溫度', { exact: true }).fill('0.4')
+    await edit.getByRole('button', { name: '儲存', exact: true }).click()
+    await expect(edit).not.toBeVisible()
+    const original = await currentConnection(page),
+      bundle = await page.evaluate((id) => window.yuki.client.models.read(id), original.characterId)
+    expect(
+      bundle.ok &&
+        bundle.value.valid &&
+        bundle.value.document.profiles['fixture-connection-fixture-chat-a']?.default_temperature,
+    ).toBe(0.4)
+    expect(JSON.stringify(bundle)).not.toContain(state.model_upstream_key)
+    expect(await page.locator('body').innerText()).not.toContain(state.model_upstream_key)
+    expect(logs.join('')).not.toContain(state.model_upstream_key)
+    await page.screenshot({ path: test.info().outputPath('model-settings-connections.png') })
+    await writeFile(
+      test.info().outputPath('model-connections.json'),
+      JSON.stringify({ original, bundle, mainLogContainsKey: false }, null, 2),
+    )
+    success = true
+  } finally {
+    await app.close()
+    await rig.close(success)
+  }
+})
+
 test('model settings exposes three pages and ordinary people see the actual denial', async () => {
   test.setTimeout(120000)
   const rig = await yukiFixture({ modelConfiguration: true }),
