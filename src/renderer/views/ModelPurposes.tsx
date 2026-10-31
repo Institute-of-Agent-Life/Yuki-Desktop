@@ -4,7 +4,7 @@ import type { ModelBundle, ModelDocument } from '../../shared/models'
 import { Button, Segmented, Sheet, TextField } from '../components/Controls'
 import { Row, SettingsSection } from './SettingsRow'
 import { ModelSchemaFields, schemaDefaults, type JsonSchema } from './ModelSchemaFields'
-import { modelTaskLabel, newKeyAlias, type ModelSave } from './model-document'
+import { modelProfileLabel, modelTaskLabel, newKeyAlias, type ModelSave } from './model-document'
 import styles from './ModelSettings.module.css'
 
 type Bundle = Extract<ModelBundle, { valid: true }>
@@ -46,6 +46,10 @@ export function ModelPurposes({
   const embeddingSchema = data.connection_schemas.embedding! as JsonSchema
   const presets = data.provider_presets.filter((preset) => preset.supports_embedding)
   const profiles = Object.entries(document.profiles)
+  const profileName = (id: string) => {
+    const label = modelProfileLabel(data, id)
+    return `${label.name} · ${label.detail}`
+  }
   const choices = (task: string) =>
     profiles.filter(([, profile]) =>
       data.task_requirements[task]!.every((capability) =>
@@ -113,7 +117,7 @@ export function ModelPurposes({
             >
               {choices(task).map(([id]) => (
                 <option key={id} value={id}>
-                  {id}
+                  {profileName(id)}
                 </option>
               ))}
             </select>
@@ -173,7 +177,7 @@ export function ModelPurposes({
               <option value="">沿用模型的搜尋設定</option>
               {choices('search').map(([id]) => (
                 <option key={id} value={id}>
-                  {id}
+                  {profileName(id)}
                 </option>
               ))}
             </select>
@@ -351,7 +355,7 @@ export function ModelPurposes({
                 )
                 .map(([id]) => (
                   <option key={id} value={id}>
-                    {id}
+                    {profileName(id)}
                   </option>
                 ))}
             </select>

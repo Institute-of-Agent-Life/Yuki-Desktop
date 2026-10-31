@@ -124,9 +124,11 @@ export function ModelSettings({
           ]}
           onChange={(value) => onPage(value as ModelPage)}
         />
-        <small>
-          {data!.apply_mode === 'hot_reload' ? '儲存後立即生效' : '儲存後需重新啟動 Yuki'}
-        </small>
+        {tab !== 'usage' && (
+          <small>
+            {data!.apply_mode === 'hot_reload' ? '儲存後立即生效' : '儲存後需重新啟動 Yuki'}
+          </small>
+        )}
       </div>
       {feedback}
       {tab === 'connections' ? (
@@ -147,7 +149,11 @@ export function ModelSettings({
           feedback={feedback}
         />
       ) : (
-        <ModelUsage characterId={connection.characterId} />
+        <ModelUsage
+          key={connection.characterId}
+          characterId={connection.characterId}
+          tasks={data!.tasks}
+        />
       )}
     </div>
   )

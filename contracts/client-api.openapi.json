@@ -5093,7 +5093,7 @@
   "info": {
     "title": "Yuki personal API",
     "version": "4.0.0",
-    "x-yuki-api-revision": 8
+    "x-yuki-api-revision": 9
   },
   "openapi": "3.1.0",
   "paths": {

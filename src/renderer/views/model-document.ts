@@ -35,12 +35,13 @@ export function newKeyAlias(document: ModelDocument, name: string) {
 }
 
 const tasks: Record<string, string> = {
-  chat_agent: '對話',
+  chat_agent: '對話與工作',
   memory_extraction: '記憶擷取',
   memory_self_reflection: '記憶反思',
   memory_dream: '記憶整理',
-  plugin_agent_session: '外部 Agent',
+  plugin_agent_session: '插件會話',
   utility_structured: '結構化處理',
+  web_search: '聯網搜尋',
 }
 export const modelTaskLabel = (task: string) => tasks[task] ?? task
 

@@ -222,7 +222,10 @@ test('model administration bridge uses the paired Person original receipt and wr
         const first = await window.yuki.client.models.apply(id, input)
         const repeated = await window.yuki.client.models.apply(id, input)
         const after = await window.yuki.client.models.read(id)
-        const stats = await window.yuki.client.models.stats(id)
+        const stats = await window.yuki.client.models.stats(id, {
+          range: 'all',
+          timezone: 'Asia/Taipei',
+        })
         return {
           profileId,
           before,
