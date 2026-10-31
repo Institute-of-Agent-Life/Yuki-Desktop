@@ -2,6 +2,7 @@ import type { components as ServerComponents } from './contract.gen'
 import type { components } from './contract.gen'
 import type { NavigationTarget } from './desktop'
 import type { MessageReference } from './message'
+import type { ModelsBridge } from './models'
 
 export const REQUIRED_API_REVISION = 8
 
@@ -235,6 +236,7 @@ export type ApiRead =
   | { kind: 'activity'; conversationId: string }
 
 export interface ConversationBridge {
+  models: ModelsBridge
   pendingPairings(): Promise<ApiReply<PendingPairing[]>>
   resumePairing(characterId: string, deviceId: string): Promise<ApiReply<Connection>>
   forgetPairing(characterId: string, deviceId: string): Promise<ApiReply<void>>

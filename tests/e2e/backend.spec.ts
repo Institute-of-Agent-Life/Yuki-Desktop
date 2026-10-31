@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
 import type { Profile } from '../../src/shared/api'
 import {
   recordBusinessState,
@@ -119,8 +120,7 @@ test('actual Yuki container: pairing, real ledger reply, lost response, cold rec
     page = await app.firstWindow()
     composer = page.getByRole('textbox', { name: composerName, exact: true })
     await expect(composer).toHaveValue('尚未送出的草稿')
-    await expect(page.getByText('原回應遺失的訊息', { exact: true })).toBeVisible()
-    await waitForMainEnded(page, connection.characterId, unknown.requestId)
+    const receipt = await waitForMainEnded(page, connection.characterId, unknown.requestId)
     await expect
       .poll(() =>
         page.evaluate(
@@ -132,10 +132,17 @@ test('actual Yuki container: pairing, real ledger reply, lost response, cold rec
         ),
       )
       .toBe('result')
+    await expect(page.getByText('原回應遺失的訊息', { exact: true })).toHaveCount(1)
+    await expect(
+      page
+        .locator(`article[data-event-id="${receipt.event_id}"]`)
+        .getByText('原回應遺失的訊息', { exact: true }),
+    ).toBeVisible()
     const recovered = (await ledgerEvents(base)).filter(
       (item) => item.content === '原回應遺失的訊息',
     )
     expect(recovered).toHaveLength(1)
+    expect(recovered[0]!.event_id).toBe(receipt.event_id)
     expect(recovered[0]!.author_person_id).toBe(connection.personId)
     expect(recovered[0]!.conversation_id).toBe(connection.conversationId)
     expect(
@@ -146,6 +153,32 @@ test('actual Yuki container: pairing, real ledger reply, lost response, cold rec
           call.requestId === unknown.requestId,
       ),
     ).toHaveLength(1)
+    await writeFile(
+      test.info().outputPath('cold-recovery.json'),
+      JSON.stringify(
+        {
+          connection,
+          requestId: unknown.requestId,
+          receipt,
+          ledger: recovered,
+          postCount: proxy.calls.filter(
+            (call) =>
+              call.method === 'POST' &&
+              call.path.endsWith('/messages') &&
+              call.requestId === unknown.requestId,
+          ).length,
+          messageCount: await page.getByText('原回應遺失的訊息', { exact: true }).count(),
+          draft: await composer.inputValue(),
+          backgroundWindows: await app.evaluate(
+            () =>
+              (globalThis as typeof globalThis & { __yukiBackgroundWindows?: unknown })
+                .__yukiBackgroundWindows,
+          ),
+        },
+        null,
+        2,
+      ),
+    )
     await page.screenshot({
       animations: 'disabled',
       path: test.info().outputPath('real-backend-conversation.png'),

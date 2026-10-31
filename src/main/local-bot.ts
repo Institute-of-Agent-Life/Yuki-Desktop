@@ -186,6 +186,7 @@ export class LocalBot {
       personName: input.personName.trim(),
       personRequestId: randomUUID(),
       pairRequestId: randomUUID(),
+      superuserRequestId: randomUUID(),
     }
     await mkdir(directory, { recursive: true })
     for (const name of [
@@ -309,6 +310,7 @@ export class LocalBot {
           display_name: item.personName,
           person_request_id: item.personRequestId,
           pair_request_id: item.pairRequestId,
+          superuser_request_id: item.superuserRequestId,
           ...(item.personId ? { person_id: item.personId } : {}),
         }),
       ),

@@ -520,6 +520,13 @@ window.yuki = {
     onChange: () => () => {},
   },
   client: {
+    models: {
+      read: async () => ({ ok: false, code: 'fixture_only' }),
+      apply: async () => ({ ok: false, code: 'fixture_only' }),
+      test: async () => ({ ok: false, code: 'fixture_only' }),
+      discover: async () => ({ ok: false, code: 'fixture_only' }),
+      stats: async () => ({ ok: false, code: 'fixture_only' }),
+    },
     pendingPairings: async () => ({ ok: true, value: [] }),
     resumePairing: async () => ({ ok: false, code: 'fixture_only' }),
     forgetPairing: async () => ({ ok: true, value: undefined }),

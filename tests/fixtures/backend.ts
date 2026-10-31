@@ -268,6 +268,7 @@ export async function yukiFixture(
     native?: boolean
     maxInputCharacters?: number
     richMedia?: boolean
+    modelConfiguration?: boolean
   } = {},
 ) {
   const backend = process.env.YUKI_BACKEND_TEST_ROOT,
@@ -316,6 +317,7 @@ export async function yukiFixture(
             YUKI_DESKTOP_COMPUTER_WORK_FIXTURE: options.computerWork ? '1' : '0',
             YUKI_DESKTOP_NATIVE_FIXTURE: options.native ? '1' : '0',
             YUKI_DESKTOP_CHARACTER_FIXTURE: options.character ? '1' : '0',
+            YUKI_AUTHORITY_FIXTURE: options.modelConfiguration ? '1' : '0',
             YUKI_DESKTOP_PROMPT_FIXTURE:
               options.prompts === 'readonly' ? 'readonly' : options.prompts ? '1' : '0',
           },
@@ -360,6 +362,8 @@ export async function yukiFixture(
         artifact_version: string
         artifact_event_id: number
         artifact_conversation_id: string
+        model_upstream_url: string
+        model_upstream_key: string
       },
     async code() {
       return (

@@ -48,6 +48,13 @@ const bridge: DesktopBridge = {
     },
   },
   client: {
+    models: {
+      read: (id) => ipcRenderer.invoke('yuki:models-read', id),
+      apply: (id, input) => ipcRenderer.invoke('yuki:models-apply', id, input),
+      test: (id, input) => ipcRenderer.invoke('yuki:models-test', id, input),
+      discover: (id, input) => ipcRenderer.invoke('yuki:models-discover', id, input),
+      stats: (id) => ipcRenderer.invoke('yuki:models-stats', id),
+    },
     pendingPairings: () => ipcRenderer.invoke('yuki:pending-pairings'),
     resumePairing: (id, device) => ipcRenderer.invoke('yuki:resume-pairing', id, device),
     forgetPairing: (id, device) => ipcRenderer.invoke('yuki:forget-pairing', id, device),

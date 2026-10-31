@@ -1,13 +1,16 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { mkdtemp, rm, readFile } from 'node:fs/promises'
+import { mkdtemp, rm, readFile, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve, relative, isAbsolute } from 'node:path'
 import { createServer } from 'node:net'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { parseEnv } from 'node:util'
 vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false } }))
 import { LocalBot, runDocker } from '../../src/main/local-bot'
 import { Connections } from '../../src/main/connections'
 import { LocalStore } from '../../src/main/store'
+import type { Me } from '../../src/shared/api'
+import type { LocalBotInstallation } from '../../src/shared/local-bot'
 
 const resources: {
   root: string
@@ -79,18 +82,88 @@ it.skipIf(process.env.YUKI_TEST_DOCKER !== '1')(
     })
     expect(result.baseUrl).toBe(`http://127.0.0.1:${port}`)
     expect(result.name).toBe('本機測試角色')
-    const me = await connections.read<{
-      person_id: string
-      platform: string
-      devices: { purpose: string }[]
-    }>(result.characterId, { kind: 'me' }, false)
+    const me = await connections.read<Me>(result.characterId, { kind: 'me' }, false)
     expect(me.person_id).toBe(result.personId)
     expect(me.platform).toBe('app')
+    expect(me.is_superuser).toBe(true)
     expect(me.devices.map((item) => item.purpose)).toEqual(['chat'])
     const originalDevice = result.deviceId
+    const originalGrant = store.get<LocalBotInstallation>('local-bot')!.superuserRequestId
+    expect(originalGrant).toMatch(/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/)
     expect((await bot.connect()).deviceId).toBe(originalDevice)
+    expect(store.get<LocalBotInstallation>('local-bot')!.superuserRequestId).toBe(originalGrant)
     expect((await bot.state()).running).toBe(true)
     expect((await readFile(join(directory, 'character', 'SOUL.md'))).length).toBeGreaterThan(0)
+
+    // Failures: reconnect must not revive a revoked grant, and the old
+    // installation format without a grant UUID must not create a new one.
+    const environment = parseEnv(await readFile(join(directory, '.env'), 'utf8')),
+      operator = { Authorization: `Bearer ${environment.YUKI_CONTROL_OPERATOR_TOKEN}` },
+      personUrl = `${result.baseUrl}/admin/v1/persons/${result.personId}`,
+      receiptUrl = `${result.baseUrl}/admin/v1/operations/${originalGrant}`,
+      originalReceipt = await (await fetch(receiptUrl, { headers: operator })).json(),
+      person = await (await fetch(personUrl, { headers: operator })).json()
+    const revoked = await fetch(`${personUrl}/superuser/revoke`, {
+      method: 'POST',
+      headers: { ...operator, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ request_id: randomUUID(), expected_revision: person.data.revision }),
+    })
+    expect(revoked.status).toBe(200)
+    const revokedPerson = await (await fetch(personUrl, { headers: operator })).json()
+    expect(revokedPerson.data.is_superuser).toBe(false)
+    await connections.prepareLogout(result.characterId)
+    await connections.finishLogout(result.characterId, originalDevice!, 'keep')
+    const reconnected = await bot.connect(),
+      reconnectMe = await connections.read<Me>(result.characterId, { kind: 'me' }, false)
+    expect(reconnected.personId).toBe(result.personId)
+    expect(reconnected.deviceId).not.toBe(originalDevice)
+    expect(reconnectMe.is_superuser).toBe(false)
+    expect(store.get<LocalBotInstallation>('local-bot')!.superuserRequestId).toBe(originalGrant)
+    expect(await (await fetch(receiptUrl, { headers: operator })).json()).toEqual(originalReceipt)
+    expect(await (await fetch(personUrl, { headers: operator })).json()).toEqual(revokedPerson)
+
+    await connections.prepareLogout(result.characterId)
+    await connections.finishLogout(result.characterId, reconnected.deviceId!, 'keep')
+    const legacy = store.get<LocalBotInstallation>('local-bot')!
+    delete legacy.superuserRequestId
+    store.set('local-bot', legacy)
+    const oldPairRequest = legacy.pairRequestId,
+      oldReconnected = await bot.connect(),
+      oldMe = await connections.read<Me>(result.characterId, { kind: 'me' }, false),
+      preserved = store.get<LocalBotInstallation>('local-bot')!
+    expect(oldReconnected.personId).toBe(result.personId)
+    expect(oldReconnected.deviceId).not.toBe(reconnected.deviceId)
+    expect(oldMe.is_superuser).toBe(false)
+    expect(preserved.superuserRequestId).toBeUndefined()
+    expect(preserved.personRequestId).toBe(legacy.personRequestId)
+    expect(preserved.pairRequestId).not.toBe(oldPairRequest)
+    expect(await (await fetch(personUrl, { headers: operator })).json()).toEqual(revokedPerson)
+    expect(await (await fetch(receiptUrl, { headers: operator })).json()).toEqual(originalReceipt)
+    const evidence = process.env.YUKI_E2E_OUTPUT ?? join(tmpdir(), 'yuki-local-bot-evidence')
+    await mkdir(evidence, { recursive: true })
+    await writeFile(
+      join(evidence, 'local-reconnect.json'),
+      JSON.stringify(
+        {
+          personId: result.personId,
+          originalDevice,
+          originalGrant,
+          revokedReconnect: {
+            deviceId: reconnected.deviceId,
+            isSuperuser: reconnectMe.is_superuser,
+          },
+          legacyReconnect: {
+            deviceId: oldReconnected.deviceId,
+            isSuperuser: oldMe.is_superuser,
+            installation: preserved,
+          },
+          originalReceipt,
+          revokedPerson,
+        },
+        null,
+        2,
+      ),
+    )
   },
   180_000,
 )

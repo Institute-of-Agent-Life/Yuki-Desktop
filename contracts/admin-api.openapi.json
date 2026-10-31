@@ -1,0 +1,5813 @@
+{
+  "components": {
+    "schemas": {
+      "ASRConnection": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key_env": {
+            "default": "",
+            "title": "Api Key Env",
+            "type": "string"
+          },
+          "base_url": {
+            "default": "",
+            "title": "Base Url",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "model": {
+            "default": "",
+            "title": "Model",
+            "type": "string"
+          },
+          "protocol": {
+            "default": "chat_completions",
+            "enum": [
+              "chat_completions",
+              "audio_transcriptions"
+            ],
+            "title": "Protocol",
+            "type": "string"
+          }
+        },
+        "title": "ASRConnection",
+        "type": "object"
+      },
+      "Accent": {
+        "properties": {
+          "dark": {
+            "pattern": "^#[0-9A-Fa-f]{6}$",
+            "title": "Dark",
+            "type": "string"
+          },
+          "light": {
+            "pattern": "^#[0-9A-Fa-f]{6}$",
+            "title": "Light",
+            "type": "string"
+          }
+        },
+        "required": [
+          "light",
+          "dark"
+        ],
+        "title": "Accent",
+        "type": "object"
+      },
+      "Avatar": {
+        "properties": {
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "sizes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Sizes",
+            "type": "object"
+          }
+        },
+        "required": [
+          "sha256",
+          "sizes"
+        ],
+        "title": "Avatar",
+        "type": "object"
+      },
+      "BindingBody": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "default": "",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 0.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "external_account_id": {
+            "title": "External Account Id",
+            "type": "string"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "expected_revision",
+          "platform",
+          "external_account_id"
+        ],
+        "title": "BindingBody",
+        "type": "object"
+      },
+      "CharacterProfile": {
+        "properties": {
+          "accent": {
+            "$ref": "#/components/schemas/Accent"
+          },
+          "avatar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CurrentAvatar"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "avatar_revision": {
+            "title": "Avatar Revision",
+            "type": "integer"
+          },
+          "bio": {
+            "title": "Bio",
+            "type": "string"
+          },
+          "default_avatar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Avatar"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "replay": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replay"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "display_name",
+          "bio",
+          "accent",
+          "revision",
+          "avatar_revision",
+          "avatar",
+          "default_avatar"
+        ],
+        "title": "CharacterProfile",
+        "type": "object"
+      },
+      "CharacterUpdateBody": {
+        "properties": {
+          "accent": {
+            "$ref": "#/components/schemas/Accent"
+          },
+          "bio": {
+            "title": "Bio",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "expected_revision"
+        ],
+        "title": "CharacterUpdateBody",
+        "type": "object"
+      },
+      "ChatWireOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "include_reasoning": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Include Reasoning"
+          },
+          "native_web_search": {
+            "default": false,
+            "title": "Native Web Search",
+            "type": "boolean"
+          },
+          "reasoning": {
+            "default": "effort",
+            "enum": [
+              "effort",
+              "thinking",
+              "enable_thinking",
+              "openrouter",
+              "builtin",
+              "gemini",
+              "budget"
+            ],
+            "title": "Reasoning",
+            "type": "string"
+          },
+          "reasoning_format": {
+            "anyOf": [
+              {
+                "enum": [
+                  "parsed",
+                  "hidden"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Format"
+          },
+          "reasoning_split": {
+            "default": false,
+            "title": "Reasoning Split",
+            "type": "boolean"
+          },
+          "replay_reasoning": {
+            "default": true,
+            "title": "Replay Reasoning",
+            "type": "boolean"
+          },
+          "send_reasoning_effort": {
+            "default": false,
+            "title": "Send Reasoning Effort",
+            "type": "boolean"
+          },
+          "send_temperature": {
+            "default": false,
+            "title": "Send Temperature",
+            "type": "boolean"
+          },
+          "send_tool_choice": {
+            "default": true,
+            "title": "Send Tool Choice",
+            "type": "boolean"
+          },
+          "thinking_budget_tokens": {
+            "default": 4096,
+            "minimum": 1024.0,
+            "title": "Thinking Budget Tokens",
+            "type": "integer"
+          },
+          "token_field": {
+            "default": "max_tokens",
+            "enum": [
+              "max_tokens",
+              "max_completion_tokens"
+            ],
+            "title": "Token Field",
+            "type": "string"
+          }
+        },
+        "title": "ChatWireOptions",
+        "type": "object"
+      },
+      "CommandBody": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "minimum": 0.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "expected_revision"
+        ],
+        "title": "CommandBody",
+        "type": "object"
+      },
+      "ConfigBody": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "minimum": 0.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "format": "uuid4",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Id"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "scope_type": {
+            "default": "global",
+            "enum": [
+              "global",
+              "user",
+              "group"
+            ],
+            "title": "Scope Type",
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": true,
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "request_id",
+          "expected_revision",
+          "values"
+        ],
+        "title": "ConfigBody",
+        "type": "object"
+      },
+      "CurrentAvatar": {
+        "properties": {
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "sizes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Sizes",
+            "type": "object"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256",
+          "sizes",
+          "revision",
+          "updated_at"
+        ],
+        "title": "CurrentAvatar",
+        "type": "object"
+      },
+      "DraftConnection": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key_env": {
+            "default": "",
+            "title": "Api Key Env",
+            "type": "string"
+          },
+          "base_url": {
+            "minLength": 1,
+            "title": "Base Url",
+            "type": "string"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/ModelProtocol"
+          },
+          "provider": {
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "timeout_seconds": {
+            "exclusiveMinimum": 0.0,
+            "title": "Timeout Seconds",
+            "type": "number"
+          }
+        },
+        "required": [
+          "provider",
+          "protocol",
+          "base_url",
+          "timeout_seconds"
+        ],
+        "title": "DraftConnection",
+        "type": "object"
+      },
+      "DraftModelDiscovery": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "format": "password",
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "draft_connection": {
+            "$ref": "#/components/schemas/DraftConnection"
+          }
+        },
+        "required": [
+          "draft_connection"
+        ],
+        "title": "DraftModelDiscovery",
+        "type": "object"
+      },
+      "DraftModelProfile": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key_env": {
+            "default": "",
+            "title": "Api Key Env",
+            "type": "string"
+          },
+          "base_url": {
+            "default": "",
+            "title": "Base Url",
+            "type": "string"
+          },
+          "capabilities": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ModelCapability"
+            },
+            "title": "Capabilities",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "context_window_tokens": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Window Tokens"
+          },
+          "default_max_output_tokens": {
+            "exclusiveMinimum": 0.0,
+            "title": "Default Max Output Tokens",
+            "type": "integer"
+          },
+          "default_temperature": {
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Default Temperature",
+            "type": "number"
+          },
+          "id": {
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9_.-]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "max_input_tokens": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Input Tokens"
+          },
+          "max_output_tokens_limit": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Output Tokens Limit"
+          },
+          "max_retries": {
+            "minimum": 0.0,
+            "title": "Max Retries",
+            "type": "integer"
+          },
+          "model": {
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/ModelProtocol",
+            "default": "chat_completions"
+          },
+          "provider": {
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "reasoning_effort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReasoningEffort"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "medium"
+          },
+          "search_connection": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Connection"
+          },
+          "search_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelSearchMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "structured_output_mode": {
+            "$ref": "#/components/schemas/StructuredOutputMode",
+            "default": "function_tool"
+          },
+          "thinking_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": true,
+            "title": "Thinking Enabled"
+          },
+          "timeout_seconds": {
+            "exclusiveMinimum": 0.0,
+            "title": "Timeout Seconds",
+            "type": "number"
+          },
+          "wire_options": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChatWireOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "model",
+          "timeout_seconds",
+          "max_retries",
+          "default_temperature",
+          "default_max_output_tokens"
+        ],
+        "title": "DraftModelProfile",
+        "type": "object"
+      },
+      "DraftModelTest": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "format": "password",
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "draft_profile": {
+            "$ref": "#/components/schemas/DraftModelProfile"
+          }
+        },
+        "required": [
+          "draft_profile"
+        ],
+        "title": "DraftModelTest",
+        "type": "object"
+      },
+      "EmbeddingConnection": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key_env": {
+            "default": "",
+            "title": "Api Key Env",
+            "type": "string"
+          },
+          "base_url": {
+            "default": "",
+            "title": "Base Url",
+            "type": "string"
+          },
+          "dimensions": {
+            "default": 1024,
+            "exclusiveMinimum": 0.0,
+            "title": "Dimensions",
+            "type": "integer"
+          },
+          "document_template_version": {
+            "default": 1,
+            "exclusiveMinimum": 0.0,
+            "title": "Document Template Version",
+            "type": "integer"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "model": {
+            "default": "",
+            "title": "Model",
+            "type": "string"
+          },
+          "output_type": {
+            "const": "dense",
+            "default": "dense",
+            "title": "Output Type",
+            "type": "string"
+          },
+          "provider": {
+            "default": "qwen_dashscope",
+            "enum": [
+              "qwen_dashscope",
+              "openai_compatible"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "query_instruct": {
+            "default": "Retrieve personal memory facts relevant to the conversational query.",
+            "title": "Query Instruct",
+            "type": "string"
+          }
+        },
+        "title": "EmbeddingConnection",
+        "type": "object"
+      },
+      "EmbeddingDefaults": {
+        "properties": {
+          "base_url": {
+            "title": "Base Url",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "qwen_dashscope",
+              "openai_compatible"
+            ],
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "base_url"
+        ],
+        "title": "EmbeddingDefaults",
+        "type": "object"
+      },
+      "Envelope_CharacterProfile_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CharacterProfile"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[CharacterProfile]",
+        "type": "object"
+      },
+      "Envelope_ModelBundle_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ModelBundle"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[ModelBundle]",
+        "type": "object"
+      },
+      "Envelope_ModelControlResult_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ModelControlResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[ModelControlResult]",
+        "type": "object"
+      },
+      "Envelope_ModelDiscoverResult_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ModelDiscoverResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[ModelDiscoverResult]",
+        "type": "object"
+      },
+      "Envelope_ModelStatsView_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ModelStatsView"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[ModelStatsView]",
+        "type": "object"
+      },
+      "Envelope_ModelTestResult_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ModelTestResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[ModelTestResult]",
+        "type": "object"
+      },
+      "Envelope_SoulDocument_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SoulDocument"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[SoulDocument]",
+        "type": "object"
+      },
+      "Envelope_SoulResult_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SoulResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[SoulResult]",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IdentityRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id"
+        ],
+        "title": "IdentityRequest",
+        "type": "object"
+      },
+      "InvalidModelBundle": {
+        "description": "Invalid files can have a partial projection; they are never an editable document.",
+        "properties": {
+          "apply_mode": {
+            "enum": [
+              "hot_reload",
+              "restart"
+            ],
+            "title": "Apply Mode",
+            "type": "string"
+          },
+          "connection_schemas": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/JsonValue"
+                  },
+                  "type": "object"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Schemas"
+          },
+          "document": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "error_category": {
+            "const": "validation_error",
+            "title": "Error Category",
+            "type": "string"
+          },
+          "exists": {
+            "title": "Exists",
+            "type": "boolean"
+          },
+          "file_id": {
+            "const": "model_profiles",
+            "title": "File Id",
+            "type": "string"
+          },
+          "matches_loaded": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matches Loaded"
+          },
+          "profile_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Schema"
+          },
+          "provider_presets": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderPresetView"
+            },
+            "title": "Provider Presets",
+            "type": "array"
+          },
+          "resolved_profiles": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ResolvedModelProfile"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved Profiles"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "saved_api_key_profiles": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved Api Key Profiles"
+          },
+          "saved_connection_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved Connection Keys"
+          },
+          "saved_semantic_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved Semantic Keys"
+          },
+          "search_backend": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Backend"
+          },
+          "semantic_matches_loaded": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semantic Matches Loaded"
+          },
+          "semantic_providers": {
+            "items": {
+              "$ref": "#/components/schemas/SemanticProviderPreset"
+            },
+            "title": "Semantic Providers",
+            "type": "array"
+          },
+          "semantic_valid": {
+            "title": "Semantic Valid",
+            "type": "boolean"
+          },
+          "task_requirements": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/ModelCapability"
+              },
+              "type": "array"
+            },
+            "title": "Task Requirements",
+            "type": "object"
+          },
+          "tasks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModelTask"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tasks"
+          },
+          "valid": {
+            "const": false,
+            "title": "Valid",
+            "type": "boolean"
+          },
+          "writable_directory": {
+            "title": "Writable Directory",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file_id",
+          "exists",
+          "revision",
+          "apply_mode",
+          "matches_loaded",
+          "semantic_matches_loaded",
+          "semantic_valid",
+          "semantic_providers",
+          "provider_presets",
+          "task_requirements",
+          "writable_directory",
+          "valid",
+          "error_category"
+        ],
+        "title": "InvalidModelBundle",
+        "type": "object"
+      },
+      "JsonValue": {},
+      "ModelBundle": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ValidModelBundle"
+          },
+          {
+            "$ref": "#/components/schemas/InvalidModelBundle"
+          }
+        ]
+      },
+      "ModelCapability": {
+        "description": "Features a profile must explicitly advertise.",
+        "enum": [
+          "tools",
+          "structured_output",
+          "reasoning",
+          "long_context",
+          "native_web_search",
+          "image_input"
+        ],
+        "title": "ModelCapability",
+        "type": "string"
+      },
+      "ModelConnectionError": {
+        "enum": [
+          "authentication",
+          "rate_limit",
+          "quota",
+          "timeout",
+          "protocol",
+          "unavailable",
+          "configuration",
+          "unsupported"
+        ],
+        "type": "string"
+      },
+      "ModelControlResult": {
+        "properties": {
+          "audit_id": {
+            "title": "Audit Id",
+            "type": "string"
+          },
+          "effective_state": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Effective State",
+            "type": "object"
+          },
+          "operation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OperationRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resource_id": {
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "resource_id",
+          "revision",
+          "audit_id",
+          "effective_state",
+          "operation"
+        ],
+        "title": "ModelControlResult",
+        "type": "object"
+      },
+      "ModelDiscoverResult": {
+        "properties": {
+          "error_category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelConnectionError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderModel"
+            },
+            "title": "Models",
+            "type": "array"
+          }
+        },
+        "title": "ModelDiscoverResult",
+        "type": "object"
+      },
+      "ModelDocument": {
+        "additionalProperties": false,
+        "properties": {
+          "asr": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ASRConnection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "embedding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EmbeddingConnection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "profiles": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelProfileDocument"
+            },
+            "title": "Profiles",
+            "type": "object"
+          },
+          "routes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Routes",
+            "type": "object"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "search": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchConnection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "search_backend": {
+            "anyOf": [
+              {
+                "enum": [
+                  "tavily",
+                  "model"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Backend"
+          },
+          "search_connection": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Connection"
+          },
+          "semantic_observation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SemanticObservation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisionConnection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "profiles",
+          "routes"
+        ],
+        "title": "ModelDocument",
+        "type": "object"
+      },
+      "ModelProfileDocument": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key_env": {
+            "title": "Api Key Env",
+            "type": "string"
+          },
+          "base_url": {
+            "title": "Base Url",
+            "type": "string"
+          },
+          "base_url_env": {
+            "title": "Base Url Env",
+            "type": "string"
+          },
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/ModelCapability"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "context_window_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Window Tokens"
+          },
+          "default_max_output_tokens": {
+            "title": "Default Max Output Tokens",
+            "type": "integer"
+          },
+          "default_temperature": {
+            "title": "Default Temperature",
+            "type": "number"
+          },
+          "max_input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Input Tokens"
+          },
+          "max_output_tokens_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Output Tokens Limit"
+          },
+          "max_retries": {
+            "title": "Max Retries",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "model_env": {
+            "title": "Model Env",
+            "type": "string"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/ModelProtocol"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "reasoning_effort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReasoningEffort"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reasoning_effort_env": {
+            "title": "Reasoning Effort Env",
+            "type": "string"
+          },
+          "search_connection": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Connection"
+          },
+          "search_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelSearchMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "structured_output_mode": {
+            "$ref": "#/components/schemas/StructuredOutputMode"
+          },
+          "thinking_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thinking Enabled"
+          },
+          "thinking_mode": {
+            "title": "Thinking Mode",
+            "type": "string"
+          },
+          "timeout_seconds": {
+            "title": "Timeout Seconds",
+            "type": "number"
+          },
+          "wire_options": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChatWireOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "ModelProfileDocument",
+        "type": "object"
+      },
+      "ModelProtocol": {
+        "description": "Wire protocol used by one model profile.",
+        "enum": [
+          "chat_completions",
+          "responses",
+          "anthropic_messages",
+          "gemini"
+        ],
+        "title": "ModelProtocol",
+        "type": "string"
+      },
+      "ModelSearchMode": {
+        "description": "Per-connection choice of provider and externally executed search.",
+        "enum": [
+          "external",
+          "native",
+          "both",
+          "bridge"
+        ],
+        "title": "ModelSearchMode",
+        "type": "string"
+      },
+      "ModelStats": {
+        "additionalProperties": false,
+        "description": "Aggregated model usage without prompts, users, or tool payloads.",
+        "properties": {
+          "average_latency_seconds": {
+            "default": 0,
+            "title": "Average Latency Seconds",
+            "type": "number"
+          },
+          "cache_creation_1h_input_tokens": {
+            "default": 0,
+            "title": "Cache Creation 1H Input Tokens",
+            "type": "integer"
+          },
+          "cache_creation_5m_input_tokens": {
+            "default": 0,
+            "title": "Cache Creation 5M Input Tokens",
+            "type": "integer"
+          },
+          "cache_creation_input_tokens": {
+            "default": 0,
+            "title": "Cache Creation Input Tokens",
+            "type": "integer"
+          },
+          "cached_prompt_tokens": {
+            "default": 0,
+            "title": "Cached Prompt Tokens",
+            "type": "integer"
+          },
+          "completion_tokens": {
+            "default": 0,
+            "title": "Completion Tokens",
+            "type": "integer"
+          },
+          "failures": {
+            "default": 0,
+            "title": "Failures",
+            "type": "integer"
+          },
+          "invocations": {
+            "default": 0,
+            "title": "Invocations",
+            "type": "integer"
+          },
+          "prompt_tokens": {
+            "default": 0,
+            "title": "Prompt Tokens",
+            "type": "integer"
+          },
+          "successes": {
+            "default": 0,
+            "title": "Successes",
+            "type": "integer"
+          },
+          "total_tokens": {
+            "default": 0,
+            "title": "Total Tokens",
+            "type": "integer"
+          },
+          "unknown_usage": {
+            "default": 0,
+            "title": "Unknown Usage",
+            "type": "integer"
+          }
+        },
+        "title": "ModelStats",
+        "type": "object"
+      },
+      "ModelStatsView": {
+        "properties": {
+          "by_profile": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelStats"
+            },
+            "title": "By Profile",
+            "type": "object"
+          },
+          "by_task": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelStats"
+            },
+            "title": "By Task",
+            "type": "object"
+          }
+        },
+        "required": [
+          "by_task",
+          "by_profile"
+        ],
+        "title": "ModelStatsView",
+        "type": "object"
+      },
+      "ModelTask": {
+        "description": "Stable business purpose attached to every main-model invocation.",
+        "enum": [
+          "chat_agent",
+          "memory_extraction",
+          "memory_self_reflection",
+          "memory_dream",
+          "plugin_agent_session",
+          "utility_structured"
+        ],
+        "title": "ModelTask",
+        "type": "string"
+      },
+      "ModelTestResult": {
+        "properties": {
+          "error_category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelConnectionError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latency_seconds": {
+            "title": "Latency Seconds",
+            "type": "number"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "latency_seconds"
+        ],
+        "title": "ModelTestResult",
+        "type": "object"
+      },
+      "ModelsBody": {
+        "additionalProperties": false,
+        "properties": {
+          "api_keys": {
+            "additionalProperties": {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            "title": "Api Keys",
+            "type": "object"
+          },
+          "document": {
+            "$ref": "#/components/schemas/ModelDocument"
+          },
+          "expected_revision": {
+            "minimum": 0.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "expected_revision",
+          "document"
+        ],
+        "title": "ModelsBody",
+        "type": "object"
+      },
+      "OperationRef": {
+        "description": "Projection of an existing rebuild/dream/automation run.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Category"
+          },
+          "operation_id": {
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress"
+          },
+          "state_epoch": {
+            "$ref": "#/components/schemas/StateEpoch"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OperationStatus"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "status",
+          "progress",
+          "state_epoch",
+          "error_category",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OperationRef",
+        "type": "object"
+      },
+      "OperationStatus": {
+        "enum": [
+          "queued",
+          "running",
+          "succeeded",
+          "failed",
+          "cancelled",
+          "unknown",
+          "waiting",
+          "blocked"
+        ],
+        "title": "OperationStatus",
+        "type": "string"
+      },
+      "PairCodeBody": {
+        "additionalProperties": false,
+        "properties": {
+          "purpose": {
+            "default": "chat",
+            "enum": [
+              "chat",
+              "connector"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id"
+        ],
+        "title": "PairCodeBody",
+        "type": "object"
+      },
+      "PersonBody": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 0.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "expected_revision"
+        ],
+        "title": "PersonBody",
+        "type": "object"
+      },
+      "PluginBody": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "minimum": 0.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "expected_revision"
+        ],
+        "title": "PluginBody",
+        "type": "object"
+      },
+      "PresenceBody": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "expected_revision": {
+            "minimum": 0.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "ingest_eligible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ingest Eligible"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "expected_revision"
+        ],
+        "title": "PresenceBody",
+        "type": "object"
+      },
+      "PresenceRegistrationBody": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "default": "",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "expected_assignment_id": {
+            "anyOf": [
+              {
+                "format": "uuid4",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Assignment Id"
+          },
+          "expected_revision": {
+            "minimum": 0.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "external_account_id": {
+            "title": "External Account Id",
+            "type": "string"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "expected_revision",
+          "platform",
+          "external_account_id"
+        ],
+        "title": "PresenceRegistrationBody",
+        "type": "object"
+      },
+      "PresenceTransferBody": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "minimum": 0.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "to_person": {
+            "format": "uuid4",
+            "title": "To Person",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "expected_revision",
+          "to_person"
+        ],
+        "title": "PresenceTransferBody",
+        "type": "object"
+      },
+      "ProviderModel": {
+        "description": "An upstream model identifier, without inferred capabilities.",
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "ProviderModel",
+        "type": "object"
+      },
+      "ProviderPresetView": {
+        "properties": {
+          "api_key_env_suggestion": {
+            "title": "Api Key Env Suggestion",
+            "type": "string"
+          },
+          "default_base_url": {
+            "title": "Default Base Url",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "docs_url": {
+            "title": "Docs Url",
+            "type": "string"
+          },
+          "embedding_defaults": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EmbeddingDefaults"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "embedding_provider": {
+            "anyOf": [
+              {
+                "enum": [
+                  "qwen_dashscope",
+                  "openai_compatible"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedding Provider"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/ModelProtocol"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "supports_embedding": {
+            "title": "Supports Embedding",
+            "type": "boolean"
+          },
+          "supports_model_listing": {
+            "title": "Supports Model Listing",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "provider",
+          "display_name",
+          "protocol",
+          "default_base_url",
+          "api_key_env_suggestion",
+          "docs_url",
+          "supports_model_listing",
+          "embedding_defaults",
+          "embedding_provider",
+          "supports_embedding"
+        ],
+        "title": "ProviderPresetView",
+        "type": "object"
+      },
+      "ReasoningEffort": {
+        "description": "Provider-neutral reasoning effort values used by Responses APIs.",
+        "enum": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "title": "ReasoningEffort",
+        "type": "string"
+      },
+      "RenameBody": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "maxLength": 128,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "display_name"
+        ],
+        "title": "RenameBody",
+        "type": "object"
+      },
+      "ResolvedModelProfile": {
+        "properties": {
+          "base_url": {
+            "title": "Base Url",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "reasoning_effort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReasoningEffort"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "base_url",
+          "model",
+          "reasoning_effort"
+        ],
+        "title": "ResolvedModelProfile",
+        "type": "object"
+      },
+      "SavedModelConnection": {
+        "additionalProperties": false,
+        "properties": {
+          "profile_id": {
+            "minLength": 1,
+            "title": "Profile Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile_id"
+        ],
+        "title": "SavedModelConnection",
+        "type": "object"
+      },
+      "SearchConnection": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WebMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tavily_api_key_env": {
+            "default": "",
+            "title": "Tavily Api Key Env",
+            "type": "string"
+          }
+        },
+        "title": "SearchConnection",
+        "type": "object"
+      },
+      "SecretBody": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "minimum": 0.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "value": {
+            "format": "password",
+            "title": "Value",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "request_id",
+          "expected_revision",
+          "name",
+          "value"
+        ],
+        "title": "SecretBody",
+        "type": "object"
+      },
+      "SemanticConnection": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key_env": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key Env"
+          },
+          "endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "request_model": {
+            "title": "Request Model",
+            "type": "string"
+          },
+          "response_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Model"
+          },
+          "timeout_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout Seconds"
+          }
+        },
+        "required": [
+          "provider",
+          "request_model"
+        ],
+        "title": "SemanticConnection",
+        "type": "object"
+      },
+      "SemanticObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "connections": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SemanticConnection"
+            },
+            "title": "Connections",
+            "type": "object"
+          },
+          "route": {
+            "default": "",
+            "title": "Route",
+            "type": "string"
+          }
+        },
+        "title": "SemanticObservation",
+        "type": "object"
+      },
+      "SemanticProviderPreset": {
+        "properties": {
+          "default_api_key_env": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Api Key Env"
+          },
+          "default_endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Endpoint"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "required": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required",
+            "type": "array"
+          }
+        },
+        "required": [
+          "provider",
+          "default_endpoint",
+          "default_api_key_env",
+          "required"
+        ],
+        "title": "SemanticProviderPreset",
+        "type": "object"
+      },
+      "SoulDocument": {
+        "properties": {
+          "active_revision": {
+            "title": "Active Revision",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "file_name": {
+            "title": "File Name",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "updated_by": {
+            "title": "Updated By",
+            "type": "string"
+          },
+          "writable": {
+            "title": "Writable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file_name",
+          "content",
+          "revision",
+          "active_revision",
+          "updated_at",
+          "updated_by",
+          "writable",
+          "reason"
+        ],
+        "title": "SoulDocument",
+        "type": "object"
+      },
+      "SoulReloadBody": {
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id"
+        ],
+        "title": "SoulReloadBody",
+        "type": "object"
+      },
+      "SoulResult": {
+        "properties": {
+          "active_revision": {
+            "title": "Active Revision",
+            "type": "string"
+          },
+          "applied_at": {
+            "title": "Applied At",
+            "type": "string"
+          },
+          "replay": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replay"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "active_revision",
+          "applied_at"
+        ],
+        "title": "SoulResult",
+        "type": "object"
+      },
+      "SoulSaveBody": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "expected_revision",
+          "content"
+        ],
+        "title": "SoulSaveBody",
+        "type": "object"
+      },
+      "StateEpoch": {
+        "enum": [
+          "v2"
+        ],
+        "title": "StateEpoch",
+        "type": "string"
+      },
+      "StructuredOutputMode": {
+        "description": "Supported provider strategies for one validated object.",
+        "enum": [
+          "function_tool",
+          "json_schema",
+          "text_json"
+        ],
+        "title": "StructuredOutputMode",
+        "type": "string"
+      },
+      "TransferBody": {
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "to_person": {
+            "format": "uuid4",
+            "title": "To Person",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "to_person"
+        ],
+        "title": "TransferBody",
+        "type": "object"
+      },
+      "ValidModelBundle": {
+        "properties": {
+          "apply_mode": {
+            "enum": [
+              "hot_reload",
+              "restart"
+            ],
+            "title": "Apply Mode",
+            "type": "string"
+          },
+          "connection_schemas": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              "type": "object"
+            },
+            "title": "Connection Schemas",
+            "type": "object"
+          },
+          "document": {
+            "$ref": "#/components/schemas/ModelDocument"
+          },
+          "exists": {
+            "title": "Exists",
+            "type": "boolean"
+          },
+          "file_id": {
+            "const": "model_profiles",
+            "title": "File Id",
+            "type": "string"
+          },
+          "matches_loaded": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matches Loaded"
+          },
+          "profile_schema": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Profile Schema",
+            "type": "object"
+          },
+          "provider_presets": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderPresetView"
+            },
+            "title": "Provider Presets",
+            "type": "array"
+          },
+          "resolved_profiles": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ResolvedModelProfile"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved Profiles"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "saved_api_key_profiles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Saved Api Key Profiles",
+            "type": "array"
+          },
+          "saved_connection_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Saved Connection Keys",
+            "type": "array"
+          },
+          "saved_semantic_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Saved Semantic Keys",
+            "type": "array"
+          },
+          "search_backend": {
+            "enum": [
+              "model",
+              "tavily"
+            ],
+            "title": "Search Backend",
+            "type": "string"
+          },
+          "semantic_matches_loaded": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semantic Matches Loaded"
+          },
+          "semantic_providers": {
+            "items": {
+              "$ref": "#/components/schemas/SemanticProviderPreset"
+            },
+            "title": "Semantic Providers",
+            "type": "array"
+          },
+          "semantic_valid": {
+            "title": "Semantic Valid",
+            "type": "boolean"
+          },
+          "task_requirements": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/ModelCapability"
+              },
+              "type": "array"
+            },
+            "title": "Task Requirements",
+            "type": "object"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/ModelTask"
+            },
+            "title": "Tasks",
+            "type": "array"
+          },
+          "valid": {
+            "const": true,
+            "title": "Valid",
+            "type": "boolean"
+          },
+          "writable_directory": {
+            "title": "Writable Directory",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file_id",
+          "exists",
+          "revision",
+          "apply_mode",
+          "matches_loaded",
+          "semantic_matches_loaded",
+          "semantic_valid",
+          "semantic_providers",
+          "provider_presets",
+          "task_requirements",
+          "writable_directory",
+          "valid",
+          "document",
+          "search_backend",
+          "profile_schema",
+          "tasks",
+          "saved_api_key_profiles",
+          "saved_semantic_keys",
+          "connection_schemas",
+          "saved_connection_keys"
+        ],
+        "title": "ValidModelBundle",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VisionConnection": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key_env": {
+            "default": "",
+            "title": "Api Key Env",
+            "type": "string"
+          },
+          "base_url": {
+            "default": "",
+            "title": "Base Url",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "model": {
+            "default": "",
+            "title": "Model",
+            "type": "string"
+          },
+          "protocol": {
+            "const": "chat_completions",
+            "default": "chat_completions",
+            "title": "Protocol",
+            "type": "string"
+          }
+        },
+        "title": "VisionConnection",
+        "type": "object"
+      },
+      "WebMode": {
+        "description": "Configured backend strategy for model-approved web access.",
+        "enum": [
+          "disabled",
+          "native",
+          "tavily",
+          "both"
+        ],
+        "title": "WebMode",
+        "type": "string"
+      }
+    }
+  },
+  "info": {
+    "title": "Yuki management API",
+    "version": "4.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/admin/v1/bindings": {
+      "get": {
+        "operationId": "bindings_admin_v1_bindings_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "After",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 250,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "person_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid4",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Person Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "platform",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Platform"
+            }
+          },
+          {
+            "in": "query",
+            "name": "external_account_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "External Account Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Bindings Admin V1 Bindings Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bindings"
+      }
+    },
+    "/admin/v1/bindings/{identity}": {
+      "get": {
+        "operationId": "binding_admin_v1_bindings__identity__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Binding Admin V1 Bindings  Identity  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Binding"
+      }
+    },
+    "/admin/v1/bindings/{identity}/disable": {
+      "post": {
+        "operationId": "disable_binding_admin_v1_bindings__identity__disable_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Disable Binding Admin V1 Bindings  Identity  Disable Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disable Binding"
+      }
+    },
+    "/admin/v1/bindings/{identity}/enable": {
+      "post": {
+        "operationId": "enable_binding_admin_v1_bindings__identity__enable_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Enable Binding Admin V1 Bindings  Identity  Enable Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enable Binding"
+      }
+    },
+    "/admin/v1/bindings/{identity}/transfer": {
+      "post": {
+        "operationId": "transfer_admin_v1_bindings__identity__transfer_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Transfer Admin V1 Bindings  Identity  Transfer Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transfer"
+      }
+    },
+    "/admin/v1/bindings/{identity}/unbind": {
+      "post": {
+        "operationId": "unbind_binding_admin_v1_bindings__identity__unbind_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Unbind Binding Admin V1 Bindings  Identity  Unbind Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unbind Binding"
+      }
+    },
+    "/admin/v1/character": {
+      "get": {
+        "operationId": "character_profile_admin_v1_character_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_CharacterProfile_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Character Profile"
+      },
+      "patch": {
+        "operationId": "update_character_admin_v1_character_patch",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterUpdateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_CharacterProfile_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Character"
+      }
+    },
+    "/admin/v1/character/soul": {
+      "get": {
+        "operationId": "read_soul_admin_v1_character_soul_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_SoulDocument_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Soul"
+      },
+      "put": {
+        "operationId": "save_soul_admin_v1_character_soul_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SoulSaveBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_SoulResult_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Soul"
+      }
+    },
+    "/admin/v1/character/soul/reload": {
+      "post": {
+        "operationId": "reload_soul_admin_v1_character_soul_reload_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SoulReloadBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_SoulResult_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reload Soul"
+      }
+    },
+    "/admin/v1/devices/{identity}/revoke": {
+      "post": {
+        "operationId": "client_revoke_admin_v1_devices__identity__revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Client Revoke Admin V1 Devices  Identity  Revoke Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Client Revoke"
+      }
+    },
+    "/admin/v1/health": {
+      "get": {
+        "operationId": "health_admin_v1_health_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Health Admin V1 Health Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/admin/v1/models": {
+      "get": {
+        "operationId": "models_admin_v1_models_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ModelBundle_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Models"
+      }
+    },
+    "/admin/v1/models/apply": {
+      "post": {
+        "operationId": "apply_models_admin_v1_models_apply_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ModelControlResult_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Models"
+      }
+    },
+    "/admin/v1/models/discover": {
+      "post": {
+        "operationId": "discover_models_admin_v1_models_discover_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SavedModelConnection"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DraftModelDiscovery"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ModelDiscoverResult_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discover Models"
+      }
+    },
+    "/admin/v1/models/secrets": {
+      "post": {
+        "operationId": "secret_admin_v1_models_secrets_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ModelControlResult_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Secret"
+      }
+    },
+    "/admin/v1/models/stats": {
+      "get": {
+        "operationId": "model_stats_admin_v1_models_stats_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ModelStatsView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Model Stats"
+      }
+    },
+    "/admin/v1/models/test": {
+      "post": {
+        "operationId": "test_model_admin_v1_models_test_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SavedModelConnection"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DraftModelTest"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ModelTestResult_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Model"
+      }
+    },
+    "/admin/v1/operations/{identity}": {
+      "get": {
+        "operationId": "operation_admin_v1_operations__identity__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Operation Admin V1 Operations  Identity  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Operation"
+      }
+    },
+    "/admin/v1/persons": {
+      "get": {
+        "operationId": "persons_admin_v1_persons_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "After",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 250,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Persons Admin V1 Persons Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Persons"
+      },
+      "post": {
+        "operationId": "create_person_admin_v1_persons_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Create Person Admin V1 Persons Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Person"
+      }
+    },
+    "/admin/v1/persons/{identity}": {
+      "get": {
+        "operationId": "person_admin_v1_persons__identity__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Person Admin V1 Persons  Identity  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Person"
+      }
+    },
+    "/admin/v1/persons/{identity}/bindings": {
+      "post": {
+        "operationId": "attach_binding_admin_v1_persons__identity__bindings_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindingBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Attach Binding Admin V1 Persons  Identity  Bindings Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Attach Binding"
+      }
+    },
+    "/admin/v1/persons/{identity}/client-pair": {
+      "post": {
+        "operationId": "client_pair_admin_v1_persons__identity__client_pair_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairCodeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Client Pair Admin V1 Persons  Identity  Client Pair Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Client Pair"
+      }
+    },
+    "/admin/v1/persons/{identity}/disable": {
+      "post": {
+        "operationId": "disable_person_admin_v1_persons__identity__disable_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Disable Person Admin V1 Persons  Identity  Disable Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disable Person"
+      }
+    },
+    "/admin/v1/persons/{identity}/enable": {
+      "post": {
+        "operationId": "enable_person_admin_v1_persons__identity__enable_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Enable Person Admin V1 Persons  Identity  Enable Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enable Person"
+      }
+    },
+    "/admin/v1/persons/{identity}/forget": {
+      "post": {
+        "operationId": "forget_person_admin_v1_persons__identity__forget_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Forget Person Admin V1 Persons  Identity  Forget Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forget Person"
+      }
+    },
+    "/admin/v1/persons/{identity}/merge": {
+      "post": {
+        "operationId": "merge_person_admin_v1_persons__identity__merge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Merge Person Admin V1 Persons  Identity  Merge Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Merge Person"
+      }
+    },
+    "/admin/v1/persons/{identity}/rename": {
+      "post": {
+        "operationId": "rename_person_admin_v1_persons__identity__rename_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Rename Person Admin V1 Persons  Identity  Rename Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rename Person"
+      }
+    },
+    "/admin/v1/persons/{identity}/superuser/{action}": {
+      "post": {
+        "operationId": "superuser_admin_v1_persons__identity__superuser__action__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "grant",
+                "revoke"
+              ],
+              "title": "Action",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Superuser Admin V1 Persons  Identity  Superuser  Action  Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Superuser"
+      }
+    },
+    "/admin/v1/plugin-outbox/{identity}/retry": {
+      "post": {
+        "operationId": "retry_outbox_admin_v1_plugin_outbox__identity__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "title": "Identity",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Retry Outbox Admin V1 Plugin Outbox  Identity  Retry Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Outbox"
+      }
+    },
+    "/admin/v1/plugins": {
+      "get": {
+        "operationId": "plugins_admin_v1_plugins_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Plugins Admin V1 Plugins Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plugins"
+      }
+    },
+    "/admin/v1/plugins/{identity}": {
+      "get": {
+        "operationId": "plugin_admin_v1_plugins__identity__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Plugin Admin V1 Plugins  Identity  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plugin"
+      }
+    },
+    "/admin/v1/plugins/{identity}/actions/{action}": {
+      "post": {
+        "operationId": "plugin_action_admin_v1_plugins__identity__actions__action__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "discover",
+                "approve",
+                "enable",
+                "disable",
+                "doctor"
+              ],
+              "title": "Action",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PluginBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Plugin Action Admin V1 Plugins  Identity  Actions  Action  Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plugin Action"
+      }
+    },
+    "/admin/v1/plugins/{identity}/configuration": {
+      "get": {
+        "operationId": "plugin_configuration_admin_v1_plugins__identity__configuration_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope_type",
+            "required": false,
+            "schema": {
+              "default": "global",
+              "enum": [
+                "global",
+                "user",
+                "group"
+              ],
+              "title": "Scope Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "owner_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid4",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Owner Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Plugin Configuration Admin V1 Plugins  Identity  Configuration Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plugin Configuration"
+      },
+      "post": {
+        "operationId": "configure_plugin_admin_v1_plugins__identity__configuration_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Configure Plugin Admin V1 Plugins  Identity  Configuration Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Configure Plugin"
+      }
+    },
+    "/admin/v1/plugins/{identity}/observe": {
+      "get": {
+        "operationId": "observe_admin_v1_plugins__identity__observe_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Observe Admin V1 Plugins  Identity  Observe Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Observe"
+      }
+    },
+    "/admin/v1/presences": {
+      "get": {
+        "operationId": "presences_admin_v1_presences_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "After",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 250,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Presences Admin V1 Presences Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Presences"
+      },
+      "post": {
+        "operationId": "register_presence_admin_v1_presences_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresenceRegistrationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Register Presence Admin V1 Presences Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Presence"
+      }
+    },
+    "/admin/v1/presences/{identity}": {
+      "get": {
+        "operationId": "presence_admin_v1_presences__identity__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Presence Admin V1 Presences  Identity  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Presence"
+      },
+      "post": {
+        "operationId": "presence_state_admin_v1_presences__identity__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresenceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Presence State Admin V1 Presences  Identity  Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Presence State"
+      }
+    },
+    "/admin/v1/presences/{identity}/transfer": {
+      "post": {
+        "operationId": "transfer_presence_admin_v1_presences__identity__transfer_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresenceTransferBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Transfer Presence Admin V1 Presences  Identity  Transfer Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transfer Presence"
+      }
+    },
+    "/admin/v1/presences/{identity}/unregister": {
+      "post": {
+        "operationId": "unregister_presence_admin_v1_presences__identity__unregister_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Unregister Presence Admin V1 Presences  Identity  Unregister Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unregister Presence"
+      }
+    },
+    "/admin/v1/traces/{kind}/{identity}": {
+      "get": {
+        "operationId": "traces_admin_v1_traces__kind___identity__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "turn",
+                "work",
+                "event"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "After",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 250,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "content",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Content",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Traces Admin V1 Traces  Kind   Identity  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Traces"
+      }
+    },
+    "/admin/v1/works": {
+      "get": {
+        "operationId": "works_admin_v1_works_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "After",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 250,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Works Admin V1 Works Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Works"
+      }
+    },
+    "/admin/v1/works/{identity}": {
+      "get": {
+        "operationId": "work_admin_v1_works__identity__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Work Admin V1 Works  Identity  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Work"
+      }
+    },
+    "/admin/v1/works/{identity}/{action}": {
+      "post": {
+        "operationId": "work_action_admin_v1_works__identity___action__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "cancel",
+                "resume"
+              ],
+              "title": "Action",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Work Action Admin V1 Works  Identity   Action  Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Work Action"
+      }
+    }
+  }
+}
