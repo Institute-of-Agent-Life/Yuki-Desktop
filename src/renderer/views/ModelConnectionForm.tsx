@@ -14,24 +14,30 @@ export function ModelConnectionForm({
   change,
   children,
   actions,
+  multiple = true,
+  showName = true,
 }: {
   value: ConnectionDraft
   change(value: ConnectionDraft): void
   children?: ReactNode
   actions?: ReactNode
+  multiple?: boolean
+  showName?: boolean
 }) {
   const id = useId()
   const [model, setModel] = useState('')
   return (
     <div className={styles.formFields}>
-      <label className={styles.formField} htmlFor={`${id}-name`}>
-        連接名稱
-        <TextField
-          id={`${id}-name`}
-          value={value.name}
-          onChange={(event) => change({ ...value, name: event.target.value })}
-        />
-      </label>
+      {showName && (
+        <label className={styles.formField} htmlFor={`${id}-name`}>
+          連接名稱
+          <TextField
+            id={`${id}-name`}
+            value={value.name}
+            onChange={(event) => change({ ...value, name: event.target.value })}
+          />
+        </label>
+      )}
       <label className={styles.formField} htmlFor={`${id}-url`}>
         服務位址
         <TextField
@@ -56,21 +62,28 @@ export function ModelConnectionForm({
         <div className={styles.inline}>
           <TextField
             id={`${id}-model`}
-            value={model}
-            onChange={(event) => setModel(event.target.value)}
+            value={multiple ? model : (value.models[0] ?? '')}
+            required={!multiple}
+            onChange={(event) =>
+              multiple
+                ? setModel(event.target.value)
+                : change({ ...value, models: [event.target.value] })
+            }
           />
-          <Button
-            onClick={() => {
-              change({ ...value, models: [...new Set([...value.models, model])] })
-              setModel('')
-            }}
-          >
-            加入模型
-          </Button>
+          {multiple && (
+            <Button
+              onClick={() => {
+                change({ ...value, models: [...new Set([...value.models, model])] })
+                setModel('')
+              }}
+            >
+              加入模型
+            </Button>
+          )}
         </div>
       </div>
       {actions}
-      {value.models.length > 0 && (
+      {multiple && value.models.length > 0 && (
         <div className={styles.checks}>
           {value.models.map((model) => (
             <Button

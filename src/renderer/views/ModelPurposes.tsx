@@ -9,6 +9,12 @@ import styles from './ModelSettings.module.css'
 
 type Bundle = Extract<ModelBundle, { valid: true }>
 type Semantic = components['schemas']['SemanticConnection']
+const searchModes: Record<components['schemas']['WebMode'], string> = {
+  disabled: '停用',
+  native: '原生搜尋預設',
+  tavily: '網頁工具預設',
+  both: '原生與網頁工具',
+}
 
 export function ModelPurposes({
   data,
@@ -81,13 +87,16 @@ export function ModelPurposes({
         : { ...resolved(id), protocol: document.profiles[id]!.protocol!, enabled: true }
     patch({ [kind]: value } as Partial<ModelDocument>)
   }
-  const keyState = (kind: string) =>
-    data.saved_connection_keys.includes(kind)
+  const keyState = (kind: 'embedding' | 'vision' | 'asr' | 'search') => {
+    if (!document[kind]) return '沿用既有設定'
+    const alias =
+      kind === 'search' ? document.search?.tavily_api_key_env : document[kind]?.api_key_env
+    return data.saved_connection_keys.includes(kind)
       ? '已儲存'
-      : document[kind as 'embedding' | 'vision' | 'asr']?.api_key_env ||
-          (kind === 'search' && document.search?.tavily_api_key_env)
+      : alias
         ? '來自環境變數'
         : '無需金鑰'
+  }
   const semanticProviders = data.semantic_providers
   return (
     <>
@@ -112,9 +121,35 @@ export function ModelPurposes({
         ))}
       </SettingsSection>
       <SettingsSection title="聯網搜尋">
-        <Row title="搜尋來源">
+        <Row title="搜尋模式" description="各模型的明確搜尋方式仍按原設定執行。">
+          <select
+            aria-label="搜尋模式"
+            value={document.search?.mode ?? 'legacy'}
+            disabled={locked}
+            onChange={(event) =>
+              patch({
+                search: {
+                  ...schemaDefaults(data.connection_schemas.search! as JsonSchema),
+                  ...document.search,
+                  mode:
+                    event.target.value === 'legacy'
+                      ? null
+                      : (event.target.value as components['schemas']['WebMode']),
+                } as NonNullable<ModelDocument['search']>,
+              })
+            }
+          >
+            <option value="legacy">沿用伺服器既有設定</option>
+            {Object.entries(searchModes).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </Row>
+        <Row title="網頁工具來源">
           <Segmented
-            label="搜尋來源"
+            label="網頁工具來源"
             kind="radio"
             value={searchBackend}
             items={[
@@ -160,7 +195,7 @@ export function ModelPurposes({
               onClick={() => {
                 const alias = document.search?.tavily_api_key_env || newKeyAlias(document, 'search')
                 save(
-                  { ...document, search: { tavily_api_key_env: alias } },
+                  { ...document, search: { ...document.search, tavily_api_key_env: alias } },
                   tavilyKey ? { [alias]: tavilyKey } : undefined,
                   () => setTavilyKey(''),
                 )

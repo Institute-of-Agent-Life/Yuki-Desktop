@@ -35,6 +35,7 @@ const bridge: DesktopBridge = {
     submit: (id, input) => ipcRenderer.invoke('yuki:connector-submit', id, input),
   },
   localBot: {
+    presets: () => ipcRenderer.invoke('yuki:local-bot-presets'),
     state: () => ipcRenderer.invoke('yuki:local-bot-state'),
     chooseDirectory: () => ipcRenderer.invoke('yuki:local-bot-directory'),
     deploy: (input) => ipcRenderer.invoke('yuki:local-bot-deploy', input),

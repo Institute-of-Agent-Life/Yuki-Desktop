@@ -12,6 +12,7 @@ export type ModelDiscoverInput =
   paths['/admin/v1/models/discover']['post']['requestBody']['content']['application/json']
 export type ModelDiscoverResult = components['schemas']['ModelDiscoverResult']
 export type ModelStatsView = components['schemas']['ModelStatsView']
+export type ProviderPreset = components['schemas']['ProviderPresetView']
 type ModelsBody = components['schemas']['ModelsBody']
 export interface ModelApplyInput {
   requestId: ModelsBody['request_id']

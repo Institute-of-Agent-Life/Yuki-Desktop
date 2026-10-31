@@ -68,6 +68,16 @@ it.skipIf(process.env.YUKI_TEST_DOCKER !== '1')(
       progress: () => {},
     })
     resources.push({ root, store, connections, bot, directory })
+    const presets = await bot.presets()
+    expect(presets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: 'openai_compatible',
+          protocol: 'chat_completions',
+          supports_embedding: true,
+        }),
+      ]),
+    )
     const result = await bot.deploy({
       directory,
       port,
@@ -86,6 +96,9 @@ it.skipIf(process.env.YUKI_TEST_DOCKER !== '1')(
     expect(me.person_id).toBe(result.personId)
     expect(me.platform).toBe('app')
     expect(me.is_superuser).toBe(true)
+    const bundle = await connections.modelBundle(result.characterId)
+    expect(bundle.valid).toBe(true)
+    expect(bundle.provider_presets).toEqual(presets)
     expect(me.devices.map((item) => item.purpose)).toEqual(['chat'])
     const originalDevice = result.deviceId
     const originalGrant = store.get<LocalBotInstallation>('local-bot')!.superuserRequestId

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Connection } from '../../shared/api'
-import type { LocalBotConfiguration, LocalBotState } from '../../shared/local-bot'
+import type { LocalBotState } from '../../shared/local-bot'
+import type { ProviderPreset } from '../../shared/models'
+import { ModelConnectionForm, type ConnectionDraft } from './ModelConnectionForm'
 import { Banner, Button, TextField } from '../components/Controls'
 import { unwrap, problemText, ClientProblem } from '../queries/client'
 import styles from '../App.module.css'
@@ -22,11 +24,14 @@ export function LocalBot({
     [characterName, setCharacterName] = useState('Yuki'),
     [personName, setPersonName] = useState('')
   const [port, setPort] = useState('8080')
-  const [protocol, setProtocol] =
-    useState<LocalBotConfiguration['model']['protocol']>('chat_completions')
-  const [baseUrl, setBaseUrl] = useState(''),
-    [model, setModel] = useState(''),
-    [key, setKey] = useState('')
+  const [presets, setPresets] = useState<ProviderPreset[]>()
+  const [preset, setPreset] = useState(0)
+  const [modelConnection, setModelConnection] = useState<ConnectionDraft>({
+    name: '',
+    baseUrl: '',
+    key: '',
+    models: [],
+  })
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [progress, setProgress] = useState('')
@@ -38,6 +43,15 @@ export function LocalBot({
       setPort(String(value.installation.port))
       setCharacterName(value.installation.characterName)
       setPersonName(value.installation.personName)
+    }
+    if (!value.configured && value.docker && value.bundled && presets === undefined) {
+      const catalog = unwrap(await window.yuki.localBot.presets())
+      setPresets(catalog)
+      setModelConnection((current) => ({
+        ...current,
+        name: catalog[0]!.display_name,
+        baseUrl: current.baseUrl || catalog[0]!.default_base_url,
+      }))
     }
   }
   useEffect(() => {
@@ -108,10 +122,20 @@ export function LocalBot({
                   port: Number(port),
                   characterName,
                   personName,
-                  model: { protocol, base_url: baseUrl, api_key: key, model },
+                  ...(state?.configured
+                    ? {}
+                    : {
+                        model: {
+                          protocol: presets![preset]!.protocol,
+                          provider: presets![preset]!.provider,
+                          base_url: modelConnection.baseUrl,
+                          api_key: modelConnection.key,
+                          model: modelConnection.models[0]!,
+                        },
+                      }),
                 }),
               )
-              setKey('')
+              setModelConnection((current) => ({ ...current, key: '' }))
               done(connection, mounted.current && activeRef.current)
             })
           }}
@@ -150,44 +174,40 @@ export function LocalBot({
                 onChange={(event) => setPersonName(event.target.value)}
                 required
               />
-              <label htmlFor="local-protocol">模型介面</label>
+              <label htmlFor="local-preset">服務預設</label>
               <select
-                id="local-protocol"
-                value={protocol}
-                onChange={(event) => setProtocol(event.target.value as typeof protocol)}
+                id="local-preset"
+                value={presets ? preset : ''}
+                disabled={busy || !presets}
+                onChange={(event) => {
+                  const index = Number(event.target.value),
+                    selected = presets![index]!
+                  setPreset(index)
+                  setModelConnection((current) => ({
+                    ...current,
+                    name: selected.display_name,
+                    baseUrl: selected.default_base_url,
+                  }))
+                }}
               >
-                <option value="chat_completions">OpenAI 相容 Chat Completions</option>
-                <option value="responses">Responses</option>
-                <option value="anthropic_messages">Anthropic Messages</option>
-                <option value="gemini">Gemini</option>
+                {!presets && <option value="">需要 Docker 讀取部署映像的預設</option>}
+                {presets?.map((preset, index) => (
+                  <option key={index} value={index}>
+                    {preset.display_name}
+                  </option>
+                ))}
               </select>
-              <label htmlFor="local-model-url">模型服務位址</label>
-              <TextField
-                id="local-model-url"
-                type="url"
-                value={baseUrl}
-                onChange={(event) => setBaseUrl(event.target.value)}
-                placeholder="https://…"
-                required
-              />
+              <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+                <ModelConnectionForm
+                  value={modelConnection}
+                  change={setModelConnection}
+                  multiple={false}
+                  showName={false}
+                />
+              </fieldset>
               <small>
                 同機模型的 localhost 會轉為容器可達的 host.docker.internal；服務本身須允許這個來源。
               </small>
-              <label htmlFor="local-model">模型名稱</label>
-              <TextField
-                id="local-model"
-                value={model}
-                onChange={(event) => setModel(event.target.value)}
-                required
-              />
-              <label htmlFor="local-model-key">模型 API Key（服務無需鑑權時可留空）</label>
-              <TextField
-                id="local-model-key"
-                type="password"
-                autoComplete="off"
-                value={key}
-                onChange={(event) => setKey(event.target.value)}
-              />
               <label htmlFor="local-port">本機連接埠</label>
               <TextField
                 id="local-port"
@@ -220,7 +240,9 @@ export function LocalBot({
               type="submit"
               variant="primary"
               loading={busy || state?.busy}
-              disabled={!directory || !state?.docker || !state.bundled}
+              disabled={
+                !directory || !state?.docker || !state.bundled || (!state.configured && !presets)
+              }
             >
               {state?.configured ? '啟動並連接' : '開始部署'}
             </Button>

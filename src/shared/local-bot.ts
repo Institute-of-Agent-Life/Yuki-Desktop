@@ -1,4 +1,5 @@
 import type { ApiReply, Connection } from './api'
+import type { ProviderPreset } from './models'
 
 export interface LocalBotInstallation {
   directory: string
@@ -26,7 +27,7 @@ export interface LocalBotConfiguration {
   port: number
   characterName: string
   personName: string
-  model: {
+  model?: {
     protocol: 'chat_completions' | 'responses' | 'anthropic_messages' | 'gemini'
     base_url: string
     api_key: string
@@ -35,6 +36,7 @@ export interface LocalBotConfiguration {
   }
 }
 export interface LocalBotBridge {
+  presets(): Promise<ApiReply<ProviderPreset[]>>
   state(): Promise<ApiReply<LocalBotState>>
   chooseDirectory(): Promise<ApiReply<string | null>>
   deploy(configuration: LocalBotConfiguration): Promise<ApiReply<Connection>>

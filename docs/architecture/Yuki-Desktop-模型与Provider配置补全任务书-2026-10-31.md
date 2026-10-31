@@ -281,7 +281,9 @@ Person 是唯一人物管理权源。账号转移不携带资格，解绑或换�
 
 ### B-2 本机部署的人物授予超管
 
-**步骤**：`src/yuki/deployment_setup/desktop.py` `pair()` 在创建（或读取）Person 后、签发配对码前，调用现有 `persons/{id}/superuser/grant`（admin client 已有 `mutate`/`identity_mutation` 辅助），使用新的 `superuser_request_id: UUID`（加进 `DesktopPairing`，必填，D 端传入）。保持原请求 UUID 幂等。
+**步骤**：只有新可信本机 installation 创建时，D 才生成并持久化一次显式 `superuserRequestId`，与原 `personRequestId`、`pairRequestId` 一起保留。`src/yuki/deployment_setup/desktop.py` 的 `DesktopPairing.superuser_request_id` 为可选 UUID；明确提供该 ID 时，`pair()` 才在创建（或读取）Person 后、签发配对码前，调用原 `persons/{id}/superuser/grant`（复用现有 admin client 的 `mutate`/`identity_mutation`）。
+
+旧 installation 缺少 grant UUID 时不补造，普通重连只沿原 Person 与配对请求签发 chat 码，不授超管。已有 grant UUID 只沿原 UUID 和持久回执重放；资格被撤销后，回放原成功 grant 不恢复权限，也不以新 UUID 自动授予。既有有效配对仍直接返回，不因查看、升级或重连补授权限。
 
 **不许**：在远端服务器的配对流程里自动授超管（只限本机部署这条 `desktop-pair` 命令）。
 
@@ -362,6 +364,7 @@ Person 是唯一人物管理权源。账号转移不携带资格，解绑或换�
    类型从生成的合同导入，不手写。
 4. `apiKeys` 只经过 preload → main → HTTP，**不进 renderer 状态以外的任何地方**（不写 electron-store、不写日志、不写诊断导出）。renderer 里保存成功后立即清空输入框 state。
 5. request UUID：apply 前 `crypto.randomUUID()`，保存在组件 state；HTTP 失败/超时时用**同一 UUID**重试由用户点击"重新確認"触发（复用 UI 任务书的 `PendingRequest` 组件）。
+6. 消费 B-2 时，本机部署调用方仅在新可信 installation 创建时持久化一次显式 grant UUID；`connect()` 只读取已有 ID，不为旧 installation 缺字段补造。`desktop-pair` 有原 ID 时传原 ID，无 ID 时省略；原 Person/配对 UUID 与有效配对直接返回的边界保留，普通重连不授超管，原 grant 回执重放不恢复已撤销的资格。
 
 ### D-2 「模型」分类骨架
 
@@ -401,7 +404,7 @@ Person 是唯一人物管理权源。账号转移不携带资格，解绑或换�
 
 ### D-7 本机部署表单复用
 
-`LocalBot.tsx` 的协议/地址/模型/Key 四个字段替换为 D-3 的"新增連接"第 2 步组件（预设来源：部署前没有后端可读，**使用随包镜像里的同一份预设**——由 `src/main/local-bot.ts` 在部署前执行镜像内 `yuki setup provider-presets --json` 读取；若该命令不存在，B-3 PR 一并加上，输出与 `provider_presets` 相同）。部署成功并配对后，自动打开"設定 → 模型 → 用途"。同时向 `desktop-pair` 传入 B-2 的 `superuser_request_id`。
+`LocalBot.tsx` 的协议/地址/模型/Key 四个字段替换为 D-3 的"新增連接"第 2 步组件（预设来源：部署前没有后端可读，**使用随包镜像里的同一份预设**——由 `src/main/local-bot.ts` 在部署前执行镜像内 `yuki setup provider-presets --json` 读取；若该命令不存在，B-3 PR 一并加上，输出与 `provider_presets` 相同）。部署成功并配对后，自动打开"設定 → 模型 → 用途"。显式 grant UUID 的创建、传入与重放严格沿 B-2 / D-1；旧安装缺失时不补造。
 
 ### D 的验收
 

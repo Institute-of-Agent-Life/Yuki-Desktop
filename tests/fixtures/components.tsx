@@ -236,6 +236,7 @@ function operationPage(id: string, cursor = 0): ConnectorOperation {
 
 window.yuki = {
   localBot: {
+    presets: async () => ({ ok: false, code: 'fixture_only' }),
     state: async () => ({
       ok: true,
       value: {
