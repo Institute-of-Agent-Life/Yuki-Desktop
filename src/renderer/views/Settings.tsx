@@ -12,6 +12,7 @@ import {
   Download,
   Laptop,
   Snowflake,
+  Cpu,
   type LucideIcon,
 } from 'lucide-react'
 import type { Connection } from '../../shared/api'
@@ -21,6 +22,7 @@ import { RoleSwitcher } from '../components/RoleSwitcher'
 import { ServerSettings } from './ServerSettings'
 import { DeviceSecurity } from './DeviceSecurity'
 import { AgentConnector } from './AgentConnector'
+import { ModelSettings } from './ModelSettings'
 import { LogoutFlow } from './LogoutFlow'
 import { Row, SettingsSection } from './SettingsRow'
 import type { BootInfo, Preferences } from '../../shared/desktop'
@@ -42,6 +44,7 @@ export type SettingsCategory =
   | 'notify'
   | 'updates'
   | 'connection'
+  | 'models'
   | 'devices'
   | 'computer'
   | 'yukis'
@@ -64,6 +67,7 @@ const groups: {
     label: null,
     items: [
       { id: 'connection', label: '連線', icon: Server },
+      { id: 'models', label: '模型', icon: Cpu },
       { id: 'devices', label: '裝置', icon: ShieldCheck },
       { id: 'computer', label: '這台電腦', icon: Laptop },
     ],
@@ -407,6 +411,8 @@ export function Settings({
             <SettingsSection title="App 更新">
               <UpdatePanel preferences={preferences} save={save} />
             </SettingsSection>
+          ) : shown === 'models' ? (
+            connection && <ModelSettings key={connection.characterId} connection={connection} />
           ) : shown === 'computer' ? (
             <AgentConnector
               key={connection?.characterId}

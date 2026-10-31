@@ -3,6 +3,63 @@ import { writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
 
+test('model settings exposes three pages and ordinary people see the actual denial', async () => {
+  test.setTimeout(120000)
+  const rig = await yukiFixture({ modelConfiguration: true }),
+    app = await rig.launch('model-settings-shell'),
+    ordinary = await rig.launch('ordinary-model-settings-shell')
+  let success = false
+  try {
+    const page = await app.firstWindow()
+    await pairUI(page, rig.base, await rig.code())
+    await page.evaluate(() =>
+      window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'settings' })),
+    )
+    await expect(page.getByRole('tablist', { name: '設定分類' })).toBeVisible()
+    const models = page.getByRole('tab', { name: '模型', exact: true })
+    await writeFile(
+      test.info().outputPath('model-settings-shell-entry.json'),
+      JSON.stringify({ models: await models.count() }),
+    )
+    expect(await models.count()).toBe(1)
+    await models.click()
+    for (const name of ['連接', '用途', '用量']) {
+      await page.getByRole('tab', { name, exact: true }).click()
+      await expect(page.getByRole('tab', { name, exact: true })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
+      await page.screenshot({ path: test.info().outputPath(`model-settings-${name}.png`) })
+    }
+    const other = await ordinary.firstWindow()
+    await pairUI(other, rig.base, (await rig.state()).nonowner_pairing_code)
+    await other.evaluate(() =>
+      window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'settings' })),
+    )
+    await other.getByRole('tab', { name: '模型', exact: true }).click()
+    await expect(other.getByText('只有 Yuki 的管理員可以修改模型設定')).toBeVisible()
+    await expect(other.getByRole('button', { name: '新增連接', exact: true })).toHaveCount(0)
+    await other.screenshot({ path: test.info().outputPath('model-settings-ordinary.png') })
+    await writeFile(
+      test.info().outputPath('model-settings-shell.json'),
+      JSON.stringify(
+        {
+          administrator: await currentConnection(page),
+          ordinary: await currentConnection(other),
+          pages: ['連接', '用途', '用量'],
+        },
+        null,
+        2,
+      ),
+    )
+    success = true
+  } finally {
+    await ordinary.close()
+    await app.close()
+    await rig.close(success)
+  }
+})
+
 test('model administration bridge uses the paired Person original receipt and write-only key', async () => {
   test.setTimeout(120000)
   const rig = await yukiFixture({ modelConfiguration: true }),

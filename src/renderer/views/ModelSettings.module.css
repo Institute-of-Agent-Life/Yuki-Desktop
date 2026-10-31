@@ -1,0 +1,19 @@
+.settings {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.toolbar small,
+.notice {
+  color: var(--text-secondary);
+}
+.notice {
+  margin: 12px 16px;
+}
