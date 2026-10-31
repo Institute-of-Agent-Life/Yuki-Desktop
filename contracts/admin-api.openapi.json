@@ -689,6 +689,7 @@
             "type": "string"
           },
           "dimensions": {
+            "default": 1024,
             "exclusiveMinimum": 0.0,
             "title": "Dimensions",
             "type": "integer"
@@ -716,6 +717,7 @@
             "type": "string"
           },
           "provider": {
+            "default": "qwen_dashscope",
             "enum": [
               "qwen_dashscope",
               "openai_compatible"
@@ -729,10 +731,6 @@
             "type": "string"
           }
         },
-        "required": [
-          "provider",
-          "dimensions"
-        ],
         "title": "EmbeddingConnection",
         "type": "object"
       },

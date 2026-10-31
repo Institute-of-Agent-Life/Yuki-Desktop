@@ -227,6 +227,7 @@ export function ModelSchemaFields({
               if (next == null) delete updated[name]
               if (['base_url', 'model', 'reasoning_effort'].includes(name))
                 delete updated[`${name}_env`]
+              if (name === 'thinking_enabled') delete updated.thinking_mode
               change(updated)
             }}
           />

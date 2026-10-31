@@ -1020,7 +1020,10 @@ export interface components {
              * @default
              */
             base_url: string;
-            /** Dimensions */
+            /**
+             * Dimensions
+             * @default 1024
+             */
             dimensions: number;
             /**
              * Document Template Version
@@ -1045,6 +1048,7 @@ export interface components {
             output_type: "dense";
             /**
              * Provider
+             * @default qwen_dashscope
              * @enum {string}
              */
             provider: "qwen_dashscope" | "openai_compatible";
