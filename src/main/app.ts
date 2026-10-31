@@ -42,6 +42,7 @@ import type {
   SoulCommand,
   SoulEdit,
 } from '../shared/api'
+import type { ModelApplyInput, ModelTestInput, ModelDiscoverInput } from '../shared/models'
 import { Connections } from './connections'
 import { ApiError } from './api/client'
 import { avatarInput } from './avatar-input'
@@ -695,6 +696,17 @@ else {
       return result
     })
     clientAction('read', (id: string, route: ApiRead) => connections.read(id, route))
+    clientAction('models-read', (id: string) => connections.modelBundle(id))
+    clientAction('models-apply', (id: string, input: ModelApplyInput) =>
+      connections.applyModels(id, input),
+    )
+    clientAction('models-test', (id: string, input: ModelTestInput) =>
+      connections.testModel(id, input),
+    )
+    clientAction('models-discover', (id: string, input: ModelDiscoverInput) =>
+      connections.discoverModels(id, input),
+    )
+    clientAction('models-stats', (id: string) => connections.modelStats(id))
     clientAction('soul-document', (id: string) => connections.soulDocument(id))
     clientAction('soul-edit', (id: string, edit: SoulEdit) => connections.soulEdit(id, edit))
     clientAction('soul-draft', (id: string) => connections.soul(id).draft())

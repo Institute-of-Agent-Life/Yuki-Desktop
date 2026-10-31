@@ -8,6 +8,8 @@ vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false }
 import { LocalBot, runDocker } from '../../src/main/local-bot'
 import { Connections } from '../../src/main/connections'
 import { LocalStore } from '../../src/main/store'
+import type { Me } from '../../src/shared/api'
+import type { LocalBotInstallation } from '../../src/shared/local-bot'
 
 const resources: {
   root: string
@@ -79,16 +81,16 @@ it.skipIf(process.env.YUKI_TEST_DOCKER !== '1')(
     })
     expect(result.baseUrl).toBe(`http://127.0.0.1:${port}`)
     expect(result.name).toBe('本機測試角色')
-    const me = await connections.read<{
-      person_id: string
-      platform: string
-      devices: { purpose: string }[]
-    }>(result.characterId, { kind: 'me' }, false)
+    const me = await connections.read<Me>(result.characterId, { kind: 'me' }, false)
     expect(me.person_id).toBe(result.personId)
     expect(me.platform).toBe('app')
+    expect(me.is_superuser).toBe(true)
     expect(me.devices.map((item) => item.purpose)).toEqual(['chat'])
     const originalDevice = result.deviceId
+    const originalGrant = store.get<LocalBotInstallation>('local-bot')!.superuserRequestId
+    expect(originalGrant).toMatch(/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/)
     expect((await bot.connect()).deviceId).toBe(originalDevice)
+    expect(store.get<LocalBotInstallation>('local-bot')!.superuserRequestId).toBe(originalGrant)
     expect((await bot.state()).running).toBe(true)
     expect((await readFile(join(directory, 'character', 'SOUL.md'))).length).toBeGreaterThan(0)
   },

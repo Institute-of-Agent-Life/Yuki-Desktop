@@ -296,8 +296,9 @@ export class LocalBot {
         (value) => value.characterId === meta.character.id && !value.needsPairing && !value.logout,
       )
     if (existing) return existing
-    if (newCode) {
-      item.pairRequestId = randomUUID()
+    if (newCode) item.pairRequestId = randomUUID()
+    if (newCode || item.superuserRequestId === undefined) {
+      item.superuserRequestId ??= randomUUID()
       this.options.store.set('local-bot', item)
     }
     this.options.progress('建立本人入口並連接桌面')
@@ -309,6 +310,7 @@ export class LocalBot {
           display_name: item.personName,
           person_request_id: item.personRequestId,
           pair_request_id: item.pairRequestId,
+          superuser_request_id: item.superuserRequestId,
           ...(item.personId ? { person_id: item.personId } : {}),
         }),
       ),

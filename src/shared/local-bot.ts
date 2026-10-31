@@ -9,6 +9,7 @@ export interface LocalBotInstallation {
   personName: string
   personRequestId: string
   pairRequestId: string
+  superuserRequestId?: string
   personId?: string
 }
 export interface LocalBotState {

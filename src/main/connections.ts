@@ -23,6 +23,16 @@ import type {
   LogoutSummary,
 } from '../shared/api'
 import { REQUIRED_API_REVISION } from '../shared/api'
+import type {
+  ModelApplyInput,
+  ModelBundle,
+  ModelControlResult,
+  ModelTestInput,
+  ModelTestResult,
+  ModelDiscoverInput,
+  ModelDiscoverResult,
+  ModelStatsView,
+} from '../shared/models'
 import { ApiClient, ApiError, normalizeServer } from './api/client'
 import { meetsMinimum } from '../shared/version'
 import { readStream } from './api/stream'
@@ -344,6 +354,32 @@ export class Connections {
     this.start(id)
     this.emit(id, 'address', { baseUrl: client.base })
     return updated
+  }
+  private async modelClient(id: string) {
+    await this.identify(id)
+    const client = this.client(id)
+    await this.box(id).verifyOwner(client)
+    return new ApiClient(client.base, client.token, undefined, this.version, fetch, 'admin/v1')
+  }
+  async modelBundle(id: string) {
+    return (await this.modelClient(id)).get<ModelBundle>('models')
+  }
+  async applyModels(id: string, input: ModelApplyInput) {
+    return (await this.modelClient(id)).post<ModelControlResult>('models/apply', {
+      request_id: input.requestId,
+      expected_revision: input.expectedRevision,
+      document: input.document,
+      ...(input.apiKeys === undefined ? {} : { api_keys: input.apiKeys }),
+    })
+  }
+  async testModel(id: string, input: ModelTestInput) {
+    return (await this.modelClient(id)).post<ModelTestResult>('models/test', input)
+  }
+  async discoverModels(id: string, input: ModelDiscoverInput) {
+    return (await this.modelClient(id)).post<ModelDiscoverResult>('models/discover', input)
+  }
+  async modelStats(id: string) {
+    return (await this.modelClient(id)).get<ModelStatsView>('models/stats')
   }
   private async verifyAddress(id: string, server: string, deviceId?: string) {
     const original = this.connection(id),
