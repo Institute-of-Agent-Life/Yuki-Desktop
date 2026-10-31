@@ -229,8 +229,14 @@ export function App({ boot }: { boot: BootInfo }) {
     }
   })
   const complete = (value: Connection, activate = true) => {
-    void query.cancelQueries({ queryKey: [value.characterId] })
-    query.removeQueries({ queryKey: [value.characterId] })
+    for (const queryKey of [
+      [value.characterId],
+      ['desktop', 'models', value.characterId],
+      ['desktop', 'model-stats', value.characterId],
+    ]) {
+      void query.cancelQueries({ queryKey })
+      query.removeQueries({ queryKey })
+    }
     if (!activate) {
       setConnections((current) => [
         ...current.filter((item) => item.characterId !== value.characterId),
@@ -266,8 +272,13 @@ export function App({ boot }: { boot: BootInfo }) {
       onDeployLocal={deployLocal}
       onLoggedOut={async () => {
         const previous = connection!
-        await query.cancelQueries({ queryKey: [previous.characterId] })
-        query.removeQueries({ queryKey: [previous.characterId] })
+        const keys = [
+          [previous.characterId],
+          ['desktop', 'models', previous.characterId],
+          ['desktop', 'model-stats', previous.characterId],
+        ]
+        await Promise.all(keys.map((queryKey) => query.cancelQueries({ queryKey })))
+        for (const queryKey of keys) query.removeQueries({ queryKey })
         forgetWorkspace(previous)
         setTarget(null)
         setPairLink(null)

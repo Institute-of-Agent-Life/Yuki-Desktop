@@ -1,0 +1,56 @@
+.usage {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.notice {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 20px;
+}
+.scroll {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  border: var(--line) solid var(--separator);
+  border-radius: 12px;
+}
+.table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.table caption {
+  padding: 12px 14px;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+}
+.table th,
+.table td {
+  padding: 10px 14px;
+  border-top: var(--line) solid var(--separator);
+  text-align: right;
+  white-space: nowrap;
+}
+.table thead th {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.table th:first-child {
+  text-align: left;
+}
+.table th[scope='row'] {
+  max-width: 240px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.table td.empty {
+  color: var(--text-secondary);
+  text-align: left;
+}
