@@ -17,3 +17,140 @@
 .notice {
   margin: 12px 16px;
 }
+.sectionActions {
+  padding: 12px 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+.card {
+  border: var(--line) solid var(--separator);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+.cardHeader,
+.profileRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+}
+.cardHeader h3 {
+  font-size: 14px;
+  margin: 0 0 6px;
+}
+.cardHeader small {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.cardActions,
+.inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cardActions > span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.profileRow {
+  border-top: var(--line) solid var(--separator);
+}
+.profileLabel {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.profileLabel strong {
+  font-size: 13px;
+}
+.profileLabel small {
+  color: var(--text-secondary);
+}
+.presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+.formFields {
+  display: grid;
+  gap: 16px;
+}
+.formField {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  min-width: 0;
+}
+.formField > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.formField small {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.formField select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--separator);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font: inherit;
+}
+.formRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+.inline > input {
+  flex: 1;
+  min-width: 120px;
+}
+.checks {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.checks label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+}
+.fieldset {
+  padding: 12px;
+  border: 1px solid var(--separator);
+  border-radius: 8px;
+}
+.editor {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.fieldset legend {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.advanced {
+  margin: 8px 0;
+}
+.advanced > summary {
+  cursor: pointer;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+@media (max-width: 700px) {
+  .cardHeader,
+  .profileRow {
+    flex-wrap: wrap;
+  }
+}

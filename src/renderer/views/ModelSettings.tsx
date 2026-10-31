@@ -5,6 +5,7 @@ import type { ModelApplyInput, ModelDocument } from '../../shared/models'
 import { Banner, Button, Segmented, Spinner } from '../components/Controls'
 import { ClientProblem, unwrap } from '../queries/client'
 import { PendingRequest, SettingsSection } from './SettingsRow'
+import { ModelConnections } from './ModelConnections'
 import styles from './ModelSettings.module.css'
 
 export function useModelConfiguration(id: string) {
@@ -77,6 +78,19 @@ export function ModelSettings({ connection }: { connection: Connection }) {
   if (model.bundle.error) return <Banner status="failed">{model.bundle.error.message}</Banner>
   if (!data!.valid)
     return <Banner status="failed">Yuki 上的模型設定檔無法解析，請由管理員檢查</Banner>
+  const feedback = (
+    <>
+      {model.error && <Banner status="failed">{model.error}</Banner>}
+      {model.conflict && (
+        <Banner status="failed">
+          設定已在其他地方變更 <Button onClick={() => void model.bundle.refetch()}>重新載入</Button>
+        </Banner>
+      )}
+      {model.pending && !model.busy && (
+        <PendingRequest text="模型設定等待確認" busy={model.busy} onVerify={model.verify} />
+      )}
+    </>
+  )
   return (
     <div className={styles.settings}>
       <div className={styles.toolbar}>
@@ -94,26 +108,28 @@ export function ModelSettings({ connection }: { connection: Connection }) {
           {data!.apply_mode === 'hot_reload' ? '儲存後立即生效' : '儲存後需重新啟動 Yuki'}
         </small>
       </div>
-      {model.error && <Banner status="failed">{model.error}</Banner>}
-      {model.conflict && (
-        <Banner status="failed">
-          設定已在其他地方變更 <Button onClick={() => void model.bundle.refetch()}>重新載入</Button>
-        </Banner>
+      {feedback}
+      {tab === 'connections' ? (
+        <ModelConnections
+          data={data!}
+          busy={model.busy}
+          pending={!!model.pending}
+          save={model.save}
+          feedback={feedback}
+        />
+      ) : (
+        <SettingsSection
+          title={tab === 'connections' ? '模型連接' : tab === 'purposes' ? '模型用途' : '模型用量'}
+        >
+          <p className={styles.notice}>
+            {tab === 'connections'
+              ? `${Object.keys(data!.document.profiles).length} 個模型`
+              : tab === 'purposes'
+                ? '選擇每項用途使用的模型。'
+                : '按用途與模型查看實際用量。'}
+          </p>
+        </SettingsSection>
       )}
-      {model.pending && !model.busy && (
-        <PendingRequest text="模型設定等待確認" busy={model.busy} onVerify={model.verify} />
-      )}
-      <SettingsSection
-        title={tab === 'connections' ? '模型連接' : tab === 'purposes' ? '模型用途' : '模型用量'}
-      >
-        <p className={styles.notice}>
-          {tab === 'connections'
-            ? `${Object.keys(data!.document.profiles).length} 個模型`
-            : tab === 'purposes'
-              ? '選擇每項用途使用的模型。'
-              : '按用途與模型查看實際用量。'}
-        </p>
-      </SettingsSection>
     </div>
   )
 }
