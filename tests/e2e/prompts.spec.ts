@@ -1,10 +1,82 @@
 import { navigate } from '../fixtures/navigation'
-import { expect, test } from '@playwright/test'
-import { readFile } from 'node:fs/promises'
+import { expect, test, type Page } from '@playwright/test'
+import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { currentConnection, pairUI } from '../fixtures/backend'
 import { crashSoulApp, soulBackend } from '../fixtures/soul-backend'
+import type { OriginalRequest } from '../../src/shared/api'
+
+async function recordSoulEvidence(page: Page, root: string, name: string) {
+  await copyFile(join(root, 'server.log'), test.info().outputPath(`${name}-backend.log`))
+  const { characterId } = await currentConnection(page)
+  const commands = await page.evaluate(async (id) => {
+    const result = await window.yuki.client.soulCommands(id)
+    if (!result.ok) return { ok: false as const, code: result.code }
+    return {
+      ok: true as const,
+      value: result.value.map((item) => ({
+        requestId: item.requestId,
+        state: item.state,
+        problem: item.problem,
+        payloadHash: item.payloadHash,
+        kind: item.command.kind,
+        ...(item.command.kind === 'save'
+          ? {
+              expectedRevision: item.command.expectedRevision,
+              contentLength: Array.from(item.command.content).length,
+            }
+          : {}),
+        result: item.result,
+      })),
+    }
+  }, characterId)
+  const content = await readFile(join(root, 'character/SOUL.md'))
+  await writeFile(
+    test.info().outputPath(`${name}-local.json`),
+    JSON.stringify(
+      {
+        observedAt: new Date().toISOString(),
+        characterId,
+        commands,
+        file: {
+          bytes: content.length,
+          revision: `sha256:${createHash('sha256').update(content).digest('hex')}`,
+        },
+      },
+      null,
+      2,
+    ),
+  )
+  if (!commands.ok) return
+  const receipts = await page.evaluate(
+    async ({ characterId, requestIds }) =>
+      Promise.all(
+        requestIds.map(async (requestId) => {
+          const result = await window.yuki.client.read<OriginalRequest>(characterId, {
+            kind: 'request',
+            requestId,
+          })
+          if (!result.ok) return { requestId, error: result.code }
+          return {
+            requestId,
+            found: result.value.found,
+            operationKind: result.value.operation_kind,
+            payloadHash: result.value.payload_hash,
+            status: result.value.status,
+            problem: result.value.problem_code,
+            revision: result.value.result?.revision,
+            activeRevision: result.value.result?.active_revision,
+          }
+        }),
+      ),
+    { characterId, requestIds: commands.value.map((item) => item.requestId) },
+  )
+  await writeFile(
+    test.info().outputPath(`${name}-requests.json`),
+    JSON.stringify({ observedAt: new Date().toISOString(), receipts }, null, 2),
+  )
+}
 
 test('single SOUL saves empty text and preserves a raw draft after process reopening', async () => {
   test.setTimeout(120000)
@@ -51,6 +123,10 @@ test('single SOUL saves empty text and preserves a raw draft after process reope
     await page.screenshot({ path: test.info().outputPath('soul-failure.png') })
     throw error
   } finally {
+    await app
+      .firstWindow()
+      .then((page) => recordSoulEvidence(page, rig.root, success ? 'soul-final' : 'soul-failure'))
+      .catch(console.error)
     await crashSoulApp(app)
     await rig.close(success)
   }
