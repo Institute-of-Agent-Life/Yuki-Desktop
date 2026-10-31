@@ -71,10 +71,19 @@ export function useModelConfiguration(id: string) {
   return { bundle, save, busy, error, conflict, pending, reload, verify: () => void run(pending!) }
 }
 
-export function ModelSettings({ connection }: { connection: Connection }) {
+export type ModelPage = 'connections' | 'purposes' | 'usage'
+
+export function ModelSettings({
+  connection,
+  page: tab,
+  onPage,
+}: {
+  connection: Connection
+  page: ModelPage
+  onPage(page: ModelPage): void
+}) {
   const model = useModelConfiguration(connection.characterId)
   const authority = useMe(connection.characterId)
-  const [tab, setTab] = useState('connections')
   const data = model.bundle.data
   if (
     authority.data?.is_superuser === false ||
@@ -113,7 +122,7 @@ export function ModelSettings({ connection }: { connection: Connection }) {
             { value: 'purposes', label: '用途' },
             { value: 'usage', label: '用量' },
           ]}
-          onChange={setTab}
+          onChange={(value) => onPage(value as ModelPage)}
         />
         <small>
           {data!.apply_mode === 'hot_reload' ? '儲存後立即生效' : '儲存後需重新啟動 Yuki'}

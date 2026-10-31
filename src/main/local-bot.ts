@@ -10,6 +10,7 @@ import type {
 import type { LocalStore } from './store'
 import type { Connections } from './connections'
 import { ApiError } from './api/client'
+import type { ProviderPreset } from '../shared/models'
 
 export type DockerRunner = (
   args: string[],
@@ -89,6 +90,23 @@ export class LocalBot {
   ) {}
   private get run() {
     return this.options.run ?? runDocker
+  }
+  async presets(): Promise<ProviderPreset[]> {
+    const manifest = JSON.parse(
+      await readFile(join(this.options.resources, 'manifest.json'), 'utf8'),
+    ) as { image: string }
+    return JSON.parse(
+      await this.run([
+        'run',
+        '--rm',
+        '--entrypoint',
+        'yuki',
+        manifest.image,
+        'setup',
+        'provider-presets',
+        '--json',
+      ]),
+    ) as ProviderPreset[]
   }
   private installation() {
     const value = this.options.store.get<LocalBotInstallation>('local-bot')
@@ -223,6 +241,7 @@ export class LocalBot {
     )
     if (!(await exists(join(directory, '.env')))) {
       this.options.progress('儲存模型與本機設定')
+      if (!input.model) throw new ApiError('validation_error')
       const model = { ...input.model }
       const endpoint = new URL(model.base_url)
       if (['localhost', '127.0.0.1', '[::1]'].includes(endpoint.hostname)) {

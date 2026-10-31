@@ -134,8 +134,8 @@ test('local Yuki configuration stays reachable later and survives settings witho
     const fields = {
       'Yuki 的名稱': '稍後部署的角色',
       你的名稱: '稍後配置的本人',
-      模型服務位址: 'http://127.0.0.1:11434/v1',
-      模型名稱: 'deferred-local-model',
+      服務位址: 'http://127.0.0.1:11434/v1',
+      '模型 ID': 'deferred-local-model',
     }
     for (const [label, value] of Object.entries(fields))
       await page.getByLabel(label, { exact: true }).fill(value)
@@ -235,7 +235,27 @@ test('a late repair of an original role does not interrupt local Yuki configurat
       needsPairing: true,
     })
     await expect(page.locator('[data-character-session]')).toHaveCount(0)
+    let originalChoices = 0
     const chooseOriginal = async () => {
+      await writeFile(
+        test.info().outputPath(`original-choice-${++originalChoices}.json`),
+        JSON.stringify(
+          await page.evaluate(() => ({
+            viewport: { width: innerWidth, height: innerHeight },
+            navigation: [...document.querySelectorAll<HTMLElement>('[aria-label="主要導覽"]')].map(
+              (element) => ({
+                visibility: getComputedStyle(element).visibility,
+                rect: element.getBoundingClientRect().toJSON(),
+                grid: getComputedStyle(element.parentElement!).gridTemplateColumns,
+                hidden: !!element.closest('[hidden]'),
+              }),
+            ),
+          })),
+          null,
+          2,
+        ),
+      )
+      await expect(page.getByRole('navigation', { name: '主要導覽', exact: true })).toBeVisible()
       await (await sidebar(page)).getByRole('button', { name: '切換 Yuki', exact: true }).click()
       await page.getByRole('menuitemradio').filter({ hasText: original.name }).click()
     }

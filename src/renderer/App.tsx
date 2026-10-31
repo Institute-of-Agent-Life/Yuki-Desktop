@@ -13,6 +13,7 @@ import { problemText, unwrap } from './queries/client'
 import { requestNavigation } from './state/navigation'
 import { TimeZoneContext } from './state/time'
 import { Settings, type SettingsCategory } from './views/Settings'
+import type { ModelPage } from './views/ModelSettings'
 import { UpdatePending } from './components/Updates'
 import { UpdateProvider } from './state/updates'
 import { RoleSwitcher } from './components/RoleSwitcher'
@@ -27,6 +28,7 @@ export function App({ boot }: { boot: BootInfo }) {
   )
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsCategory, setSettingsCategory] = useState<SettingsCategory>('general')
+  const [modelPage, setModelPage] = useState<ModelPage>('connections')
   const openSettings = (category?: SettingsCategory) => {
     if (category) setSettingsCategory(category)
     setSettingsOpen(true)
@@ -261,6 +263,8 @@ export function App({ boot }: { boot: BootInfo }) {
     <Settings
       category={settingsCategory}
       onCategory={setSettingsCategory}
+      modelPage={modelPage}
+      onModelPage={setModelPage}
       boot={boot}
       preferences={preferences}
       save={save}
@@ -375,7 +379,13 @@ export function App({ boot }: { boot: BootInfo }) {
                   }
                   setStep('welcome')
                 }}
-                done={complete}
+                done={(value, activate) => {
+                  complete(value, activate)
+                  if (activate !== false) {
+                    setModelPage('purposes')
+                    openSettings('models')
+                  }
+                }}
               />
             </div>
           )}

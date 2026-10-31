@@ -125,6 +125,22 @@ test('model purposes save original routes embedding confirmation and auxiliary e
       JSON.stringify({ memoryExtraction: await route.count() }),
     )
     expect(await route.count()).toBe(1)
+    const searchMode = page.getByRole('combobox', { name: '搜尋模式', exact: true })
+    await writeFile(
+      test.info().outputPath('model-search-mode-entry.json'),
+      JSON.stringify({ mode: await searchMode.count() }),
+    )
+    expect(await searchMode.count()).toBe(1)
+    await searchMode.selectOption('both')
+    await expect
+      .poll(async () => {
+        const result = await page.evaluate(
+          (id) => window.yuki.client.models.read(id),
+          original.characterId,
+        )
+        return result.ok && result.value.valid && result.value.document.search?.mode
+      })
+      .toBe('both')
     await route.selectOption('fixture-image')
     const read = () =>
       page.evaluate((id) => window.yuki.client.models.read(id), original.characterId)
@@ -203,8 +219,37 @@ test('model purposes save original routes embedding confirmation and auxiliary e
     await page.getByLabel('Tavily 金鑰', { exact: true }).fill(state.model_upstream_key)
     await page.getByRole('button', { name: '儲存 Tavily 金鑰', exact: true }).click()
     await expect(page.getByLabel('Tavily 金鑰', { exact: true })).toHaveValue('')
+    const searchBoth = await read()
+    expect(searchBoth.ok && searchBoth.value.valid && searchBoth.value.document.search?.mode).toBe(
+      'both',
+    )
+    await searchMode.selectOption('tavily')
+    await expect
+      .poll(async () => {
+        const result = await read()
+        return result.ok && result.value.valid && result.value.document.search?.mode
+      })
+      .toBe('tavily')
+    await page.getByLabel('Tavily 金鑰', { exact: true }).fill('fixture-tavily-replacement')
+    await page.getByRole('button', { name: '儲存 Tavily 金鑰', exact: true }).click()
+    await expect(page.getByLabel('Tavily 金鑰', { exact: true })).toHaveValue('')
+    const searchTavily = await read()
+    expect(
+      searchTavily.ok && searchTavily.value.valid && searchTavily.value.document.search?.mode,
+    ).toBe('tavily')
+    await searchMode.selectOption('disabled')
+    await expect
+      .poll(async () => {
+        const result = await read()
+        return result.ok && result.value.valid && result.value.document.search?.mode
+      })
+      .toBe('disabled')
+    await page.getByLabel('Tavily 金鑰', { exact: true }).fill('fixture-tavily-disabled')
+    await page.getByRole('button', { name: '儲存 Tavily 金鑰', exact: true }).click()
+    await expect(page.getByLabel('Tavily 金鑰', { exact: true })).toHaveValue('')
     const after = await read()
     expect(after.ok && after.value.valid && after.value.saved_connection_keys).toContain('search')
+    expect(after.ok && after.value.valid && after.value.document.search?.mode).toBe('disabled')
     expect(after.ok && after.value.valid && after.value.document.vision?.model).toBe(
       'fixture-chat-a',
     )
@@ -217,7 +262,16 @@ test('model purposes save original routes embedding confirmation and auxiliary e
     await writeFile(
       test.info().outputPath('model-purposes.json'),
       JSON.stringify(
-        { original, seed, disabledEmbedding, vector, after, mainLogContainsKey: false },
+        {
+          original,
+          seed,
+          disabledEmbedding,
+          vector,
+          searchBoth,
+          searchTavily,
+          after,
+          mainLogContainsKey: false,
+        },
         null,
         2,
       ),

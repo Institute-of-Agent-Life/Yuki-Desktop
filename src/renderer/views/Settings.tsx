@@ -22,7 +22,7 @@ import { RoleSwitcher } from '../components/RoleSwitcher'
 import { ServerSettings } from './ServerSettings'
 import { DeviceSecurity } from './DeviceSecurity'
 import { AgentConnector } from './AgentConnector'
-import { ModelSettings } from './ModelSettings'
+import { ModelSettings, type ModelPage } from './ModelSettings'
 import { LogoutFlow } from './LogoutFlow'
 import { Row, SettingsSection } from './SettingsRow'
 import type { BootInfo, Preferences } from '../../shared/desktop'
@@ -94,6 +94,8 @@ export function Settings({
   onLoggedOut,
   category,
   onCategory,
+  modelPage,
+  onModelPage,
   onAddCharacter,
   onDeployLocal,
 }: {
@@ -109,6 +111,8 @@ export function Settings({
   onLoggedOut(): Promise<void>
   category: SettingsCategory
   onCategory(category: SettingsCategory): void
+  modelPage: ModelPage
+  onModelPage(page: ModelPage): void
   onAddCharacter(): void
   onDeployLocal(): void
 }) {
@@ -412,7 +416,14 @@ export function Settings({
               <UpdatePanel preferences={preferences} save={save} />
             </SettingsSection>
           ) : shown === 'models' ? (
-            connection && <ModelSettings key={connection.characterId} connection={connection} />
+            connection && (
+              <ModelSettings
+                key={connection.characterId}
+                connection={connection}
+                page={modelPage}
+                onPage={onModelPage}
+              />
+            )
           ) : shown === 'computer' ? (
             <AgentConnector
               key={connection?.characterId}

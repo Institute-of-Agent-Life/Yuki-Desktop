@@ -500,6 +500,7 @@ else {
       progress: (message) => win?.webContents.send('yuki:local-bot-progress', message),
     })
     action('local-bot-state', () => localBot.state())
+    action('local-bot-presets', () => localBot.presets())
     action('local-bot-directory', () => choosePath(true))
     action('local-bot-deploy', (input: LocalBotConfiguration) => localBot.deploy(input))
     action('local-bot-start', () => localBot.start())

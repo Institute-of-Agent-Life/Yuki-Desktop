@@ -565,6 +565,7 @@ function Case() {
   const [category, setCategory] = useState<SettingsCategory>(
     parameters.get('category') === 'computer' ? 'computer' : 'general',
   )
+  const [modelPage, setModelPage] = useState<'connections' | 'purposes' | 'usage'>('connections')
   const [selected, setSelected] = useState('')
   const [attachment, setAttachment] = useState<AttachmentSource>()
   const connection: Connection = {
@@ -607,6 +608,8 @@ function Case() {
       }}
       category={category}
       onCategory={setCategory}
+      modelPage={modelPage}
+      onModelPage={setModelPage}
       connections={settingsConnection ? [settingsConnection] : []}
       onSelect={() => {}}
       connection={settingsConnection}

@@ -126,6 +126,10 @@ jobs:
   local-bot:
     name: Real local Bot deployment
     runs-on: ubuntu-24.04
+    env:
+      YUKI_TEST_DOCKER: '1'
+      YUKI_E2E_BACKGROUND_WINDOWS: '1'
+      YUKI_E2E_OUTPUT: ${{ runner.temp }}/yuki-local-bot-e2e
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -147,5 +151,32 @@ jobs:
         run: node build-tools/prepare-local-bot.mjs --source .cache/backend --image yuki-desktop-local:ci
       - name: Deploy, initialize and pair through the actual services
         run: npm test -- tests/unit/local-bot.test.ts
+      - run: npm exec playwright install -- --with-deps chromium
+      - run: sudo apt-get install --no-install-recommends -y libnotify4 dbus-x11 gnome-keyring openbox
+      - name: Configure Electron sandbox for Ubuntu CI
+        shell: bash
+        run: |
+          node -e 'require("electron")'
+          electron_path="$(node --print 'require("electron")')"
+          printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile yuki-desktop-local-ci "%s" flags=(unconfined) {\n  userns,\n}\n' "$electron_path" | sudo tee /etc/apparmor.d/yuki-desktop-local-ci
+          sudo apparmor_parser --replace /etc/apparmor.d/yuki-desktop-local-ci
+      - run: npm run build
+      - name: Configure models through the real Desktop and local Bot
         env:
-          YUKI_TEST_DOCKER: '1'
+          XDG_CURRENT_DESKTOP: GNOME
+        run: |
+          dbus-run-session -- xvfb-run --auto-servernum --server-args="-screen 0 1920x1200x24" bash -e -c '
+            export XDG_DATA_HOME="$RUNNER_TEMP/yuki-local-keyring-data"
+            export XDG_CONFIG_HOME="$RUNNER_TEMP/yuki-local-keyring-config"
+            printf "%s" "yuki-ci-test" | gnome-keyring-daemon --unlock --components=secrets > "$RUNNER_TEMP/local-keyring-startup.log"
+            openbox > "$RUNNER_TEMP/local-openbox.log" 2>&1 &
+            node build-tools/check-linux-keyring.mjs
+            npm exec playwright test -- tests/e2e/local-bot-model-setup.spec.ts
+          '
+      - name: Preserve local deployment UI evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Yuki-local-bot-e2e-results
+          path: ${{ runner.temp }}/yuki-local-bot-e2e
+          if-no-files-found: warn
