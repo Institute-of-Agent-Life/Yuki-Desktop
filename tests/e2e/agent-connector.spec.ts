@@ -67,7 +67,7 @@ test('long original Agent names, paths and grouped controls wrap within wide and
   }
 })
 
-test('connector settings prepare an independent runtime, explicitly connect the current role and manage its service', async ({
+test('connector settings prepare a managed runtime, explicitly connect the current Yuki and control its local connection', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 720, height: 650 })
@@ -82,11 +82,19 @@ test('connector settings prepare an independent runtime, explicitly connect the 
   await expect(page.getByRole('combobox', { name: 'Codex 安裝', exact: true })).toHaveCount(0)
   await expect(page.getByRole('switch', { name: '允許完整訪問本機' })).not.toBeChecked()
   await expect(page.getByRole('combobox', { name: '任務 Agent' })).toHaveCount(0)
-  const service = page.getByRole('switch', { name: '背景連接', exact: true })
+  await expect(
+    page.getByText(
+      '隨 Desktop 啟動與結束；關閉視窗留在托盤時保持連接。已啟動任務的結果以原回執為準。',
+    ),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '移除所選安裝的使用者服務', exact: true }),
+  ).toHaveCount(0)
+  const service = page.getByRole('switch', { name: '本機連接', exact: true })
   await expect(service).toBeChecked()
   await service.click()
   await expect(service).not.toBeChecked()
-  await expect(page.getByText('背景連接已停止', { exact: true })).toBeVisible()
+  await expect(page.getByText('本機連接已停止', { exact: true })).toBeVisible()
   expect(
     await page.evaluate(
       () => (window as Window & { __connectorCalls?: unknown[] }).__connectorCalls,
@@ -96,7 +104,6 @@ test('connector settings prepare an independent runtime, explicitly connect the 
       method: 'connect',
       input: { characterId: '00000000-0000-4000-8000-000000000001', label: 'My work computer' },
     },
-    { method: 'service', input: 'install' },
     { method: 'service', input: 'start' },
     { method: 'service', input: 'stop' },
   ])
@@ -159,7 +166,12 @@ test('an existing independent installation is selected without pairing, upgradin
   await expect(page.getByRole('button', { name: '連接這台電腦', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: '使用已有連接', exact: true }).click()
   await expect(page.getByText('Original Codex', { exact: false })).toBeVisible()
-  await expect(page.getByRole('switch', { name: '背景連接', exact: true })).toBeChecked()
+  await expect(page.getByRole('switch', { name: '本機連接', exact: true })).toHaveCount(0)
+  await expect(page.getByText(/^獨立連接/)).toBeVisible()
+  await expect(
+    page.getByText('由原安裝管理，不隨 Desktop 啟停。改用隨附版本後，可交由 Desktop 管理。'),
+  ).toBeVisible()
+  await expect(page.getByText('執行中', { exact: true })).toBeVisible()
   await installationDetails(page)
   await expect(page.getByText('original-connector-device', { exact: true })).toBeVisible()
   expect(
@@ -172,6 +184,7 @@ test('an existing independent installation is selected without pairing, upgradin
       input: { executable: '/original/python', dataDirectory: '/original/data' },
     },
   ])
+  await page.screenshot({ path: test.info().outputPath('independent-connector-readonly.png') })
 })
 
 test('an original connection no longer admitted by Yuki offers an explicit new connection without reusing its authorization', async ({
@@ -356,8 +369,8 @@ test('editing an original ACP keeps omitted arguments and only changes arguments
   page,
 }) => {
   await page.goto('http://127.0.0.1:4178/components.html?connector=acp-existing')
-  await page.getByRole('switch', { name: '背景連接', exact: true }).click()
-  await expect(page.getByRole('switch', { name: '背景連接', exact: true })).not.toBeChecked()
+  await page.getByRole('switch', { name: '本機連接', exact: true }).click()
+  await expect(page.getByRole('switch', { name: '本機連接', exact: true })).not.toBeChecked()
   await page.getByRole('button', { name: '編輯', exact: true }).click()
   await expect(page.getByRole('combobox', { name: '原生工具類型', exact: true })).toHaveValue('acp')
   await expect(page.getByRole('textbox', { name: 'ACP 啟動參數 1', exact: true })).toHaveValue(
@@ -379,7 +392,7 @@ test('editing an original ACP keeps omitted arguments and only changes arguments
   await page.getByRole('button', { name: '移除 ACP 啟動參數 1', exact: true }).click()
   await page.getByRole('button', { name: '儲存', exact: true }).click()
   await expect(page.getByRole('dialog', { name: /^編輯 / })).toBeHidden()
-  await expect(page.getByRole('switch', { name: '背景連接', exact: true })).not.toBeChecked()
+  await expect(page.getByRole('switch', { name: '本機連接', exact: true })).not.toBeChecked()
   const calls = await page.evaluate(
     () =>
       (
@@ -405,7 +418,7 @@ test('editing an original ACP keeps omitted arguments and only changes arguments
   ])
 })
 
-test('a stopped independent connector can update in place while retaining its original identity and stopped service', async ({
+test('a stopped independent connector can move to Desktop management while retaining its original identity and stopped state', async ({
   page,
 }) => {
   await page.goto('http://127.0.0.1:4178/components.html?connector=existing-old-stopped')
@@ -416,7 +429,7 @@ test('a stopped independent connector can update in place while retaining its or
   await expect(page.getByRole('button', { name: '連接這台電腦', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: '更新連接器，保留原資料', exact: true }).click()
   await expect(page.getByRole('switch', { name: '允許完整訪問本機' })).not.toBeChecked()
-  await expect(page.getByRole('switch', { name: '背景連接', exact: true })).not.toBeChecked()
+  await expect(page.getByRole('switch', { name: '本機連接', exact: true })).not.toBeChecked()
   await installationDetails(page)
   await expect(page.getByText('original-connector-device', { exact: true })).toBeVisible()
   await expect(page.getByText('/original/data', { exact: true })).toBeVisible()
@@ -456,7 +469,6 @@ test('multiple Codex installations require a real choice without requiring a pro
       method: 'connect',
       input: { characterId: '00000000-0000-4000-8000-000000000001', label: 'My computer' },
     },
-    { method: 'service', input: 'install' },
     { method: 'service', input: 'start' },
     { method: 'discover', input: 'codex' },
     {
@@ -484,14 +496,14 @@ test('a saved native instance survives a failed background start and continues u
   await page.goto('http://127.0.0.1:4178/components.html?connector=service-failure')
   await page.getByRole('checkbox', { name: '我允許這個 Yuki 連接這台電腦', exact: true }).check()
   await page.getByRole('button', { name: '連接這台電腦', exact: true }).click()
-  await expect(page.getByRole('switch', { name: '背景連接', exact: true })).toBeChecked()
+  await expect(page.getByRole('switch', { name: '本機連接', exact: true })).toBeChecked()
   await page.getByRole('button', { name: '新增 Agent', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: '新增本機 Agent', exact: true })
   const label = '啟動失敗後保留的 Codex 設定'
   await sheet.getByRole('textbox', { name: 'Agent 顯示名稱', exact: true }).fill(label)
   await sheet.getByRole('button', { name: '尋找已安裝的 Codex', exact: true }).click()
   await sheet.getByRole('button', { name: '儲存', exact: true }).click()
-  await expect(sheet.getByRole('status').filter({ hasText: '啟動背景連接：' })).toBeVisible()
+  await expect(sheet.getByRole('status').filter({ hasText: '啟動本機連接：' })).toBeVisible()
   await expect(sheet).toBeVisible()
   await expect(sheet.getByRole('textbox', { name: 'Agent 顯示名稱', exact: true })).toHaveValue(
     label,
@@ -504,12 +516,12 @@ test('a saved native instance survives a failed background start and continues u
   })
   expect(persisted.instances).toHaveLength(1)
   expect(persisted.instances[0]).toMatchObject({ id: expect.any(String), label, driver: 'codex' })
-  expect(persisted.service.running).toBe(false)
+  expect(persisted.running).toBe(false)
   await sheet.getByRole('button', { name: '儲存', exact: true }).click()
   await expect(sheet).toBeHidden()
-  await expect(page.getByRole('switch', { name: '背景連接', exact: true })).not.toBeChecked()
-  await page.getByRole('switch', { name: '背景連接', exact: true }).click()
-  await expect(page.getByRole('switch', { name: '背景連接', exact: true })).toBeChecked()
+  await expect(page.getByRole('switch', { name: '本機連接', exact: true })).not.toBeChecked()
+  await page.getByRole('switch', { name: '本機連接', exact: true }).click()
+  await expect(page.getByRole('switch', { name: '本機連接', exact: true })).toBeChecked()
   await expect(page.getByText('Codex 原生連線已建立')).toBeVisible()
   const calls = await page.evaluate(
     () =>
@@ -544,7 +556,7 @@ for (const [mode, message] of [
     await page.goto(`http://127.0.0.1:4178/components.html?connector=${mode}`)
     if (mode === 'protocol-unknown') await installationDetails(page)
     await expect(page.getByText(message, { exact: false }).first()).toBeVisible()
-    await expect(page.getByRole('switch', { name: '背景連接', exact: true })).toBeEnabled()
+    await expect(page.getByRole('switch', { name: '本機連接', exact: true })).toBeEnabled()
     await page.getByRole('button', { name: '編輯', exact: true }).click()
     await expect(page.getByRole('button', { name: '儲存', exact: true })).toBeEnabled()
     expect(
@@ -555,11 +567,11 @@ for (const [mode, message] of [
   })
 }
 
-test('native readiness remains distinct from a running service and an online server', async ({
+test('native readiness remains distinct from a running local connection and an online server', async ({
   page,
 }) => {
   await page.goto('http://127.0.0.1:4178/components.html?connector=native-unavailable')
-  await expect(page.getByRole('switch', { name: '背景連接', exact: true })).toBeChecked()
+  await expect(page.getByRole('switch', { name: '本機連接', exact: true })).toBeChecked()
   const status = page.getByRole('heading', { name: '狀態', exact: true }).locator('..')
   await expect(status.getByText('已連線', { exact: true })).toBeVisible()
   await expect(page.getByText(/尚未就緒：請先在原生 Agent 完成登入/)).toBeVisible()
@@ -591,14 +603,14 @@ test('native readiness remains distinct from a running service and an online ser
     '本機內容已保留。',
   )
   await expect(page.getByRole('status').filter({ hasText: '伺服器接納尚未確認：' })).toContainText(
-    '本機背景連接仍可管理。',
+    '本機連接仍可管理。',
   )
   await installationDetails(page)
   await expect(page.getByText('尚未確認目前本人', { exact: true })).toBeVisible()
   await expect(page.getByText('transport_unknown', { exact: false })).toHaveCount(0)
   await expect(page.getByText('目前的 Yuki 未接納原連接，原身份與回執會保留。')).toHaveCount(0)
   await expect(page.getByRole('button', { name: '建立新連接', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('switch', { name: '背景連接', exact: true })).toBeEnabled()
+  await expect(page.getByRole('switch', { name: '本機連接', exact: true })).toBeEnabled()
   await expect(page.getByRole('button', { name: '重新讀取狀態', exact: true })).toHaveCount(0)
 })
 

@@ -5,7 +5,6 @@ import type {
   ConnectorCandidate,
   ConnectorDiagnostic,
   ConnectorDriver,
-  ConnectorServiceAction,
   ConnectorState,
 } from '../../shared/connector'
 import {
@@ -56,15 +55,6 @@ const problems: Record<string, string> = {
 const driverName = (driver: string) =>
   driver === 'codex' ? 'Codex' : driver === 'claude' ? 'Claude' : driver === 'acp' ? 'ACP' : driver
 
-const serviceStatus = (service: { installed: boolean; running: boolean | null }) =>
-  !service.installed
-    ? '尚未安裝'
-    : service.running === true
-      ? '執行中'
-      : service.running === false
-        ? '已停止'
-        : '狀態未知'
-
 const summary = (state: ConnectorState | undefined): { text: string; status: Status } => {
   if (!state) return { text: '讀取中', status: 'unknown' }
   const installation = state.available ? state : state.existing?.state
@@ -74,8 +64,7 @@ const summary = (state: ConnectorState | undefined): { text: string; status: Sta
   if (installation.updateAvailable) return { text: '需要更新', status: 'waiting' }
   if (!state.available) return { text: '發現原有連接', status: 'waiting' }
   if (!installation.paired) return { text: '尚未連接', status: 'offline' }
-  if (!installation.service.installed) return { text: '尚未安裝背景連接', status: 'waiting' }
-  if (installation.service.running === false) return { text: '背景連接已停止', status: 'waiting' }
+  if (installation.running === false) return { text: '本機連接已停止', status: 'waiting' }
   return installation.admission?.connected
     ? { text: '已連線', status: 'done' }
     : { text: '尚未確認連線', status: 'unknown' }
@@ -95,9 +84,9 @@ const stages: Record<string, string> = {
   read: '讀取連接器狀態',
   discover: '尋找原生程式',
   diagnose: '檢查原生狀態',
-  'service-stop': '停止原背景連接',
-  'service-install': '安裝背景連接',
-  'service-start': '啟動背景連接',
+  'service-stop': '停止本機連接',
+  'service-uninstall': '移除原自啟動服務',
+  'service-start': '啟動本機連接',
   'full-access': '本機完整訪問',
 }
 export function AgentConnector({
@@ -169,10 +158,6 @@ export function AgentConnector({
       setBusy(false)
     }
   }
-  const service = (action: ConnectorServiceAction) =>
-    perform(async () => {
-      unwrap(await window.yuki.connector.service(action))
-    }, 'installation')
   useEffect(
     () =>
       window.yuki.client.onHint((character, kind) => {
@@ -222,8 +207,8 @@ export function AgentConnector({
     setNotice({
       section: 'agents',
       text: start
-        ? '原設定已保存，背景連接已啟動。你可以交代任務，或讀取已有會話。'
-        : '原設定已保存。啟動背景連接即可套用；不會重新派發原任務。',
+        ? '原設定已保存，本機連接已啟動。你可以交代任務，或讀取已有會話。'
+        : '原設定已保存，下次啟動連接時套用；不會重新派發原任務。',
     })
   }
   const save = (start: boolean) =>
@@ -289,7 +274,7 @@ export function AgentConnector({
           <Banner status="unknown">
             伺服器接納尚未確認：
             {problems[available.admission.problem] ?? problemText(available.admission.problem)}
-            請確認伺服器連線；本機背景連接仍可管理。
+            請確認伺服器連線；本機連接仍可管理。
           </Banner>
         )}
         <Row
@@ -330,7 +315,7 @@ export function AgentConnector({
                   )
                   setNotice({
                     section: 'status',
-                    text: '連接器已更新並沿用原身份、設定與操作記錄。背景服務狀態見下方。',
+                    text: '連接器已更新並沿用原身份、設定與操作記錄，隨 Desktop 啟動與結束。',
                   })
                 })
               }
@@ -376,7 +361,7 @@ export function AgentConnector({
         {installation?.updateAvailable && (
           <Row
             title="更新連接器"
-            description={`目前連接器 ${installation.version ?? '版本未提供'}，桌面隨附 ${installation.bundledVersion ?? '版本'}。原資料與服務狀態會保留，不需要重新配對。`}
+            description={`目前連接器 ${installation.version ?? '版本未提供'}，桌面隨附 ${installation.bundledVersion ?? '版本'}。原身份、設定與操作記錄會保留，不需要重新配對。`}
           />
         )}
         {state.data && !existing?.state.paired && !available?.paired && (
@@ -391,12 +376,8 @@ export function AgentConnector({
                       label,
                     }),
                   )
-                  if (connected.available) {
-                    if (!connected.service.installed)
-                      unwrap(await window.yuki.connector.service('install'))
-                    if (!connected.service.running)
-                      unwrap(await window.yuki.connector.service('start'))
-                  }
+                  if (connected.available && connected.managed !== false && !connected.running)
+                    unwrap(await window.yuki.connector.service('start'))
                   setNotice({
                     section: 'status',
                     text: '電腦連接已建立。完整訪問預設關閉，可在下方明確開啟；原生 Agent 稍後設定。',
@@ -443,21 +424,33 @@ export function AgentConnector({
         )}
         {available?.paired && (
           <Row
-            title="背景連接"
-            description="關閉 Desktop 後仍持續連線。停止會斷開整台電腦；已啟動任務的結果以原回執為準。"
+            title={available.managed === false ? '獨立連接' : '本機連接'}
+            description={
+              available.managed === false
+                ? '由原安裝管理，不隨 Desktop 啟停。改用隨附版本後，可交由 Desktop 管理。'
+                : '隨 Desktop 啟動與結束；關閉視窗留在托盤時保持連接。已啟動任務的結果以原回執為準。'
+            }
           >
-            <Toggle
-              label="背景連接"
-              checked={available.service.running === true}
-              disabled={busy}
-              onChange={(enabled) =>
-                void perform(async () => {
-                  if (enabled && !available.service.installed)
-                    unwrap(await window.yuki.connector.service('install'))
-                  unwrap(await window.yuki.connector.service(enabled ? 'start' : 'stop'))
-                })
-              }
-            />
+            {available.managed === false ? (
+              <span>
+                {available.running === true
+                  ? '執行中'
+                  : available.running === false
+                    ? '已停止'
+                    : '狀態未知'}
+              </span>
+            ) : (
+              <Toggle
+                label="本機連接"
+                checked={available.running === true}
+                disabled={busy}
+                onChange={(enabled) =>
+                  void perform(async () => {
+                    unwrap(await window.yuki.connector.service(enabled ? 'start' : 'stop'))
+                  })
+                }
+              />
+            )}
           </Row>
         )}
       </SettingsSection>
@@ -499,13 +492,13 @@ export function AgentConnector({
                 setServerAddress(undefined)
                 setNotice({
                   section: 'status',
-                  text: '位址已儲存，下次啟動背景連接時使用。',
+                  text: '位址已儲存，下次啟動連接時使用。',
                 })
               }, 'server')
             }}
           >
             <p>
-              只儲存這份連接器的位址，不修改桌面聊天連線，也不啟停背景連接。下次啟動時使用新位址。
+              只儲存這份連接器的位址，不修改桌面聊天連線，也不啟停連接器。下次啟動時使用新位址。
             </p>
             <TextField
               aria-label="連接器伺服器位址"
@@ -572,7 +565,7 @@ export function AgentConnector({
                       ? 'Claude 程式已找到；登入與任務依原生結果確認'
                       : `${driverName(instance.driver)} 原生連線已建立`
                     : instance.driver === 'claude'
-                      ? 'Claude 背景連接目前離線；上次已找到程式'
+                      ? 'Claude 目前離線；上次已找到程式'
                       : `${driverName(instance.driver)} 目前離線；上次已就緒`
               return (
                 <Row
@@ -692,7 +685,7 @@ export function AgentConnector({
               id={editorForm}
               onSubmit={(event) => {
                 event.preventDefault()
-                void save(available.service.running !== false)
+                void save(available.managed !== false && available.running !== false)
               }}
             >
               <Row title="原生工具">
@@ -828,8 +821,14 @@ export function AgentConnector({
               <Row title="原連接器版本">
                 <span>{existing.state.version ?? '未提供'}</span>
               </Row>
-              <Row title="原背景服務">
-                <span>{serviceStatus(existing.state.service)}</span>
+              <Row title="原獨立連接">
+                <span>
+                  {existing.state.running === true
+                    ? '執行中'
+                    : existing.state.running === false
+                      ? '已停止'
+                      : '狀態未知'}
+                </span>
               </Row>
               <Row title="原伺服器連線">
                 <span>{existing.state.admission?.connected ? '已連線' : '尚未確認連線'}</span>
@@ -901,13 +900,6 @@ export function AgentConnector({
                 讀取並選用原安裝
               </Button>
             </Row>
-            {available?.service.installed && (
-              <Row title="使用者服務">
-                <Button disabled={busy} onClick={() => void service('uninstall')}>
-                  移除所選安裝的使用者服務
-                </Button>
-              </Row>
-            )}
           </SettingsSection>
         </details>
         {available && !available.paired && (

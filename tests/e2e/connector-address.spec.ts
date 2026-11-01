@@ -161,11 +161,11 @@ test('the original computer keeps its identity across independent client and Con
       paired.device_id,
     )
     const initial = selected.ok ? (selected.value as ConnectorState) : undefined
-    expect(after.state.ok && after.state.value.available && after.state.value.service).toEqual(
-      initial?.available ? initial.service : undefined,
+    expect(after.state.ok && after.state.value.available && after.state.value.running).toEqual(
+      initial?.available ? initial.running : undefined,
     )
     await expect(
-      page.getByText('位址已儲存，下次啟動背景連接時使用。', { exact: true }),
+      page.getByText('位址已儲存，下次啟動連接時使用。', { exact: true }),
     ).toBeVisible()
     await page.screenshot({ path: test.info().outputPath('original-connector-address.png') })
     await writeFile(

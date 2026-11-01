@@ -52,7 +52,18 @@ interface ConnectorStatus {
   full_access?: boolean
   computer?: ConnectorAvailableState['computer']
   instances: ConnectorAvailableState['instances']
-  service: ConnectorAvailableState['service']
+  service: {
+    installed: boolean
+    running: boolean | null
+    executable?: string
+    arguments?: string[]
+  }
+}
+interface OwnedConnector {
+  installation: ConnectorInstallation
+  child: ChildProcessWithoutNullStreams
+  spawned: Promise<void>
+  closed: Promise<void>
 }
 function computerRuntime(runtime: ConnectorRuntime) {
   return runtime.protocol
@@ -105,6 +116,9 @@ export function runConnector(
 }
 export class AgentConnector {
   readonly installations: ConnectorInstallations
+  private process?: OwnedConnector
+  private starting?: Promise<void>
+  private closing?: Promise<void>
   constructor(
     private readonly options: ConnectorOptions,
     private readonly runner = runConnector,
@@ -256,12 +270,11 @@ export class AgentConnector {
         cwd: item.cwd,
         ...(item.driver === 'acp' && item.args !== undefined ? { args: item.args } : {}),
       })),
-      service: {
-        installed: status.service.installed,
-        running: status.service.running,
-        executable: status.service.executable,
-        arguments: status.service.arguments,
-      },
+      running: installation.managed
+        ? this.process?.installation.dataDirectory === installation.dataDirectory &&
+          this.process.child.exitCode === null &&
+          this.process.child.signalCode === null
+        : status.service.running,
     }
     if (characterId && state.deviceId) {
       try {
@@ -273,26 +286,124 @@ export class AgentConnector {
     }
     return state
   }
-  private async prepareInstallation(selected: ConnectorInstallation | null, separate = false) {
-    const previous = separate || !selected ? undefined : await this.state(undefined, selected)
+  private async prepareInstallation(
+    selected: ConnectorInstallation | null,
+    separate = false,
+    restart = true,
+  ) {
+    if (restart) await this.starting
+    const previous = separate || !selected ? undefined : await this.readState(selected)
+    const wasRunning =
+      !separate &&
+      !!selected &&
+      (this.process?.installation.dataDirectory === selected.dataDirectory ||
+        previous?.service.running === true)
     const installation = await this.stage('prepare', () =>
       this.installations.install(separate, selected),
     )
-    if (previous?.available && previous.service.installed) {
-      // This user's explicit upgrade changes only the selected installation's service.
-      if (previous.service.running)
-        await this.stage('service-stop', () =>
-          this.run(['service', 'stop'], undefined, installation),
-        )
-      await this.stage('service-install', () =>
-        this.run(['service', 'install'], undefined, installation),
-      )
-      if (previous.service.running)
-        await this.stage('service-start', () =>
-          this.run(['service', 'start'], undefined, installation),
+    if (!separate && selected) {
+      await this.stop(selected)
+      if (previous?.service.installed)
+        await this.stage('service-uninstall', () =>
+          this.run(['service', 'uninstall'], undefined, selected),
         )
     }
+    if (restart && wasRunning && previous?.paired) await this.start(installation)
     return installation
+  }
+  async restore(): Promise<void> {
+    const installation = this.installations.selected()
+    if (installation?.managed) await this.start(installation)
+  }
+  private start(installation: ConnectorInstallation): Promise<void> {
+    if (this.closing) return Promise.reject(new ApiError('connector_closed'))
+    if (this.starting)
+      return this.starting.then(() =>
+        this.process?.installation.dataDirectory === installation.dataDirectory
+          ? this.process.spawned
+          : this.start(installation),
+      )
+    if (
+      this.process?.installation.dataDirectory === installation.dataDirectory &&
+      this.process.installation.runtime.build === installation.runtime.build
+    )
+      return this.process.spawned
+    const starting = (async () => {
+      let target = installation
+      const status = await this.readState(target)
+      if (!status.paired) return
+      if (valid(target.runtime.version) === null || !gte(target.runtime.version, '0.4.2'))
+        target = await this.prepareInstallation(target, false, false)
+      else if (status.service.installed)
+        await this.stage('service-uninstall', () =>
+          this.run(['service', 'uninstall'], undefined, target),
+        )
+      await this.stop()
+      if (this.closing) throw new ApiError('connector_closed')
+      const env: NodeJS.ProcessEnv = {
+        ...process.env,
+        PYTHONUTF8: '1',
+        PYTHONDONTWRITEBYTECODE: '1',
+      }
+      delete env.PYTHONPATH
+      delete env.PYTHONHOME
+      const child = spawn(
+        target.runtime.executable,
+        [...target.runtime.arguments, '--data-dir', target.dataDirectory, 'run', '--desktop-stdin'],
+        { shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], env },
+      )
+      const owned: OwnedConnector = {
+        installation: target,
+        child,
+        spawned: new Promise((resolve, reject) => {
+          child.once('spawn', resolve)
+          child.once('error', () => reject(new ApiError('connector_failed', 'start')))
+        }),
+        closed: new Promise((resolve) =>
+          child.once('close', () => {
+            if (this.process === owned) this.process = undefined
+            resolve()
+          }),
+        ),
+      }
+      this.process = owned
+      child.stdout.resume()
+      child.stderr.resume()
+      // A child which already exited owns no writable parent pipe. Its close
+      // event, rather than another execution or signal, finishes cleanup.
+      child.stdin.on('error', () => {})
+      await owned.spawned
+    })().finally(() => {
+      if (this.starting === starting) this.starting = undefined
+    })
+    this.starting = starting
+    return starting
+  }
+  private async stop(installation?: ConnectorInstallation): Promise<void> {
+    const owned = this.process
+    if (!owned || (installation && owned.installation.dataDirectory !== installation.dataDirectory))
+      return
+    owned.child.stdin.end()
+    await owned.closed
+  }
+  private stopAfterStart(installation: ConnectorInstallation): Promise<void> {
+    const stopping = (this.starting ?? Promise.resolve())
+      .catch(() => {})
+      .then(() => this.stop(installation))
+      .finally(() => {
+        if (this.starting === stopping) this.starting = undefined
+      })
+    this.starting = stopping
+    return stopping
+  }
+  close(): Promise<void> {
+    this.closing ??= (async () => {
+      // A failed start has no live resource. The original caller still receives
+      // its failure; closing the Desktop must also join any successful start.
+      await this.starting?.catch(() => {})
+      await this.stop()
+    })()
+    return this.closing
   }
   async install(separate = false): Promise<ConnectorState> {
     let selected = this.installations.selected() ?? null
@@ -400,10 +511,11 @@ export class AgentConnector {
     action: ConnectorServiceAction,
     installation: ConnectorInstallation | null = this.installations.selected() ?? null,
   ): Promise<ConnectorState> {
-    if (!['install', 'start', 'stop', 'uninstall'].includes(action))
-      throw new ApiError('validation_error')
+    if (!['start', 'stop'].includes(action)) throw new ApiError('validation_error')
+    if (!installation) throw new ApiError('connector_not_installed')
+    if (!installation.managed) throw new ApiError('connector_independent_installation')
     await this.stage(`service-${action}`, () =>
-      this.run(['service', action], undefined, installation),
+      action === 'start' ? this.start(installation) : this.stopAfterStart(installation),
     )
     return this.state(undefined, installation)
   }
@@ -532,11 +644,7 @@ export class AgentConnector {
       ),
     )
     if (start) {
-      const configured = await this.state(undefined, installation)
-      if (configured.available && configured.service.running)
-        await this.service('stop', installation)
-      if (configured.available && !configured.service.installed)
-        await this.service('install', installation)
+      await this.service('stop', installation)
       await this.service('start', installation)
     }
     return { instanceId }

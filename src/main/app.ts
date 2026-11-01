@@ -363,6 +363,13 @@ else {
       admission: (id, device) => connections.connectorAdmission(id, device),
       verifyServer: (id, server, device) => connections.verifyConnectorServer(id, server, device),
     })
+    void connector.restore().catch((error: unknown) => {
+      console.error(
+        'Connector startup failed',
+        error instanceof ApiError ? error.code : 'connector_failed',
+        error instanceof ApiError ? error.reason : undefined,
+      )
+    })
     action('connector-state', (id?: string) => connector.state(id))
     action('connector-install', (separate?: boolean) => connector.install(separate))
     action('connector-adopt', () => connector.adopt())
@@ -1048,6 +1055,7 @@ else {
       closing = notifications
         .close()
         .then(() => connections.close())
+        .then(() => connector.close())
         .then(() => {
           native.close()
           if (store.db.open) store.db.close()

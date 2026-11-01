@@ -239,7 +239,7 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
     expect(connected.protocol).toBe(4)
     expect(connected.admission?.matched).toBe(true)
     expect(connected.admission?.serverProtocol).toBe(4)
-    expect(connected.service).toMatchObject({ installed: true, running: true })
+    expect(connected.running).toBe(true)
     expect(connected.instances).toHaveLength(1)
     const local = connected.instances[0]!
     expect(resolve(local.command!)).toBe(resolve(binary!))
@@ -330,10 +330,26 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
       })
       .toBe(false)
     const background = JSON.parse(await cli(selected, ['status', '--json']))
-    expect(background.service).toMatchObject({ installed: true, running: true })
+    expect(background.service).toMatchObject({ installed: false, running: false })
     const oldConnection = before.connections.find((item) => item.device_id === connected.deviceId)!
+    app = await rig.launch('native-first-use')
+    page = await app.firstWindow()
+    await expect
+      .poll(async () => (await currentConnection(page)).characterId)
+      .toBe(connection.characterId)
+    await expect
+      .poll(async () => {
+        const id = (await facts()).connections.find(
+          (item) => item.device_id === connected.deviceId,
+        )?.connection_id
+        return typeof id === 'string' && id.length > 0 && id !== oldConnection.connection_id
+      })
+      .toBe(true)
+    const reopenedConnection = (await facts()).connections.find(
+      (item) => item.device_id === connected.deviceId,
+    )!
     expect(await request('native-disconnect', { device_id: connected.deviceId })).toEqual(
-      oldConnection,
+      reopenedConnection,
     )
     await expect
       .poll(
@@ -341,7 +357,7 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
           const id = (await facts()).connections.find(
             (item) => item.device_id === connected.deviceId,
           )?.connection_id
-          return typeof id === 'string' && id.length > 0 && id !== oldConnection.connection_id
+          return typeof id === 'string' && id.length > 0 && id !== reopenedConnection.connection_id
         },
         { timeout: 30_000 },
       )
@@ -349,11 +365,6 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
     const newConnection = (await facts()).connections.find(
       (item) => item.device_id === connected.deviceId,
     )!
-    app = await rig.launch('native-first-use')
-    page = await app.firstWindow()
-    await expect
-      .poll(async () => (await currentConnection(page)).characterId)
-      .toBe(connection.characterId)
     await agents(page)
     const recovered = await state(page, connection.characterId)
     expect(recovered.deviceId).toBe(connected.deviceId)
