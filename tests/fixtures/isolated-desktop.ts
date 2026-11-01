@@ -6,9 +6,9 @@ import { pathToFileURL } from 'node:url'
 /** Real source app, isolated profile and OS-boundary adapters; no backend responses are mocked. */
 export async function isolatedDesktop(
   root: string,
-  options: { managedUpdates?: boolean; nativeShell?: boolean } = {},
+  options: { managedUpdates?: boolean; nativeShell?: boolean; appRoot?: string } = {},
 ) {
-  const appRoot = resolve('.'),
+  const appRoot = resolve(options.appRoot ?? '.'),
     entry = join(root, options.nativeShell ? 'native-shell-entry.cjs' : 'desktop-entry.cjs')
   await writeFile(
     entry,

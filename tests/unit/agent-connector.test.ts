@@ -654,7 +654,7 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
   30000,
 )
 
-it('creation, configuration and background actions keep their original installation while discovery is pending', async () => {
+it('creation and configuration keep their original installation while discovery is pending without starting an external service', async () => {
   const root = await mkdtemp(join(tmpdir(), 'connector-bound-'))
   temporary.push(root)
   const command = join(root, 'codex.exe')
@@ -703,7 +703,7 @@ it('creation, configuration and background actions keep their original installat
       cwd: root,
       label: 'Codex',
     },
-    true,
+    false,
   )
   await discovering
   connector.installations.select({ managed: false, dataDirectory: second, runtime })
@@ -711,13 +711,10 @@ it('creation, configuration and background actions keep their original installat
   expect(await pending).toEqual({ instanceId: 'original-created-id' })
   expect(
     run.mock.calls.filter((call) => call[1].includes('service')).map((call) => call[1].slice(-2)),
-  ).toEqual([
-    ['service', 'install'],
-    ['service', 'start'],
-  ])
+  ).toEqual([])
   expect(connector.installations.selected()!.dataDirectory).toBe(second)
 })
-it('saving a managed instance keeps its running service and runtime while a bundled update is available', async () => {
+it('saving a managed instance keeps its runtime while a bundled update is available without claiming its old OS service as an owned process', async () => {
   const root = await mkdtemp(join(tmpdir(), 'connector-cached-'))
   temporary.push(root)
   const bundle = join(root, 'bundle'),
@@ -777,7 +774,7 @@ it('saving a managed instance keeps its running service and runtime while a bund
   expect(await connector.state()).toMatchObject({
     managed: true,
     updateAvailable: true,
-    service: { running: true },
+    running: false,
   })
   expect(await connector.configure({ id: 'original-profile', label: 'Same Codex' })).toEqual({
     instanceId: 'original-profile',
@@ -790,16 +787,15 @@ it('saving a managed instance keeps its running service and runtime while a bund
   expect(await readFile(join(directory, 'journal.sqlite3'), 'utf8')).toBe('original receipts')
   expect(authorize).not.toHaveBeenCalled()
 })
-it.each(['install', 'start', 'stop', 'uninstall'] as const)(
-  'service %s targets original data and rereads actual state',
+it.each(['start', 'stop'] as const)(
+  'Desktop %s does not control an independently selected service',
   async (action) => {
     const { connector, run } = fixture()
-    await connector.service(action)
-    expect(run.mock.calls.map((call) => call[1])).toEqual([
-      ['--data-dir', join(tmpdir(), 'original-data'), 'service', action],
-      ['--data-dir', join(tmpdir(), 'original-data'), 'status', '--json'],
-    ])
-    expect(run.mock.calls.map((call) => call[0])).toEqual([runtime, reader])
+    await expect(connector.service(action)).rejects.toHaveProperty(
+      'code',
+      'connector_independent_installation',
+    )
+    expect(run).not.toHaveBeenCalled()
   },
 )
 it('a failed service action reports its concrete stage without replacing the selected installation', async () => {
@@ -807,6 +803,7 @@ it('a failed service action reports its concrete stage without replacing the sel
     throw new ApiError('connector_failed')
   })
   const { connector } = fixture(run)
+  connector.installations.select({ ...connector.installations.selected()!, managed: true })
   await expect(connector.service('start')).rejects.toMatchObject({
     code: 'connector_failed',
     reason: 'service-start',
@@ -1000,7 +997,7 @@ it('a separate installation leaves the other role configuration, journal and run
   connector.installations.select({ managed: true, dataDirectory: original, runtime })
   expect(await connector.install(true)).toMatchObject({
     paired: false,
-    service: { installed: false, running: false },
+    running: false,
   })
   expect(connector.installations.selected()!.dataDirectory).not.toBe(original)
   for (const [file, content] of Object.entries(originals))
@@ -1123,7 +1120,7 @@ it('offline admission keeps real local service controls without claiming another
   const state = await connector.state('character')
   expect(state).toMatchObject({
     available: true,
-    service: { running: true },
+    running: true,
     admission: { matched: null, connected: false, problem: 'transport_unknown' },
   })
   await expect(connector.connect({ characterId: 'character', label: 'PC' })).rejects.toHaveProperty(
@@ -1265,6 +1262,9 @@ it.each([
           })
         : 'ok'
     })
+    const start = vi
+      .spyOn(connector as unknown as { start(installation: unknown): Promise<void> }, 'start')
+      .mockResolvedValue()
     if (selected) connector.installations.select({ managed: false, dataDirectory: data, runtime })
     const result = await connector[action]()
     expect(result).toMatchObject({
@@ -1272,19 +1272,20 @@ it.each([
       version: '0.3.5',
       deviceId: 'original-device',
       dataDirectory: data,
-      service: { running },
+      running: false,
     })
     expect(connector.installations.selected()).toMatchObject({ managed: true, dataDirectory: data })
     expect(
       calls.filter((call) => call.args.includes('service')).map((call) => call.args.at(-1)),
-    ).toEqual(running ? ['stop', 'install', 'start'] : ['install'])
+    ).toEqual(['uninstall'])
+    expect(start).toHaveBeenCalledTimes(running ? 1 : 0)
     expect(
       calls.filter((call) => call.args.includes('service')).every((call) => call.args[1] === data),
     ).toBe(true)
     expect(
       calls
         .filter((call) => call.args.includes('service'))
-        .every((call) => call.executable !== runtime.executable),
+        .every((call) => call.executable === (selected ? runtime.executable : originalExecutable)),
     ).toBe(true)
     expect(options.authorize).not.toHaveBeenCalled()
     expect(calls.some((call) => call.args.includes('pair'))).toBe(false)

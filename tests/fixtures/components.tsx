@@ -51,7 +51,7 @@ const preparedConnector = (): Extract<ConnectorState, { available: true }> => ({
   dataDirectory:
     connectorMode === 'long-layout' ? '/original-data/'.repeat(100) : '/fixture/connector/data',
   instances: [],
-  service: { installed: false, running: false },
+  running: false,
 })
 let connectorState: ConnectorState =
   connectorMode && connectorMode !== 'missing'
@@ -89,7 +89,7 @@ if (
         ...(connectorMode === 'acp-existing' ? { args: ['--stdio', '原參數 有空格', ''] } : {}),
       },
     ],
-    service: { installed: true, running: true },
+    running: true,
     admission: {
       matched: true,
       connected: true,
@@ -151,7 +151,7 @@ if (connectorMode === 'existing' || connectorMode === 'existing-old-stopped') {
         cwd: '/original/project',
       },
     ],
-    service: { installed: true, running: connectorMode !== 'existing-old-stopped' },
+    running: connectorMode !== 'existing-old-stopped',
     admission: { matched: true, connected: connectorMode !== 'existing-old-stopped' },
   }
   connectorState = {
@@ -185,7 +185,7 @@ Object.assign(window, {
             command: '/fixture/Codex/codex',
           },
         ],
-        service: { installed: true, running: true },
+        running: true,
         admission: {
           matched: true,
           connected: true,
@@ -347,7 +347,7 @@ window.yuki = {
               : {}),
           },
         ],
-        service: start ? { installed: true, running: true } : connectorState.service,
+        running: start ? true : connectorState.running,
         admission: {
           matched: true,
           connected: !!start,
@@ -365,7 +365,7 @@ window.yuki = {
       }
       if (start && connectorMode === 'service-failure' && !failedServiceStart) {
         failedServiceStart = true
-        connectorState = { ...connectorState, service: { installed: true, running: false } }
+        connectorState = { ...connectorState, running: false }
         return { ok: false, code: 'connector_failed', reason: 'service-start' }
       }
       return { ok: true, value: { instanceId: local } }
@@ -498,7 +498,7 @@ window.yuki = {
       if (!connectorState.available) throw Error('Connector runtime has not been prepared')
       connectorState = {
         ...connectorState,
-        service: { installed: action !== 'uninstall', running: action === 'start' },
+        running: action === 'start',
         admission: {
           ...connectorState.admission!,
           connected: action === 'start',

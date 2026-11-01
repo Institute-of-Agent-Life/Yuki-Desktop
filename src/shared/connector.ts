@@ -1,7 +1,7 @@
 import type { ApiReply, OutboxItem } from './api'
 import type { components } from './contract.gen'
 
-export type ConnectorServiceAction = 'install' | 'start' | 'stop' | 'uninstall'
+export type ConnectorServiceAction = 'start' | 'stop'
 export type ConnectorDriver = 'codex' | 'claude' | 'acp'
 export interface ConnectorInstance {
   id: string
@@ -55,12 +55,7 @@ export interface ConnectorAvailableState {
     shell: string | null
   }
   instances: ConnectorInstance[]
-  service: {
-    installed: boolean
-    running: boolean | null
-    executable?: string
-    arguments?: string[]
-  }
+  running: boolean | null
   admission?: ConnectorAdmission
 }
 export interface ConnectorCandidate {
