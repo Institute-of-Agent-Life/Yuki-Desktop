@@ -473,22 +473,12 @@ finally: journal.close()
           `
 import json,sys
 from pathlib import Path
+from yuki_agent_connector.connector import installation_lock
 from yuki_agent_connector.journal import Journal
-with (Path(sys.argv[1])/'connector.lock').open('r+b',buffering=0) as lock:
-    if sys.platform=='win32':
-        import msvcrt
-        msvcrt.locking(lock.fileno(),msvcrt.LK_NBLCK,1)
-    else:
-        import fcntl
-        fcntl.flock(lock.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
-    try:
-        journal=Journal(Path(sys.argv[1])/'journal.sqlite3',namespace='original-device')
-        try: print(json.dumps(journal.operation('original-unresolved-operation')))
-        finally: journal.close()
-    finally:
-        lock.seek(0)
-        if sys.platform=='win32': msvcrt.locking(lock.fileno(),msvcrt.LK_UNLCK,1)
-        else: fcntl.flock(lock.fileno(),fcntl.LOCK_UN)
+with installation_lock(Path(sys.argv[1])/'connector.lock'):
+    journal=Journal(Path(sys.argv[1])/'journal.sqlite3',namespace='original-device')
+    try: print(json.dumps(journal.operation('original-unresolved-operation')))
+    finally: journal.close()
 `,
           directory,
         ],
@@ -508,6 +498,17 @@ with (Path(sys.argv[1])/'connector.lock').open('r+b',buffering=0) as lock:
             events: await events(),
             original,
             lockReacquired: true,
+            lockImplementation: 'yuki_agent_connector.connector.installation_lock',
+            backendCommit:
+              process.env.YUKI_CONNECTOR_BACKEND_COMMIT ??
+              (
+                JSON.parse(await readFile(resolve('contracts/source.json'), 'utf8')) as {
+                  commit: string
+                }
+              ).commit,
+            runtimeManifestSHA256: createHash('sha256')
+              .update(await readFile(join(bundle, 'manifest.json')))
+              .digest('hex'),
           },
           null,
           2,
