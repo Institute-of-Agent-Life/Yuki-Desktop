@@ -222,6 +222,98 @@ test('the component fixture keeps the original request, loaded progress and draf
   )
 })
 
+test('an unknown admission keeps the selected original native session until the directory returns', async ({
+  page,
+}) => {
+  await page.goto('http://127.0.0.1:4178/components.html?connector=operation-detail&view=local')
+  const native = page.getByRole('tabpanel', { name: '原生 Agent 任務', exact: true })
+  const agent = native.getByRole('combobox', { name: '任務 Agent', exact: true })
+  const session = native.getByRole('combobox', { name: '原生會話', exact: true })
+  await agent.selectOption('fixture-server-instance')
+  await native.getByRole('button', { name: '讀取原生會話', exact: true }).click()
+  await session.selectOption('original-session')
+  await page.evaluate(async () => {
+    const original = window.yuki.connector.state
+    const state = await original('00000000-0000-4000-8000-000000000001')
+    if (!state.ok || !state.value.available) throw Error('Expected original connector')
+    Object.assign(window, { __originalConnectorState: original })
+    window.yuki.connector.state = async () => ({
+      ok: true,
+      value: {
+        ...state.value,
+        admission: { matched: null, connected: false, problem: 'transport_unknown' },
+      },
+    })
+    ;(window as Window & { __connectorAdvance?: (phase: string) => void }).__connectorAdvance!(
+      'admission-unknown',
+    )
+  })
+  await expect(page.getByText('目前尚未接納這份電腦連線；已保存的本人紀錄仍可查詢。')).toBeVisible()
+  await page.evaluate(() => {
+    const fixture = window as Window & {
+      __originalConnectorState?: typeof window.yuki.connector.state
+      __connectorAdvance?: (phase: string) => void
+    }
+    window.yuki.connector.state = fixture.__originalConnectorState!
+    fixture.__connectorAdvance!('admission-restored')
+  })
+  await expect(agent).toBeVisible()
+  const after = { instance: await agent.inputValue(), session: await session.inputValue() }
+  await writeFile(
+    test.info().outputPath('original-session-after-unknown-admission.json'),
+    JSON.stringify({ evidence: 'component fixture; no real Connector or network', after }, null, 2),
+  )
+  expect(after).toEqual({ instance: 'fixture-server-instance', session: 'original-session' })
+  await native.getByRole('textbox', { name: '原生任務要求', exact: true }).fill('繼續原會話')
+  await native.getByRole('button', { name: '交給 Yuki 執行', exact: true }).click()
+  const calls = await page.evaluate(
+    () =>
+      (window as Window & { __connectorCalls?: { method: string; input?: unknown }[] })
+        .__connectorCalls!,
+  )
+  const submission = calls.find((call) => call.method === 'submit')!.input as {
+    agentTarget: ConnectorTarget
+  }
+  expect(submission.agentTarget.session_id).toBe('original-session')
+  await page.evaluate(async () => {
+    await window.yuki.connector.remove('fixture-native-instance')
+    ;(window as Window & { __connectorAdvance?: (phase: string) => void }).__connectorAdvance!(
+      'instance-removed',
+    )
+  })
+  await expect(agent).toHaveCount(0)
+  await page.evaluate(async () => {
+    await window.yuki.connector.configure({
+      id: 'fixture-native-instance',
+      create: true,
+      driver: 'codex',
+      label: 'Explicitly recreated Agent',
+    })
+    ;(window as Window & { __connectorAdvance?: (phase: string) => void }).__connectorAdvance!(
+      'instance-recreated',
+    )
+  })
+  await expect(agent).toHaveValue('')
+  await agent.selectOption('fixture-server-instance')
+  await expect(session).toHaveValue('')
+  await writeFile(
+    test.info().outputPath('original-session-after-unknown-admission.json'),
+    JSON.stringify(
+      {
+        evidence: 'component fixture; no real Connector or network',
+        after,
+        submitted: submission.agentTarget,
+        afterExplicitRemoval: {
+          instance: await agent.inputValue(),
+          session: await session.inputValue(),
+        },
+      },
+      null,
+      2,
+    ),
+  )
+})
+
 test('a changed local device does not inherit the original operation, draft or terminal control request', async ({
   page,
 }) => {

@@ -351,6 +351,39 @@ it('configuration returns the real saved instance ID without inferring an identi
   })
   expect(run.mock.calls.some((call) => call[1].includes('service'))).toBe(false)
 })
+it('reuses the saved original instance when creation commits but its response is lost', async () => {
+  const instances: { id: string; label: string; driver: string; command: string }[] = []
+  const inputs: { id: string; create: boolean; label: string; command: string }[] = []
+  let loseFirstResponse = true
+  const run = vi.fn(async (_runtime: unknown, args: readonly string[], raw?: string) => {
+    if (args.includes('status')) return JSON.stringify({ ...publicStatus, instances })
+    const input = JSON.parse(raw!) as (typeof inputs)[number]
+    inputs.push(input)
+    const existing = instances.find((item) => item.id === input.id)
+    if (existing && input.create) throw new ApiError('validation_error')
+    if (!existing) instances.push({ ...input, driver: 'codex' })
+    if (loseFirstResponse) {
+      loseFirstResponse = false
+      throw new ApiError('connector_failed')
+    }
+    return JSON.stringify({ instance_id: input.id })
+  })
+  const { connector } = fixture(run)
+  const input = {
+    id: 'saved-original-id',
+    create: true,
+    label: 'Original Agent',
+    command: join(tmpdir(), 'original-agent.exe'),
+  }
+  await expect(connector.configure(input)).rejects.toHaveProperty('code', 'connector_failed')
+  expect(instances).toHaveLength(1)
+  expect(await connector.configure(input)).toMatchObject({ instanceId: input.id })
+  expect(instances).toHaveLength(1)
+  expect(inputs.map((value) => ({ id: value.id, create: value.create }))).toEqual([
+    { id: input.id, create: true },
+    { id: input.id, create: false },
+  ])
+})
 it.each([false, true])(
   'a failed bundled save leaves the selected installation unchanged (managed=%s)',
   async (managed) => {

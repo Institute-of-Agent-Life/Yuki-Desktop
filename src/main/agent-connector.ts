@@ -592,7 +592,7 @@ export class AgentConnector {
         installation,
         JSON.stringify({
           ...input,
-          create: input.create ?? !input.id,
+          create: original ? false : (input.create ?? !input.id),
           driver,
           id: instanceId,
         }),

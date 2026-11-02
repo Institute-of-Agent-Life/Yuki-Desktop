@@ -212,6 +212,49 @@ test('the original computer keeps its identity across independent client and Con
       },
     )
     expect(configured).toMatchObject({ ok: true, value: { instanceId: nativeId } })
+    // The actual CLI has saved this ID. Model the caller losing that response by
+    // retrying the identical creation request, without making another identity.
+    const retryAfterLostReply = await page.evaluate(
+      ({ id, nativeId, command, script }) =>
+        window.yuki.connector.configure(
+          {
+            id: nativeId,
+            create: true,
+            driver: 'acp',
+            label: 'Original ACP',
+            command,
+            args: ['-B', script],
+          },
+          id,
+        ),
+      {
+        id: connection.characterId,
+        nativeId,
+        command: executable,
+        script: resolve(
+          process.env.YUKI_BACKEND_TEST_ROOT!,
+          'packages/yuki-agent-connector/tests/fakes/acp_agent.py',
+        ),
+      },
+    )
+    const afterRetry = JSON.parse(await readFile(configPath, 'utf8')) as {
+      instances: { id: string }[]
+    }
+    await writeFile(
+      test.info().outputPath('original-id-after-lost-configure-reply.json'),
+      JSON.stringify(
+        {
+          nativeId,
+          configured,
+          retryAfterLostReply,
+          instanceIds: afterRetry.instances.map((i) => i.id),
+        },
+        null,
+        2,
+      ),
+    )
+    expect(retryAfterLostReply).toMatchObject({ ok: true, value: { instanceId: nativeId } })
+    expect(afterRetry.instances.map((item) => item.id)).toEqual([nativeId])
     await expect
       .poll(async () => {
         const result = await page.evaluate(
