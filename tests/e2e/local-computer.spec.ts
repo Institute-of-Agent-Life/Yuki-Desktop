@@ -96,7 +96,7 @@ test('the component fixture connects through the original settings controls and 
   await expect(consent).not.toBeChecked()
   await consent.check()
   await page.getByRole('button', { name: '連接這台電腦', exact: true }).click()
-  await expect(page.getByRole('switch', { name: '背景連接', exact: true })).toBeChecked()
+  await expect(page.getByRole('switch', { name: '本機連接', exact: true })).toBeChecked()
   await page.getByRole('button', { name: '顯示本機活動', exact: true }).click()
   const tabs = page.getByRole('tablist', { name: '這台電腦的活動', exact: true })
   await expect(tabs.getByRole('tab')).toHaveText(['原生 Agent 任務', '終端執行'])
@@ -226,7 +226,7 @@ test('a changed local device does not inherit the original operation, draft or t
   page,
 }) => {
   await page.goto('http://127.0.0.1:4178/components.html?connector=terminal-detail')
-  await page.getByRole('switch', { name: '背景連接', exact: true }).click()
+  await page.getByRole('switch', { name: '本機連接', exact: true }).click()
   await page.getByRole('button', { name: '新增 Agent', exact: true }).click()
   const editor = page.getByRole('dialog', { name: '新增本機 Agent', exact: true })
   await editor.getByRole('button', { name: '尋找已安裝的 Codex', exact: true }).click()
@@ -235,6 +235,9 @@ test('a changed local device does not inherit the original operation, draft or t
   await page.getByRole('button', { name: '顯示本機活動', exact: true }).click()
   const tabs = page.getByRole('tablist', { name: '這台電腦的活動', exact: true })
   const native = page.getByRole('tabpanel', { name: '原生 Agent 任務', exact: true })
+  await native
+    .getByRole('combobox', { name: '任務 Agent', exact: true })
+    .selectOption('fixture-server-instance')
   await native.getByRole('button', { name: '讀取原生會話', exact: true }).click()
   await native
     .getByRole('combobox', { name: '原生會話', exact: true })
