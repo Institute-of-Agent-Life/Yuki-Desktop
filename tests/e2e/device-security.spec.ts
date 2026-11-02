@@ -3,6 +3,7 @@ import { crashElectron } from '../fixtures/electron-process'
 import { captureViewport, contentSize } from '../fixtures/visual'
 import { expect, test, type Page } from '@playwright/test'
 import { execFile } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { promisify } from 'node:util'
 import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -219,6 +220,28 @@ test('real QR pixels pair a second device once; original device revocation survi
         (c) => c.method === 'DELETE' && c.path.endsWith(`/devices/${second.deviceId}`),
       )
     expect(writes()).toHaveLength(1)
+    // A real connector-purpose credential is distinct from the chat devices above.
+    const setupResponse = await fetch(`${rig.base}/client/v1/pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: await rig.code(), device_label: 'Connector test setup' }),
+    })
+    expect(setupResponse.ok).toBe(true)
+    const setup = (await setupResponse.json()).data as { token: string }
+    const connectorCodeResponse = await fetch(`${rig.base}/client/v1/link-codes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${setup.token}` },
+      body: JSON.stringify({ request_id: randomUUID(), purpose: 'connector' }),
+    })
+    expect(connectorCodeResponse.ok).toBe(true)
+    const connectorCode = (await connectorCodeResponse.json()).data.code as string
+    const connectorResponse = await fetch(`${rig.base}/agents/v1/pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: connectorCode, device_label: 'My removable computer' }),
+    })
+    expect(connectorResponse.ok).toBe(true)
+    const connector = (await connectorResponse.json()) as { device_id: string }
     await crashElectron(a)
     await a.close().catch(() => {})
     proxy.faults.holdReceipts = false
@@ -243,6 +266,26 @@ test('real QR pixels pair a second device once; original device revocation survi
     expect(writes()).toHaveLength(1)
     await expect(pa.getByRole('button', { name: '撤銷 Mac B', exact: true })).toHaveCount(0)
     await expect(pa.getByText('已撤銷', { exact: true })).toBeVisible()
+    await pa.getByRole('button', { name: '移除 My removable computer', exact: true }).click()
+    await pa
+      .getByRole('dialog', { name: '移除電腦？', exact: true })
+      .getByRole('button', { name: '移除電腦', exact: true })
+      .click()
+    await expect(
+      pa.getByRole('button', { name: '移除 My removable computer', exact: true }),
+    ).toHaveCount(0)
+    await expect(pa.getByText('電腦連接器已移除。', { exact: true })).toBeVisible()
+    const deviceFacts = await pa.evaluate(async (id) => {
+      const result = await window.yuki.client.read<Me>(id, { kind: 'me' })
+      if (!result.ok) throw Error(result.code)
+      return result.value.devices
+    }, original.characterId)
+    expect(
+      deviceFacts.find((device) => device.device_id === connector.device_id)?.revoked_at,
+    ).toBeTruthy()
+    expect(
+      deviceFacts.find((device) => device.device_id === original.deviceId)?.revoked_at,
+    ).toBeNull()
     await pa.screenshot({ path: test.info().outputPath(`${process.platform}-device-security.png`) })
     await writeFile(
       test.info().outputPath('device-security.json'),
@@ -251,6 +294,7 @@ test('real QR pixels pair a second device once; original device revocation survi
           headings: await pa.getByRole('heading').allTextContents(),
           originalDeviceId: original.deviceId,
           revokedDeviceId: second.deviceId,
+          removedConnectorId: connector.device_id,
           revocationRequestId: revocation.requestId,
           revocationWrites: writes(),
           codeRequestId: issued.requestId,

@@ -24,8 +24,14 @@ export function ConnectorTasks({
   state: Extract<ConnectorState, { available: true }>
 }) {
   const query = useQueryClient()
+  const instances = (state.admission?.instances ?? []).filter((item) =>
+    state.instances.some((local) => local.id === item.localId),
+  )
+  const catalogKnown = state.admission?.matched != null && Array.isArray(state.admission.instances)
   const [activity, setActivity] = useState<'native' | 'terminals'>('native')
-  const [instance, setInstance] = useState('')
+  const [instance, setInstance] = useState(() => (instances.length === 1 ? instances[0]!.id : ''))
+  const currentInstance = useRef(instance)
+  currentInstance.current = instances.some((item) => item.id === instance) ? instance : ''
   const [sessions, setSessions] = useState<ConnectorSession[]>([])
   const [cursor, setCursor] = useState<string | null>()
   const [session, setSession] = useState('')
@@ -63,10 +69,14 @@ export function ConnectorTasks({
   const selected = latest
     ? { ...latest, events: pages!.flatMap((page) => page.events ?? []) }
     : undefined
-  const instances = state.admission?.instances ?? []
   useEffect(() => {
-    if (!instance && instances.length === 1) setInstance(instances[0]!.id)
-  }, [instance, instances])
+    if (catalogKnown && instance && !instances.some((item) => item.id === instance)) {
+      setInstance('')
+      setSession('')
+      setSessions([])
+      setCursor(undefined)
+    }
+  }, [catalogKnown, instance, instances])
   useEffect(
     () =>
       window.yuki.client.onHint((character, kind) => {
@@ -172,13 +182,15 @@ export function ConnectorTasks({
   }
   const loadSessions = (next = false) =>
     perform(async () => {
+      const target = instance
       const result = unwrap(
         await window.yuki.connector.sessions(
           connection.characterId,
-          instance,
+          target,
           next ? (cursor ?? undefined) : undefined,
         ),
       )
+      if (currentInstance.current !== target) return
       setSessions(next ? [...sessions, ...result.sessions] : result.sessions)
       setCursor(result.next_cursor)
     })
@@ -210,7 +222,9 @@ export function ConnectorTasks({
         <p className={styles.notice}>
           {instances.length
             ? '直接交代任務，或選擇已有會話繼續處理。工作位置可以省略，權限沿用原生設定。停止觀察會保留原任務；取消會向原生 Agent 請求中止本次執行，已啟動的獨立背景程式可能繼續運行。結果以原生回執為準。'
-            : '尚未設定原生 Agent，可在設定的「這台電腦」選配 Codex、Claude 或 ACP。這不影響已開啟完整訪問的 Shell、檔案與本機程式操作；原有操作回執仍保留在下方。'}
+            : catalogKnown
+              ? '尚未設定原生 Agent，可在設定的「這台電腦」選配 Codex、Claude 或 ACP。這不影響已開啟完整訪問的 Shell、檔案與本機程式操作；原有操作回執仍保留在下方。'
+              : '目前無法確認 Agent 目錄，原設定與所選會話保留；原有操作回執仍可查詢。'}
         </p>
         {error && <Banner status="failed">{error}</Banner>}
         {message && (
@@ -238,6 +252,7 @@ export function ConnectorTasks({
                 aria-label="任務 Agent"
                 value={instance}
                 onChange={(event) => {
+                  currentInstance.current = event.target.value
                   setInstance(event.target.value)
                   setSessions([])
                   setSession('')

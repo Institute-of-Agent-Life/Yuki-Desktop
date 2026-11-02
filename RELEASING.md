@@ -2,6 +2,8 @@
 
 一般建置、簽章／公證、原生安裝驗收與對外發布分開執行。所有建置命令使用 `--publish never`。此倉庫的 CI 只產生標為 unsigned 的審閱產物，沒有 GitHub Releases 寫入權，也不持有簽章金鑰。
 
+下一版的變更、beta.8 後完整 PR 及目前發布阻塞見[待發布說明](docs/releases/next-beta.md)。該文件建議 beta.9，尚未變更版本、建立 tag 或發布；固定截點的失敗 CI 不能當作已驗收發行包。
+
 ## 本地產物
 
 使用 Node.js 22.12+、uv、`npm ci` 與已提交的 lockfile。`npm ci` 已安裝 Electron；不需另外下載名為 install-electron 的 npm 套件。先檢出 `contracts/source.json` 指定的後端提交，準備本建置主機架構的 Connector 與同一提交的本地 Bot 資源：

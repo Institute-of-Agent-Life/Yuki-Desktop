@@ -33,10 +33,10 @@ test('real local deployment reads the image catalog and opens model purposes aft
     })
   })
   try {
+    const page = await app.firstWindow()
     await app.evaluate(({ dialog }, directory) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] })
     }, directory)
-    const page = await app.firstWindow()
     await page.getByRole('button', { name: '在本機部署 Yuki', exact: true }).click()
     await page.getByRole('button', { name: '選擇目錄', exact: true }).click()
     await page.getByLabel('Yuki 的名稱', { exact: true }).fill('本機模型驗收 Yuki')

@@ -24,6 +24,9 @@ coverage/
 !/docs/architecture/
 /docs/architecture/*
 !/docs/architecture/development-contract.md
+!/docs/releases/
+/docs/releases/*
+!/docs/releases/next-beta.md
 !/docs/reports/
 /docs/reports/*
 !/docs/reports/2026-10-28-rich-media/

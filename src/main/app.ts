@@ -2,6 +2,7 @@ import electronUpdater from 'electron-updater'
 import { AppUpdates } from './updates'
 import { FeedOnlyUpdater } from './feed-updater'
 import { DesktopReleaseProvider } from './release-provider'
+import { gte, valid } from 'semver'
 import {
   app,
   clipboard,
@@ -362,6 +363,10 @@ else {
       authorize: (id) => connections.authorizeConnector(id),
       admission: (id, device) => connections.connectorAdmission(id, device),
       verifyServer: (id, server, device) => connections.verifyConnectorServer(id, server, device),
+      changed: () => {
+        for (const connection of connections.list())
+          win?.webContents.send('yuki:hint', connection.characterId, 'refresh')
+      },
     })
     void connector.restore().catch((error: unknown) => {
       console.error(
@@ -396,9 +401,35 @@ else {
       return state
     })
     action('connector-discover', (driver?: ConnectorDriver) => connector.discover(driver))
-    action('connector-configure', (input: ConnectorConfiguration, start?: boolean) =>
-      connector.configure(input, start),
-    )
+    const refreshConnectorCatalog = async (
+      id: string | undefined,
+      deviceId: string | undefined,
+      runtimeVersion?: string,
+    ) => {
+      if (runtimeVersion && (valid(runtimeVersion) === null || !gte(runtimeVersion, '0.4.3')))
+        return { catalogProblem: 'connector_reload_required' }
+      if (!id || !deviceId) return { catalogProblem: 'connector_catalog_unconfirmed' }
+      try {
+        await connections.agentRead(id, `devices/${encodeURIComponent(deviceId)}`)
+      } catch (error) {
+        return { catalogProblem: error instanceof ApiError ? error.code : 'unknown' }
+      }
+      return runtimeVersion ? {} : { catalogProblem: 'connector_catalog_unconfirmed' }
+    }
+    action('connector-configure', async (input: ConnectorConfiguration, id?: string) => {
+      const saved = await connector.configure(input)
+      return {
+        instanceId: saved.instanceId,
+        ...(await refreshConnectorCatalog(id, saved.deviceId, saved.runtimeVersion)),
+      }
+    })
+    action('connector-remove', async (instance: string, id?: string) => {
+      const removed = await connector.remove(instance)
+      return {
+        instanceId: removed.instanceId,
+        ...(await refreshConnectorCatalog(id, removed.deviceId, removed.runtimeVersion)),
+      }
+    })
     action('connector-diagnose', (id: string) => connector.diagnose(id))
     action('connector-reveal-native', async (id: string) =>
       shell.showItemInFolder(await connector.nativeExecutable(id)),

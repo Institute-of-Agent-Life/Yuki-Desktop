@@ -5,6 +5,7 @@ import type {
   ConnectorCandidate,
   ConnectorDiagnostic,
   ConnectorDriver,
+  ConnectorInstance,
   ConnectorState,
 } from '../../shared/connector'
 import {
@@ -22,6 +23,11 @@ import { Row, SettingsSection } from './SettingsRow'
 import styles from './Settings.module.css'
 
 const problems: Record<string, string> = {
+  native_daemon_start_failed: '原生服務未能啟動，請檢查所選程式及其原生設定。',
+  native_protocol_unsupported: '所選程式回報的協議版本不相容。',
+  native_session_error: '原生程式拒絕建立或載入該會話，請查看原程式的設定。',
+  connector_reload_required: '原連接器尚不支援即時套用，請在原服務重新載入設定後確認。',
+  connector_catalog_unconfirmed: '尚未確認執行中的連接器已套用設定',
   invalid_server: '遠端位址請使用 https://；連向這台電腦時才可使用 http://。',
   unknown: '本機連接器操作未確認，請重新開啟設定確認。',
   connector_runtime_invalid: '隨附連接器的檔案不完整，請重新安裝完整的 Yuki Desktop 發行包。',
@@ -53,7 +59,15 @@ const problems: Record<string, string> = {
     '無法解析連接器回傳的資料，請重新開啟設定或更新連接器。原設定會保留。',
 }
 const driverName = (driver: string) =>
-  driver === 'codex' ? 'Codex' : driver === 'claude' ? 'Claude' : driver === 'acp' ? 'ACP' : driver
+  driver === 'codex'
+    ? 'Codex'
+    : driver === 'claude'
+      ? 'Claude Code'
+      : driver === 'acp'
+        ? 'ACP'
+        : driver
+const defaultAgentName = (driver: ConnectorDriver) =>
+  driver === 'acp' ? '我的 Agent' : `本機 ${driverName(driver)}`
 
 const summary = (state: ConnectorState | undefined): { text: string; status: Status } => {
   if (!state) return { text: '讀取中', status: 'unknown' }
@@ -110,6 +124,7 @@ export function AgentConnector({
   const [error, setError] = useState<Feedback>()
   const [notice, setNotice] = useState<Feedback>()
   const [editorOpen, setEditorOpen] = useState(false)
+  const [removing, setRemoving] = useState<ConnectorInstance>()
   const editorForm = useId()
   const [serverAddress, setServerAddress] = useState<string>()
   const serverForm = useId()
@@ -117,6 +132,8 @@ export function AgentConnector({
   const [candidates, setCandidates] = useState<ConnectorCandidate[]>([])
   const [candidateId, setCandidateId] = useState('')
   const [command, setCommand] = useState('')
+  const [commandChanged, setCommandChanged] = useState(false)
+  const [labelChanged, setLabelChanged] = useState(false)
   const [agentArgs, setAgentArgs] = useState<string[]>([])
   const [argsChanged, setArgsChanged] = useState(false)
   const [driver, setDriver] = useState<ConnectorDriver>('codex')
@@ -185,7 +202,7 @@ export function AgentConnector({
       })
     return found
   }
-  const configure = async (start: boolean, discoveredId = candidateId) => {
+  const configure = async (discoveredId = candidateId) => {
     const id = instanceId || crypto.randomUUID()
     setInstanceId(id)
     const result = unwrap(
@@ -193,28 +210,48 @@ export function AgentConnector({
         {
           id,
           create,
-          ...(discoveredId ? { candidateId: discoveredId } : { command }),
+          ...(discoveredId
+            ? { candidateId: discoveredId }
+            : create || commandChanged
+              ? { command }
+              : {}),
           ...(create ? { driver } : {}),
           ...((create && driver === 'acp') || argsChanged ? { args: agentArgs } : {}),
-          label: instanceLabel,
+          ...(create || labelChanged ? { label: instanceLabel } : {}),
         },
-        start,
+        connection?.characterId,
       ),
     )
     setInstanceId(result.instanceId)
     setCreate(false)
     setArgsChanged(false)
+    setCommandChanged(false)
+    setLabelChanged(false)
     setNotice({
       section: 'agents',
-      text: start
-        ? '原設定已保存，本機連接已啟動。你可以交代任務，或讀取已有會話。'
-        : '原設定已保存，下次啟動連接時套用；不會重新派發原任務。',
+      text: result.catalogProblem
+        ? `設定已保存，尚未確認連線套用結果：${problems[result.catalogProblem] ?? result.catalogProblem}。`
+        : '設定已保存；原生狀態依實際連線結果確認。',
     })
   }
-  const save = (start: boolean) =>
+  const save = () =>
     perform(async () => {
-      await configure(start)
+      await configure()
       setEditorOpen(false)
+    }, 'agents')
+  const remove = () =>
+    perform(async () => {
+      const result = unwrap(
+        await window.yuki.connector.remove(removing!.id, connection?.characterId),
+      )
+      setRemoving(undefined)
+      if (instanceId === result.instanceId) setEditorOpen(false)
+      setNotice({
+        section: 'agents',
+        text: result.catalogProblem
+          ? `設定已刪除，尚未確認連線同步：${problems[result.catalogProblem] ?? result.catalogProblem}。`
+          : 'Agent 設定已刪除，原生程式與歷史紀錄保留。',
+      })
     }, 'agents')
   const feedback = (section: Feedback['section']) => (
     <>
@@ -224,7 +261,10 @@ export function AgentConnector({
   )
   const executableSelection = (
     <>
-      <p className={styles.link}>{command || '尚未手動選擇程式'}</p>
+      <p className={styles.nativePath}>
+        {(candidateId ? candidates.find((item) => item.id === candidateId)?.command : command) ||
+          '尚未選擇'}
+      </p>
       <Button
         type="button"
         disabled={busy}
@@ -233,20 +273,20 @@ export function AgentConnector({
             const path = unwrap(await window.yuki.connector.chooseExecutable())
             if (path) {
               setCommand(path)
+              setCommandChanged(true)
               setCandidateId('')
             }
           }, 'agents')
         }
       >
-        選擇原生執行檔
+        選擇程式
       </Button>
     </>
   )
   return (
     <>
       <p className={styles.notice}>
-        讓 {connection?.name ?? 'Yuki'} 使用這台電腦的命令、檔案與已安裝程式。Codex、Claude、ACP
-        是可選的。
+        讓 {connection?.name ?? 'Yuki'} 使用這台電腦的命令、檔案與已安裝程式。原生 Agent 是可選的。
       </p>
       {available &&
         available.protocol !== undefined &&
@@ -380,7 +420,7 @@ export function AgentConnector({
                     unwrap(await window.yuki.connector.service('start'))
                   setNotice({
                     section: 'status',
-                    text: '電腦連接已建立。完整訪問預設關閉，可在下方明確開啟；原生 Agent 稍後設定。',
+                    text: '電腦已配對。完整訪問預設關閉，可在下方開啟；原生 Agent 稍後設定。',
                   })
                 })
             }}
@@ -551,7 +591,7 @@ export function AgentConnector({
             </Row>
           </SettingsSection>
           <SettingsSection title="本機 Agent（可選）">
-            {!editorOpen && feedback('agents')}
+            {!editorOpen && !removing && feedback('agents')}
             {available.instances.map((instance) => {
               const remote = available.admission?.instances?.find(
                 (item) => item.localId === instance.id,
@@ -562,10 +602,10 @@ export function AgentConnector({
                   ? `${driverName(instance.driver)} 尚未就緒：${problems[remote.errorType ?? ''] ?? remote.errorType ?? remote.status ?? '未提供原因'}`
                   : remote.online
                     ? instance.driver === 'claude'
-                      ? 'Claude 程式已找到；登入與任務依原生結果確認'
+                      ? 'Claude Code 程式已找到；登入與任務依原生結果確認'
                       : `${driverName(instance.driver)} 原生連線已建立`
                     : instance.driver === 'claude'
-                      ? 'Claude 目前離線；上次已找到程式'
+                      ? 'Claude Code 目前離線；上次已找到程式'
                       : `${driverName(instance.driver)} 目前離線；上次已就緒`
               return (
                 <Row
@@ -580,6 +620,8 @@ export function AgentConnector({
                       setCreate(false)
                       setInstanceLabel(instance.label)
                       setCommand(instance.command ?? '')
+                      setCommandChanged(false)
+                      setLabelChanged(false)
                       if (['codex', 'claude', 'acp'].includes(instance.driver))
                         setDriver(instance.driver as ConnectorDriver)
                       setAgentArgs(instance.args ?? [])
@@ -594,17 +636,30 @@ export function AgentConnector({
                   >
                     編輯
                   </Button>
+                  <Button
+                    variant="plain"
+                    disabled={busy}
+                    aria-label={`刪除 ${instance.label}`}
+                    onClick={() => setRemoving(instance)}
+                  >
+                    刪除…
+                  </Button>
                 </Row>
               )
             })}
-            <Row title="新增本機 Agent" description="選擇這台電腦已安裝的 Codex、Claude 或 ACP。">
+            <Row
+              title="新增本機 Agent"
+              description="選擇已安裝的 Codex、Claude Code 或支援 ACP 的程式。"
+            >
               <Button
                 disabled={busy}
                 onClick={() => {
                   setInstanceId('')
                   setCreate(true)
-                  setInstanceLabel(`本機 ${driverName(driver)}`)
+                  setInstanceLabel(defaultAgentName(driver))
                   setCommand('')
+                  setCommandChanged(false)
+                  setLabelChanged(false)
                   setCandidateId('')
                   setAgentArgs([])
                   setArgsChanged(false)
@@ -642,19 +697,19 @@ export function AgentConnector({
               </>
             }
           >
-            {feedback('agents')}
+            {editorOpen && feedback('agents')}
             {diagnostic && (
               <Banner status={diagnostic.available ? 'done' : 'unknown'}>
                 {diagnostic.available
                   ? available.instances.find((item) => item.id === diagnostic.id)?.driver ===
                     'claude'
-                    ? 'Claude 登入檢查完成；尚未執行模型任務。'
+                    ? 'Claude Code 登入檢查完成；尚未執行模型任務。'
                     : '原生握手與帳戶檢查完成；尚未執行模型任務。'
                   : (problems[diagnostic.problem ?? ''] ?? `尚未就緒（${diagnostic.problem}）。`)}
               </Banner>
             )}
             {original && (
-              <Row title="原生程式">
+              <Row title="程式">
                 {supportsDiscovery && (
                   <Button
                     variant="plain"
@@ -685,30 +740,31 @@ export function AgentConnector({
               id={editorForm}
               onSubmit={(event) => {
                 event.preventDefault()
-                void save(available.managed !== false && available.running !== false)
+                void save()
               }}
             >
-              <Row title="原生工具">
+              <Row title="Agent 類型">
                 <select
-                  aria-label="原生工具類型"
+                  aria-label="Agent 類型"
                   value={original?.driver ?? driver}
                   disabled={busy || !!original}
                   onChange={(event) => {
                     const next = event.target.value as ConnectorDriver
-                    if (instanceLabel === `本機 ${driverName(driver)}`)
-                      setInstanceLabel(`本機 ${driverName(next)}`)
+                    if (instanceLabel === defaultAgentName(driver))
+                      setInstanceLabel(defaultAgentName(next))
                     setDriver(next)
                     setCandidates([])
                     setCandidateId('')
                     setCommand('')
+                    setCommandChanged(false)
                     setAgentArgs([])
                     setArgsChanged(false)
                     setDiagnostic(undefined)
                   }}
                 >
                   <option value="codex">Codex</option>
-                  <option value="claude">Claude</option>
-                  <option value="acp">通用 ACP Agent</option>
+                  <option value="claude">Claude Code</option>
+                  <option value="acp">支援 ACP 的 Agent</option>
                   {original && !['codex', 'claude', 'acp'].includes(original.driver) && (
                     <option value={original.driver}>{driverName(original.driver)}（原設定）</option>
                   )}
@@ -726,9 +782,9 @@ export function AgentConnector({
                 </div>
               )}
               {candidates.length > 1 && (
-                <Row title={`${nativeName} 安裝`}>
+                <Row title="程式來源">
                   <select
-                    aria-label={`${nativeName} 安裝`}
+                    aria-label="程式來源"
                     value={candidateId}
                     onChange={(event) => setCandidateId(event.target.value)}
                   >
@@ -750,12 +806,15 @@ export function AgentConnector({
                 <TextField
                   aria-label="Agent 顯示名稱"
                   value={instanceLabel}
-                  onChange={(event) => setInstanceLabel(event.target.value)}
+                  onChange={(event) => {
+                    setInstanceLabel(event.target.value)
+                    setLabelChanged(true)
+                  }}
                   required
                 />
               </Row>
               {(original?.driver ?? driver) === 'acp' ? (
-                <Row title="ACP 執行檔">{executableSelection}</Row>
+                <Row title="程式">{executableSelection}</Row>
               ) : (
                 <details>
                   <summary>進階：手動選擇原生程式</summary>
@@ -763,10 +822,11 @@ export function AgentConnector({
                 </details>
               )}
               {(original?.driver ?? driver) === 'acp' && (
-                <div className={styles.group}>
+                <div className={styles.nativeArguments}>
+                  <p className={styles.notice}>請選擇支援 ACP 的程式。</p>
+                  <h4>啟動參數（選填）</h4>
                   <p className={styles.notice}>
-                    選擇支援 ACP
-                    的實際程式，依該程式文件填入啟動參數。每欄是一個參數，按順序傳入，不需外加引號。
+                    依程式說明逐欄填寫；空欄也會傳入，不需要時請移除。
                   </p>
                   {agentArgs.map((value, index) => (
                     <Row key={index} title={`啟動參數 ${index + 1}`}>
@@ -804,11 +864,31 @@ export function AgentConnector({
                       setArgsChanged(true)
                     }}
                   >
-                    新增啟動參數
+                    新增參數
                   </Button>
                 </div>
               )}
             </form>
+          </Sheet>
+          <Sheet
+            title="刪除 Agent 設定？"
+            open={!!removing}
+            onClose={() => {
+              if (!busy) setRemoving(undefined)
+            }}
+            actions={
+              <>
+                <Button disabled={busy} onClick={() => setRemoving(undefined)}>
+                  取消
+                </Button>
+                <Button variant="destructive" loading={busy} onClick={() => void remove()}>
+                  刪除設定
+                </Button>
+              </>
+            }
+          >
+            {removing && feedback('agents')}
+            <p>刪除「{removing?.label}」的本機設定及新任務選項，保留原生程式、檔案與歷史紀錄。</p>
           </Sheet>
         </>
       )}

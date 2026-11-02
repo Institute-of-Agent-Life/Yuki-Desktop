@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import type { Connection } from '../../src/shared/api'
@@ -11,6 +12,7 @@ test('the original computer keeps its identity across independent client and Con
   test.setTimeout(120000)
   const manifest = JSON.parse(await readFile('.cache/connector-runtime/manifest.json', 'utf8')) as {
     executable: string
+    arguments: string[]
   }
   const executable = resolve('.cache/connector-runtime', manifest.executable)
   const rig = await yukiFixture(),
@@ -19,6 +21,8 @@ test('the original computer keeps its identity across independent client and Con
     newRoute = await forwardProxy(rig.base, '/private-network'),
     app = await rig.launch('connector-address')
   let success = false
+  let connector: ChildProcessWithoutNullStreams | undefined
+  let connectorClosed: Promise<void> | undefined
   try {
     const page = await app.firstWindow()
     await pairUI(page, rig.base, await rig.code())
@@ -164,9 +168,126 @@ test('the original computer keeps its identity across independent client and Con
     expect(after.state.ok && after.state.value.available && after.state.value.running).toEqual(
       initial?.available ? initial.running : undefined,
     )
-    await expect(
-      page.getByText('位址已儲存，下次啟動連接時使用。', { exact: true }),
-    ).toBeVisible()
+    await expect(page.getByText('位址已儲存，下次啟動連接時使用。', { exact: true })).toBeVisible()
+    connector = spawn(
+      executable,
+      [...manifest.arguments, '--data-dir', dataDirectory, 'run', '--desktop-stdin'],
+      { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },
+    )
+    connectorClosed = new Promise((resolve) => connector!.once('close', () => resolve()))
+    connector.stdout.resume()
+    connector.stderr.resume()
+    connector.stdin.on('error', () => {})
+    await expect
+      .poll(async () => {
+        const result = await page.evaluate(
+          (id) => window.yuki.connector.state(id),
+          connection.characterId,
+        )
+        return result.ok && result.value.available && result.value.admission?.connected
+      })
+      .toBe(true)
+    const nativeId = randomUUID()
+    const configured = await page.evaluate(
+      ({ id, nativeId, command, script }) =>
+        window.yuki.connector.configure(
+          {
+            id: nativeId,
+            create: true,
+            driver: 'acp',
+            label: 'Original ACP',
+            command,
+            args: ['-B', script],
+          },
+          id,
+        ),
+      {
+        id: connection.characterId,
+        nativeId,
+        command: executable,
+        script: resolve(
+          process.env.YUKI_BACKEND_TEST_ROOT!,
+          'packages/yuki-agent-connector/tests/fakes/acp_agent.py',
+        ),
+      },
+    )
+    expect(configured).toMatchObject({ ok: true, value: { instanceId: nativeId } })
+    // The actual CLI has saved this ID. Model the caller losing that response by
+    // retrying the identical creation request, without making another identity.
+    const retryAfterLostReply = await page.evaluate(
+      ({ id, nativeId, command, script }) =>
+        window.yuki.connector.configure(
+          {
+            id: nativeId,
+            create: true,
+            driver: 'acp',
+            label: 'Original ACP',
+            command,
+            args: ['-B', script],
+          },
+          id,
+        ),
+      {
+        id: connection.characterId,
+        nativeId,
+        command: executable,
+        script: resolve(
+          process.env.YUKI_BACKEND_TEST_ROOT!,
+          'packages/yuki-agent-connector/tests/fakes/acp_agent.py',
+        ),
+      },
+    )
+    const afterRetry = JSON.parse(await readFile(configPath, 'utf8')) as {
+      instances: { id: string }[]
+    }
+    await writeFile(
+      test.info().outputPath('original-id-after-lost-configure-reply.json'),
+      JSON.stringify(
+        {
+          nativeId,
+          configured,
+          retryAfterLostReply,
+          instanceIds: afterRetry.instances.map((i) => i.id),
+        },
+        null,
+        2,
+      ),
+    )
+    expect(retryAfterLostReply).toMatchObject({ ok: true, value: { instanceId: nativeId } })
+    expect(afterRetry.instances.map((item) => item.id)).toEqual([nativeId])
+    await expect
+      .poll(async () => {
+        const result = await page.evaluate(
+          (id) => window.yuki.connector.state(id),
+          connection.characterId,
+        )
+        return result.ok && result.value.available
+          ? result.value.admission?.instances?.find((item) => item.localId === nativeId)?.status
+          : undefined
+      })
+      .toBe('available')
+    const renamed = await page.evaluate(
+      ({ id, nativeId }) =>
+        window.yuki.connector.configure({ id: nativeId, create: false, label: 'Renamed ACP' }, id),
+      { id: connection.characterId, nativeId },
+    )
+    expect(renamed).toMatchObject({ ok: true, value: { instanceId: nativeId } })
+    const removed = await page.evaluate(
+      ({ id, nativeId }) => window.yuki.connector.remove(nativeId, id),
+      { id: connection.characterId, nativeId },
+    )
+    expect(removed).toMatchObject({ ok: true, value: { instanceId: nativeId } })
+    await expect
+      .poll(async () => {
+        const result = await page.evaluate(
+          (id) => window.yuki.connector.state(id),
+          connection.characterId,
+        )
+        return result.ok && result.value.available ? result.value.admission?.instances : undefined
+      })
+      .toEqual([])
+    expect(connector.exitCode).toBeNull()
+    expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual(saved)
     await page.screenshot({ path: test.info().outputPath('original-connector-address.png') })
     await writeFile(
       test.info().outputPath('independent-addresses.json'),
@@ -180,6 +301,12 @@ test('the original computer keeps its identity across independent client and Con
           insecure,
           rejectedRequests,
           connectorAfter: after.state,
+          nativeId,
+          nativeConfigured: configured,
+          nativeRenamed: renamed,
+          nativeRemoved: removed,
+          originalConnectorPid: connector.pid,
+          connectorKeptRunning: connector.exitCode === null,
         },
         null,
         2,
@@ -187,6 +314,10 @@ test('the original computer keeps its identity across independent client and Con
     )
     success = true
   } finally {
+    if (connector) {
+      connector.stdin.end()
+      await connectorClosed
+    }
     await app.close()
     await oldRoute.close()
     await newRoute.close()
