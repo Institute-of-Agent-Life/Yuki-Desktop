@@ -2,6 +2,8 @@
 
 Yuki 的跨平台桌面客戶端專案。
 
+公開下載見 [1.0.0-beta.8](https://github.com/Institute-of-Agent-Life/Yuki-Desktop/releases/tag/desktop-v1.0.0-beta.8)；目前 main 的後續變更、完整 PR 與發布阻塞見[下一版 beta 說明](docs/releases/next-beta.md)。安裝包與開發 main 的能力範圍分開記錄。
+
 使用 Electron、React 與 TypeScript 開發。桌面端透過版本化個人 API 連接獨立的 Yuki 後端，不包含另一套 Agent Runtime。
 
 啟動即可進入工作區，Bot 可以稍後再設定。你可以從設定 →「Yuki 連接」選擇：
@@ -10,7 +12,7 @@ Yuki 的跨平台桌面客戶端專案。
 - **本機部署與管理**：使用 Docker 的 Linux 容器，在你選擇的目錄部署 Bot 與資料，填入角色、本人名稱和自己的模型服務設定。模型可位於本機或遠端；同機模型需允許容器來源連線。已有由桌面管理的部署可繼續啟動、停止或重新取得配對；其他已有服務可從「連接已有 Yuki」接入。
 - **稍後設定**：直接使用工作區、設定與說明。連接後才讀取該 Yuki 的真實對話、工作、檔案與資料；離開配對或本機部署頁可隨時返回工作區。
 
-完成配對即可管理這個 Yuki 的共享資料、頭像、SOUL 與角色電腦。個人資料、工作和本機 Agent 操作沿原本人與執行身份處理；持久環境按後端部署配置。完整打包版本會準備配套部署資源，缺少 Docker、模型設定或配套資源時，頁面會顯示實際原因。
+共享資料、頭像、SOUL、模型設定與伺服器 Computer 管理使用當前 Person 的管理員資格，普通配對不授予資格，也不另設 owner 層。個人資料、工作和本機 Agent 操作沿原本人與執行身份處理；持久環境按後端部署配置。完整打包版本會準備配套部署資源，缺少 Docker、模型設定或配套資源時，頁面會顯示實際原因。
 
 設定 →「這台電腦」透過 `yuki-agent-connector`，讓已連接的 Yuki 操作本機 Shell、檔案與已安裝程式，以及可選的 Codex、Claude Code 與支援 ACP 的 Agent。桌面管理的連接器隨 Desktop 啟動與結束，不註冊開機自啟動服務；關閉視窗留在托盤時仍保持連接。原生帳號、會話與權限由原程式管理。
 
@@ -42,7 +44,7 @@ Codex 尋找範圍包括 Store、PATH、目前活動 npm 安裝與 daemon 包的
 
 「這台電腦」依這台裝置顯示原終端輸出、狀態與完成回執，也可選擇原生會話、提交要求及回應原權限或問題請求。移除原生設定不會抹去該裝置的舊操作回執。停止請求沿原 run 與 request ID 查證，連線中斷時查詢原回執。伺服器接納、本機連接、原生就緒與實際執行結果分別顯示。Codex 連接原 daemon；Claude 沿原生 SDK 的會話與執行能力，不把讀取歷史說成接管任意執行中的終端。桌面不改原生登入或權限設定。
 
-需要提供 **Client API revision 7** 與相應實際服務的配套 Yuki 後端，固定來源與 OpenAPI 內容雜湊見 [contracts/source.json](contracts/source.json)。桌面與後端應使用同一組配套版本；僅更新桌面不會升級後端。以下介紹產品入口及驗證安排，各平台原生操作、安裝包、簽章與部署結果以對應的實際運行記錄為準。
+目前 main 需要提供 **Client API revision 9** 與相應實際服務的配套 Yuki 後端，固定來源與 OpenAPI 內容雜湊見 [contracts/source.json](contracts/source.json)。桌面與後端應使用同一組配套版本；僅更新桌面不會升級後端。以下介紹產品入口及驗證安排，各平台原生操作、安裝包、簽章與部署結果以對應的實際運行記錄為準。
 
 開發環境需 Node.js 22.12 以上，使用已提交的 npm lockfile：
 
