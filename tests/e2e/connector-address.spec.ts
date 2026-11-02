@@ -197,7 +197,7 @@ test('the original computer keeps its identity across independent client and Con
             driver: 'acp',
             label: 'Original ACP',
             command,
-            args: [script],
+            args: ['-B', script],
           },
           id,
         ),
