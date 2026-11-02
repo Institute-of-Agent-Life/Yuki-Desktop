@@ -24,8 +24,13 @@ export function ConnectorTasks({
   state: Extract<ConnectorState, { available: true }>
 }) {
   const query = useQueryClient()
+  const instances = (state.admission?.instances ?? []).filter((item) =>
+    state.instances.some((local) => local.id === item.localId),
+  )
   const [activity, setActivity] = useState<'native' | 'terminals'>('native')
-  const [instance, setInstance] = useState('')
+  const [instance, setInstance] = useState(() => (instances.length === 1 ? instances[0]!.id : ''))
+  const currentInstance = useRef(instance)
+  currentInstance.current = instances.some((item) => item.id === instance) ? instance : ''
   const [sessions, setSessions] = useState<ConnectorSession[]>([])
   const [cursor, setCursor] = useState<string | null>()
   const [session, setSession] = useState('')
@@ -63,9 +68,13 @@ export function ConnectorTasks({
   const selected = latest
     ? { ...latest, events: pages!.flatMap((page) => page.events ?? []) }
     : undefined
-  const instances = state.admission?.instances ?? []
   useEffect(() => {
-    if (!instance && instances.length === 1) setInstance(instances[0]!.id)
+    if (instance && !instances.some((item) => item.id === instance)) {
+      setInstance('')
+      setSession('')
+      setSessions([])
+      setCursor(undefined)
+    }
   }, [instance, instances])
   useEffect(
     () =>
@@ -172,13 +181,15 @@ export function ConnectorTasks({
   }
   const loadSessions = (next = false) =>
     perform(async () => {
+      const target = instance
       const result = unwrap(
         await window.yuki.connector.sessions(
           connection.characterId,
-          instance,
+          target,
           next ? (cursor ?? undefined) : undefined,
         ),
       )
+      if (currentInstance.current !== target) return
       setSessions(next ? [...sessions, ...result.sessions] : result.sessions)
       setCursor(result.next_cursor)
     })
@@ -238,6 +249,7 @@ export function ConnectorTasks({
                 aria-label="任務 Agent"
                 value={instance}
                 onChange={(event) => {
+                  currentInstance.current = event.target.value
                   setInstance(event.target.value)
                   setSessions([])
                   setSession('')

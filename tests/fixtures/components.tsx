@@ -163,7 +163,6 @@ if (connectorMode === 'existing' || connectorMode === 'existing-old-stopped') {
     },
   }
 }
-let failedServiceStart = false
 let operationPhase = 'initial'
 const operationReads: { id: string; cursor: number }[] = []
 const hintListeners = new Set<Parameters<typeof window.yuki.client.onHint>[0]>()
@@ -327,18 +326,19 @@ window.yuki = {
         ],
       }
     },
-    configure: async (input, start) => {
-      connectorCalls.push({ method: 'configure', input, start })
+    configure: async (input) => {
+      connectorCalls.push({ method: 'configure', input })
       if (!connectorState.available) throw Error('Connector runtime has not been prepared')
       const local = input.id ?? 'fixture-native-instance'
       const original = connectorState.instances.find((instance) => instance.id === local)
       const driver = original?.driver ?? input.driver ?? 'codex'
+      const label = (input.label ?? original?.label)!
       connectorState = {
         ...connectorState,
         instances: [
           {
             id: local,
-            label: input.label,
+            label,
             driver,
             command: input.command ?? original?.command ?? `/fixture/${driver}`,
             cwd: input.cwd ?? '/fixture/home',
@@ -347,28 +347,43 @@ window.yuki = {
               : {}),
           },
         ],
-        running: start ? true : connectorState.running,
         admission: {
           matched: true,
-          connected: !!start,
+          connected: !!connectorState.running,
           instances: [
             {
               id: 'fixture-server-instance',
               localId: local,
-              label: input.label,
+              label,
               driver,
-              online: !!start,
+              online: !!connectorState.running,
               status: 'available',
             },
           ],
         },
       }
-      if (start && connectorMode === 'service-failure' && !failedServiceStart) {
-        failedServiceStart = true
-        connectorState = { ...connectorState, running: false }
-        return { ok: false, code: 'connector_failed', reason: 'service-start' }
+      return {
+        ok: true,
+        value: {
+          instanceId: local,
+          ...(connectorMode === 'service-failure' ? { catalogProblem: 'connector_offline' } : {}),
+        },
       }
-      return { ok: true, value: { instanceId: local } }
+    },
+    remove: async (id) => {
+      connectorCalls.push({ method: 'remove', input: id })
+      if (!connectorState.available) throw Error('Connector runtime has not been prepared')
+      connectorState = {
+        ...connectorState,
+        instances: connectorState.instances.filter((item) => item.id !== id),
+        admission: connectorState.admission
+          ? {
+              ...connectorState.admission,
+              instances: connectorState.admission.instances?.filter((item) => item.localId !== id),
+            }
+          : undefined,
+      }
+      return { ok: true, value: { instanceId: id } }
     },
     diagnose: async (id) => {
       connectorCalls.push({ method: 'diagnose', input: id })

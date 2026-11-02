@@ -69,7 +69,7 @@ export interface ConnectorConfiguration {
   create?: boolean
   candidateId?: string
   command?: string
-  label: string
+  label?: string
   cwd?: string
   driver?: ConnectorDriver
   args?: string[]
@@ -125,8 +125,12 @@ export interface ConnectorBridge {
   discover(driver?: ConnectorDriver): Promise<ApiReply<ConnectorCandidate[]>>
   configure(
     input: ConnectorConfiguration,
-    start?: boolean,
-  ): Promise<ApiReply<{ instanceId: string }>>
+    characterId?: string,
+  ): Promise<ApiReply<{ instanceId: string; catalogProblem?: string }>>
+  remove(
+    instanceId: string,
+    characterId?: string,
+  ): Promise<ApiReply<{ instanceId: string; catalogProblem?: string }>>
   diagnose(instanceId: string): Promise<ApiReply<ConnectorDiagnostic>>
   revealNative(instanceId: string): Promise<ApiReply<void>>
   chooseProject(): Promise<ApiReply<string | null>>

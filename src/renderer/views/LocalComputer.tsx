@@ -42,7 +42,7 @@ export function LocalComputer({
         <Spinner />
       </EmptyState>
     )
-  if (!available?.paired || available.admission?.matched !== true)
+  if (!available?.deviceId)
     return (
       <EmptyState
         title={
@@ -56,12 +56,15 @@ export function LocalComputer({
       >
         {state.isError
           ? state.error.message
-          : `連接後，${connection.name} 可以在這台電腦執行命令、使用 Codex、Claude 或 ACP Agent。`}
+          : `連接後，${connection.name} 可以在這台電腦執行命令、使用 Codex、Claude Code 或支援 ACP 的 Agent。`}
       </EmptyState>
     )
   return (
     <div className={styles.page}>
       {state.error && <Banner status="unknown">{state.error.message}</Banner>}
+      {available.admission?.matched !== true && (
+        <Banner status="unknown">目前尚未接納這份電腦連線；已保存的本人紀錄仍可查詢。</Banner>
+      )}
       <ConnectorTasks
         key={connection.characterId + available.deviceId}
         connection={connection}

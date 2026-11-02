@@ -183,6 +183,21 @@
   font-size: 12px;
   line-height: 18px;
 }
+.nativePath {
+  flex: 1 1 220px;
+  overflow-wrap: anywhere;
+  user-select: text;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.nativeArguments {
+  padding: 0 16px 12px;
+}
+.nativeArguments h4 {
+  margin: 20px 0 8px;
+  font-size: 13px;
+}
 .section {
   margin-bottom: 24px;
 }

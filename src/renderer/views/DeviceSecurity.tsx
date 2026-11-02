@@ -160,10 +160,13 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
           ? await window.yuki.client.verifyCharacterCommand(id, requestId)
           : await window.yuki.client.characterCommand(id, { kind: 'device-revoke', deviceId }),
       )
-      setRevoke(undefined)
       if (item.state === 'result') {
         if (item.problem) setError({ section, message: problemText(item.problem) })
-        else setNotice({ section, message: '裝置已撤銷。' })
+        else
+          setNotice({
+            section,
+            message: section === 'connector' ? '電腦連接器已移除。' : '裝置已撤銷。',
+          })
       }
       await refresh()
     } catch (error) {
@@ -172,6 +175,7 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
         message: error instanceof Error ? error.message : '撤銷結果尚未確認。',
       })
     } finally {
+      setRevoke(undefined)
       setBusy(false)
     }
   }
@@ -200,13 +204,15 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
   return (
     <>
       <p className={styles.notice}>
-        這裡列出你在 {connection.name} 的登入與電腦連接器。撤銷只影響選定的一項。
+        這裡列出你在 {connection.name} 的登入與電腦連接器。移除電腦會撤銷該連線權限，保留歷史紀錄。
       </p>
       {[
         { purpose: 'chat', title: '登入的裝置' },
         { purpose: 'connector', title: '電腦連接器' },
       ].map(({ purpose, title }) => {
-        const devices = data?.devices.filter((device) => device.purpose === purpose)
+        const devices = data?.devices.filter(
+          (device) => device.purpose === purpose && (purpose !== 'connector' || !device.revoked_at),
+        )
         return purpose === 'connector' &&
           !devices?.length &&
           error?.section !== purpose &&
@@ -241,9 +247,9 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
                       )
                     }
                     onClick={() => setRevoke(device)}
-                    aria-label={`撤銷 ${device.label || '未命名裝置'}`}
+                    aria-label={`${purpose === 'connector' ? '移除' : '撤銷'} ${device.label || '未命名裝置'}`}
                   >
-                    撤銷…
+                    {purpose === 'connector' ? '移除…' : '撤銷…'}
                   </Button>
                 ) : (
                   <span className={styles.notice}>使用中</span>
@@ -270,7 +276,7 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
         </SettingsSection>
       )}
       <SettingsSection title="連接另一台裝置">
-        {feedback('codes')}
+        {!open && feedback('codes')}
         <Row title="產生一次性綁定碼" description="10 分鐘內可使用一次，請勿分享給他人。">
           <Button disabled={busy || !data} onClick={() => void issue()}>
             產生綁定碼
@@ -297,7 +303,7 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
           ))}
       </SettingsSection>
       <Sheet
-        title="撤銷裝置？"
+        title={revoke?.purpose === 'connector' ? '移除電腦？' : '撤銷裝置？'}
         open={!!revoke}
         onClose={() => {
           if (!busy) setRevoke(undefined)
@@ -312,12 +318,13 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
               loading={busy}
               onClick={() => void revokeDevice(revoke!.device_id, revoke!.purpose)}
             >
-              撤銷裝置
+              {revoke?.purpose === 'connector' ? '移除電腦' : '撤銷裝置'}
             </Button>
           </>
         }
       >
         <p>「{revoke?.label || '未命名裝置'}」會失去這個 Yuki 的連線權限。之後需要重新配對。</p>
+        {revoke?.purpose === 'connector' && <p>會從目前的電腦列表移除，原任務與歷史紀錄保留。</p>}
       </Sheet>
       <Sheet
         title="連接另一台裝置"
@@ -330,13 +337,13 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
         }
       >
         <p>10 分鐘內、一次使用。請勿分享給他人。</p>
-        {notice && (
+        {open && notice?.section === 'codes' && (
           <p role="status" className={styles.notice}>
             {notice.message}
           </p>
         )}
         {busy && <Spinner />}
-        {error && <Banner status="failed">{error.message}</Banner>}
+        {open && error?.section === 'codes' && <Banner status="failed">{error.message}</Banner>}
         {issued &&
           (issued.request.problem ? (
             <Banner status="failed">

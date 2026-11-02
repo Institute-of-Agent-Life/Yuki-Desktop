@@ -352,14 +352,14 @@ it('configuration returns the real saved instance ID without inferring an identi
   expect(run.mock.calls.some((call) => call[1].includes('service'))).toBe(false)
 })
 it.each([false, true])(
-  'an unsupported write stays on the old runtime and reports its failure without updating it (managed=%s)',
+  'a failed bundled save leaves the selected installation unchanged (managed=%s)',
   async (managed) => {
     const run = vi.fn(async (selected: unknown, args: readonly string[]) => {
       if (args.includes('status')) {
         expect(selected).toBe(reader)
         return JSON.stringify(publicStatus)
       }
-      expect(selected).toBe(runtime)
+      expect(selected).toBe(reader)
       expect(args.slice(2)).toEqual(['instance', 'configure'])
       throw new ApiError('connector_failed')
     })
@@ -386,7 +386,7 @@ it.each([false, true])(
   },
 )
 it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
-  'actual standalone CLI keeps the preallocated creation ID through partial failure, human/JSON output and later edits',
+  'actual standalone CLI saves a preallocated creation ID once and preserves it through a failed save and later edits',
   async () => {
     const manifest = JSON.parse(await readFile(join(actualBundle, 'manifest.json'), 'utf8'))
     const root = await mkdtemp(join(tmpdir(), 'connector-cli-original-'))
@@ -453,13 +453,15 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
       JSON.parse(await readFile(join(root, 'config.json'), 'utf8')).instances.map(
         (item: { id: string }) => item.id,
       ),
-    ).toEqual(['created-instance'])
-    expect(await connector.configure(input)).toEqual({ instanceId: 'created-instance' })
+    ).toEqual([])
+    expect(await connector.configure(input)).toMatchObject({ instanceId: 'created-instance' })
     expect(
       await connector.configure({ ...input, create: false, label: 'Original Codex edited' }),
-    ).toEqual({ instanceId: 'created-instance' })
-    expect(calls.filter((args) => args.includes('add'))).toHaveLength(1)
-    expect(outputs.some((output) => output.includes('Configuration updated'))).toBe(true)
+    ).toMatchObject({ instanceId: 'created-instance' })
+    expect(calls.some((args) => args.includes('add'))).toBe(false)
+    expect(JSON.parse(await readFile(join(root, 'config.json'), 'utf8')).instances).toMatchObject([
+      { id: 'created-instance', label: 'Original Codex edited' },
+    ])
     const before = await readFile(join(root, 'config.json'), 'utf8')
     await expect(
       connector.configure({ ...input, id: 'missing-original', create: false }),
@@ -592,7 +594,7 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
         label: '原安裝',
         cwd: project,
       }),
-    ).toEqual({ instanceId })
+    ).toMatchObject({ instanceId, deviceId: 'original-upgrade-device' })
     const originalConfig = JSON.parse(await readFile(configPath, 'utf8'))
     expect(originalConfig.instances).toHaveLength(1)
     expect(originalConfig.instances[0].command).toBe(alias)
@@ -629,7 +631,7 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
         label: '升級後的原安裝',
         cwd: editedProject,
       }),
-    ).toEqual({ instanceId })
+    ).toMatchObject({ instanceId, deviceId: 'original-upgrade-device' })
     expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual({
       ...originalConfig,
       instances: [
@@ -654,7 +656,7 @@ it.skipIf(!existsSync(join(actualBundle, 'manifest.json')))(
   30000,
 )
 
-it('creation and configuration keep their original installation while discovery is pending without starting an external service', async () => {
+it('configuration keeps its original installation while the CLI save is pending without starting an external service', async () => {
   const root = await mkdtemp(join(tmpdir(), 'connector-bound-'))
   temporary.push(root)
   const command = join(root, 'codex.exe')
@@ -670,7 +672,7 @@ it('creation and configuration keep their original installation while discovery 
   })
   const instances: { id: string; label: string; driver: string; command: string; cwd: string }[] =
     []
-  const run = vi.fn(async (_runtime: unknown, args: readonly string[]) => {
+  const run = vi.fn(async (_runtime: unknown, args: readonly string[], input?: string) => {
     expect(args[1]).toBe(first)
     if (args.includes('status'))
       return JSON.stringify({
@@ -678,37 +680,29 @@ it('creation and configuration keep their original installation while discovery 
         instances,
         service: { installed: false, running: false },
       })
-    if (args.includes('discover')) {
+    if (args.includes('configure')) {
       entered()
       await released
-      return JSON.stringify([{ id: 'actual-installation', label: 'Codex', command }])
+      instances.push(JSON.parse(input!))
     }
-    if (args.includes('add'))
-      instances.push({
-        id: 'original-created-id',
-        label: 'Codex',
-        driver: 'codex',
-        command,
-        cwd: root,
-      })
     return 'Configuration updated; human output'
   })
   const { connector } = fixture(run)
   connector.installations.select({ managed: false, dataDirectory: first, runtime })
-  const pending = connector.configure(
-    {
-      id: 'original-created-id',
-      create: true,
-      candidateId: 'actual-installation',
-      cwd: root,
-      label: 'Codex',
-    },
-    false,
-  )
+  const pending = connector.configure({
+    id: 'original-created-id',
+    create: true,
+    candidateId: 'actual-installation',
+    cwd: root,
+    label: 'Codex',
+  })
   await discovering
   connector.installations.select({ managed: false, dataDirectory: second, runtime })
   release()
-  expect(await pending).toEqual({ instanceId: 'original-created-id' })
+  expect(await pending).toMatchObject({
+    instanceId: 'original-created-id',
+    deviceId: 'original-device',
+  })
   expect(
     run.mock.calls.filter((call) => call[1].includes('service')).map((call) => call[1].slice(-2)),
   ).toEqual([])
@@ -747,7 +741,7 @@ it('saving a managed instance keeps its runtime while a bundled update is availa
           ...publicStatus,
           version: selected.executable === oldExecutable ? '0.3.1' : '0.3.2',
         })
-      expect(selected.executable).toBe(oldExecutable)
+      expect(selected.executable).toBe(join(bundle, 'python.exe'))
       expect(args).toContain('configure')
       return JSON.stringify({ instance_id: 'original-profile' })
     },
@@ -776,8 +770,9 @@ it('saving a managed instance keeps its runtime while a bundled update is availa
     updateAvailable: true,
     running: false,
   })
-  expect(await connector.configure({ id: 'original-profile', label: 'Same Codex' })).toEqual({
+  expect(await connector.configure({ id: 'original-profile', label: 'Same Codex' })).toMatchObject({
     instanceId: 'original-profile',
+    runtimeVersion: undefined,
   })
   expect(run.mock.calls.filter((call) => call[1].includes('configure'))).toHaveLength(1)
   expect(run.mock.calls.some((call) => call[1].includes('service'))).toBe(false)
@@ -1524,7 +1519,7 @@ it('editing an original Claude instance preserves its driver without revalidatin
   const { connector } = fixture(run)
   expect(
     await connector.configure({ id: 'claude', driver: 'codex', label: 'Original Claude' }),
-  ).toEqual({ instanceId: 'claude' })
+  ).toMatchObject({ instanceId: 'claude' })
   expect(run.mock.calls.some(([, args]) => args.includes('add'))).toBe(false)
 })
 
@@ -1534,8 +1529,9 @@ it('ACP creation preserves argument values without shell splitting or another di
   const command = join(root, 'acp.exe')
   await writeFile(command, 'native configuration target, never launched')
   const args = ['--stdio', 'value with spaces', '--owner=original']
-  const run = vi.fn(async (_runtime: unknown, commandArgs: readonly string[]) =>
-    commandArgs.includes('status') ? JSON.stringify({ ...publicStatus, instances: [] }) : '{}',
+  const run = vi.fn<(runtime: unknown, args: readonly string[], input?: string) => Promise<string>>(
+    async (_runtime, commandArgs) =>
+      commandArgs.includes('status') ? JSON.stringify({ ...publicStatus, instances: [] }) : '{}',
   )
   const { connector } = fixture(run)
   const result = await connector.configure({
@@ -1544,24 +1540,17 @@ it('ACP creation preserves argument values without shell splitting or another di
     driver: 'acp',
     args,
   })
-  const add = run.mock.calls.find(([, commandArgs]) => commandArgs.includes('add'))!
-  expect(add[1]).toEqual([
-    '--data-dir',
-    join(tmpdir(), 'original-data'),
-    'instance',
-    'add',
-    '--id',
-    result.instanceId,
-    '--driver',
-    'acp',
-    '--label',
-    'ACP',
-    '--command',
+  const save = run.mock.calls.find(([, commandArgs]) => commandArgs.includes('configure'))!
+  expect(save[0]).toBe(reader)
+  expect(save[1]).toEqual(['--data-dir', join(tmpdir(), 'original-data'), 'instance', 'configure'])
+  expect(JSON.parse(save[2]!)).toEqual({
+    create: true,
+    id: result.instanceId,
+    driver: 'acp',
+    label: 'ACP',
     command,
-    '--cwd',
-    expect.any(String),
-    ...args.map((value) => '--agent-arg=' + value),
-  ])
+    args,
+  })
   expect(
     run.mock.calls.some(
       ([, commandArgs]) => commandArgs.includes('discover') || commandArgs.includes('service'),
@@ -1606,7 +1595,10 @@ it('ACP parameter edits are explicit and do not replace the original driver or h
 it('a missing new executable reports a configuration error without starting a service or creating an instance', async () => {
   const root = await mkdtemp(join(tmpdir(), 'connector-missing-command-'))
   temporary.push(root)
-  const run = vi.fn(async () => JSON.stringify({ ...publicStatus, instances: [] }))
+  const run = vi.fn(async (_runtime: unknown, args: readonly string[]) => {
+    if (args.includes('configure')) throw new ApiError('validation_error')
+    return JSON.stringify({ ...publicStatus, instances: [] })
+  })
   const { connector } = fixture(run)
   await expect(
     connector.configure({
@@ -1615,5 +1607,7 @@ it('a missing new executable reports a configuration error without starting a se
       label: 'ACP',
     }),
   ).rejects.toMatchObject({ code: 'validation_error', reason: 'configure' })
-  expect(run).toHaveBeenCalledOnce()
+  expect(run.mock.calls.some(([, args]) => args.includes('service') || args.includes('add'))).toBe(
+    false,
+  )
 })

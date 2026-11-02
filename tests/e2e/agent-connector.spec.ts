@@ -49,7 +49,7 @@ test('long original Agent names, paths and grouped controls wrap within wide and
     await page.getByRole('button', { name: '編輯', exact: true }).click()
     const sheet = page.getByRole('dialog', { name: /^編輯 / })
     await expect(sheet).toBeInViewport()
-    await expect(sheet.getByRole('combobox', { name: '原生工具類型', exact: true })).toBeDisabled()
+    await expect(sheet.getByRole('combobox', { name: 'Agent 類型', exact: true })).toBeDisabled()
     await expect(sheet.locator('footer').getByRole('button')).toHaveText(['取消', '儲存'])
     await page.screenshot({ path: test.info().outputPath(`native-agent-wrap-${width}.png`) })
     await writeFile(
@@ -79,7 +79,7 @@ test('connector settings prepare a managed runtime, explicitly connect the curre
   await connect.click()
   await installationDetails(page)
   await expect(page.getByText('目前本人', { exact: true })).toBeVisible()
-  await expect(page.getByRole('combobox', { name: 'Codex 安裝', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('combobox', { name: '程式來源', exact: true })).toHaveCount(0)
   await expect(page.getByRole('switch', { name: '允許完整訪問本機' })).not.toBeChecked()
   await expect(page.getByRole('combobox', { name: '任務 Agent' })).toHaveCount(0)
   await expect(
@@ -238,13 +238,16 @@ test('Claude uses the same connection flow and new or existing sessions do not r
   await page.getByRole('checkbox', { name: '我允許這個 Yuki 連接這台電腦', exact: true }).check()
   await page.getByRole('button', { name: '連接這台電腦', exact: true }).click()
   await page.getByRole('button', { name: '新增 Agent', exact: true }).click()
-  await page.getByRole('combobox', { name: '原生工具類型', exact: true }).selectOption('claude')
-  await page.getByRole('button', { name: '尋找已安裝的 Claude', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Agent 類型', exact: true }).selectOption('claude')
+  await page.getByRole('button', { name: '尋找已安裝的 Claude Code', exact: true }).click()
   await page.getByRole('button', { name: '儲存', exact: true }).click()
-  await expect(page.getByText('Claude 程式已找到；登入與任務依原生結果確認')).toBeVisible()
+  await expect(page.getByText('Claude Code 程式已找到；登入與任務依原生結果確認')).toBeVisible()
   await expect(page.getByText('Claude 原生連線已建立')).toHaveCount(0)
   await expect(page.getByRole('dialog', { name: '新增本機 Agent', exact: true })).toBeHidden()
   await localActivities(page)
+  await page
+    .getByRole('combobox', { name: '任務 Agent', exact: true })
+    .selectOption('fixture-server-instance')
   await page.getByRole('textbox', { name: '原生任務要求', exact: true }).fill('請檢查目前狀態')
   await page.getByRole('button', { name: '交給 Yuki 執行', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '原生任務要求', exact: true })).toHaveValue('')
@@ -272,7 +275,7 @@ test('Claude uses the same connection flow and new or existing sessions do not r
     create: true,
     candidateId: 'fixture-claude-one',
     driver: 'claude',
-    label: '本機 Claude',
+    label: '本機 Claude Code',
   })
   expect(calls.filter((call) => call.method === 'submit').map((call) => call.input)).toEqual([
     {
@@ -306,7 +309,7 @@ test('Claude uses the same connection flow and new or existing sessions do not r
   await page.getByRole('button', { name: '編輯', exact: true }).click()
   await page.getByRole('button', { name: '檢查就緒', exact: true }).click()
   await expect(
-    page.getByText('Claude 登入檢查完成；尚未執行模型任務。', { exact: true }),
+    page.getByText('Claude Code 登入檢查完成；尚未執行模型任務。', { exact: true }),
   ).toBeVisible()
   await expect(
     page.getByText('原生握手與帳戶檢查完成；尚未執行模型任務。', { exact: true }),
@@ -322,15 +325,15 @@ test('a generic ACP program is configured through the existing connection with e
   await page.getByRole('checkbox', { name: '我允許這個 Yuki 連接這台電腦', exact: true }).check()
   await page.getByRole('button', { name: '連接這台電腦', exact: true }).click()
   await page.getByRole('button', { name: '新增 Agent', exact: true }).click()
-  await page.getByRole('combobox', { name: '原生工具類型', exact: true }).selectOption('acp')
+  await page.getByRole('combobox', { name: 'Agent 類型', exact: true }).selectOption('acp')
   await expect(page.getByRole('button', { name: '尋找已安裝的 ACP', exact: true })).toHaveCount(0)
   await expect(page.getByText('進階：手動選擇原生程式', { exact: true })).toHaveCount(0)
-  await page.getByRole('button', { name: '選擇原生執行檔', exact: true }).click()
-  await page.getByRole('button', { name: '新增啟動參數', exact: true }).click()
+  await page.getByRole('button', { name: '選擇程式', exact: true }).click()
+  await page.getByRole('button', { name: '新增參數', exact: true }).click()
   await page.getByRole('textbox', { name: 'ACP 啟動參數 1', exact: true }).fill('--stdio')
-  await page.getByRole('button', { name: '新增啟動參數', exact: true }).click()
+  await page.getByRole('button', { name: '新增參數', exact: true }).click()
   await page.getByRole('textbox', { name: 'ACP 啟動參數 2', exact: true }).fill('含空格的值')
-  await page.getByRole('button', { name: '新增啟動參數', exact: true }).click()
+  await page.getByRole('button', { name: '新增參數', exact: true }).click()
   expect(
     await page.locator('main').evaluate((node) => node.scrollWidth - node.clientWidth),
   ).toBeLessThanOrEqual(1)
@@ -345,7 +348,8 @@ test('a generic ACP program is configured through the existing connection with e
         }
       ).__connectorCalls!,
   )
-  expect(calls.filter((call) => call.method === 'configure')).toEqual([
+  const configurations = calls.filter((call) => call.method === 'configure')
+  expect(configurations).toEqual([
     {
       method: 'configure',
       input: {
@@ -353,15 +357,31 @@ test('a generic ACP program is configured through the existing connection with e
         create: true,
         command: 'C:\\Program Files\\ACP Agent\\agent.exe',
         driver: 'acp',
-        label: '本機 ACP',
+        label: '我的 Agent',
         args: ['--stdio', '含空格的值', ''],
       },
-      start: true,
     },
   ])
   expect(
     calls.some((call) => ['discover', 'chooseProject', 'diagnose'].includes(call.method)),
   ).toBe(false)
+  await page.getByRole('button', { name: '刪除 我的 Agent', exact: true }).click()
+  await page
+    .getByRole('dialog', { name: '刪除 Agent 設定？', exact: true })
+    .getByRole('button', { name: '刪除設定', exact: true })
+    .click()
+  await expect(page.getByRole('button', { name: '刪除 我的 Agent', exact: true })).toHaveCount(0)
+  const removed = await page.evaluate(
+    () =>
+      (window as Window & { __connectorCalls?: { method: string; input?: unknown }[] })
+        .__connectorCalls!,
+  )
+  expect(removed.filter((call) => call.method === 'remove')).toEqual([
+    { method: 'remove', input: (configurations[0]!.input as { id: string }).id },
+  ])
+  expect(removed.filter((call) => call.method === 'service')).toEqual(
+    calls.filter((call) => call.method === 'service'),
+  )
   await writeFile(test.info().outputPath('acp-arguments.json'), JSON.stringify({ calls }, null, 2))
 })
 
@@ -372,7 +392,7 @@ test('editing an original ACP keeps omitted arguments and only changes arguments
   await page.getByRole('switch', { name: '本機連接', exact: true }).click()
   await expect(page.getByRole('switch', { name: '本機連接', exact: true })).not.toBeChecked()
   await page.getByRole('button', { name: '編輯', exact: true }).click()
-  await expect(page.getByRole('combobox', { name: '原生工具類型', exact: true })).toHaveValue('acp')
+  await expect(page.getByRole('combobox', { name: 'Agent 類型', exact: true })).toHaveValue('acp')
   await expect(page.getByRole('textbox', { name: 'ACP 啟動參數 1', exact: true })).toHaveValue(
     '--stdio',
   )
@@ -406,12 +426,14 @@ test('editing an original ACP keeps omitted arguments and only changes arguments
   expect(saved[0]!.input).toEqual({
     id: 'fixture-native-instance',
     create: false,
-    command: '/fixture/acp-agent',
     label: 'Same ACP renamed',
   })
-  expect(saved[1]!.input).toEqual({ ...saved[0]!.input, args: ['--stdio=new', '原參數 有空格'] })
-  expect(saved[2]!.input).toEqual({ ...saved[0]!.input, args: [] })
-  expect(saved.every((call) => call.start === false)).toBe(true)
+  expect(saved[1]!.input).toEqual({
+    id: 'fixture-native-instance',
+    create: false,
+    args: ['--stdio=new', '原參數 有空格'],
+  })
+  expect(saved[2]!.input).toEqual({ id: 'fixture-native-instance', create: false, args: [] })
   expect(calls.some((call) => ['connect', 'pair'].includes(call.method))).toBe(false)
   expect(calls.filter((call) => call.method === 'service')).toEqual([
     { method: 'service', input: 'stop' },
@@ -455,7 +477,7 @@ test('multiple Codex installations require a real choice without requiring a pro
   await page.getByRole('button', { name: '連接這台電腦', exact: true }).click()
   await page.getByRole('button', { name: '新增 Agent', exact: true }).click()
   await page.getByRole('button', { name: '尋找已安裝的 Codex', exact: true }).click()
-  const candidate = page.getByRole('combobox', { name: 'Codex 安裝', exact: true })
+  const candidate = page.getByRole('combobox', { name: '程式來源', exact: true })
   await expect(candidate).toHaveValue('')
   await expect(page.getByRole('button', { name: '儲存', exact: true })).toBeDisabled()
   await candidate.selectOption('fixture-codex-two')
@@ -480,17 +502,17 @@ test('multiple Codex installations require a real choice without requiring a pro
         driver: 'codex',
         label: '本機 Codex',
       },
-      start: true,
     },
   ])
   await localActivities(page)
-  await expect(page.getByRole('combobox', { name: '任務 Agent', exact: true })).toHaveValue(
-    'fixture-server-instance',
-  )
+  await expect(page.getByRole('combobox', { name: '任務 Agent', exact: true })).toHaveValue('')
+  await page
+    .getByRole('combobox', { name: '任務 Agent', exact: true })
+    .selectOption('fixture-server-instance')
   await expect(page.getByRole('button', { name: '讀取原生會話', exact: true })).toBeEnabled()
 })
 
-test('a saved native instance survives a failed background start and continues under its real ID', async ({
+test('a saved native instance keeps its real ID when catalog application is unconfirmed without restarting the Connector', async ({
   page,
 }) => {
   await page.goto('http://127.0.0.1:4178/components.html?connector=service-failure')
@@ -499,16 +521,12 @@ test('a saved native instance survives a failed background start and continues u
   await expect(page.getByRole('switch', { name: '本機連接', exact: true })).toBeChecked()
   await page.getByRole('button', { name: '新增 Agent', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: '新增本機 Agent', exact: true })
-  const label = '啟動失敗後保留的 Codex 設定'
+  const label = '同步未確認時保留的 Codex 設定'
   await sheet.getByRole('textbox', { name: 'Agent 顯示名稱', exact: true }).fill(label)
   await sheet.getByRole('button', { name: '尋找已安裝的 Codex', exact: true }).click()
   await sheet.getByRole('button', { name: '儲存', exact: true }).click()
-  await expect(sheet.getByRole('status').filter({ hasText: '啟動本機連接：' })).toBeVisible()
-  await expect(sheet).toBeVisible()
-  await expect(sheet.getByRole('textbox', { name: 'Agent 顯示名稱', exact: true })).toHaveValue(
-    label,
-  )
-  await expect(sheet.getByRole('combobox', { name: '原生工具類型', exact: true })).toBeDisabled()
+  await expect(sheet).toBeHidden()
+  await expect(page.getByText(/設定已保存，尚未確認連線套用結果/)).toBeVisible()
   const persisted = await page.evaluate(async () => {
     const state = await window.yuki.connector.state('00000000-0000-4000-8000-000000000001')
     if (!state.ok || !state.value.available) throw Error('Expected the saved local installation')
@@ -516,11 +534,15 @@ test('a saved native instance survives a failed background start and continues u
   })
   expect(persisted.instances).toHaveLength(1)
   expect(persisted.instances[0]).toMatchObject({ id: expect.any(String), label, driver: 'codex' })
-  expect(persisted.running).toBe(false)
-  await sheet.getByRole('button', { name: '儲存', exact: true }).click()
-  await expect(sheet).toBeHidden()
-  await expect(page.getByRole('switch', { name: '本機連接', exact: true })).not.toBeChecked()
-  await page.getByRole('switch', { name: '本機連接', exact: true }).click()
+  expect(persisted.running).toBe(true)
+  await page.getByRole('button', { name: '編輯', exact: true }).click()
+  const editing = page.getByRole('dialog', { name: `編輯 ${label}`, exact: true })
+  await expect(editing.getByRole('textbox', { name: 'Agent 顯示名稱', exact: true })).toHaveValue(
+    label,
+  )
+  await expect(editing.getByRole('combobox', { name: 'Agent 類型', exact: true })).toBeDisabled()
+  await editing.getByRole('button', { name: '儲存', exact: true }).click()
+  await expect(editing).toBeHidden()
   await expect(page.getByRole('switch', { name: '本機連接', exact: true })).toBeChecked()
   await expect(page.getByText('Codex 原生連線已建立')).toBeVisible()
   const calls = await page.evaluate(
@@ -537,10 +559,12 @@ test('a saved native instance survives a failed background start and continues u
   expect(ids[0]).toMatch(/^[0-9a-f-]{36}$/)
   expect(ids[1]).toBe(ids[0])
   expect(ids[0]).toBe(persisted.instances[0]!.id)
-  expect(configurations.map((call) => call.start)).toEqual([true, false])
+  expect(calls.filter((call) => call.method === 'service')).toEqual([
+    { method: 'service', input: 'start' },
+  ])
   expect(calls.filter((call) => call.method === 'connect')).toHaveLength(1)
   await writeFile(
-    test.info().outputPath('saved-native-start-failure.json'),
+    test.info().outputPath('saved-native-catalog-failure.json'),
     JSON.stringify({ persisted, calls }, null, 2),
   )
 })
