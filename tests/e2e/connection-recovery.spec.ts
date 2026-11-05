@@ -301,44 +301,53 @@ test('two actual devices submit different answers to one work and recover their 
       await page.getByRole('button', { name: /等你回覆.*原工作整合測試/ }).click()
       await details[index]!.getByRole('textbox').fill(answers[index]!)
     }
-    // Keep the scripted provider in flight while both real API inputs reach the original mailbox.
-    await fetch(`${rig.base}/__test/model-delay/2`, { method: 'POST' })
+    // Keep the original Work in flight until both device inputs reach its mailbox.
+    expect((await fetch(`${rig.base}/__test/hold-work`, { method: 'POST' })).ok).toBe(true)
     await fetch(`${rig.base}/__test/lose-next-work-response/inputs`, { method: 'POST' })
     await Promise.all(
       details.map((detail) =>
         detail.getByRole('button', { name: '傳送給這項工作', exact: true }).click(),
       ),
     )
-    for (const [index, page] of [pa, pb].entries())
-      await expect
-        .poll(
-          async () => {
-            const result = await page.evaluate(async (id) => {
-              const commands = await window.yuki.client.workCommands(id)
-              return {
-                states: commands.ok ? commands.value.map((item) => [item.state, item.problem]) : [],
-                commands: commands.ok
-                  ? commands.value.map(({ command, ...item }) => ({
-                      ...item,
-                      kind: command.kind,
-                      workId: command.workId,
-                    }))
-                  : commands,
-              }
-            }, original.characterId)
-            observedCommands[index] = { observedAt: new Date().toISOString(), ...result }
-            return result.states
-          },
-          { timeout: 20000 },
-        )
-        .toEqual([['result', null]])
+    await Promise.all(
+      [pa, pb].map(async (page, index) => {
+        await expect
+          .poll(
+            async () => {
+              const result = await page.evaluate(async (id) => {
+                const commands = await window.yuki.client.workCommands(id)
+                return {
+                  states: commands.ok
+                    ? commands.value.map((item) => [item.state, item.problem])
+                    : [],
+                  commands: commands.ok
+                    ? commands.value.map(({ command, ...item }) => ({
+                        ...item,
+                        kind: command.kind,
+                        workId: command.workId,
+                      }))
+                    : commands,
+                }
+              }, original.characterId)
+              observedCommands[index] = { observedAt: new Date().toISOString(), ...result }
+              return result.states
+            },
+            { timeout: 20000 },
+          )
+          .toEqual([['result', null]])
+      }),
+    )
+    expect((await fetch(`${rig.base}/__test/release-work`, { method: 'POST' })).ok).toBe(true)
     await writeFile(
       test.info().outputPath('concurrent-accepted-local.json'),
       JSON.stringify({ identity, devices: observedCommands }, null, 2),
     ).catch(console.error)
     await waitForWorkState(pb, original.characterId, original.work.work_id, 'completed')
-    for (const detail of details)
-      await expect(detail.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
+    await Promise.all(
+      details.map((detail) =>
+        expect(detail.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 }),
+      ),
+    )
     const results = await Promise.all(
       [pa, pb].map((page) =>
         page.evaluate(async ({ characterId, work }) => {
@@ -402,6 +411,7 @@ test('two actual devices submit different answers to one work and recover their 
     success = true
     await recordLedger(events, 'final').catch(console.error)
   } finally {
+    await fetch(`${rig.base}/__test/release-work`, { method: 'POST' }).catch(console.error)
     await writeFile(
       test.info().outputPath(`concurrent-${success ? 'final' : 'failure'}-local.json`),
       JSON.stringify({ identity, devices: observedCommands }, null, 2),

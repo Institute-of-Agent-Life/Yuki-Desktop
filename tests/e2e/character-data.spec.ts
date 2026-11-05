@@ -12,6 +12,7 @@ import {
   recordBusinessState,
   currentConnection,
   pairUI,
+  waitForAcceptedMessage,
   waitForMainEnded,
   yukiFixture,
 } from '../fixtures/backend'
@@ -79,7 +80,7 @@ async function memoryResult(
   return { command, receipt }
 }
 
-test('real Electron edits original memory and arrangements, handles two-device conflicts and lost responses', async () => {
+test('real Electron edits original memory, handles two-device conflicts and recovers lost responses', async () => {
   test.setTimeout(150000)
   const retainedDraft =
     'A 保留的修正草稿\n' + '長內容也必須保留，衝突說明不能蓋住原本的輸入。'.repeat(6)
@@ -116,15 +117,19 @@ test('real Electron edits original memory and arrangements, handles two-device c
       },
       { id: connection.characterId, text: sourceText },
     )
-    const receipt = await waitForMainEnded(pa, connection.characterId, sent.requestId)
-    expect(receipt.event_id).toBe(sent.eventId)
-    expect(receipt.result_event_ids).toHaveLength(1)
-    await expect(
-      pa
-        .locator(`article[data-event-id="${receipt.result_event_ids![0]}"]`)
-        .getByText('Desktop reference reply', { exact: true }),
-    ).toBeVisible()
-    const seed = await fetch(`${rig.base}/__test/character-data`, { method: 'POST' })
+    const [seed] = await Promise.all([
+      fetch(`${rig.base}/__test/character-data`, { method: 'POST' }),
+      (async () => {
+        const receipt = await waitForMainEnded(pa, connection.characterId, sent.requestId)
+        expect(receipt.event_id).toBe(sent.eventId)
+        expect(receipt.result_event_ids).toHaveLength(1)
+        await expect(
+          pa
+            .locator(`article[data-event-id="${receipt.result_event_ids![0]}"]`)
+            .getByText('Desktop reference reply', { exact: true }),
+        ).toBeVisible()
+      })(),
+    ])
     const seeded = await seed.json()
     expect(seed.status, JSON.stringify(seeded)).toBe(200)
     expect(seeded.source_event_id).toBe(sent.eventId)
@@ -230,6 +235,53 @@ test('real Electron edits original memory and arrangements, handles two-device c
     await pa.getByRole('tab', { name: '她自己', exact: true }).click()
     await pa.getByRole('button', { name: /^我會先核對依據/ }).click()
     await expect(pa.getByRole('button', { name: '更正', exact: true })).toHaveCount(0)
+    expect(errors).toEqual([])
+    success = true
+  } finally {
+    if (!success)
+      await recordBusinessState(await a.firstWindow(), 'business-state-a.json').catch(console.error)
+    if (!success)
+      await recordBusinessState(await b.firstWindow(), 'business-state-b.json').catch(console.error)
+    await a.close()
+    await b.close()
+    await rig.close(success)
+  }
+})
+
+test('real Electron handles arrangement and profile conflicts and preserves device authority', async () => {
+  test.setTimeout(150000)
+  const rig = await yukiFixture({ character: true })
+  const a = await rig.launch('character-a')
+  const b = await rig.launch('character-b')
+  let success = false
+  try {
+    const pa = await a.firstWindow()
+    const pb = await b.firstWindow()
+    const errors: string[] = []
+    pa.on('pageerror', (error) => errors.push(error.message))
+    pb.on('pageerror', (error) => errors.push(error.message))
+    await pa.bringToFront()
+    await pairUI(pa, rig.base, await rig.code())
+    const connection = await currentConnection(pa)
+    const original = await pa.evaluate(async (id) => {
+      const result = await window.yuki.client.read<Profile>(id, { kind: 'character' })
+      if (!result.ok) throw Error(result.code)
+      return result.value
+    }, connection.characterId)
+    const sourceText = '這是記憶的原始依據。'
+    const composer = pa.getByRole('textbox', { name: `和 ${original.display_name} 說點什麼` })
+    await composer.fill(sourceText)
+    await pa.getByRole('button', { name: '送出', exact: true }).click()
+    const sent = await waitForAcceptedMessage(pa, connection.characterId, sourceText)
+    const seed = await fetch(`${rig.base}/__test/character-data`, { method: 'POST' })
+    const seeded = await seed.json()
+    expect(seed.status, JSON.stringify(seeded)).toBe(200)
+    expect(seeded.source_event_id).toBe(sent.eventId)
+    await pb.bringToFront()
+    await pairUI(pb, rig.base, await rig.code())
+    await navigate(pb, `關於 ${original.display_name}`)
+    await pa.bringToFront()
+    await navigate(pa, `關於 ${original.display_name}`)
     await pa.getByRole('tab', { name: '安排', exact: true }).click()
     await pa.getByRole('button', { name: '暫停', exact: true }).click()
     await expect(pa.getByRole('button', { name: '恢復', exact: true })).toBeVisible()
