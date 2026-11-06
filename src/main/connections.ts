@@ -1,3 +1,4 @@
+import type { ComputerScreen } from '../shared/api'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
@@ -640,9 +641,9 @@ export class Connections {
     this.emit(id, 'computer-command', {})
     return result
   }
-  async computerTicket(id: string) {
+  async computerTicket(id: string, screen?: ComputerScreen) {
     await this.box(id).verifyOwner(this.client(id))
-    return this.computerTickets.issue(this.client(id))
+    return this.computerTickets.issue(this.client(id), screen)
   }
   async computerFile(id: string, path: string) {
     await this.box(id).verifyOwner(this.client(id))

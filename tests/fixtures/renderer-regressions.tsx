@@ -141,6 +141,7 @@ const historicalWork: Work = {
   state: 'completed',
 }
 const computerView: Computer = {
+  snowluma_display: false,
   revision: 1,
   environment: 'running',
   display: 'running',

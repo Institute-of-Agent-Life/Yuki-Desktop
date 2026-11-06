@@ -6,6 +6,7 @@ import { Camera, ClipboardPaste, Keyboard, Maximize2, Moon, Monitor, RefreshCw }
 import type {
   Computer as ComputerState,
   ComputerCommand,
+  ComputerScreen,
   ComputerCommandItem,
   ComputerFiles,
   Connection,
@@ -52,6 +53,7 @@ export function Computer({
   const id = connection.characterId,
     query = useComputer(id),
     client = useQueryClient()
+  const [screen, setScreen] = useState<ComputerScreen>('sandbox')
   const me = useMe(id)
   const administrator = me.data?.is_superuser === true && !hidesPrivateData(me.error)
   const state = query.error ? undefined : query.data
@@ -122,6 +124,38 @@ export function Computer({
         <Button onClick={() => void query.refetch()}>重新讀取</Button>
       </EmptyState>
     )
+  const sources = !compact && state.snowluma_display && (
+    <label className={styles.sourcePicker}>
+      顯示器{' '}
+      <select
+        aria-label="顯示器"
+        value={screen === 'sandbox' ? 'sandbox' : 'qq-view'}
+        onChange={(event) => setScreen(event.target.value === 'sandbox' ? 'sandbox' : 'qq-view')}
+      >
+        <option value="sandbox">{name} 的沙箱</option>
+        <option value="qq-view">QQ 登入</option>
+      </select>
+    </label>
+  )
+  if (sources && screen !== 'sandbox') {
+    const qqToolbar = (
+      <div
+        data-computer-toolbar={toolbar ? '' : undefined}
+        className={`${styles.header} ${toolbar ? styles.toolbarHeader : ''}`}
+      >
+        {sources}
+        <Button onClick={() => setScreen(screen === 'qq-control' ? 'qq-view' : 'qq-control')}>
+          {screen === 'qq-control' ? '結束 QQ 控制' : '接手 QQ'}
+        </Button>
+      </div>
+    )
+    return (
+      <section className={styles.computer} aria-label="QQ 登入">
+        {toolbar ? createPortal(qqToolbar, toolbar) : qqToolbar}
+        <RemoteScreen key={id + screen} id={id} held={screen === 'qq-control'} screen={screen} />
+      </section>
+    )
+  }
   const help = state.help_requests.filter((item) => item.kind === 'help')
   const controls =
     control?.holder === 'human' ? (
@@ -157,7 +191,7 @@ export function Computer({
       aria-label="電腦狀態與控制"
     >
       <div>
-        <h2>{name} 的電腦</h2>
+        {sources || <h2>{name} 的電腦</h2>}
         <span>
           {state.display === 'running'
             ? '運作中'
@@ -388,7 +422,9 @@ function RemoteScreen({
   id,
   held,
   preview = false,
+  screen = 'sandbox',
 }: {
+  screen?: ComputerScreen
   id: string
   held: boolean
   preview?: boolean
@@ -412,7 +448,7 @@ function RemoteScreen({
     setConnected(false)
     setClipboardReady(false)
     void window.yuki.client
-      .computerTicket(id)
+      .computerTicket(id, screen)
       .then(unwrap)
       .then((url) => {
         if (!active || !target.current) return
@@ -440,9 +476,14 @@ function RemoteScreen({
             setConnected(false)
             setClipboardReady(false)
             if (rfb.current === instance) rfb.current = null
-            setProblem('畫面連線已中斷，正在重新連線。')
+            setProblem(
+              screen === 'qq-control'
+                ? 'QQ 控制連線已中斷，請重新接手。'
+                : '畫面連線已中斷，正在重新連線。',
+            )
             if (!preview) void window.yuki.client.keyboardCapture(false)
-            retry = setTimeout(() => setAttempt((value) => value + 1), 1500)
+            if (screen !== 'qq-control')
+              retry = setTimeout(() => setAttempt((value) => value + 1), 1500)
           }
         })
       })
@@ -450,8 +491,9 @@ function RemoteScreen({
         if (active) {
           setProblem(error.message)
           if (
-            !(error instanceof ClientProblem) ||
-            !['unauthenticated', 'forbidden', 'not_found'].includes(error.code)
+            screen !== 'qq-control' &&
+            (!(error instanceof ClientProblem) ||
+              !['unauthenticated', 'forbidden', 'not_found'].includes(error.code))
           )
             retry = setTimeout(() => setAttempt((value) => value + 1), 2000)
         }
@@ -463,7 +505,7 @@ function RemoteScreen({
       rfb.current = null
       if (!preview) void window.yuki.client.keyboardCapture(false)
     }
-  }, [id, attempt, preview])
+  }, [id, attempt, preview, screen])
   useEffect(() => {
     if (rfb.current) {
       rfb.current.viewOnly = !held

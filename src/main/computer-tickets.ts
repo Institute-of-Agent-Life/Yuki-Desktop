@@ -1,11 +1,15 @@
 import { ApiClient, ApiError } from './api/client'
 import type { components } from '../shared/contract.gen'
 
+import type { ComputerScreen } from '../shared/api'
+
 export class ComputerTickets {
   private urls = new Map<string, number>()
-  async issue(client: ApiClient) {
+  async issue(client: ApiClient, screen: ComputerScreen = 'sandbox') {
     const value = await client.post<components['schemas']['DisplayTicket']>(
-      'computer/display-tickets',
+      screen === 'sandbox'
+        ? 'computer/display-tickets'
+        : 'computer/snowluma/display-tickets?control=' + (screen === 'qq-control'),
       {},
     )
     const target = new URL(client.endpoint('computer/display'))
