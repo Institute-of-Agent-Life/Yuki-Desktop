@@ -1299,8 +1299,8 @@
             "anyOf": [
               {
                 "enum": [
-                  "model",
-                  "tavily"
+                  "tavily",
+                  "model"
                 ],
                 "type": "string"
               },

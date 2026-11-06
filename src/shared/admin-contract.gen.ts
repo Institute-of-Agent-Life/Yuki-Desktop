@@ -1243,7 +1243,7 @@ export interface components {
             schema_version: number;
             search?: components["schemas"]["SearchConnection"] | null;
             /** Search Backend */
-            search_backend?: ("model" | "tavily") | null;
+            search_backend?: ("tavily" | "model") | null;
             /** Search Connection */
             search_connection?: string | null;
             semantic_observation?: components["schemas"]["SemanticObservation"] | null;
