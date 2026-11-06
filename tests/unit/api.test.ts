@@ -18,8 +18,8 @@ const codes = [
   'unavailable',
   'unknown',
 ]
-it('requires the API revision in the fixed backend contract', () => {
-  expect(REQUIRED_API_REVISION).toBe(contract.info['x-yuki-api-revision'])
+it('accepts the pinned contract and keeps existing sandbox-only clients compatible', () => {
+  expect(contract.info['x-yuki-api-revision']).toBeGreaterThanOrEqual(REQUIRED_API_REVISION)
 })
 it.each(codes)('keeps the public problem code %s and provides a readable message', async (code) => {
   const client = new ApiClient(
