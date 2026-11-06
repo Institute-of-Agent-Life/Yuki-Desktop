@@ -1,3 +1,4 @@
+import type { ComputerScreen } from '../shared/api'
 import electronUpdater from 'electron-updater'
 import { AppUpdates } from './updates'
 import { FeedOnlyUpdater } from './feed-updater'
@@ -826,7 +827,9 @@ else {
     clientAction('verify-character-command', (id: string, request: string) =>
       connections.verifyCharacterCommand(id, request),
     )
-    clientAction('computer-ticket', (id: string) => connections.computerTicket(id))
+    clientAction('computer-ticket', (id: string, screen?: ComputerScreen) =>
+      connections.computerTicket(id, screen),
+    )
     clientAction('save-computer-file', async (id: string, path: string) => {
       const item = await connections.computerFile(id, path)
       const target = await dialog.showSaveDialog(win!, {

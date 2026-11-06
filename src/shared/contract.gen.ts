@@ -534,6 +534,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/client/v1/computer/snowluma/display-tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Qq Display Ticket */
+        post: operations["qq_display_ticket_client_v1_computer_snowluma_display_tickets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/client/v1/computer/wake": {
         parameters: {
             query?: never;
@@ -1366,6 +1383,11 @@ export interface components {
             resources: components["schemas"]["ComputerResources"] | null;
             /** Revision */
             revision: number;
+            /**
+             * Snowluma Display
+             * @default false
+             */
+            snowluma_display: boolean;
             /** Tabs */
             tabs: components["schemas"]["ComputerTab"][];
             /** Tabs Available */
@@ -3756,6 +3778,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_ComputerResult_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    qq_display_ticket_client_v1_computer_snowluma_display_tickets_post: {
+        parameters: {
+            query?: {
+                control?: boolean;
+            };
+            header?: {
+                authorization?: string | null;
+                "x-yuki-entry"?: string | null;
+                "x-yuki-conversation"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DisplayTicket_"];
                 };
             };
             /** @description Validation Error */

@@ -1471,6 +1471,11 @@
             "title": "Revision",
             "type": "integer"
           },
+          "snowluma_display": {
+            "default": false,
+            "title": "Snowluma Display",
+            "type": "boolean"
+          },
           "tabs": {
             "items": {
               "$ref": "#/components/schemas/ComputerTab"
@@ -5093,7 +5098,7 @@
   "info": {
     "title": "Yuki personal API",
     "version": "4.0.0",
-    "x-yuki-api-revision": 9
+    "x-yuki-api-revision": 10
   },
   "openapi": "3.1.0",
   "paths": {
@@ -7924,6 +7929,94 @@
           }
         },
         "summary": "Sleep Computer"
+      }
+    },
+    "/client/v1/computer/snowluma/display-tickets": {
+      "post": {
+        "operationId": "qq_display_ticket_client_v1_computer_snowluma_display_tickets_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "control",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Control",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-yuki-entry",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Yuki-Entry"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-yuki-conversation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Yuki-Conversation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DisplayTicket_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Qq Display Ticket"
       }
     },
     "/client/v1/computer/wake": {

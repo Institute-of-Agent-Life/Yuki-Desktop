@@ -111,6 +111,7 @@ export type Work = components['schemas']['Work']
 export type WorkSteps = components['schemas']['WorkSteps']
 export type WorkPage = components['schemas']['WorkPage']
 export type ArtifactPage = components['schemas']['ArtifactPage']
+export type ComputerScreen = 'sandbox' | 'qq-view' | 'qq-control'
 export type Computer = components['schemas']['ComputerView']
 export type ComputerResult = components['schemas']['ComputerResult']
 export type ComputerFiles = components['schemas']['ComputerFiles']
@@ -337,7 +338,7 @@ export interface ConversationBridge {
     link?: string
     save?: boolean
   }): Promise<ApiReply<'save' | null>>
-  computerTicket(characterId: string): Promise<ApiReply<string>>
+  computerTicket(characterId: string, screen?: ComputerScreen): Promise<ApiReply<string>>
   saveComputerFile(characterId: string, path: string): Promise<ApiReply<boolean>>
   computerCommand(
     characterId: string,
