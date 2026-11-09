@@ -1,4 +1,6 @@
 import { useFloatingInsets } from '../materials/floating'
+import { useGlass } from '../materials/glass'
+import { reducedMotion } from '../motion/hooks'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
@@ -141,7 +143,12 @@ export function Conversation({
   const activeRange = useRef('')
   const prepend = useRef<{ range: string; eventId: string; top: number } | null>(null)
   activeRange.current = `${conversation}/${anchor}`
-  const latestSeen = useRef<{ range: string; event: number }>({ range: '', event: 0 })
+  const latestSeen = useRef<{ range: string; event: number; generation?: number }>({
+    range: '',
+    event: 0,
+  })
+  const sentMessages = useRef(new Set<string>())
+  const liveMessage = useRef<Home['main']>(undefined)
   const home = useQuery({ queryKey: [id, 'home'], queryFn: () => read<Home>(id, { kind: 'home' }) })
   const me = useMe(id)
   const administrator = me.data?.is_superuser === true && !hidesPrivateData(me.error)
@@ -253,6 +260,8 @@ export function Conversation({
   const eventData = accessLost || hidesPrivateData(events.error) ? undefined : events.data,
     homeData = accessLost || hidesPrivateData(home.error) ? undefined : home.data,
     profileData = accessLost || hidesPrivateData(profile.error) ? undefined : profile.data
+  const processing =
+    online === 'online' && !activity.error && activity.data?.evidence === 'executing'
   const refresh = useCallback(() => {
     for (const key of [
       'home',
@@ -354,8 +363,13 @@ export function Conversation({
     () =>
       window.yuki.client.onHint((character, kind, data) => {
         if (character !== id) return
+        if (kind === 'sync' || kind === 'connection') liveMessage.current = undefined
         if (kind === 'sync') query.setQueryData([id, 'sync'], data)
         if (kind === 'conversation' || kind === 'work') {
+          if (kind === 'conversation') {
+            const entry = data as Home['main']
+            if (activeRange.current === `${entry.conversation_id}/null`) liveMessage.current = entry
+          }
           query.setQueryData<SyncHint>([id, 'sync'], (current) => {
             if (!current) return current
             if (kind === 'conversation') {
@@ -412,18 +426,55 @@ export function Conversation({
   useEffect(() => {
     if (accessLost) setPalette(false)
   }, [accessLost])
+  useLayoutEffect(() => {
+    const log = list.current
+    if (
+      !log ||
+      !active ||
+      anchor !== null ||
+      search !== null ||
+      !bottom.current ||
+      log.closest('[inert]') ||
+      reducedMotion()
+    ) {
+      sentMessages.current.clear()
+      liveMessage.current = undefined
+      return
+    }
+    for (const requestId of sentMessages.current) {
+      const row = log.querySelector(`[data-message-request="${CSS.escape(requestId)}"]`)
+      if (!row) continue
+      sentMessages.current.delete(requestId)
+      animateMessage(row, true)
+    }
+    const hint = liveMessage.current
+    if (!hint || !eventData || eventData.latest_event_id < hint.latest_event_id) return
+    liveMessage.current = undefined
+    const previous = latestSeen.current
+    if (
+      hint.conversation_id !== conversation ||
+      previous.range !== activeRange.current ||
+      previous.generation !== eventData.generation ||
+      hint.generation !== eventData.generation ||
+      hint.latest_event_id <= previous.event
+    )
+      return
+    const arrival = eventData.items.find((event) => event.event_id === hint.latest_event_id)
+    if (arrival?.author_kind === 'yuki')
+      animateMessage(log.querySelector(`[data-event-id="${arrival.event_id}"]`), false)
+  })
   useEffect(() => {
     const range = `${conversation}/${anchor}`
     const last = events.data?.items.at(-1)?.event_id ?? 0
     const previous = latestSeen.current
-    latestSeen.current = { range, event: last }
+    latestSeen.current = { range, event: last, generation: events.data?.generation }
     if (bottom.current && anchor === null) {
       requestAnimationFrame(() => list.current?.scrollTo({ top: list.current.scrollHeight }))
       setNewMessages(false)
     } else if (previous.range === range && previous.event > 0 && last > previous.event) {
       setNewMessages(true)
     }
-  }, [events.data, outbox.data, conversation, anchor])
+  }, [events.data, outbox.data, conversation, anchor, processing])
   useEffect(() => {
     if (!jump || jump.conversationId !== conversation || !events.data) return
     const original = events.data.items.find((item) => item.event_id === jump.eventId)
@@ -507,13 +558,14 @@ export function Conversation({
     const submittedDraft = currentDraft.current
     const sentReferences = currentReferences.current
     const text = referencedMessage(sentReferences, submittedDraft)
-    unwrap(
+    const receipt = unwrap(
       await window.yuki.client.send(
         id,
         text,
         uploads.data?.map((item) => item.requestId),
       ),
     )
+    sentMessages.current.add(receipt.requestId)
     if (currentDraft.current === submittedDraft) {
       currentDraft.current = ''
       setDraft('')
@@ -1105,11 +1157,11 @@ export function Conversation({
               )}
               {eventData && !eventData.has_more && visible.length > 0 && search === null && (
                 <header className={styles.conversationIntroduction}>
-                  <CharacterAvatar size={64} />
+                  <CharacterAvatar size={26} />
                   <h2>{name}</h2>
                   <p>
                     {isMain
-                      ? `這是你與 ${name} 的桌面對話`
+                      ? '桌面對話'
                       : `${entry?.platform.toUpperCase() ?? ''} · ${entry?.display_name ?? ''}`}
                   </p>
                 </header>
@@ -1141,6 +1193,7 @@ export function Conversation({
                     characterId={id}
                     viewerPersonId={connection.personId}
                     receipt={(outbox.data ?? []).find((item) => item.eventId === event.event_id)}
+                    refract={active && pending.length === 0 && index === visible.length - 1}
                     verify={async (requestId) => {
                       unwrap(await window.yuki.client.verify(id, requestId))
                       refresh()
@@ -1174,22 +1227,41 @@ export function Conversation({
                 </Fragment>
               ))}
               {pending.map((item) => (
-                <div key={item.requestId} className={styles.ownMessage}>
-                  <References
-                    characterId={id}
-                    text={item.body.text}
-                    onJump={(ref) => void jumpTo(ref)}
-                  />
-                  <p>{parseMessage(item.body.text).text}</p>
-                  <Pending
-                    item={item}
-                    verify={async () => {
-                      unwrap(await window.yuki.client.verify(id, item.requestId))
-                      refresh()
-                    }}
-                  />
+                <div
+                  key={item.requestId}
+                  data-message-request={item.requestId}
+                  className={`${styles.message} ${styles.ownMessage}`}
+                >
+                  <MessageBubble refract={active && pending.at(-1) === item}>
+                    <References
+                      characterId={id}
+                      text={item.body.text}
+                      onJump={(ref) => void jumpTo(ref)}
+                    />
+                    <p className={styles.pendingText}>{parseMessage(item.body.text).text}</p>
+                    <Pending
+                      item={item}
+                      verify={async () => {
+                        unwrap(await window.yuki.client.verify(id, item.requestId))
+                        refresh()
+                      }}
+                    />
+                  </MessageBubble>
                 </div>
               ))}
+              {processing && (
+                <div className={`${styles.message} ${styles.processing}`} role="status">
+                  <CharacterAvatar size={28} />
+                  <MessageBubble>
+                    <span className={styles.waitDots} aria-hidden="true">
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                    <span>{name} 正在處理</span>
+                  </MessageBubble>
+                </div>
+              )}
             </div>
             {(newMessages || anchor !== null) && (
               <button
@@ -1203,15 +1275,6 @@ export function Conversation({
               >
                 {anchor !== null ? '回到最新訊息' : '↓ 新訊息'}
               </button>
-            )}
-            {online === 'online' && !activity.error && activity.data?.evidence === 'executing' && (
-              <div className={styles.processing} role="status">
-                <span aria-hidden="true">
-                  <CharacterAvatar size={20} />
-                </span>
-                <span aria-hidden="true">•••</span>
-                <span>{name} 正在處理</span>
-              </div>
             )}
             {isMain && replyWork ? (
               <WorkReply
@@ -1383,10 +1446,75 @@ function Pending({ item, verify }: { item: OutboxItem; verify(): Promise<void> }
   )
 }
 
+function animateMessage(row: Element | null, outgoing: boolean) {
+  const glass = row?.querySelector('[data-glass="bubble"]')
+  const settled = { transform: 'translateY(0) scale(1)', opacity: 1 }
+  glass?.animate(
+    outgoing
+      ? [
+          { transform: 'translateY(14px) scale(.78, .83)', opacity: 0.24 },
+          { transform: 'translateY(0) scale(1.045, .98)', opacity: 1, offset: 0.58 },
+          { transform: 'translateY(0) scale(.997, 1.012)', opacity: 1, offset: 0.82 },
+          settled,
+        ]
+      : [
+          {
+            transform: 'translateY(3px) scale(.91, .91)',
+            clipPath: 'inset(0 82% 45% 0 round 16px)',
+            opacity: 0.28,
+          },
+          {
+            transform: 'translateY(0) scale(1.016, 1.008)',
+            clipPath: 'inset(0 round 16px)',
+            opacity: 1,
+            offset: 0.79,
+          },
+          { ...settled, clipPath: 'inset(0 round 16px)' },
+        ],
+    { duration: outgoing ? 360 : 400, easing: 'cubic-bezier(.22, 1, .36, 1)' },
+  )
+  row?.querySelector(`.${styles.bubbleCopy}`)?.animate(
+    outgoing
+      ? [{ opacity: 0 }, { opacity: 1 }]
+      : [
+          { opacity: 0, clipPath: 'inset(0 65% 0 0)' },
+          { opacity: 1, clipPath: 'inset(0)' },
+        ],
+    {
+      duration: outgoing ? 170 : 265,
+      delay: outgoing ? 65 : 70,
+      easing: 'ease-out',
+      fill: 'backwards',
+    },
+  )
+}
+
+function MessageBubble({
+  children,
+  refract = false,
+}: {
+  children: React.ReactNode
+  refract?: boolean
+}) {
+  const glass = useGlass<HTMLSpanElement>('bubble')
+  return (
+    <div className={styles.bubble}>
+      <span
+        ref={refract ? glass.ref : undefined}
+        data-glass="bubble"
+        className={styles.bubbleGlass}
+        aria-hidden="true"
+      />
+      <div className={styles.bubbleCopy}>{children}</div>
+    </div>
+  )
+}
+
 export function Message({
   characterId,
   viewerPersonId,
   receipt,
+  refract,
   verify,
   event,
   name,
@@ -1401,6 +1529,7 @@ export function Message({
   characterId: string
   viewerPersonId: string
   receipt?: OutboxItem
+  refract?: boolean
   verify(requestId: string): Promise<void>
   event: PublicEvent
   name: string
@@ -1422,6 +1551,7 @@ export function Message({
   return (
     <article
       data-event-id={event.event_id}
+      data-message-request={own ? receipt?.requestId : undefined}
       tabIndex={0}
       aria-label={`${author}的訊息`}
       className={`${styles.message} ${own ? styles.ownMessage : ''} ${selected ? styles.selected : ''} ${consecutive ? styles.consecutive : ''}`}
@@ -1448,49 +1578,51 @@ export function Message({
           <Avatar name={author} size={28} />
         ))}
       <div className={styles.messageBody}>
-        <header>
-          <strong>{author}</strong>
-          <time dateTime={event.created_at}>{timeLabel(event.created_at)}</time>
-        </header>
-        <References characterId={characterId} text={event.content} onJump={onJump} />
-        <Markdown
-          id={characterId}
-          text={parseMessage(event.content).text}
-          className={styles.markdown}
-          onClick={(event) => {
-            const copy = (event.target as HTMLElement).closest('button[data-code-copy]')
-            if (copy) {
-              event.stopPropagation()
-              const text = copy.parentElement?.querySelector('pre code')?.textContent
-              if (text !== undefined && text !== null)
-                action(window.yuki.client.copy(text).then(unwrap))
-              return
-            }
-            const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href]')
-            if (link) {
-              event.preventDefault()
-              event.stopPropagation()
-              action(window.yuki.client.external(link.href).then(unwrap))
-            }
-          }}
-        />
-        {error && <Banner status="failed">{error}</Banner>}
-        {own && receipt && <Pending item={receipt} verify={() => verify(receipt.requestId)} />}
-        {event.attachments.map((attachment) => (
-          <MessageAttachment
-            key={attachment.attachment_index}
+        <MessageBubble refract={refract}>
+          <header>
+            <strong>{author}</strong>
+            <time dateTime={event.created_at}>{timeLabel(event.created_at)}</time>
+          </header>
+          <References characterId={characterId} text={event.content} onJump={onJump} />
+          <Markdown
             id={characterId}
-            event={event}
-            attachment={attachment}
-            open={onAttachment}
-            artifact={onArtifact}
+            text={parseMessage(event.content).text}
+            className={styles.markdown}
+            onClick={(event) => {
+              const copy = (event.target as HTMLElement).closest('button[data-code-copy]')
+              if (copy) {
+                event.stopPropagation()
+                const text = copy.parentElement?.querySelector('pre code')?.textContent
+                if (text !== undefined && text !== null)
+                  action(window.yuki.client.copy(text).then(unwrap))
+                return
+              }
+              const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href]')
+              if (link) {
+                event.preventDefault()
+                event.stopPropagation()
+                action(window.yuki.client.external(link.href).then(unwrap))
+              }
+            }}
           />
-        ))}
-        {event.asr.map((transcript) => (
-          <p key={transcript.segment_index} data-transcript-segment={transcript.segment_index}>
-            {transcript.text}
-          </p>
-        ))}
+          {error && <Banner status="failed">{error}</Banner>}
+          {own && receipt && <Pending item={receipt} verify={() => verify(receipt.requestId)} />}
+          {event.attachments.map((attachment) => (
+            <MessageAttachment
+              key={attachment.attachment_index}
+              id={characterId}
+              event={event}
+              attachment={attachment}
+              open={onAttachment}
+              artifact={onArtifact}
+            />
+          ))}
+          {event.asr.map((transcript) => (
+            <p key={transcript.segment_index} data-transcript-segment={transcript.segment_index}>
+              {transcript.text}
+            </p>
+          ))}
+        </MessageBubble>
         <div className={styles.messageActions}>
           <IconButton
             label="複製訊息"

@@ -322,7 +322,7 @@ export function WorkDetail({
     void query.invalidateQueries({ queryKey: [id, 'work-question-drafts', workId] })
   }
   return (
-    <div className={styles.detail}>
+    <div className={styles.detail} data-work-detail>
       {failure && (
         <Banner status="failed">
           {failure.message}

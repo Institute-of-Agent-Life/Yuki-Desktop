@@ -4,6 +4,7 @@ const NS = 'http://www.w3.org/2000/svg'
 const presets = {
   toolbar: [10, 12, 0],
   composer: [16, 18, 0],
+  bubble: [7, 6, 0],
   toast: [10, 12, 0],
   slider: [7, 10, 0.32],
   toggle: [5, 7, 0.2],
@@ -26,8 +27,9 @@ function lens(width: number, height: number, radius: number, kind: GlassKind) {
   const [edgeHeight, amount, zoom] = presets[kind]
   const canvas = document.createElement('canvas'),
     rim = document.createElement('canvas')
-  canvas.width = rim.width = width * 2
-  canvas.height = rim.height = height * 2
+  const resolution = kind === 'bubble' ? Math.min(1, 360 / Math.max(width, height)) : 2
+  canvas.width = rim.width = Math.max(1, Math.round(width * resolution))
+  canvas.height = rim.height = Math.max(1, Math.round(height * resolution))
   const context = canvas.getContext('2d')!,
     lightContext = rim.getContext('2d')!
   const pixels = context.createImageData(canvas.width, canvas.height)
@@ -37,8 +39,8 @@ function lens(width: number, height: number, radius: number, kind: GlassKind) {
     normalRadius = Math.min(radius * 1.5, hx, hy)
   for (let j = 0; j < canvas.height; j++)
     for (let i = 0; i < canvas.width; i++) {
-      const x = (i + 0.5) / 2 - hx,
-        y = (j + 0.5) / 2 - hy,
+      const x = ((i + 0.5) * width) / canvas.width - hx,
+        y = ((j + 0.5) * height) / canvas.height - hy,
         k = (j * canvas.width + i) * 4
       const distance = roundedDistance(x, y, hx, hy, radius),
         inset = -distance

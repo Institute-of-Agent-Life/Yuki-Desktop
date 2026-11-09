@@ -26,6 +26,7 @@ import type {
   CachedContent,
   EventsPage,
   Home,
+  OutboxItem,
   PublicEvent,
   Profile,
   SoulDocument,
@@ -35,6 +36,7 @@ import type {
   WorkSteps,
 } from '../../src/shared/api'
 import '../../src/renderer/tokens.css'
+import '../../src/renderer/materials/materials.css'
 
 const document: SoulDocument = {
   file_name: 'SOUL.md',
@@ -204,6 +206,40 @@ const historicalEvents: EventsPage = {
     },
   ],
 }
+const glassCase = 'conversation-glass'
+const glassConversation = '22222222-2222-4222-8222-222222222222'
+const glassEntry = { ...home.main, conversation_id: glassConversation }
+const glassItems = [
+  '幫我整理一下這週的訪談筆記。',
+  '我先按主題分組，原始筆記和摘要會一起留著。',
+  '好，請把值得回訪的問題另外標出來。',
+  '已經標出三個可以追問的問題。原始訪談的來源也保留在各段下方。',
+].map((content, index): PublicEvent => ({
+  ...historicalEvents.items[index % 2]!,
+  id: 31 + index,
+  event_id: 31 + index,
+  conversation_id: glassConversation,
+  content,
+  text: content,
+  work_ids: index < 2 ? [historicalWork.work_id] : [],
+}))
+let glassOutbox: OutboxItem | undefined
+let glassExecuting = false
+function appendGlassMessage(content: string, incoming: boolean) {
+  const eventId = glassItems.at(-1)!.event_id + 1
+  glassItems.push({
+    ...historicalEvents.items[incoming ? 1 : 0]!,
+    id: eventId,
+    event_id: eventId,
+    conversation_id: glassConversation,
+    content,
+    text: content,
+    work_ids: [],
+  })
+  for (const listener of hintListeners)
+    listener('role', 'conversation', { ...glassEntry, latest_event_id: eventId })
+}
+
 const imageConversation = '11111111-1111-4111-8111-111111111111'
 let imageAppended = false
 let pendingConversationImage: { eventId: number; release(): void } | undefined
@@ -385,13 +421,36 @@ Object.assign(window, {
         }
         if (
           [
+            glassCase,
             'historical-work',
             'late-work-combined',
             'connection-reconnect',
             'conversation-scroll',
           ].includes(mode ?? '')
         ) {
-          if (route.kind === 'home') return { ok: true, value: { ...home, works: [] } }
+          if (route.kind === 'home')
+            return {
+              ok: true,
+              value: { ...home, main: mode === glassCase ? glassEntry : home.main, works: [] },
+            }
+          if (mode === glassCase && route.kind === 'events') {
+            const latest = glassItems.at(-1)!.event_id
+            return {
+              ok: true,
+              value: {
+                ...historicalEvents,
+                revision: latest,
+                latest_event_id: latest,
+                next_after: latest,
+                items:
+                  route.after === undefined
+                    ? [...glassItems]
+                    : glassItems
+                        .filter((item) => item.event_id > route.after!)
+                        .slice(0, route.limit),
+              },
+            }
+          }
           if (route.kind === 'events')
             return {
               ok: true,
@@ -403,10 +462,25 @@ Object.assign(window, {
                     : historicalEvents.items,
               },
             }
-          if (route.kind === 'work') return { ok: true, value: historicalWork }
+          if (route.kind === 'work')
+            return {
+              ok: true,
+              value:
+                mode === glassCase
+                  ? { ...historicalWork, goal: '整理訪談筆記', results: [] }
+                  : historicalWork,
+            }
           if (route.kind === 'character') return { ok: true, value: profile }
           if (route.kind === 'character-status') return { ok: true, value: characterStatus }
-          if (route.kind === 'activity') return { ok: true, value: activity }
+          if (route.kind === 'activity')
+            return {
+              ok: true,
+              value: {
+                ...activity,
+                conversation_id: route.conversationId,
+                evidence: mode === glassCase && glassExecuting ? 'executing' : 'idle',
+              },
+            }
         }
         if (route.kind === 'home') return { ok: true, value: home }
         if (route.kind === 'work')
@@ -475,7 +549,23 @@ Object.assign(window, {
         submissions++
         return { ok: false, code: 'fixture_only' }
       },
-      outbox: async () => ({ ok: true, value: [] }),
+      send: async (_id: string, text: string) => {
+        if (new URLSearchParams(location.search).get('case') !== glassCase)
+          return { ok: false, code: 'fixture_only' }
+        const requestId = crypto.randomUUID()
+        submissions++
+        glassOutbox = {
+          requestId,
+          body: { request_id: requestId, text, attachments: [] },
+          payloadHash: '0'.repeat(64),
+          state: 'accepted',
+          eventId: glassItems.at(-1)!.event_id + 1,
+          problem: null,
+          createdAt: Date.now(),
+        }
+        return { ok: true, value: glassOutbox }
+      },
+      outbox: async () => ({ ok: true, value: glassOutbox ? [glassOutbox] : [] }),
       uploads: async () => ({ ok: true, value: [] }),
       letterDecoration: async () => ({ ok: true, value: null }),
       content: async (_id: string, value: AttachmentSource) => {
@@ -553,6 +643,14 @@ Object.assign(window, {
       imageAppended = true
       for (const listener of hintListeners) listener('role', 'refresh', {})
     },
+    confirmGlassSend: () => {
+      glassExecuting = true
+      appendGlassMessage(glassOutbox!.body.text, false)
+    },
+    receiveGlassReply: (text: string) => {
+      glassExecuting = false
+      appendGlassMessage(text, true)
+    },
   },
 })
 
@@ -575,7 +673,12 @@ function Case() {
     baseUrl: 'https://example.invalid',
     personId: 'person',
     bindingId: 'binding',
-    conversationId: mode === 'conversation-scroll' ? imageConversation : 'conversation',
+    conversationId:
+      mode === 'conversation-scroll'
+        ? imageConversation
+        : mode === glassCase
+          ? glassConversation
+          : 'conversation',
     persistentCredentials: false,
     ...(parameters.get('logout') === 'true'
       ? {
@@ -677,6 +780,7 @@ function Case() {
     )
   if (
     [
+      glassCase,
       'historical-work',
       'late-work-combined',
       'connection-reconnect',
@@ -773,12 +877,7 @@ function Case() {
               verify={async () => {}}
             />
             {item.event_id === 5 && (
-              <ConversationWork
-                id="role"
-                work={work}
-                open={() => {}}
-                reply={() => {}}
-              />
+              <ConversationWork id="role" work={work} open={() => {}} reply={() => {}} />
             )}
           </Fragment>
         ))}

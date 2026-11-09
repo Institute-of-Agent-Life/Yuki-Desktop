@@ -194,11 +194,11 @@
   transition: opacity var(--motion-base) var(--ease-standard);
   background: linear-gradient(
     var(--bg-content),
-    color-mix(in srgb, var(--bg-content) 82%, transparent) 55%,
+    color-mix(in srgb, var(--bg-content) 94%, transparent) 68%,
     transparent
   );
   backdrop-filter: blur(6px);
-  mask-image: linear-gradient(#000 55%, transparent);
+  mask-image: linear-gradient(#000 68%, transparent);
 }
 .floating .toolbarScrolled {
   box-shadow: none;
@@ -290,46 +290,67 @@
   margin: 0 auto;
   width: min(712px, calc(100% - 40px));
   max-height: 200px;
-  overflow-y: auto;
-  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 22px;
   box-shadow: var(--shadow-glass);
-  padding: 10px 10px 8px 16px;
+  padding: 8px;
   background: var(--mat-thick);
-  backdrop-filter: blur(28px) saturate(170%) var(--refract,);
+  backdrop-filter: blur(18px) saturate(150%) var(--refract,);
 }
 .composer:focus-within {
   outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
   outline-offset: 1px;
 }
 .composer textarea {
-  width: 100%;
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  field-sizing: content;
   resize: none;
   display: block;
   min-height: 22px;
   max-height: 130px;
-  padding: 0 6px 0 0;
+  padding: 0 5px;
   border: 0;
   background: none;
   font-size: 14px;
   line-height: 22px;
   outline: none;
 }
-.composerBottom {
+.composerRow {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
-  gap: 4px;
-  justify-content: flex-end;
-  margin: 6px 0 0 -8px;
+  gap: 3px;
 }
-.composerBottom small {
-  margin-left: auto;
+.composerExtras {
+  min-height: 0;
+  overflow: auto;
+}
+.composerRow button {
+  flex-shrink: 0;
+}
+.composerRow small {
+  max-width: 27%;
+  margin-right: 4px;
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.composerError {
+  flex-shrink: 0;
+  margin: 4px 8px 0;
+  color: var(--status-failed);
+}
+.composerError:empty {
+  margin: 0;
+}
 .inspector {
   position: relative;
-  margin: 52px 6px 6px 0;
+  margin: 6px 6px 6px 0;
   border-radius: 14px;
   overflow: hidden;
   box-shadow: var(--shadow-panel);
@@ -338,6 +359,17 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+.splitWorkspace .main {
+  margin-right: 0;
+  border-radius: 14px 0 0 14px;
+  box-shadow: none;
+}
+.splitWorkspace .inspector {
+  border-left: var(--line) solid var(--separator);
+  border-radius: 0 14px 14px 0;
+  background: var(--bg-content);
+  box-shadow: none;
 }
 .inspectorHeader {
   height: 52px;
@@ -379,16 +411,37 @@
 .divider button:hover {
   background: color-mix(in srgb, var(--accent) 25%, transparent);
 }
-.overlay {
-  position: absolute;
-  top: 52px;
-  margin-top: 6px;
-  bottom: 16px;
-  right: 16px;
-  width: min(380px, calc(100vw - 48px));
-  border-radius: 14px;
-  box-shadow: var(--shadow-sheet);
-  z-index: 5;
+.behindDetail {
+  visibility: hidden;
+}
+.detailPage {
+  background: var(--bg-content);
+}
+.sidebarHidden .detailPage {
+  margin-left: 6px;
+}
+.detailPage .inspectorHeader {
+  border-bottom: var(--line) solid var(--separator);
+  -webkit-app-region: drag;
+}
+.detailPage .inspectorHeader button {
+  -webkit-app-region: no-drag;
+}
+.detailPage :global([data-work-detail]) {
+  width: min(100%, 760px);
+  margin-inline: auto;
+}
+.macCollapsed .detailPage .inspectorHeader {
+  padding-left: 86px;
+}
+:global([data-platform='win32']) .detailPage .inspectorHeader {
+  padding-right: 150px;
+}
+:global([data-platform='linux']) .detailPage .inspectorHeader {
+  padding-right: max(
+    16px,
+    calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 12px)
+  );
 }
 .sidebarOverlay {
   position: absolute;
@@ -406,8 +459,7 @@
 }
 @media (max-height: 599px) {
   .composer {
-    max-height: 96px;
-    padding: 6px 10px 8px 16px;
+    max-height: min(144px, 36%);
   }
   .composer textarea {
     max-height: 44px;
