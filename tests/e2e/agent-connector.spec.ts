@@ -591,6 +591,41 @@ for (const [mode, message] of [
   })
 }
 
+test('connector supervision shows revoked authorization, the last exit and restarts, and exports diagnostics', async ({
+  page,
+}) => {
+  await page.goto('http://127.0.0.1:4178/components.html?connector=supervision-revoked')
+  const status = page.getByRole('heading', { name: '狀態', exact: true }).locator('..')
+  await expect(status.getByText('授權已撤銷', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText(/授權已撤銷：伺服器拒絕了這台電腦的連接器憑據（/)).toBeVisible()
+  await expect(status.getByText('結束代碼 1', { exact: true })).toBeVisible()
+  await expect(status.getByText('2 次', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '匯出診斷', exact: true }).click()
+  await expect(page.getByText('連接器診斷已匯出。', { exact: true })).toBeVisible()
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __connectorCalls?: unknown[] }).__connectorCalls,
+    ),
+  ).toEqual([{ method: 'exportDiagnostics' }])
+  await page.screenshot({
+    path: test.info().outputPath('connector-supervision-settings.png'),
+    fullPage: true,
+  })
+  await page.getByRole('button', { name: '顯示本機活動', exact: true }).click()
+  await expect(page.getByText(/授權已撤銷：伺服器拒絕了這台電腦的連接器憑據。已保存/)).toBeVisible()
+  await page.screenshot({ path: test.info().outputPath('connector-supervision-revoked.png') })
+
+  await page.goto('http://127.0.0.1:4178/components.html?connector=supervision-restarting')
+  await expect(page.getByRole('switch', { name: '本機連接', exact: true })).toBeChecked()
+  await expect(status.getByText('連接器重新啟動中', { exact: true })).toBeVisible()
+  await expect(status.getByText('等待重新啟動', { exact: true })).toBeVisible()
+  await expect(status.getByText('訊號 SIGKILL', { exact: true })).toBeVisible()
+  await expect(status.getByText('3 次', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '顯示本機活動', exact: true }).click()
+  await expect(page.getByText(/正在重新啟動（已重新啟動 3 次）/)).toBeVisible()
+  await page.screenshot({ path: test.info().outputPath('connector-supervision-restarting.png') })
+})
+
 test('native readiness remains distinct from a running local connection and an online server', async ({
   page,
 }) => {

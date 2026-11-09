@@ -65,6 +65,18 @@ export function LocalComputer({
       {available.admission?.matched !== true && (
         <Banner status="unknown">目前尚未接納這份電腦連線；已保存的本人紀錄仍可查詢。</Banner>
       )}
+      {available.supervision?.link === 'authorization_lost' && (
+        <Banner status="failed">
+          授權已撤銷：伺服器拒絕了這台電腦的連接器憑據。已保存的本人紀錄仍可查詢。
+          <Button onClick={openSettings}>前往設定</Button>
+        </Banner>
+      )}
+      {available.supervision?.restartPending && (
+        <Banner status="waiting">
+          本機連接器非預期結束，正在重新啟動（已重新啟動 {available.supervision.restarts} 次）。
+          <Button onClick={openSettings}>查看診斷</Button>
+        </Banner>
+      )}
       <ConnectorTasks
         key={connection.characterId + available.deviceId}
         connection={connection}

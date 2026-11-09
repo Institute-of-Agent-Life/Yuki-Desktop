@@ -117,6 +117,28 @@ if (
     },
   }
 }
+if (connectorMode === 'supervision-revoked' || connectorMode === 'supervision-restarting')
+  connectorState = {
+    ...preparedConnector(),
+    paired: true,
+    deviceId: 'fixture-connector-device',
+    server: connectorConnection.baseUrl,
+    running: connectorMode === 'supervision-revoked',
+    admission: { matched: true, connected: false },
+    supervision:
+      connectorMode === 'supervision-revoked'
+        ? {
+            link: 'authorization_lost',
+            restarts: 2,
+            restartPending: false,
+            lastExit: { code: 1, signal: null, at: '2026-11-09T12:49:00.000Z' },
+          }
+        : {
+            restarts: 3,
+            restartPending: true,
+            lastExit: { code: null, signal: 'SIGKILL', at: '2026-11-09T12:49:00.000Z' },
+          },
+  }
 if (connectorMode === 'paired' || connectorMode === 'terminal-detail')
   connectorState = {
     ...preparedConnector(),
@@ -384,6 +406,10 @@ window.yuki = {
           : undefined,
       }
       return { ok: true, value: { instanceId: id } }
+    },
+    exportDiagnostics: async () => {
+      connectorCalls.push({ method: 'exportDiagnostics' })
+      return { ok: true, value: true }
     },
     diagnose: async (id) => {
       connectorCalls.push({ method: 'diagnose', input: id })
