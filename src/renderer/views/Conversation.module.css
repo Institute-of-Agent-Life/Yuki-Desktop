@@ -5,16 +5,25 @@
   min-height: 0;
   position: relative;
   padding-top: 52px;
+  --lens-line: color-mix(in srgb, var(--accent) 16%, transparent);
   background:
-    radial-gradient(
-      ellipse at 84% 90%,
-      color-mix(in srgb, var(--accent) 12%, transparent),
-      transparent 63%
+    linear-gradient(
+      132deg,
+      transparent 31%,
+      var(--lens-line) 31% calc(31% + 1px),
+      transparent calc(31% + 1px) 66%,
+      var(--lens-line) 66% calc(66% + 1px),
+      transparent calc(66% + 1px)
     ),
     radial-gradient(
-      ellipse at 8% 52%,
-      color-mix(in srgb, var(--accent) 6%, transparent),
-      transparent 65%
+      ellipse at 106% 120%,
+      color-mix(in srgb, var(--accent) 16%, transparent) 48%,
+      transparent 48.2%
+    ),
+    radial-gradient(
+      ellipse at -16% 70%,
+      color-mix(in srgb, var(--accent) 9%, transparent) 49%,
+      transparent 49.25%
     ),
     var(--bg-content);
 }
@@ -48,32 +57,56 @@
   min-width: 0;
 }
 .bubble {
+  --bubble-radius: 18px;
+  --bubble-bleed-inline: 22px;
+  --bubble-bleed-tail: 30px;
   position: relative;
   min-width: 0;
   padding: 8px 13px;
-  border-radius: 18px;
-  --bubble-tint: color-mix(in srgb, var(--bg-elevated) 48%, transparent);
-  --bubble-sheen: rgba(255, 255, 255, 0.56);
-  --bubble-reflection: rgba(255, 255, 255, 0.34);
-  --bubble-edge: color-mix(in srgb, var(--separator-strong) 74%, transparent);
+  border-radius: var(--bubble-radius);
+  --bubble-tint: color-mix(in srgb, var(--bg-elevated) 12%, transparent);
+  --bubble-edge: rgba(255, 255, 255, 0.94);
+  --bubble-edge-shadow: rgba(29, 54, 102, 0.18);
 }
 .bubbleGlass {
   position: absolute;
-  inset: 0;
+  inset: 0 calc(-1 * var(--bubble-bleed-inline)) calc(-1 * var(--bubble-bleed-tail));
+  padding: 0 var(--bubble-bleed-inline) var(--bubble-bleed-tail);
   border-radius: inherit;
+  clip-path: inset(
+    0 var(--bubble-bleed-inline) var(--bubble-bleed-tail) round var(--bubble-radius)
+  );
   pointer-events: none;
-  transform-origin: bottom left;
-  background:
-    linear-gradient(172deg, var(--bubble-sheen), transparent 43%),
-    linear-gradient(0deg, var(--bubble-reflection), transparent 24%), var(--bubble-tint);
-  box-shadow:
-    inset 0 1px 1px var(--bubble-sheen),
-    inset 0 -1px 0 var(--bubble-reflection),
-    0 0 0 var(--line) var(--bubble-edge),
-    0 3px 8px rgba(23, 37, 66, 0.06);
+  background: var(--bubble-tint);
+}
+.bubbleGlass::before {
+  inset: 0 var(--bubble-bleed-inline) var(--bubble-bleed-tail);
+  background: linear-gradient(
+    154deg,
+    var(--bubble-edge) 4%,
+    var(--bubble-edge-shadow) 54%,
+    var(--bubble-edge) 100%
+  );
+}
+.bubbleGlass:global([data-refracting])::before {
+  display: block;
 }
 .bubbleGlass:global([data-refracting]) {
-  backdrop-filter: saturate(125%) var(--refract,);
+  backdrop-filter: saturate(116%) var(--refract,);
+}
+.bubbleGlass:global([data-liquid])::before,
+.bubbleGlass:global([data-liquid])::after {
+  display: none;
+}
+.bubble > :global([data-liquid-outline]) {
+  position: absolute;
+  top: 0;
+  left: calc(-1 * var(--bubble-bleed-inline));
+  width: calc(100% + 2 * var(--bubble-bleed-inline));
+  height: calc(100% + var(--bubble-bleed-tail));
+  color: var(--bubble-edge);
+  filter: drop-shadow(0 0.75px 1px var(--bubble-edge-shadow));
+  pointer-events: none;
 }
 .bubbleCopy {
   position: relative;
@@ -81,10 +114,9 @@
   overflow-wrap: anywhere;
 }
 :global([data-theme='dark']) .bubble {
-  --bubble-tint: color-mix(in srgb, var(--bg-elevated) 54%, transparent);
-  --bubble-sheen: rgba(255, 255, 255, 0.1);
-  --bubble-reflection: rgba(172, 191, 238, 0.1);
-  --bubble-edge: color-mix(in srgb, var(--separator-strong) 78%, transparent);
+  --bubble-tint: color-mix(in srgb, var(--bg-elevated) 17%, transparent);
+  --bubble-edge: rgba(221, 236, 255, 0.56);
+  --bubble-edge-shadow: rgba(177, 198, 242, 0.12);
 }
 .dateSeparator {
   text-align: center;
@@ -114,11 +146,7 @@
   max-width: min(560px, 88%);
 }
 .ownMessage .bubble {
-  --bubble-tint: color-mix(in srgb, var(--accent) 18%, transparent);
-  --bubble-edge: color-mix(in srgb, var(--accent) 26%, transparent);
-}
-.ownMessage .bubbleGlass {
-  transform-origin: bottom right;
+  --bubble-tint: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 .pendingText {
   white-space: pre-wrap;
@@ -427,7 +455,10 @@
 }
 :global([data-opaque='true']) .bubbleGlass {
   background: var(--bg-elevated);
-  box-shadow: 0 0 0 var(--line) var(--separator-strong);
+}
+:global([data-opaque='true']) .bubbleGlass:not([data-liquid])::before {
+  display: block;
+  background: var(--separator-strong);
 }
 :global([data-opaque='true']) .ownMessage .bubbleGlass {
   background: var(--accent-subtle);
@@ -435,9 +466,11 @@
 @media (forced-colors: active) {
   .bubbleGlass {
     background: Canvas;
-    border: 1px solid CanvasText;
-    box-shadow: none;
     backdrop-filter: none !important;
+  }
+  .bubbleGlass:not([data-liquid])::before {
+    background: CanvasText;
+    forced-color-adjust: none;
   }
 }
 

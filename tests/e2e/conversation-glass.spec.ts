@@ -9,7 +9,8 @@ interface GlassFixture {
 
 interface GlassMotion {
   text: string
-  transforms: string[]
+  paths: string[]
+  enteredAt: number
 }
 
 type GlassWindow = Window & {
@@ -31,7 +32,8 @@ async function openConversation(page: Page) {
           continue
         motion.push({
           text: effect.target.parentElement?.textContent ?? '',
-          transforms: effect.getKeyframes().map((frame) => String(frame.transform ?? '')),
+          paths: effect.getKeyframes().map((frame) => String(frame.clipPath ?? '')),
+          enteredAt: Number(animation.currentTime),
         })
       }
       requestAnimationFrame(observe)
@@ -43,7 +45,24 @@ async function openConversation(page: Page) {
   await page.evaluate(() => (window as unknown as GlassWindow).regression.connection('online'))
 }
 
-test('new conversation bubbles enter once, including a send that later receives its original event', async ({
+function bounds(path: string) {
+  const points = (path.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number)
+  const x = points.filter((_, index) => index % 2 === 0)
+  const y = points.filter((_, index) => index % 2 === 1)
+  return { left: Math.min(...x), right: Math.max(...x), bottom: Math.max(...y) }
+}
+
+function expectLiquidTail(motion: GlassMotion, outgoing: boolean) {
+  expect(motion.paths.every((path) => path.startsWith('path('))).toBe(true)
+  const extended = bounds(motion.paths[1]!)
+  const settled = bounds(motion.paths.at(-1)!)
+  expect(extended.bottom).toBeGreaterThan(settled.bottom)
+  expect(extended.right - extended.left).toBeLessThan(settled.right - settled.left)
+  if (outgoing) expect(extended.right).toBeGreaterThan(settled.right)
+  else expect(extended.left).toBeLessThan(settled.left)
+}
+
+test('clear lenses bend the backdrop and live bubbles grow a tail before opening the text', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
@@ -52,6 +71,11 @@ test('new conversation bubbles enter once, including a send that later receives 
   const send = page.getByRole('button', { name: '送出', exact: true })
   const text = '請把下次訪談要追問的問題加進摘要。'
   const reply = '已把問題放在摘要最後，並附上原始訪談的來源。'
+  for (const eventId of [33, 34]) {
+    const glass = page.locator(`article[data-event-id="${eventId}"] [data-glass="bubble"]`)
+    await expect(glass).toHaveAttribute('data-refracting', 'true', { timeout: 2500 })
+    await expect(glass).toHaveCSS('backdrop-filter', /url\(/)
+  }
   await draft.fill(text)
   const box = (await send.boundingBox())!
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
@@ -70,21 +94,45 @@ test('new conversation bubbles enter once, including a send that later receives 
   await expect.poll(motion, { timeout: 3000 }).toHaveLength(1)
   const [outgoing] = await motion()
   expect(outgoing!.text).toContain(text)
-  expect(outgoing!.transforms.some((frame) => frame.includes('translateY'))).toBe(true)
+  expectLiquidTail(outgoing!, true)
 
+  const receiptDuringEntry = 110
+  await page.waitForFunction(
+    (elapsed) =>
+      document
+        .getAnimations()
+        .some(
+          (animation) =>
+            animation.effect instanceof KeyframeEffect &&
+            animation.effect.target?.matches('[data-glass="bubble"]') &&
+            Number(animation.currentTime) >= elapsed,
+        ),
+    receiptDuringEntry,
+  )
   await page.evaluate(() => (window as unknown as GlassWindow).regression.confirmGlassSend())
   await expect(page.locator('article[data-event-id="35"]')).toContainText(text)
   await expect(page.getByText(text, { exact: true })).toHaveCount(1)
+  await expect
+    .poll(
+      async () =>
+        (await motion()).filter((segment) => segment.text.includes(text)).at(-1)!.enteredAt,
+    )
+    .toBeGreaterThanOrEqual(receiptDuringEntry)
   await expect(page.getByRole('status').getByText('Yuki 正在處理', { exact: true })).toBeVisible()
   await page.evaluate(
     (value) => (window as unknown as GlassWindow).regression.receiveGlassReply(value),
     reply,
   )
   await expect(page.getByText(reply, { exact: true })).toBeVisible()
-  await expect.poll(motion, { timeout: 3000 }).toHaveLength(2)
-  const [, incoming] = await motion()
-  expect(incoming!.text).toContain(reply)
-  expect(incoming!.transforms).not.toEqual(outgoing!.transforms)
+  await expect
+    .poll(async () => (await motion()).filter((segment) => segment.text.includes(reply)), {
+      timeout: 3000,
+    })
+    .toHaveLength(1)
+  expectLiquidTail(
+    (await motion()).find((segment) => segment.text.includes(reply))!,
+    false,
+  )
   expect(
     await page.evaluate(() => (window as unknown as GlassWindow).regression.snapshot().submissions),
   ).toBe(1)

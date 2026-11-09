@@ -1,6 +1,7 @@
 import { useFloatingInsets } from '../materials/floating'
-import { useGlass } from '../materials/glass'
+import { useBubbleGlass } from '../materials/glass'
 import { reducedMotion } from '../motion/hooks'
+import { animateBubble, liquidBubbleDuration } from '../motion/bubble'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
@@ -147,7 +148,7 @@ export function Conversation({
     range: '',
     event: 0,
   })
-  const sentMessages = useRef(new Set<string>())
+  const sentMessages = useRef(new Map<string, { row: Element; animation: Animation } | null>())
   const liveMessage = useRef<Home['main']>(undefined)
   const home = useQuery({ queryKey: [id, 'home'], queryFn: () => read<Home>(id, { kind: 'home' }) })
   const me = useMe(id)
@@ -437,15 +438,25 @@ export function Conversation({
       log.closest('[inert]') ||
       reducedMotion()
     ) {
+      for (const motion of sentMessages.current.values()) motion?.animation.cancel()
       sentMessages.current.clear()
       liveMessage.current = undefined
       return
     }
-    for (const requestId of sentMessages.current) {
+    for (const [requestId, motion] of sentMessages.current) {
+      const elapsed = Number(motion?.animation.currentTime ?? 0)
+      if (elapsed >= liquidBubbleDuration) {
+        sentMessages.current.delete(requestId)
+        continue
+      }
       const row = log.querySelector(`[data-message-request="${CSS.escape(requestId)}"]`)
-      if (!row) continue
-      sentMessages.current.delete(requestId)
-      animateMessage(row, true)
+      if (!row || row === motion?.row) continue
+      // When the original event replaces a queued row, continue the same entrance.
+      const animation = animateBubble(row, true, elapsed)
+      if (animation) {
+        motion?.animation.cancel()
+        sentMessages.current.set(requestId, { row, animation })
+      }
     }
     const hint = liveMessage.current
     if (!hint || !eventData || eventData.latest_event_id < hint.latest_event_id) return
@@ -460,8 +471,10 @@ export function Conversation({
     )
       return
     const arrival = eventData.items.find((event) => event.event_id === hint.latest_event_id)
-    if (arrival?.author_kind === 'yuki')
-      animateMessage(log.querySelector(`[data-event-id="${arrival.event_id}"]`), false)
+    if (arrival?.author_kind === 'yuki') {
+      const row = log.querySelector(`[data-event-id="${arrival.event_id}"]`)
+      if (row) animateBubble(row, false)
+    }
   })
   useEffect(() => {
     const range = `${conversation}/${anchor}`
@@ -565,7 +578,7 @@ export function Conversation({
         uploads.data?.map((item) => item.requestId),
       ),
     )
-    sentMessages.current.add(receipt.requestId)
+    sentMessages.current.set(receipt.requestId, null)
     if (currentDraft.current === submittedDraft) {
       currentDraft.current = ''
       setDraft('')
@@ -1193,7 +1206,6 @@ export function Conversation({
                     characterId={id}
                     viewerPersonId={connection.personId}
                     receipt={(outbox.data ?? []).find((item) => item.eventId === event.event_id)}
-                    refract={active && pending.length === 0 && index === visible.length - 1}
                     verify={async (requestId) => {
                       unwrap(await window.yuki.client.verify(id, requestId))
                       refresh()
@@ -1232,7 +1244,7 @@ export function Conversation({
                   data-message-request={item.requestId}
                   className={`${styles.message} ${styles.ownMessage}`}
                 >
-                  <MessageBubble refract={active && pending.at(-1) === item}>
+                  <MessageBubble>
                     <References
                       characterId={id}
                       text={item.body.text}
@@ -1446,66 +1458,14 @@ function Pending({ item, verify }: { item: OutboxItem; verify(): Promise<void> }
   )
 }
 
-function animateMessage(row: Element | null, outgoing: boolean) {
-  const glass = row?.querySelector('[data-glass="bubble"]')
-  const settled = { transform: 'translateY(0) scale(1)', opacity: 1 }
-  glass?.animate(
-    outgoing
-      ? [
-          { transform: 'translateY(14px) scale(.78, .83)', opacity: 0.24 },
-          { transform: 'translateY(0) scale(1.045, .98)', opacity: 1, offset: 0.58 },
-          { transform: 'translateY(0) scale(.997, 1.012)', opacity: 1, offset: 0.82 },
-          settled,
-        ]
-      : [
-          {
-            transform: 'translateY(3px) scale(.91, .91)',
-            clipPath: 'inset(0 82% 45% 0 round 16px)',
-            opacity: 0.28,
-          },
-          {
-            transform: 'translateY(0) scale(1.016, 1.008)',
-            clipPath: 'inset(0 round 16px)',
-            opacity: 1,
-            offset: 0.79,
-          },
-          { ...settled, clipPath: 'inset(0 round 16px)' },
-        ],
-    { duration: outgoing ? 360 : 400, easing: 'cubic-bezier(.22, 1, .36, 1)' },
-  )
-  row?.querySelector(`.${styles.bubbleCopy}`)?.animate(
-    outgoing
-      ? [{ opacity: 0 }, { opacity: 1 }]
-      : [
-          { opacity: 0, clipPath: 'inset(0 65% 0 0)' },
-          { opacity: 1, clipPath: 'inset(0)' },
-        ],
-    {
-      duration: outgoing ? 170 : 265,
-      delay: outgoing ? 65 : 70,
-      easing: 'ease-out',
-      fill: 'backwards',
-    },
-  )
-}
-
-function MessageBubble({
-  children,
-  refract = false,
-}: {
-  children: React.ReactNode
-  refract?: boolean
-}) {
-  const glass = useGlass<HTMLSpanElement>('bubble')
+function MessageBubble({ children }: { children: React.ReactNode }) {
+  const glass = useBubbleGlass()
   return (
     <div className={styles.bubble}>
-      <span
-        ref={refract ? glass.ref : undefined}
-        data-glass="bubble"
-        className={styles.bubbleGlass}
-        aria-hidden="true"
-      />
-      <div className={styles.bubbleCopy}>{children}</div>
+      <span ref={glass} data-glass="bubble" className={styles.bubbleGlass} aria-hidden="true" />
+      <div className={styles.bubbleCopy} data-bubble-copy>
+        {children}
+      </div>
     </div>
   )
 }
@@ -1514,7 +1474,6 @@ export function Message({
   characterId,
   viewerPersonId,
   receipt,
-  refract,
   verify,
   event,
   name,
@@ -1529,7 +1488,6 @@ export function Message({
   characterId: string
   viewerPersonId: string
   receipt?: OutboxItem
-  refract?: boolean
   verify(requestId: string): Promise<void>
   event: PublicEvent
   name: string
@@ -1578,7 +1536,7 @@ export function Message({
           <Avatar name={author} size={28} />
         ))}
       <div className={styles.messageBody}>
-        <MessageBubble refract={refract}>
+        <MessageBubble>
           <header>
             <strong>{author}</strong>
             <time dateTime={event.created_at}>{timeLabel(event.created_at)}</time>
