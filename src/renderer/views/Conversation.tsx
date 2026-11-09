@@ -1,7 +1,8 @@
 import { useFloatingInsets } from '../materials/floating'
-import { useBubbleGlass } from '../materials/glass'
+import { ConversationGlass } from '../materials/ConversationGlass'
+import glassStyles from '../materials/ConversationGlass.module.css'
 import { reducedMotion } from '../motion/hooks'
-import { animateBubble, liquidBubbleDuration } from '../motion/bubble'
+import { animateBubble } from '../motion/bubble'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
@@ -51,6 +52,20 @@ import { LocalComputer } from './LocalComputer'
 
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
   window.yuki.client.read<T>(id, route).then(unwrap)
+
+type MessageRecord =
+  { event: PublicEvent; receipt?: OutboxItem } | { event?: undefined; receipt: OutboxItem }
+
+const messageTime = ({ event, receipt }: MessageRecord) =>
+  event ? event.created_at : new Date(receipt.createdAt).toISOString()
+
+function messageSender({ event }: MessageRecord, viewerPersonId: string) {
+  if (!event) return `inbound/person/${viewerPersonId}`
+  if (event.author_kind === 'yuki') return `${event.direction}/yuki`
+  return event.author_person_id
+    ? `${event.direction}/${event.author_kind}/${event.author_person_id}`
+    : undefined
+}
 
 export function Conversation({
   connection,
@@ -148,7 +163,7 @@ export function Conversation({
     range: '',
     event: 0,
   })
-  const sentMessages = useRef(new Map<string, { row: Element; animation: Animation } | null>())
+  const sentMessages = useRef(new Set<string>())
   const liveMessage = useRef<Home['main']>(undefined)
   const home = useQuery({ queryKey: [id, 'home'], queryFn: () => read<Home>(id, { kind: 'home' }) })
   const me = useMe(id)
@@ -438,25 +453,18 @@ export function Conversation({
       log.closest('[inert]') ||
       reducedMotion()
     ) {
-      for (const motion of sentMessages.current.values()) motion?.animation.cancel()
+      log?.querySelectorAll('[data-message-request] [data-liquid]').forEach((surface) => {
+        for (const animation of surface.getAnimations()) animation.cancel()
+      })
       sentMessages.current.clear()
       liveMessage.current = undefined
       return
     }
-    for (const [requestId, motion] of sentMessages.current) {
-      const elapsed = Number(motion?.animation.currentTime ?? 0)
-      if (elapsed >= liquidBubbleDuration) {
-        sentMessages.current.delete(requestId)
-        continue
-      }
+    for (const requestId of sentMessages.current) {
       const row = log.querySelector(`[data-message-request="${CSS.escape(requestId)}"]`)
-      if (!row || row === motion?.row) continue
-      // When the original event replaces a queued row, continue the same entrance.
-      const animation = animateBubble(row, true, elapsed)
-      if (animation) {
-        motion?.animation.cancel()
-        sentMessages.current.set(requestId, { row, animation })
-      }
+      if (!row) continue
+      sentMessages.current.delete(requestId)
+      animateBubble(row, true)
     }
     const hint = liveMessage.current
     if (!hint || !eventData || eventData.latest_event_id < hint.latest_event_id) return
@@ -578,7 +586,7 @@ export function Conversation({
         uploads.data?.map((item) => item.requestId),
       ),
     )
-    sentMessages.current.set(receipt.requestId, null)
+    sentMessages.current.add(receipt.requestId)
     if (currentDraft.current === submittedDraft) {
       currentDraft.current = ''
       setDraft('')
@@ -728,6 +736,13 @@ export function Conversation({
     (item) =>
       search === null || item.content.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
   )
+  const messages: MessageRecord[] = [
+    ...visible.map((event) => ({
+      event,
+      receipt: outbox.data?.find((item) => item.eventId === event.event_id),
+    })),
+    ...pending.map((receipt) => ({ receipt })),
+  ]
   const presence = characterPresence(
     online,
     accessLost || hidesPrivateData(characterStatus.error) ? undefined : characterStatus.data,
@@ -1168,7 +1183,7 @@ export function Conversation({
                   載入更早訊息
                 </Button>
               )}
-              {eventData && !eventData.has_more && visible.length > 0 && search === null && (
+              {eventData && !eventData.has_more && messages.length > 0 && search === null && (
                 <header className={styles.conversationIntroduction}>
                   <CharacterAvatar size={26} />
                   <h2>{name}</h2>
@@ -1179,88 +1194,65 @@ export function Conversation({
                   </p>
                 </header>
               )}
-              {eventData && !events.isPending && !visible.length && !pending.length && (
+              {eventData && !events.isPending && !messages.length && (
                 <div className={styles.emptyConversation}>
                   <CharacterAvatar size={120} />
                   <h2>和 {name} 聊聊</h2>
                   <p>說一聲你好，或交給她一件事。</p>
                 </div>
               )}
-              {visible.map((event, index) => (
-                <Fragment key={event.event_id}>
-                  {(!index ||
-                    dayKey(event.created_at) !== dayKey(visible[index - 1]!.created_at)) && (
-                    <div className={styles.dateSeparator}>{dayLabel(event.created_at)}</div>
-                  )}
-                  <Message
-                    consecutive={
-                      index > 0 &&
-                      event.direction === visible[index - 1]!.direction &&
-                      event.author_kind === visible[index - 1]!.author_kind &&
-                      (event.author_kind === 'yuki' ||
-                        (event.author_person_id !== null &&
-                          event.author_person_id === visible[index - 1]!.author_person_id)) &&
-                      dayKey(event.created_at) === dayKey(visible[index - 1]!.created_at)
-                    }
-                    onJump={(reference) => void jumpTo(reference)}
-                    characterId={id}
-                    viewerPersonId={connection.personId}
-                    receipt={(outbox.data ?? []).find((item) => item.eventId === event.event_id)}
-                    verify={async (requestId) => {
-                      unwrap(await window.yuki.client.verify(id, requestId))
-                      refresh()
-                    }}
-                    event={event}
-                    name={name}
-                    selected={selection === event.event_id}
-                    onSelect={() => setSelection(event.event_id)}
-                    onReference={() => {
-                      addReference(event)
-                    }}
-                    onAttachment={openAttachment}
-                    onArtifact={openArtifact}
-                  />
-                  {!accessLost &&
-                    (event.work_ids ?? [])
-                      .filter((workId) => {
-                        if (displayedWorks.has(workId)) return false
-                        displayedWorks.add(workId)
-                        return true
-                      })
-                      .map((workId) => (
-                        <ConversationWork
-                          key={workId}
-                          id={id}
-                          work={workId}
-                          open={openWork}
-                          reply={answerWork}
-                        />
-                      ))}
-                </Fragment>
-              ))}
-              {pending.map((item) => (
-                <div
-                  key={item.requestId}
-                  data-message-request={item.requestId}
-                  className={`${styles.message} ${styles.ownMessage}`}
-                >
-                  <MessageBubble>
-                    <References
+              {messages.map((message, index) => {
+                const { event, receipt } = message
+                const time = messageTime(message)
+                const previous = messages[index - 1]
+                const sameDay =
+                  previous !== undefined && dayKey(time) === dayKey(messageTime(previous))
+                const sender = messageSender(message, connection.personId)
+                const consecutive =
+                  sameDay &&
+                  sender !== undefined &&
+                  sender === messageSender(previous, connection.personId)
+                return (
+                  <Fragment
+                    key={receipt ? `request/${receipt.requestId}` : `event/${event!.event_id}`}
+                  >
+                    {!sameDay && <div className={styles.dateSeparator}>{dayLabel(time)}</div>}
+                    <Message
+                      {...message}
+                      consecutive={consecutive}
+                      onJump={(reference) => void jumpTo(reference)}
                       characterId={id}
-                      text={item.body.text}
-                      onJump={(ref) => void jumpTo(ref)}
-                    />
-                    <p className={styles.pendingText}>{parseMessage(item.body.text).text}</p>
-                    <Pending
-                      item={item}
-                      verify={async () => {
-                        unwrap(await window.yuki.client.verify(id, item.requestId))
+                      viewerPersonId={connection.personId}
+                      verify={async (requestId) => {
+                        unwrap(await window.yuki.client.verify(id, requestId))
                         refresh()
                       }}
+                      name={name}
+                      selected={event !== undefined && selection === event.event_id}
+                      onSelect={event ? () => setSelection(event.event_id) : undefined}
+                      onReference={event ? () => addReference(event) : undefined}
+                      onAttachment={openAttachment}
+                      onArtifact={openArtifact}
                     />
-                  </MessageBubble>
-                </div>
-              ))}
+                    {!accessLost &&
+                      (event?.work_ids ?? [])
+                        .filter((workId) => {
+                          if (displayedWorks.has(workId)) return false
+                          displayedWorks.add(workId)
+                          return true
+                        })
+                        .map((workId) => (
+                          <ConversationWork
+                            key={workId}
+                            id={id}
+                            work={workId}
+                            open={openWork}
+                            reply={answerWork}
+                          />
+                        ))}
+                  </Fragment>
+                )
+              })}
               {processing && (
                 <div className={`${styles.message} ${styles.processing}`} role="status">
                   <CharacterAvatar size={28} />
@@ -1459,10 +1451,9 @@ function Pending({ item, verify }: { item: OutboxItem; verify(): Promise<void> }
 }
 
 function MessageBubble({ children }: { children: React.ReactNode }) {
-  const glass = useBubbleGlass()
   return (
-    <div className={styles.bubble}>
-      <span ref={glass} data-glass="bubble" className={styles.bubbleGlass} aria-hidden="true" />
+    <div className={`${styles.bubble} ${glassStyles.root}`}>
+      <ConversationGlass kind="bubble" />
       <div className={styles.bubbleCopy} data-bubble-copy>
         {children}
       </div>
@@ -1484,37 +1475,38 @@ export function Message({
   onArtifact,
   onJump,
   consecutive,
-}: {
+}: MessageRecord & {
   characterId: string
   viewerPersonId: string
-  receipt?: OutboxItem
   verify(requestId: string): Promise<void>
-  event: PublicEvent
   name: string
   selected: boolean
-  onSelect(): void
-  onReference(): void
+  onSelect?(): void
+  onReference?(): void
   onAttachment(source: AttachmentSource): void
   onArtifact(source: ArtifactSource): void
   onJump(reference: MessageReference): void
   consecutive: boolean
 }) {
-  const own = event.direction === 'inbound' && event.author_person_id === viewerPersonId
-  const yuki = event.author_kind === 'yuki'
-  const author = own ? '你' : yuki ? name : (event.sender_display_name ?? '參與者')
+  const own = !event || (event.direction === 'inbound' && event.author_person_id === viewerPersonId)
+  const yuki = event?.author_kind === 'yuki'
+  const author = own ? '你' : yuki ? name : (event?.sender_display_name ?? '參與者')
+  const content = event ? event.content : receipt.body.text
+  const time = event ? event.created_at : new Date(receipt.createdAt).toISOString()
   const { timeLabel } = useDisplayTime()
   const [error, setError] = useState('')
   const action = (work: Promise<unknown>) =>
     void work.catch((error) => setError(error instanceof Error ? error.message : '操作未完成。'))
   return (
     <article
-      data-event-id={event.event_id}
+      data-event-id={event?.event_id}
       data-message-request={own ? receipt?.requestId : undefined}
-      tabIndex={0}
-      aria-label={`${author}的訊息`}
+      tabIndex={event ? 0 : undefined}
+      aria-label={event ? `${author}的訊息` : '待確認訊息'}
       className={`${styles.message} ${own ? styles.ownMessage : ''} ${selected ? styles.selected : ''} ${consecutive ? styles.consecutive : ''}`}
       onClick={onSelect}
       onContextMenu={(click) => {
+        if (!event) return
         click.preventDefault()
         const link = (click.target as HTMLElement).closest<HTMLAnchorElement>('a[href]')
         action(
@@ -1539,33 +1531,34 @@ export function Message({
         <MessageBubble>
           <header>
             <strong>{author}</strong>
-            <time dateTime={event.created_at}>{timeLabel(event.created_at)}</time>
+            <time dateTime={time}>{timeLabel(time)}</time>
           </header>
-          <References characterId={characterId} text={event.content} onJump={onJump} />
+          <References characterId={characterId} text={content} onJump={onJump} />
           <Markdown
             id={characterId}
-            text={parseMessage(event.content).text}
+            text={parseMessage(content).text}
+            hydrate={!!event}
             className={styles.markdown}
-            onClick={(event) => {
-              const copy = (event.target as HTMLElement).closest('button[data-code-copy]')
+            onClick={(click) => {
+              const copy = (click.target as HTMLElement).closest('button[data-code-copy]')
               if (copy) {
-                event.stopPropagation()
+                click.stopPropagation()
                 const text = copy.parentElement?.querySelector('pre code')?.textContent
-                if (text !== undefined && text !== null)
+                if (event && text !== undefined && text !== null)
                   action(window.yuki.client.copy(text).then(unwrap))
                 return
               }
-              const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href]')
+              const link = (click.target as HTMLElement).closest<HTMLAnchorElement>('a[href]')
               if (link) {
-                event.preventDefault()
-                event.stopPropagation()
-                action(window.yuki.client.external(link.href).then(unwrap))
+                click.preventDefault()
+                click.stopPropagation()
+                if (event) action(window.yuki.client.external(link.href).then(unwrap))
               }
             }}
           />
           {error && <Banner status="failed">{error}</Banner>}
           {own && receipt && <Pending item={receipt} verify={() => verify(receipt.requestId)} />}
-          {event.attachments.map((attachment) => (
+          {event?.attachments.map((attachment) => (
             <MessageAttachment
               key={attachment.attachment_index}
               id={characterId}
@@ -1575,32 +1568,34 @@ export function Message({
               artifact={onArtifact}
             />
           ))}
-          {event.asr.map((transcript) => (
+          {event?.asr.map((transcript) => (
             <p key={transcript.segment_index} data-transcript-segment={transcript.segment_index}>
               {transcript.text}
             </p>
           ))}
         </MessageBubble>
-        <div className={styles.messageActions}>
-          <IconButton
-            label="複製訊息"
-            onClick={(click) => {
-              click.stopPropagation()
-              action(window.yuki.client.copy(event.content).then(unwrap))
-            }}
-          >
-            <Copy size={15} />
-          </IconButton>
-          <IconButton
-            label="引用回覆"
-            onClick={(event) => {
-              event.stopPropagation()
-              onReference()
-            }}
-          >
-            <Reply size={15} />
-          </IconButton>
-        </div>
+        {event && (
+          <div className={styles.messageActions}>
+            <IconButton
+              label="複製訊息"
+              onClick={(click) => {
+                click.stopPropagation()
+                action(window.yuki.client.copy(event.content).then(unwrap))
+              }}
+            >
+              <Copy size={15} />
+            </IconButton>
+            <IconButton
+              label="引用回覆"
+              onClick={(event) => {
+                event.stopPropagation()
+                onReference?.()
+              }}
+            >
+              <Reply size={15} />
+            </IconButton>
+          </div>
+        )}
       </div>
     </article>
   )

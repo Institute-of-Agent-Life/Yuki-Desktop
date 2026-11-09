@@ -1,6 +1,8 @@
 import { Check, Circle, CircleHelp, File, X } from 'lucide-react'
 import type { DragEventHandler, ReactNode } from 'react'
 import { Button, StatusPill, type Status } from './Controls'
+import { ConversationGlass } from '../materials/ConversationGlass'
+import glassStyles from '../materials/ConversationGlass.module.css'
 import styles from './Content.module.css'
 
 export function WorkCard({
@@ -25,33 +27,36 @@ export function WorkCard({
   children?: ReactNode
 }) {
   return (
-    <article className={styles.work}>
-      <div className={styles.workTitle}>
-        <StatusPill status={status}>{statusLabel}</StatusPill>
-        <h3 title={title}>{title}</h3>
-      </div>
-      {detail && <div className={styles.workMeta}>{detail}</div>}
-      {question && (
-        <div className={styles.question}>
-          {question}
-          <div>
-            <Button variant="plain" onClick={onReply}>
-              回覆
-            </Button>
-          </div>
+    <article className={`${styles.work} ${glassStyles.root}`}>
+      <ConversationGlass kind="work-card" />
+      <div className={styles.workContent}>
+        <div className={styles.workTitle}>
+          <StatusPill status={status}>{statusLabel}</StatusPill>
+          <h3 title={title}>{title}</h3>
         </div>
-      )}
-      {children}
-      <footer className={styles.workActions}>
-        <Button variant="plain" onClick={onOpen}>
-          查看詳情
-        </Button>
-        {onCancel && (
-          <Button variant="destructive" onClick={onCancel}>
-            取消工作
-          </Button>
+        {detail && <div className={styles.workMeta}>{detail}</div>}
+        {question && (
+          <div className={styles.question}>
+            {question}
+            <div>
+              <Button variant="plain" onClick={onReply}>
+                回覆
+              </Button>
+            </div>
+          </div>
         )}
-      </footer>
+        {children}
+        <footer className={styles.workActions}>
+          <Button variant="plain" onClick={onOpen}>
+            查看詳情
+          </Button>
+          {onCancel && (
+            <Button variant="destructive" onClick={onCancel}>
+              取消工作
+            </Button>
+          )}
+        </footer>
+      </div>
     </article>
   )
 }

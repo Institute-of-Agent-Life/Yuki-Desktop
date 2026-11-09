@@ -561,7 +561,7 @@ Object.assign(window, {
           state: 'accepted',
           eventId: glassItems.at(-1)!.event_id + 1,
           problem: null,
-          createdAt: Date.now(),
+          createdAt: Date.parse(glassItems.at(-1)!.created_at),
         }
         return { ok: true, value: glassOutbox }
       },

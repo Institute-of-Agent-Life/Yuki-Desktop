@@ -57,66 +57,27 @@
   min-width: 0;
 }
 .bubble {
-  --bubble-radius: 18px;
-  --bubble-bleed-inline: 22px;
-  --bubble-bleed-tail: 30px;
-  position: relative;
+  --glass-radius: 18px;
+  --glass-bleed-inline: 22px;
+  --glass-bleed-tail: 30px;
   min-width: 0;
   padding: 8px 13px;
-  border-radius: var(--bubble-radius);
-  --bubble-tint: color-mix(in srgb, var(--bg-elevated) 12%, transparent);
-  --bubble-edge: rgba(255, 255, 255, 0.94);
-  --bubble-edge-shadow: rgba(29, 54, 102, 0.18);
-}
-.bubbleGlass {
-  position: absolute;
-  inset: 0 calc(-1 * var(--bubble-bleed-inline)) calc(-1 * var(--bubble-bleed-tail));
-  padding: 0 var(--bubble-bleed-inline) var(--bubble-bleed-tail);
-  border-radius: inherit;
-  clip-path: inset(
-    0 var(--bubble-bleed-inline) var(--bubble-bleed-tail) round var(--bubble-radius)
-  );
-  pointer-events: none;
-  background: var(--bubble-tint);
-}
-.bubbleGlass::before {
-  inset: 0 var(--bubble-bleed-inline) var(--bubble-bleed-tail);
-  background: linear-gradient(
-    154deg,
-    var(--bubble-edge) 4%,
-    var(--bubble-edge-shadow) 54%,
-    var(--bubble-edge) 100%
-  );
-}
-.bubbleGlass:global([data-refracting])::before {
-  display: block;
-}
-.bubbleGlass:global([data-refracting]) {
-  backdrop-filter: saturate(116%) var(--refract,);
-}
-.bubbleGlass:global([data-liquid])::before,
-.bubbleGlass:global([data-liquid])::after {
-  display: none;
+  border-radius: var(--glass-radius);
 }
 .bubble > :global([data-liquid-outline]) {
   position: absolute;
   top: 0;
-  left: calc(-1 * var(--bubble-bleed-inline));
-  width: calc(100% + 2 * var(--bubble-bleed-inline));
-  height: calc(100% + var(--bubble-bleed-tail));
-  color: var(--bubble-edge);
-  filter: drop-shadow(0 0.75px 1px var(--bubble-edge-shadow));
+  left: calc(-1 * var(--glass-bleed-inline));
+  width: calc(100% + 2 * var(--glass-bleed-inline));
+  height: calc(100% + var(--glass-bleed-tail));
+  color: var(--glass-edge);
+  filter: drop-shadow(0 0.75px 1px var(--glass-edge-shadow));
   pointer-events: none;
 }
 .bubbleCopy {
   position: relative;
   min-width: 0;
   overflow-wrap: anywhere;
-}
-:global([data-theme='dark']) .bubble {
-  --bubble-tint: color-mix(in srgb, var(--bg-elevated) 17%, transparent);
-  --bubble-edge: rgba(221, 236, 255, 0.56);
-  --bubble-edge-shadow: rgba(177, 198, 242, 0.12);
 }
 .dateSeparator {
   text-align: center;
@@ -139,6 +100,7 @@
 }
 .message time {
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
   color: var(--text-tertiary);
 }
 .ownMessage {
@@ -146,11 +108,8 @@
   max-width: min(560px, 88%);
 }
 .ownMessage .bubble {
-  --bubble-tint: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-.pendingText {
-  white-space: pre-wrap;
-  margin: 0 0 4px;
+  --glass-tint: color-mix(in srgb, var(--accent) 10%, transparent);
+  --glass-solid: var(--accent-subtle);
 }
 .selected {
   outline: 2px solid var(--accent);
@@ -241,6 +200,7 @@
   text-decoration: underline;
 }
 .pending {
+  min-height: 28px;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -452,26 +412,6 @@
 }
 :global([data-opaque='true']) .chat {
   background: var(--bg-content);
-}
-:global([data-opaque='true']) .bubbleGlass {
-  background: var(--bg-elevated);
-}
-:global([data-opaque='true']) .bubbleGlass:not([data-liquid])::before {
-  display: block;
-  background: var(--separator-strong);
-}
-:global([data-opaque='true']) .ownMessage .bubbleGlass {
-  background: var(--accent-subtle);
-}
-@media (forced-colors: active) {
-  .bubbleGlass {
-    background: Canvas;
-    backdrop-filter: none !important;
-  }
-  .bubbleGlass:not([data-liquid])::before {
-    background: CanvasText;
-    forced-color-adjust: none;
-  }
 }
 
 :global([data-contrast='true']) .entry[aria-current] {

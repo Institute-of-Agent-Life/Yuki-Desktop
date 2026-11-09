@@ -1,7 +1,7 @@
 const svgNamespace = 'http://www.w3.org/2000/svg'
 const quarter = (4 / 3) * Math.tan(Math.PI / 8)
 
-export const liquidBubbleDuration = 520
+const liquidBubbleDuration = 520
 
 // Pull the middle of one rounded corner outward with a smooth displacement.
 // The displacement has zero slope where the corner joins the straight edges.
@@ -73,7 +73,7 @@ const phases = [
   { offset: 1, width: 1, height: 1, tail: 0, sink: 0, glass: 1, ink: 1 },
 ]
 
-export function animateBubble(row: Element, outgoing: boolean, elapsed = 0) {
+export function animateBubble(row: Element, outgoing: boolean) {
   const surface = row.querySelector<HTMLElement>('[data-glass="bubble"]')
   const copy = row.querySelector<HTMLElement>('[data-bubble-copy]')
   if (!surface || !copy) return
@@ -137,7 +137,6 @@ export function animateBubble(row: Element, outgoing: boolean, elapsed = 0) {
     frames.map(({ offset, inkMask, ink }) => ({ offset, easing, clipPath: inkMask, opacity: ink })),
     timing,
   )
-  for (const animation of [glass, stroke, text]) animation.currentTime = elapsed
   const finish = () => {
     stroke.cancel()
     text.cancel()
@@ -145,5 +144,4 @@ export function animateBubble(row: Element, outgoing: boolean, elapsed = 0) {
     outline.remove()
   }
   void glass.finished.then(finish, finish)
-  return glass
 }

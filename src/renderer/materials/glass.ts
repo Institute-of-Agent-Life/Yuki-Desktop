@@ -212,7 +212,7 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
 const bubbleVisibility = new WeakMap<Element, (visible: boolean) => void>()
 let bubbleObserver: IntersectionObserver | undefined
 
-export function useBubbleGlass() {
+export function useConversationGlass() {
   const [visible, setVisible] = useState(false)
   const { ref } = useGlass<HTMLSpanElement>('bubble', false, visible)
   return useCallback(

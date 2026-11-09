@@ -10,7 +10,6 @@ interface GlassFixture {
 interface GlassMotion {
   text: string
   paths: string[]
-  enteredAt: number
 }
 
 type GlassWindow = Window & {
@@ -33,7 +32,6 @@ async function openConversation(page: Page) {
         motion.push({
           text: effect.target.parentElement?.textContent ?? '',
           paths: effect.getKeyframes().map((frame) => String(frame.clipPath ?? '')),
-          enteredAt: Number(animation.currentTime),
         })
       }
       requestAnimationFrame(observe)
@@ -96,6 +94,9 @@ test('clear lenses bend the backdrop and live bubbles grow a tail before opening
   expect(outgoing!.text).toContain(text)
   expectLiquidTail(outgoing!, true)
 
+  const originalSurface = await page
+    .locator('[data-message-request] [data-glass="bubble"]')
+    .elementHandle()
   const receiptDuringEntry = 110
   await page.waitForFunction(
     (elapsed) =>
@@ -110,14 +111,14 @@ test('clear lenses bend the backdrop and live bubbles grow a tail before opening
     receiptDuringEntry,
   )
   await page.evaluate(() => (window as unknown as GlassWindow).regression.confirmGlassSend())
-  await expect(page.locator('article[data-event-id="35"]')).toContainText(text)
+  const confirmed = page.locator('article[data-event-id="35"]')
+  await expect(confirmed).toContainText(text)
   await expect(page.getByText(text, { exact: true })).toHaveCount(1)
-  await expect
-    .poll(
-      async () =>
-        (await motion()).filter((segment) => segment.text.includes(text)).at(-1)!.enteredAt,
-    )
-    .toBeGreaterThanOrEqual(receiptDuringEntry)
+  expect(
+    await confirmed
+      .locator('[data-glass="bubble"]')
+      .evaluate((surface, before) => surface === before, originalSurface),
+  ).toBe(true)
   await expect(page.getByRole('status').getByText('Yuki 正在處理', { exact: true })).toBeVisible()
   await page.evaluate(
     (value) => (window as unknown as GlassWindow).regression.receiveGlassReply(value),
@@ -133,6 +134,7 @@ test('clear lenses bend the backdrop and live bubbles grow a tail before opening
     (await motion()).find((segment) => segment.text.includes(reply))!,
     false,
   )
+  expect((await motion()).filter((segment) => segment.text.includes(text))).toHaveLength(1)
   expect(
     await page.evaluate(() => (window as unknown as GlassWindow).regression.snapshot().submissions),
   ).toBe(1)
@@ -144,6 +146,40 @@ test('clear lenses bend the backdrop and live bubbles grow a tail before opening
     body: JSON.stringify(await motion()),
     contentType: 'application/json',
   })
+})
+
+test('a receipt after the tail settles preserves the bubble size and the conversation work card refracts', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openConversation(page)
+  const draft = page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+  const text = '請把下次訪談的問題放到摘要最後。'
+  await draft.fill(text)
+  await page.getByRole('button', { name: '送出', exact: true }).click()
+  const pending = page.locator('[data-message-request]')
+  const surface = pending.locator('[data-glass="bubble"]')
+  await expect(surface).toHaveAttribute('data-liquid', '')
+  await expect(surface).not.toHaveAttribute('data-liquid', '')
+  const before = (await pending.boundingBox())!
+  await page.evaluate(() => (window as unknown as GlassWindow).regression.confirmGlassSend())
+  const confirmed = page.locator('article[data-event-id="35"]')
+  await expect(confirmed).toContainText(text)
+  const after = (await confirmed.boundingBox())!
+  expect(after.width).toBeCloseTo(before.width, 0)
+  expect(after.height).toBeCloseTo(before.height, 0)
+  const card = page.getByRole('article').filter({
+    has: page.getByRole('heading', { name: '整理訪談筆記', exact: true }),
+  })
+  const glass = card.locator('[data-glass="work-card"]')
+  await expect(glass).toHaveCSS('backdrop-filter', /url\(/)
+  await page.screenshot({ path: test.info().outputPath('clear-work-card.png') })
+  await page.evaluate(() => {
+    document.documentElement.dataset.opaque = 'true'
+  })
+  await expect(glass).toHaveCSS('backdrop-filter', 'none')
+  await card.getByRole('button', { name: '查看詳情', exact: true }).click()
+  await expect(page.getByRole('complementary', { name: '詳情', exact: true })).toBeVisible()
 })
 
 test('narrow details return to the same draft and reading position with reduced motion and transparency', async ({
