@@ -403,6 +403,9 @@ test('full-window settings hide the workspace and restore its draft, reader posi
     await expect(page.getByRole('tab', { name: '一般', exact: true })).toBeVisible()
     await captureViewport(app, page, test.info().outputPath('settings-small-' + method + '.png'))
     await page.getByRole('button', { name: '返回', exact: true }).click()
+    await expect(inspector).toBeVisible()
+    await expect(composer).toBeHidden()
+    await inspector.getByRole('button', { name: '關閉詳情', exact: true }).click()
     await expect(composer).toHaveValue(draft)
     await writeFile(
       test.info().outputPath('settings-workspace.json'),

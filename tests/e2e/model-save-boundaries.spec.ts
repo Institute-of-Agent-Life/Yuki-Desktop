@@ -72,6 +72,7 @@ test('lost model apply response is confirmed with the same original UUID and rec
     app = await rig.launch('model-lost-response')
   let success = false
   try {
+    const page = await app.firstWindow()
     await app.evaluate(() => {
       const scope = globalThis as typeof globalThis & { modelRequests: string[] }
       scope.modelRequests = []
@@ -90,8 +91,7 @@ test('lost model apply response is confirmed with the same original UUID and rec
         return response
       }
     })
-    const page = await app.firstWindow(),
-      state = await rig.state()
+    const state = await rig.state()
     await pairUI(page, rig.base, await rig.code())
     const original = await currentConnection(page),
       sheet = await editor(page)

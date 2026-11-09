@@ -219,8 +219,14 @@ test('plays and seeks both actual media sources, renders local rich text and kee
       .locator(`article[data-event-id="${pdf.event_id}"]`)
       .getByRole('button', { name: /manual.pdf/ })
       .click()
-    // Chromium hides pagination in the compact sidebar toolbar.
-    await page.getByRole('button', { name: '放大詳情', exact: true }).click()
+    // Chromium hides pagination in a split pane. A narrow window already uses a full page.
+    await expect(inspector()).toBeVisible()
+    const expand = inspector().getByRole('button', { name: '放大詳情', exact: true })
+    if (await expand.isVisible()) await expand.click()
+    else
+      await expect(inspector().getByRole('button', { name: '關閉詳情', exact: true })).toHaveText(
+        '返回',
+      )
     await expectPdfPages(inspector().locator('iframe'), 1)
     await page.screenshot({ path: test.info().outputPath('pdf-attachment.png') })
     await close()

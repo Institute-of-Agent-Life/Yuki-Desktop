@@ -10,27 +10,33 @@ const counts = async (page: Page) =>
 test('press feedback never delays the action and clears after rapid clicks, leave and cancellation', async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.goto(gallery)
   const button = page.getByRole('button', { name: '次要', exact: true }),
     bounds = (await button.boundingBox())!
   await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
   await page.mouse.down()
+  await expect(button).toHaveAttribute('data-held', 'true')
   await expect
-    .poll(() => button.evaluate((node) => new DOMMatrix(getComputedStyle(node).transform).a))
-    .toBeLessThan(0.97)
+    .poll(() => button.evaluate((node) => Number.parseFloat(getComputedStyle(node).scale) || 1))
+    .toBeCloseTo(0.985, 2)
+  await expect
+    .poll(() => button.evaluate((node) => Number(node.style.getPropertyValue('--hp'))))
+    .toBeGreaterThan(0.5)
+  await page.screenshot({ path: test.info().outputPath('control-press-held.png') })
   expect((await counts(page)).button).toBe(0)
   await page.mouse.up()
   await expect.poll(async () => (await counts(page)).button).toBe(1)
   await button.click()
   await button.click()
   await expect.poll(async () => (await counts(page)).button).toBe(3)
-  await expect(button).toHaveCSS('transform', 'none')
+  await expect(button).toHaveCSS('scale', 'none')
   await page.mouse.move(bounds.x + 12, bounds.y + 12)
   await page.mouse.down()
   await page.mouse.move(bounds.x + bounds.width + 40, bounds.y + 12)
   await page.mouse.up()
   expect((await counts(page)).button).toBe(3)
-  await expect(button).toHaveCSS('transform', 'none')
+  await expect(button).toHaveCSS('scale', 'none')
   await button.focus()
   await page.keyboard.press('Space')
   await expect.poll(async () => (await counts(page)).button).toBe(4)
@@ -48,7 +54,7 @@ test('press feedback never delays the action and clears after rapid clicks, leav
   expect(hit, JSON.stringify({ original: bounds, current: reducedBounds, point })).toBe('次要')
   await page.mouse.move(point.x, point.y)
   await page.mouse.down()
-  await expect(button).toHaveCSS('transform', 'none')
+  await expect(button).toHaveCSS('scale', 'none')
   await page.mouse.up()
   await page.getByRole('button', { name: '停用', exact: true }).hover()
   await expect.poll(async () => (await counts(page)).button).toBe(5)

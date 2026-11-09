@@ -70,8 +70,17 @@ test('palette searches only actual loaded entries and exact-event verification n
         .getByRole('region', { name: '原訊息舞台' })
         .locator(`article[data-event-id="${source.event_id}"]`),
     ).toBeVisible()
+    await contentSize(app, page, 960, 720)
     await page.keyboard.press('ControlOrMeta+Shift+e')
-    await navigate(page, '桌面對話')
+    const inspector = page.getByRole('complementary', { name: '詳情', exact: true })
+    await expect(inspector.getByRole('button', { name: '關閉詳情', exact: true })).toHaveText(
+      '返回',
+    )
+    await expect(composer).toBeHidden()
+    await page.keyboard.press('ControlOrMeta+1')
+    await expect(composer).toBeVisible()
+    await expect(inspector).toBeHidden()
+    await page.screenshot({ path: test.info().outputPath('narrow-palette-return-to-chat.png') })
     const nextResponse = await fetch(`${rig.base}/__test/qq-entry`, { method: 'POST' })
     expect(nextResponse.status).toBe(200)
     const next = (await nextResponse.json()) as { event_id: number; conversation_id: string }
@@ -182,6 +191,7 @@ test(
           .getByText(/Original immutable content|Different immutable content/)
           .first(),
       ).toBeVisible()
+      await contentSize(app, page, 960, 720)
       palette = await open(page, '喚醒')
       await expect(
         palette.dialog.getByRole('option', {

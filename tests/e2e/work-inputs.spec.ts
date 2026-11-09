@@ -315,15 +315,16 @@ test('two real roles keep both inline draft scopes separate through actual role 
   let app = await first.launch('inline-role-drafts'),
     success = false
   const fields = async (page: Page, id: string) => {
-    await expect(
-      page.locator(`[data-character-session="${id}"] [data-region="toolbar"]`),
-    ).toBeVisible()
-    const answer = detail(page).getByRole('textbox', { name: '回答這個問題', exact: true })
+    const inspector = page
+      .locator(`[data-character-session="${id}"]`)
+      .getByRole('complementary', { name: '詳情', exact: true })
+    await expect(inspector).toBeVisible()
+    const answer = inspector.getByRole('textbox', { name: '回答這個問題', exact: true })
     if (!(await answer.count()))
-      await detail(page).getByRole('button', { name: '回覆', exact: true }).click()
+      await inspector.getByRole('button', { name: '回覆', exact: true }).click()
     return {
       answer,
-      supplement: detail(page).getByRole('textbox', {
+      supplement: inspector.getByRole('textbox', {
         name: '補充給：原工作整合測試',
         exact: true,
       }),
