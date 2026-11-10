@@ -182,6 +182,40 @@ test('a receipt after the tail settles preserves the bubble size and the convers
   await expect(page.getByRole('complementary', { name: '詳情', exact: true })).toBeVisible()
 })
 
+test('the floating composer lets the conversation backdrop through in both themes', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openConversation(page)
+  const composer = page.locator('[data-region="composer"]')
+  const draft = composer.getByRole('textbox')
+  const backgroundOpacity = () =>
+    composer.evaluate((element) => {
+      const sample = document.createElement('canvas').getContext('2d')!
+      sample.fillStyle = getComputedStyle(element).backgroundColor
+      sample.fillRect(0, 0, 1, 1)
+      return sample.getImageData(0, 0, 1, 1).data[3]! / 255
+    })
+
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate((value) => (document.documentElement.dataset.theme = value), theme)
+    await expect(composer).toHaveCSS('backdrop-filter', /url\(/)
+    await expect.poll(backgroundOpacity).toBeLessThan(0.6)
+    await page.screenshot({ path: test.info().outputPath(`composer-${theme}.png`) })
+  }
+  await draft.fill('下一次訪談的問題\n先確認上次記錄的細節。')
+  await expect(draft).toBeFocused()
+  await expect(composer.getByRole('button', { name: '送出', exact: true })).toBeEnabled()
+  await expect.poll(backgroundOpacity).toBeLessThan(0.6)
+  await page.screenshot({ path: test.info().outputPath('composer-dark-draft.png') })
+
+  await page.evaluate(() => (document.documentElement.dataset.opaque = 'true'))
+  await expect(composer).toHaveCSS('backdrop-filter', 'none')
+  expect(await backgroundOpacity()).toBe(1)
+  await expect(draft).toHaveValue('下一次訪談的問題\n先確認上次記錄的細節。')
+  await page.screenshot({ path: test.info().outputPath('composer-opaque.png') })
+})
+
 test('narrow details return to the same draft and reading position with reduced motion and transparency', async ({
   page,
 }) => {

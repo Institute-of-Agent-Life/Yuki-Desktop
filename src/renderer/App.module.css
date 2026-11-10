@@ -313,6 +313,8 @@
   flex-direction: column;
 }
 .composer {
+  --composer-tint: 28%;
+  --composer-rim: rgb(255 255 255 / 0.56);
   position: absolute;
   z-index: 6;
   bottom: 14px;
@@ -325,13 +327,33 @@
   flex-direction: column;
   overflow: hidden;
   border-radius: 22px;
-  box-shadow: var(--shadow-glass);
+  box-shadow:
+    var(--shadow-glass),
+    inset 0 1px 0 var(--composer-rim);
   padding: 8px;
-  background: var(--mat-thick);
-  backdrop-filter: blur(18px) saturate(150%) var(--refract,);
+  background: color-mix(in srgb, var(--bg-elevated) var(--composer-tint), transparent);
+  backdrop-filter: blur(2px) saturate(116%) var(--refract,);
+}
+:global([data-theme='dark']) .composer {
+  --composer-tint: 36%;
+  --composer-rim: rgb(221 236 255 / 0.28);
+}
+:global([data-opaque='true']) .composer {
+  --composer-rim: transparent;
+  background: var(--bg-elevated);
+}
+@media (forced-colors: active) {
+  .composer {
+    background: Canvas;
+    backdrop-filter: none;
+    outline: 1px solid CanvasText;
+  }
+  .composer::after {
+    display: none;
+  }
 }
 .composer:focus-within {
-  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline: 3px solid var(--focus-ring, color-mix(in srgb, var(--accent) 45%, transparent));
   outline-offset: 1px;
 }
 .composer textarea {
@@ -349,6 +371,10 @@
   font-size: 14px;
   line-height: 22px;
   outline: none;
+}
+.composer textarea::placeholder {
+  color: var(--text-secondary);
+  opacity: 1;
 }
 .composerRow {
   display: flex;
