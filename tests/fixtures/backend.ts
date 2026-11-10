@@ -261,6 +261,7 @@ export async function recordBusinessState(page: Page, name: string, computer = f
 export async function yukiFixture(
   options: {
     managedUpdates?: boolean
+    nativeShell?: boolean
     computer?: boolean
     computerWork?: boolean
     character?: boolean
@@ -268,6 +269,7 @@ export async function yukiFixture(
     native?: boolean
     maxInputCharacters?: number
     richMedia?: boolean
+    snowluma?: boolean
     modelConfiguration?: boolean
   } = {},
 ) {
@@ -295,7 +297,9 @@ export async function yukiFixture(
         [
           ...(options.richMedia
             ? [join(process.cwd(), 'tests/fixtures/media_reference_server.py')]
-            : ['-m', 'tests.support.desktop_reference_server']),
+            : options.snowluma
+              ? [join(process.cwd(), 'tests/fixtures/snowluma_reference_server.py')]
+              : ['-m', 'tests.support.desktop_reference_server']),
           '--root',
           root,
           '--state-file',

@@ -137,25 +137,7 @@ export function Computer({
       </select>
     </label>
   )
-  if (sources && screen !== 'sandbox') {
-    const qqToolbar = (
-      <div
-        data-computer-toolbar={toolbar ? '' : undefined}
-        className={`${styles.header} ${toolbar ? styles.toolbarHeader : ''}`}
-      >
-        {sources}
-        <Button onClick={() => setScreen(screen === 'qq-control' ? 'qq-view' : 'qq-control')}>
-          {screen === 'qq-control' ? '結束 QQ 控制' : '接手 QQ'}
-        </Button>
-      </div>
-    )
-    return (
-      <section className={styles.computer} aria-label="QQ 登入">
-        {toolbar ? createPortal(qqToolbar, toolbar) : qqToolbar}
-        <RemoteScreen key={id + screen} id={id} held={screen === 'qq-control'} screen={screen} />
-      </section>
-    )
-  }
+  const showQQ = sources && screen !== 'sandbox'
   const help = state.help_requests.filter((item) => item.kind === 'help')
   const controls =
     control?.holder === 'human' ? (
@@ -192,45 +174,61 @@ export function Computer({
     >
       <div>
         {sources || <h2>{name} 的電腦</h2>}
-        <span>
-          {state.display === 'running'
-            ? '運作中'
-            : state.display === 'starting'
-              ? '正在啟動桌面'
-              : state.display === 'stopped'
-                ? '休息中'
-                : '目前無法讀取'}{' '}
-          · 控制：
-          {control?.holder === 'human'
-            ? held
-              ? '你'
-              : control.device_label
-            : control?.holder === 'agent'
-              ? name
-              : '無'}
-          {query.isFetching && !query.isPending ? ' · 正在確認最新狀態' : ''}
-        </span>
+        {!showQQ && (
+          <span>
+            {state.display === 'running'
+              ? '運作中'
+              : state.display === 'starting'
+                ? '正在啟動桌面'
+                : state.display === 'stopped'
+                  ? '休息中'
+                  : '目前無法讀取'}{' '}
+            · 控制：
+            {control?.holder === 'human'
+              ? held
+                ? '你'
+                : control.device_label
+              : control?.holder === 'agent'
+                ? name
+                : '無'}
+            {query.isFetching && !query.isPending ? ' · 正在確認最新狀態' : ''}
+          </span>
+        )}
       </div>
-      {!compact && (
-        <>
-          {controls}
-          <IconButton
-            label="讓電腦休息"
-            disabled={blocked || state.display !== 'running'}
-            onClick={() => setSheet({ kind: 'sleep', snapshot: state })}
-          >
-            <Moon size={16} />
-          </IconButton>
-        </>
+      {showQQ ? (
+        <Button onClick={() => setScreen(screen === 'qq-control' ? 'qq-view' : 'qq-control')}>
+          {screen === 'qq-control' ? '結束 QQ 控制' : '接手 QQ'}
+        </Button>
+      ) : (
+        !compact && (
+          <>
+            {controls}
+            <IconButton
+              label="讓電腦休息"
+              disabled={blocked || state.display !== 'running'}
+              onClick={() => setSheet({ kind: 'sleep', snapshot: state })}
+            >
+              <Moon size={16} />
+            </IconButton>
+          </>
+        )
       )}
     </div>
   )
+  const displayHeader = toolbar ? createPortal(header, toolbar) : header
+  if (showQQ)
+    return (
+      <section className={styles.computer} aria-label="QQ 登入">
+        {displayHeader}
+        <RemoteScreen key={id + screen} id={id} held={screen === 'qq-control'} screen={screen} />
+      </section>
+    )
   return (
     <section
       className={`${styles.computer} ${compact ? styles.compact : ''}`}
       aria-label={`${name} 的電腦${compact ? '預覽' : ''}`}
     >
-      {toolbar ? createPortal(header, toolbar) : header}
+      {displayHeader}
       {help.length > 0 &&
         (compact ? (
           <p className={styles.previewHelp} role="status">
