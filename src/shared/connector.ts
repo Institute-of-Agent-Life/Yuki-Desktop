@@ -46,8 +46,9 @@ export interface ConnectorSupervision {
   reason?: string
   /** Reported by 3a Connectors; older ones print no control, activity or permission lines. */
   control?: ConnectorControl
-  /** From an activity `start` until 10 s after the last `end`, while the child runs. */
-  activity?: { tool: ConnectorActivityTool }
+  /** From an activity `start` until 10 s after the last `end`, while the child runs.
+   * `background`: one window operated without the owner's cursor (Connector 0.6.0+). */
+  activity?: { tool: ConnectorActivityTool; background: boolean }
   /** macOS screen-recording and accessibility preflight results. */
   permissions?: Record<ConnectorPermission, boolean>
   /** Automatic restarts since the last explicit start. */

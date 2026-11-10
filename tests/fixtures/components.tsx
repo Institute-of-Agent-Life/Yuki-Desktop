@@ -161,7 +161,7 @@ if (connectorMode?.startsWith('control-'))
         ? {}
         : {
             control: { holder: 'none', since: '2026-11-10T01:00:00.000Z', reason: 'start' },
-            activity: { tool: 'computer' },
+            activity: { tool: 'computer', background: false },
             permissions: { screen: false, input: true },
           }),
     },

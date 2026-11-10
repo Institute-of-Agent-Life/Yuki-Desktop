@@ -119,7 +119,7 @@ export function rotatingLog(path: string, limit = LOG_BYTES, backups = LOG_BACKU
 export type ConnectorLine =
   | { type: 'state'; link: ConnectorLink; reason?: string }
   | { type: 'control'; control: ConnectorControl }
-  | { type: 'activity'; tool: ConnectorActivityTool; phase: 'start' | 'end' }
+  | { type: 'activity'; tool: ConnectorActivityTool; phase: 'start' | 'end'; background: boolean }
   | { type: 'permissions'; permissions: Record<ConnectorPermission, boolean> }
 /** One report line from `run --desktop-stdin`; other output on the channel is not a report. */
 export function connectorLine(line: string): ConnectorLine | undefined {
@@ -155,7 +155,12 @@ export function connectorLine(line: string): ConnectorLine | undefined {
         (fields.phase !== 'start' && fields.phase !== 'end')
       )
         return undefined
-      return { type: 'activity', tool: fields.tool, phase: fields.phase }
+      return {
+        type: 'activity',
+        tool: fields.tool,
+        phase: fields.phase,
+        background: fields.mode === 'background',
+      }
     case 'permissions':
       if (typeof fields.screen !== 'boolean' || typeof fields.input !== 'boolean') return undefined
       return { type: 'permissions', permissions: { screen: fields.screen, input: fields.input } }
@@ -584,8 +589,13 @@ export class AgentConnector {
               }, ACTIVITY_LINGER)
               return
             }
-            if (this.supervision.get(target.dataDirectory)?.activity?.tool === report.tool) return
-            this.record(target.dataDirectory, { activity: { tool: report.tool } })
+            {
+              const shown = this.supervision.get(target.dataDirectory)?.activity
+              if (shown?.tool === report.tool && shown.background === report.background) return
+            }
+            this.record(target.dataDirectory, {
+              activity: { tool: report.tool, background: report.background },
+            })
             break
           case 'permissions':
             this.record(target.dataDirectory, { permissions: report.permissions })

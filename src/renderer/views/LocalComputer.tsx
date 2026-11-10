@@ -100,7 +100,9 @@ export function LocalComputer({
           <Banner status="running">
             {supervision.activity.tool === 'browser'
               ? 'Yuki 正在操作瀏覽器。'
-              : 'Yuki 正在操作電腦；你操作時它會暫停，停手後繼續。'}
+              : supervision.activity.background
+                ? 'Yuki 正在背景操作一個視窗，不動你的滑鼠和前台視窗；你在同一個 App 裡操作時它會暫停。'
+                : 'Yuki 正在操作電腦；你操作時它會暫停，停手後繼續。'}
             <Button disabled={control.isPending} onClick={() => control.mutate('owner')}>
               停止
             </Button>

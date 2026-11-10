@@ -868,6 +868,8 @@ test('an opened original receipt receives a late permission and terminal result 
  * U6 macOS screen recording/accessibility status is missing, a granted permission still offers a
  *    settings button, or the button does not name the pane to open.
  * U7 A Windows Connector shows the macOS permission panel (its owner control still shows).
+ * U8 (Yuki computer-use 3b, W23) One window operated in the background says the owner's input
+ *    pauses Yuki everywhere, or does not say the cursor is untouched; it loses 「停止」.
  */
 test('the local computer page shows Yuki operating, a stop from 停止, and 停止/繼續', async ({
   page,
@@ -890,7 +892,15 @@ test('the local computer page shows Yuki operating, a stop from 停止, and 停�
   await expect(page.getByText(/叫停/)).toHaveCount(0)
   await expect(page.getByRole('button', { name: '繼續', exact: true })).toHaveCount(0)
   await page.screenshot({ path: test.info().outputPath('control-operating.png') })
-  await report({ activity: { tool: 'browser' } })
+  // U8: one window in the background.
+  await report({ activity: { tool: 'computer', background: true } })
+  await expect(
+    page.getByText('Yuki 正在背景操作一個視窗，不動你的滑鼠和前台視窗', { exact: false }),
+  ).toBeVisible()
+  await expect(page.getByText('停手後繼續', { exact: false })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible()
+  await page.screenshot({ path: test.info().outputPath('control-background.png') })
+  await report({ activity: { tool: 'browser', background: false } })
   await expect(page.getByText('Yuki 正在操作瀏覽器', { exact: false })).toBeVisible()
   await page.getByRole('button', { name: '停止', exact: true }).click()
   await expect(page.getByText('已按「停止」叫停。', { exact: false })).toBeVisible()

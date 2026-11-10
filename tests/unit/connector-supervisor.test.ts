@@ -36,6 +36,14 @@
  *    break state-line parsing.
  * C8 The permissions line is not exposed in the state.
  * C9 EOF no longer stops the child once control lines share its stdin.
+ *
+ * Background operation (Yuki computer-use phase 3b, docs/operations/computer-3b-20261110.md
+ * W23), written before the code:
+ *
+ * C10 A `computer` activity with `mode:"background"` (one window, the owner's cursor untouched)
+ *     reads the same as foreground input, or a foreground action right after a background one
+ *     keeps showing background; a line without `mode` (Connector 0.5.0) or with an unknown mode
+ *     reads as background.
  */
 import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
@@ -325,7 +333,21 @@ it('reads only the Connector report lines from the shared stdout channel', () =>
   })
   expect(
     connectorLine('{"type":"activity","tool":"browser","action":"click","phase":"start"}'),
-  ).toEqual({ type: 'activity', tool: 'browser', phase: 'start' })
+  ).toEqual({ type: 'activity', tool: 'browser', phase: 'start', background: false })
+  // C10: only `mode:"background"` is background; 0.5.0 lines and unknown modes are not.
+  expect(
+    connectorLine(
+      '{"type":"activity","tool":"computer","action":"click","mode":"background","phase":"start"}',
+    ),
+  ).toEqual({ type: 'activity', tool: 'computer', phase: 'start', background: true })
+  expect(
+    connectorLine(
+      '{"type":"activity","tool":"computer","action":"click","mode":"foreground","phase":"end"}',
+    ),
+  ).toEqual({ type: 'activity', tool: 'computer', phase: 'end', background: false })
+  expect(
+    connectorLine('{"type":"activity","tool":"computer","mode":"window","phase":"start"}'),
+  ).toEqual({ type: 'activity', tool: 'computer', phase: 'start', background: false })
   expect(connectorLine('{"type":"permissions","screen":false,"input":true}')).toEqual({
     type: 'permissions',
     permissions: { screen: false, input: true },
@@ -429,18 +451,26 @@ it('shows Yuki operating from an activity start until a while after its end, nev
   await fixture.connector.service('start')
   await vi.waitFor(async () => expect((await fixture.state()).supervision?.link).toBe('connected'))
   expect(await activity()).toBeUndefined()
+  const browser = { tool: 'browser', background: false }
+  const window = { tool: 'computer', background: true }
+  const screen = { tool: 'computer', background: false }
   await fixture.emit({ type: 'activity', tool: 'browser', action: 'navigate', phase: 'start' })
-  await vi.waitFor(async () => expect(await activity()).toEqual({ tool: 'browser' }), until)
+  await vi.waitFor(async () => expect(await activity()).toEqual(browser), until)
   // C5: no flicker between one action's end and the next action's start.
   await fixture.emit({ type: 'activity', tool: 'browser', action: 'navigate', phase: 'end' })
   await wait(500)
-  expect(await activity()).toEqual({ tool: 'browser' })
-  await fixture.emit({ type: 'activity', tool: 'computer', action: 'click', phase: 'start' })
-  await vi.waitFor(async () => expect(await activity()).toEqual({ tool: 'computer' }), until)
-  await fixture.emit({ type: 'activity', tool: 'computer', action: 'click', phase: 'end' })
+  expect(await activity()).toEqual(browser)
+  // C10: one window in the background, then the whole screen in the foreground.
+  const click = { type: 'activity', tool: 'computer', action: 'click' }
+  await fixture.emit({ ...click, mode: 'background', phase: 'start' })
+  await vi.waitFor(async () => expect(await activity()).toEqual(window), until)
+  await fixture.emit({ ...click, mode: 'background', phase: 'end' })
+  await fixture.emit({ ...click, mode: 'foreground', phase: 'start' })
+  await vi.waitFor(async () => expect(await activity()).toEqual(screen), until)
+  await fixture.emit({ ...click, mode: 'foreground', phase: 'end' })
   const ended = Date.now()
   await wait(500)
-  expect(await activity()).toEqual({ tool: 'computer' })
+  expect(await activity()).toEqual(screen)
   await vi.waitFor(async () => expect(await activity()).toBeUndefined(), {
     timeout: 20000,
     interval: 100,
@@ -448,7 +478,7 @@ it('shows Yuki operating from an activity start until a while after its end, nev
   expect(Date.now() - ended).toBeGreaterThanOrEqual(9000)
   // An exited child operates nothing, even mid-action.
   await fixture.emit({ type: 'activity', tool: 'computer', action: 'type', phase: 'start' })
-  await vi.waitFor(async () => expect(await activity()).toEqual({ tool: 'computer' }), until)
+  await vi.waitFor(async () => expect(await activity()).toEqual(screen), until)
   const [started] = await fixture.starts()
   process.kill(started!.pid, 'SIGKILL')
   await vi.waitFor(
