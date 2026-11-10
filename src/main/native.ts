@@ -97,7 +97,9 @@ export class NativeShell {
     supervision: ConnectorSupervision | undefined,
     control: (holder: ConnectorHolder) => void,
   ) {
-    const tool = supervision?.activity?.tool
+    const activity = supervision?.activity
+    const tool = activity?.tool
+    const target = tool === 'browser' ? '瀏覽器' : '電腦'
     this.operation =
       supervision?.control?.holder === 'owner'
         ? [
@@ -107,7 +109,10 @@ export class NativeShell {
           ]
         : tool
           ? [
-              { label: `Yuki 正在操作${tool === 'browser' ? '瀏覽器' : '電腦'}`, enabled: false },
+              {
+                label: `Yuki 正在${activity?.background ? '背景' : ''}操作${target}`,
+                enabled: false,
+              },
               { label: '停止', click: () => control('owner') },
               { type: 'separator' },
             ]

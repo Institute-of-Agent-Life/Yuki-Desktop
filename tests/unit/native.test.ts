@@ -235,6 +235,8 @@ it('uses the identified role name before its private profile or avatar has loade
  * T3 Idle, an old Connector (no holder known) or no Desktop-owned Connector adds tray items.
  * T4 An activity line while stopped reads as operating instead of stopped.
  * T5 The existing open/show/quit items disappear, or a tray created later misses the state.
+ * T6 (Yuki computer-use 3b, W23) One window operated in the background reads as foreground
+ *    operation of the computer, or the other way round.
  */
 it('shows Yuki operating or stopped in the tray with one action that asks the Connector', () => {
   os.trays.length = 0
@@ -247,7 +249,7 @@ it('shows Yuki operating or stopped in the tray with one action that asks the Co
   shell.characterName('mika-id', 'Mika')
   // T5: the state reported before the tray exists is there when the tray is created.
   shell.connectorOperation(
-    { restarts: 0, restartPending: false, activity: { tool: 'browser' } },
+    { restarts: 0, restartPending: false, activity: { tool: 'browser', background: false } },
     control,
   )
   shell.update(defaultPreferences)
@@ -261,18 +263,24 @@ it('shows Yuki operating or stopped in the tray with one action that asks the Co
       restarts: 0,
       restartPending: false,
       control: { holder: 'none', since: '2026-11-10T01:00:00Z', reason: 'resume' },
-      activity: { tool: 'computer' },
+      activity: { tool: 'computer', background: false },
     },
     control,
   )
   expect(labels()[0]).toBe('Yuki 正在操作電腦')
+  // T6: one window in the background, the owner's cursor untouched; still stoppable.
+  shell.connectorOperation(
+    { restarts: 0, restartPending: false, activity: { tool: 'computer', background: true } },
+    control,
+  )
+  expect(labels().slice(0, 2)).toEqual(['Yuki 正在背景操作電腦', '停止'])
   // T2/T4: a stop wins over a late activity line and says it came from 「停止」.
   shell.connectorOperation(
     {
       restarts: 0,
       restartPending: false,
       control: { holder: 'owner', since: '2026-11-10T01:00:05Z', reason: 'desktop' },
-      activity: { tool: 'computer' },
+      activity: { tool: 'computer', background: true },
     },
     control,
   )
