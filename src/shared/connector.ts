@@ -26,6 +26,21 @@ export interface ConnectorAdmission {
     errorType?: string | null
   }[]
 }
+/** Connection state reported by the Connector's own stdout state lines (0.4.4+). */
+export type ConnectorLink =
+  | 'connected'
+  | 'disconnected'
+  | 'authorization_lost'
+  | 'protocol_unsupported'
+/** Desktop's supervision of the Connector child process it owns. */
+export interface ConnectorSupervision {
+  link?: ConnectorLink
+  reason?: string
+  /** Automatic restarts since the last explicit start. */
+  restarts: number
+  restartPending: boolean
+  lastExit?: { code: number | null; signal: string | null; at: string }
+}
 export type ConnectorState =
   | {
       available: false
@@ -56,6 +71,7 @@ export interface ConnectorAvailableState {
   }
   instances: ConnectorInstance[]
   running: boolean | null
+  supervision?: ConnectorSupervision
   admission?: ConnectorAdmission
 }
 export interface ConnectorCandidate {
@@ -132,6 +148,7 @@ export interface ConnectorBridge {
     characterId?: string,
   ): Promise<ApiReply<{ instanceId: string; catalogProblem?: string }>>
   diagnose(instanceId: string): Promise<ApiReply<ConnectorDiagnostic>>
+  exportDiagnostics(): Promise<ApiReply<boolean>>
   revealNative(instanceId: string): Promise<ApiReply<void>>
   chooseProject(): Promise<ApiReply<string | null>>
   chooseExecutable(): Promise<ApiReply<string | null>>

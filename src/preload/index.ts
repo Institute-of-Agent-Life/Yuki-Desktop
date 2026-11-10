@@ -17,6 +17,7 @@ const bridge: DesktopBridge = {
     configure: (input, id) => ipcRenderer.invoke('yuki:connector-configure', input, id),
     remove: (instance, id) => ipcRenderer.invoke('yuki:connector-remove', instance, id),
     diagnose: (id) => ipcRenderer.invoke('yuki:connector-diagnose', id),
+    exportDiagnostics: () => ipcRenderer.invoke('yuki:connector-export-diagnostics'),
     revealNative: (id) => ipcRenderer.invoke('yuki:connector-reveal-native', id),
     chooseProject: () => ipcRenderer.invoke('yuki:connector-choose-project'),
     chooseExecutable: () => ipcRenderer.invoke('yuki:connector-choose-executable'),

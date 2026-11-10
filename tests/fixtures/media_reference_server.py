@@ -222,8 +222,9 @@ def media_routes(self, app: FastAPI):
         result = await runtime.social_service.execute(
             "send",
             {
-                "artifact_id": item["artifact_id"],
-                "attachment_kind": body.get("kind", "file"),
+                "file": {"artifact_id": item["artifact_id"]},
+                # Image bytes display as an image unless sent explicitly as a file.
+                "as_file": body.get("kind", "file") != "image",
                 "text": body.get("text", "Media " + path.name),
             },
             SocialContext(

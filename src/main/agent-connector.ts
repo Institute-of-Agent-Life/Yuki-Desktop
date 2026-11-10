@@ -1,8 +1,10 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { basename, isAbsolute, join } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
+import { appendFileSync, renameSync, rmSync, statSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { createInterface } from 'node:readline'
 import { gte, valid } from 'semver'
 import type {
   ConnectorAvailableState,
@@ -12,8 +14,10 @@ import type {
   ConnectorDiagnostic,
   ConnectorDriver,
   ConnectorPairing,
+  ConnectorLink,
   ConnectorServiceAction,
   ConnectorState,
+  ConnectorSupervision,
 } from '../shared/connector'
 import { ApiError, normalizeServer } from './api/client'
 import {
@@ -22,6 +26,7 @@ import {
   type ConnectorRuntime,
   type RuntimeManifest,
 } from './connector-installation'
+import { connectorDiagnostics } from './diagnostics'
 import type { LocalStore } from './store'
 
 type Launch = (
@@ -63,6 +68,60 @@ interface OwnedConnector {
   child: ChildProcessWithoutNullStreams
   spawned: Promise<void>
   closed: Promise<void>
+  /** Set by stop()/close(); any other exit is unexpected and restarted. */
+  stopping: boolean
+}
+const RESTART_FIRST_DELAY = 1000
+const RESTART_MAX_DELAY = 60_000
+// The same rotation as the Connector's own connector.log (4 MiB, two backups).
+const LOG_BYTES = 4 * 1024 * 1024
+const LOG_BACKUPS = 2
+const LINKS: readonly ConnectorLink[] = [
+  'connected',
+  'disconnected',
+  'authorization_lost',
+  'protocol_unsupported',
+]
+/** Append-only log with RotatingFileHandler's naming: name, name.1, name.2. */
+export function rotatingLog(path: string, limit = LOG_BYTES, backups = LOG_BACKUPS) {
+  let size: number | undefined
+  return (chunk: Buffer) => {
+    if (size === undefined) {
+      try {
+        size = statSync(path).size
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        size = 0
+      }
+    }
+    if (size > 0 && size + chunk.length > limit) {
+      rmSync(`${path}.${backups}`, { force: true })
+      for (let index = backups - 1; index > 0; index--) {
+        try {
+          renameSync(`${path}.${index}`, `${path}.${index + 1}`)
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        }
+      }
+      renameSync(path, `${path}.1`)
+      size = 0
+    }
+    appendFileSync(path, chunk, { mode: 0o600 })
+    size += chunk.length
+  }
+}
+/** One stdout line from `run --desktop-stdin`; other output on the channel is not a state. */
+export function stateLine(line: string): { link: ConnectorLink; reason?: string } | undefined {
+  let value: unknown
+  try {
+    value = JSON.parse(line)
+  } catch {
+    return undefined
+  }
+  if (typeof value !== 'object' || value === null) return undefined
+  const { type, state, reason } = value as Record<string, unknown>
+  if (type !== 'state' || !LINKS.includes(state as ConnectorLink)) return undefined
+  return { link: state as ConnectorLink, ...(typeof reason === 'string' ? { reason } : {}) }
 }
 function computerRuntime(runtime: ConnectorRuntime) {
   return runtime.protocol
@@ -118,6 +177,12 @@ export class AgentConnector {
   private process?: OwnedConnector
   private starting?: Promise<void>
   private closing?: Promise<void>
+  /** Data directory whose Connector Desktop keeps running until an explicit stop or quit. */
+  private supervised?: string
+  private pendingRestart?: { dataDirectory: string; timer: NodeJS.Timeout }
+  /** Restarts since the child last reported `connected`; sets the backoff. */
+  private failures = 0
+  private readonly supervision = new Map<string, Omit<ConnectorSupervision, 'restartPending'>>()
   constructor(
     private readonly options: ConnectorOptions,
     private readonly runner = runConnector,
@@ -279,6 +344,9 @@ export class AgentConnector {
           this.process.child.exitCode === null &&
           this.process.child.signalCode === null
         : status.service.running,
+      ...(installation.managed && this.supervision.has(installation.dataDirectory)
+        ? { supervision: this.supervisionOf(installation.dataDirectory) }
+        : {}),
     }
     if (characterId && state.deviceId) {
       try {
@@ -301,6 +369,7 @@ export class AgentConnector {
       !separate &&
       !!selected &&
       (this.process?.installation.dataDirectory === selected.dataDirectory ||
+        this.pendingRestart?.dataDirectory === selected.dataDirectory ||
         previous?.service.running === true)
     const installation = await this.stage('prepare', () =>
       this.installations.install(separate, selected),
@@ -317,7 +386,62 @@ export class AgentConnector {
   }
   async restore(): Promise<void> {
     const installation = this.installations.selected()
-    if (installation?.managed) await this.start(installation)
+    if (installation?.managed) await this.supervise(installation)
+  }
+  private supervisionOf(dataDirectory: string): ConnectorSupervision {
+    return {
+      restarts: 0,
+      ...this.supervision.get(dataDirectory),
+      restartPending: this.pendingRestart?.dataDirectory === dataDirectory,
+    }
+  }
+  private record(
+    dataDirectory: string,
+    change: Partial<Omit<ConnectorSupervision, 'restartPending'>>,
+  ) {
+    this.supervision.set(dataDirectory, {
+      restarts: 0,
+      ...this.supervision.get(dataDirectory),
+      ...change,
+    })
+  }
+  /** An explicit start (Desktop launch or the person's start): keep it running from now on. */
+  private supervise(installation: ConnectorInstallation): Promise<void> {
+    this.supervised = installation.dataDirectory
+    this.failures = 0
+    this.record(installation.dataDirectory, { restarts: 0 })
+    return this.start(installation)
+  }
+  private cancelRestart() {
+    if (!this.pendingRestart) return
+    clearTimeout(this.pendingRestart.timer)
+    this.pendingRestart = undefined
+  }
+  private restartLater(installation: ConnectorInstallation) {
+    const delay = Math.min(RESTART_FIRST_DELAY * 2 ** this.failures, RESTART_MAX_DELAY)
+    this.failures += 1
+    this.pendingRestart = {
+      dataDirectory: installation.dataDirectory,
+      timer: setTimeout(() => {
+        this.pendingRestart = undefined
+        const { restarts } = this.supervisionOf(installation.dataDirectory)
+        this.record(installation.dataDirectory, { restarts: restarts + 1 })
+        this.start(installation).catch((error: unknown) => {
+          console.error(
+            'Connector restart failed',
+            error instanceof ApiError ? error.code : 'connector_failed',
+          )
+          if (
+            this.supervised === installation.dataDirectory &&
+            !this.closing &&
+            !this.process &&
+            !this.pendingRestart
+          )
+            this.restartLater(installation)
+        })
+        this.options.changed?.()
+      }, delay),
+    }
   }
   private start(installation: ConnectorInstallation): Promise<void> {
     if (this.closing) return Promise.reject(new ApiError('connector_closed'))
@@ -359,21 +483,45 @@ export class AgentConnector {
       const owned: OwnedConnector = {
         installation: target,
         child,
+        stopping: false,
         spawned: new Promise((resolve, reject) => {
           child.once('spawn', resolve)
           child.once('error', () => reject(new ApiError('connector_failed', 'start')))
         }),
         closed: new Promise((resolve) =>
-          child.once('close', () => {
+          child.once('close', (code: number | null, signal: NodeJS.Signals | null) => {
             if (this.process === owned) this.process = undefined
+            if (!owned.stopping) {
+              this.record(target.dataDirectory, {
+                link: undefined,
+                reason: undefined,
+                lastExit: { code, signal, at: new Date().toISOString() },
+              })
+              if (this.supervised === target.dataDirectory && !this.closing)
+                this.restartLater(target)
+            }
             resolve()
             this.options.changed?.()
           }),
         ),
       }
       this.process = owned
-      child.stdout.resume()
-      child.stderr.resume()
+      createInterface({ input: child.stdout, crlfDelay: Infinity }).on('line', (line) => {
+        const state = stateLine(line)
+        if (!state || this.process !== owned) return
+        if (state.link === 'connected') this.failures = 0
+        this.record(target.dataDirectory, { link: state.link, reason: state.reason })
+        this.options.changed?.()
+      })
+      const stderr = rotatingLog(join(target.dataDirectory, 'connector-stderr.log'))
+      child.stderr.on('data', (chunk: Buffer) => {
+        try {
+          stderr(chunk)
+        } catch (error) {
+          // The child keeps running; only its stderr copy is missing.
+          console.error('Connector stderr log failed', (error as NodeJS.ErrnoException).code)
+        }
+      })
       // A child which already exited owns no writable parent pipe. Its close
       // event, rather than another execution or signal, finishes cleanup.
       child.stdin.on('error', () => {})
@@ -385,13 +533,18 @@ export class AgentConnector {
     return starting
   }
   private async stop(installation?: ConnectorInstallation): Promise<void> {
+    if (!installation || this.pendingRestart?.dataDirectory === installation.dataDirectory)
+      this.cancelRestart()
     const owned = this.process
     if (!owned || (installation && owned.installation.dataDirectory !== installation.dataDirectory))
       return
+    owned.stopping = true
     owned.child.stdin.end()
     await owned.closed
   }
   private stopAfterStart(installation: ConnectorInstallation): Promise<void> {
+    if (this.supervised === installation.dataDirectory) this.supervised = undefined
+    this.cancelRestart()
     const stopping = (this.starting ?? Promise.resolve())
       .catch(() => {})
       .then(() => this.stop(installation))
@@ -403,6 +556,7 @@ export class AgentConnector {
   }
   close(): Promise<void> {
     this.closing ??= (async () => {
+      this.cancelRestart()
       // A failed start has no live resource. The original caller still receives
       // its failure; closing the Desktop must also join any successful start.
       await this.starting?.catch(() => {})
@@ -520,7 +674,7 @@ export class AgentConnector {
     if (!installation) throw new ApiError('connector_not_installed')
     if (!installation.managed) throw new ApiError('connector_independent_installation')
     await this.stage(`service-${action}`, () =>
-      action === 'start' ? this.start(installation) : this.stopAfterStart(installation),
+      action === 'start' ? this.supervise(installation) : this.stopAfterStart(installation),
     )
     return this.state(undefined, installation)
   }
@@ -627,6 +781,22 @@ export class AgentConnector {
       async () =>
         JSON.parse(await this.run(['diagnose', '--instance', instanceId])) as ConnectorDiagnostic,
     )
+  }
+  /** Supervision facts and the tails of both Connector logs, for an explicit export. */
+  async diagnostics() {
+    const installation = this.installations.selected() ?? null
+    if (!installation) throw new ApiError('connector_not_installed')
+    return connectorDiagnostics({
+      dataDirectory: installation.dataDirectory,
+      managed: installation.managed,
+      version: installation.runtime.version,
+      running:
+        this.process?.installation.dataDirectory === installation.dataDirectory &&
+        this.process.child.exitCode === null,
+      supervision: installation.managed
+        ? this.supervisionOf(installation.dataDirectory)
+        : undefined,
+    })
   }
   async nativeExecutable(instanceId: string): Promise<string> {
     const installation = this.installations.selected() ?? null
