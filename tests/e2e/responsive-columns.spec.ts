@@ -3,10 +3,12 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { captureViewport, contentSize } from '../fixtures/visual'
+import { centerColumnMinimum } from '../../src/main/geometry'
 
 const sidebar = (page: Page) => page.getByRole('separator', { name: '調整側邊欄', exact: true })
 const inspector = (page: Page) => page.getByRole('separator', { name: '調整詳情寬度', exact: true })
 async function drag(page: Page, handle: Locator, dx: number) {
+  await handle.click({ trial: true })
   const bounds = await handle.boundingBox()
   expect(bounds).not.toBeNull()
   const x = bounds!.x + bounds!.width / 2,
@@ -70,18 +72,20 @@ test('real clamped columns move four visible pixels per key and stop an unfinish
     await expect(inspector(page)).toHaveAttribute('aria-valuenow', '560')
     await drag(page, sidebar(page), 400)
     await expect(sidebar(page)).toHaveAttribute('aria-valuenow', '320')
-    await contentSize(app, page, 1180, 800)
-    await expect(inspector(page)).toHaveAttribute('aria-valuenow', '334')
+    await contentSize(app, page, 1200, 800)
+    const maxInspector = (await page.evaluate(() => innerWidth)) - 320 - centerColumnMinimum
+    await expect(inspector(page)).toHaveAttribute('aria-valuenow', String(maxInspector))
+    const center = page.locator('[data-region="content"]')
+    const widthBefore = (await center.boundingBox())!.width
+    expect(widthBefore).toBeGreaterThanOrEqual(520)
     await inspector(page).focus()
     await page.keyboard.press('ArrowRight')
-    await expect(inspector(page)).toHaveAttribute('aria-valuenow', '330')
-    await expect
-      .poll(async () => (await page.locator('[data-region="content"]').boundingBox())!.width)
-      .toBe(524)
+    await expect(inspector(page)).toHaveAttribute('aria-valuenow', String(maxInspector - 4))
+    await expect.poll(async () => (await center.boundingBox())!.width).toBe(widthBefore + 4)
     await page.keyboard.press('ArrowLeft')
-    await expect(inspector(page)).toHaveAttribute('aria-valuenow', '334')
+    await expect(inspector(page)).toHaveAttribute('aria-valuenow', String(maxInspector))
     await page.keyboard.press('ArrowLeft')
-    await expect(inspector(page)).toHaveAttribute('aria-valuenow', '334')
+    await expect(inspector(page)).toHaveAttribute('aria-valuenow', String(maxInspector))
     await contentSize(app, page, 1440, 900)
     await sidebar(page).dblclick()
     await inspector(page).dblclick()

@@ -43,6 +43,7 @@ export function windowGeometry(
 
 // The inset paper reserves 6px beside a readable 520px content area.
 export const centerColumnMinimum = 526
+export const inspectorSplitMinimum = 1180
 
 export function columns(
   width: number,
@@ -53,7 +54,7 @@ export function columns(
   autoInspectorWidth = false,
 ) {
   const overlaySidebar = width < 1100
-  const overlayInspector = width < 1180
+  const overlayInspector = width < inspectorSplitMinimum
   let s = sidebarOpen && !overlaySidebar ? Math.min(320, Math.max(220, sidebar)) : 0
   const preferredInspector = autoInspectorWidth ? (width >= 1680 ? 440 : 380) : inspector
   let i = inspectorOpen && !overlayInspector ? Math.min(560, Math.max(320, preferredInspector)) : 0

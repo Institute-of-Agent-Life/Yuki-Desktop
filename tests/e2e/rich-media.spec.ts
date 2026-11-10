@@ -126,6 +126,8 @@ test('plays and seeks both actual media sources, renders local rich text and kee
     const inspector = () => page.getByRole('complementary', { name: '詳情', exact: true })
     const close = async () => {
       await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
+      // The pane keeps its preview through its exit motion; the next step starts once it has left.
+      await expect(page.locator('aside[data-region="inspector"]')).toHaveCount(0)
     }
     for (const name of ['clip.mp4', 'clip.webm', 'voice.wav']) {
       const event = await upload(app, page, rig.root, name, rig.base)
@@ -137,7 +139,9 @@ test('plays and seeks both actual media sources, renders local rich text and kee
       const url = await inspector().locator('audio,video').getAttribute('src')
       expect(url).toMatch(/^app:\/\/desktop\/__media\//)
       await close()
-      expect(await page.evaluate(async (url) => (await fetch(url!)).status, url)).toBe(404)
+      await expect
+        .poll(() => page.evaluate(async (url) => (await fetch(url!)).status, url))
+        .toBe(404)
       const artifact = await publish(name)
       await page
         .locator(`article[data-event-id="${artifact.event_id}"]`)
@@ -219,8 +223,14 @@ test('plays and seeks both actual media sources, renders local rich text and kee
       .locator(`article[data-event-id="${pdf.event_id}"]`)
       .getByRole('button', { name: /manual.pdf/ })
       .click()
-    // Chromium hides pagination in the compact sidebar toolbar.
-    await page.getByRole('button', { name: '放大詳情', exact: true }).click()
+    // Chromium hides pagination in a split pane. A narrow window already uses a full page.
+    await expect(inspector()).toBeVisible()
+    const expand = inspector().getByRole('button', { name: '放大詳情', exact: true })
+    if (await expand.isVisible()) await expand.click()
+    else
+      await expect(inspector().getByRole('button', { name: '關閉詳情', exact: true })).toHaveText(
+        '返回',
+      )
     await expectPdfPages(inspector().locator('iframe'), 1)
     await page.screenshot({ path: test.info().outputPath('pdf-attachment.png') })
     await close()

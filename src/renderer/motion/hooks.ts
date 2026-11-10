@@ -122,127 +122,100 @@ export function swallowDragClick() {
   window.addEventListener('pointerdown', remove, true)
 }
 
-export function usePress<T extends HTMLElement>() {
+export function usePress<T extends HTMLElement>(role: 'command' | 'compact' = 'command') {
   const ref = useRef<T>(null),
     held = useRef(false)
-  const { values, wake } = useSprings(
-    { scale: 1, x: 0, y: 0, stretchX: 0, stretchY: 0, light: 0 },
-    (s, reduced) => {
-      const node = ref.current
-      if (!node) return
-      const rest = Object.values(s).every((value) => value.settled) && !held.current
-      node.style.transform =
-        rest || reduced
-          ? ''
-          : `translate(${s.x.value}px,${s.y.value}px) scale(${s.scale.value + s.stretchX.value},${s.scale.value + s.stretchY.value})`
-      node.style.setProperty('--hp', rest ? '0' : String(Math.max(0, s.light.value)))
-    },
-  )
+  const { values, wake } = useSprings({ scale: 1, light: 0 }, (s, reduced) => {
+    const node = ref.current
+    if (!node) return
+    const rest = Object.values(s).every((value) => value.settled) && !held.current
+    node.style.scale = rest || reduced ? '' : String(s.scale.value)
+    node.style.setProperty('--hp', rest ? '0' : String(Math.max(0, s.light.value)))
+  })
   useLayoutEffect(() => {
     const node = ref.current
     if (!node) return
-    let rect: DOMRect | undefined,
-      x = 0,
-      y = 0,
-      timer: ReturnType<typeof setTimeout> | undefined
+    let press: AbortController | undefined
     const disabled = () => node.matches(':disabled,[aria-disabled="true"],[aria-busy="true"]')
     const end = () => {
+      if (!held.current) return
+      press?.abort()
+      press = undefined
+      attributes.disconnect()
       held.current = false
       node.removeAttribute('data-held')
       values.scale.aim(1, springs.pressUp)
-      values.x.aim(0, springs.settle)
-      values.y.aim(0, springs.settle)
-      values.stretchX.aim(0, springs.settle)
-      values.stretchY.aim(0, springs.settle)
       values.light.aim(0, springs.highlight)
       wake()
-    }
-    const scale = () =>
-      reducedMotion()
-        ? 1
-        : node.offsetWidth <= 34 && node.offsetHeight <= 34
-          ? 0.9
-          : node.offsetWidth >= 120
-            ? 0.975
-            : 0.955
-    const down = (event: PointerEvent) => {
-      if (event.button !== 0 || !event.isPrimary || disabled()) return
-      clearTimeout(timer)
-      rect = node.getBoundingClientRect()
-      x = event.clientX
-      y = event.clientY
-      held.current = true
-      node.dataset.held = 'true'
-      values.scale.aim(scale(), springs.pressDown)
-      values.light.aim(1, springs.highlight)
-      move(event)
-      wake()
-    }
-    const move = (event: PointerEvent) => {
-      if (!held.current || !rect || !event.isPrimary) return
-      if (event.buttons === 0 || disabled()) {
-        end()
-        return
-      }
-      const out =
-        event.clientX < rect.left - 12 ||
-        event.clientX > rect.right + 12 ||
-        event.clientY < rect.top - 12 ||
-        event.clientY > rect.bottom + 12
-      values.light.aim(out ? 0 : 1, springs.highlight)
-      node.dataset.held = String(!out)
-      values.scale.aim(out ? 1 : scale(), out ? springs.pressUp : springs.pressDown)
-      if (!reducedMotion()) {
-        const dx = event.clientX - x,
-          dy = event.clientY - y
-        values.x.aim(out ? 0 : 1.5 * Math.tanh(dx / 30), springs.settle)
-        values.y.aim(out ? 0 : 1.5 * Math.tanh(dy / 30), springs.settle)
-        values.stretchX.aim(
-          out ? 0 : Math.min(2, Math.abs(dx) / 60) / node.offsetWidth,
-          springs.settle,
-        )
-        values.stretchY.aim(
-          out ? 0 : Math.min(2, Math.abs(dy) / 60) / node.offsetHeight,
-          springs.settle,
-        )
-      }
-      node.style.setProperty('--hx', `${((event.clientX - rect.left) / rect.width) * 100}%`)
-      node.style.setProperty('--hy', `${((event.clientY - rect.top) / rect.height) * 100}%`)
-      wake()
-    }
-    const key = (event: KeyboardEvent) => {
-      if (!['Enter', ' '].includes(event.key) || event.repeat || disabled()) return
-      held.current = true
-      node.dataset.held = 'true'
-      values.scale.aim(scale(), springs.pressDown)
-      values.light.aim(1, springs.highlight)
-      wake()
-      clearTimeout(timer)
-      timer = setTimeout(end, 90)
     }
     const attributes = new MutationObserver(() => {
       if (disabled()) end()
     })
-    attributes.observe(node, {
-      attributes: true,
-      attributeFilter: ['disabled', 'aria-disabled', 'aria-busy'],
-    })
+    const start = (x: number, y: number, touch = false) => {
+      press?.abort()
+      press = new AbortController()
+      const options = { signal: press.signal }
+      window.addEventListener('blur', end, options)
+      document.addEventListener('visibilitychange', end, options)
+      attributes.observe(node, {
+        attributes: true,
+        attributeFilter: ['disabled', 'aria-disabled', 'aria-busy'],
+      })
+      held.current = true
+      node.dataset.held = 'true'
+      node.style.setProperty('--hx', `${x}%`)
+      node.style.setProperty('--hy', `${y}%`)
+      const target = role === 'compact' ? (touch ? 0.94 : 0.965) : touch ? 0.97 : 0.985
+      values.scale.aim(reducedMotion() ? 1 : target, springs.pressDown)
+      values.light.aim(1, springs.highlight)
+      wake()
+      return options
+    }
+    const down = (event: PointerEvent) => {
+      if (event.button !== 0 || !event.isPrimary || disabled()) return
+      const rect = node.getBoundingClientRect()
+      const options = start(
+        ((event.clientX - rect.left) / rect.width) * 100,
+        ((event.clientY - rect.top) / rect.height) * 100,
+        event.pointerType === 'touch',
+      )
+      const finish = (pointer: PointerEvent) => {
+        if (pointer.pointerId === event.pointerId) end()
+      }
+      window.addEventListener(
+        'pointermove',
+        (pointer) => {
+          if (
+            pointer.buttons === 0 ||
+            pointer.clientX < rect.left ||
+            pointer.clientX > rect.right ||
+            pointer.clientY < rect.top ||
+            pointer.clientY > rect.bottom
+          )
+            finish(pointer)
+        },
+        options,
+      )
+      window.addEventListener('pointerup', finish, options)
+      window.addEventListener('pointercancel', finish, options)
+      window.addEventListener('scroll', end, { ...options, capture: true })
+    }
+    const key = (event: KeyboardEvent) => {
+      if (!['Enter', ' '].includes(event.key) || event.isComposing || disabled()) return
+      if (event.repeat) event.preventDefault()
+      else start(50, 50)
+    }
     node.addEventListener('pointerdown', down)
     node.addEventListener('keydown', key)
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', end)
-    window.addEventListener('pointercancel', end)
-    window.addEventListener('blur', end)
+    node.addEventListener('keyup', end)
+    node.addEventListener('blur', end)
     return () => {
-      clearTimeout(timer)
-      attributes.disconnect()
+      end()
       node.removeEventListener('pointerdown', down)
       node.removeEventListener('keydown', key)
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', end)
-      window.removeEventListener('pointercancel', end)
-      window.removeEventListener('blur', end)
+      node.removeEventListener('keyup', end)
+      node.removeEventListener('blur', end)
     }
-  }, [])
+  }, [role])
   return ref
 }

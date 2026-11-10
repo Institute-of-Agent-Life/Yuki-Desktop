@@ -1,5 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react'
+import {
+  ArrowLeft,
   BriefcaseBusiness,
   Folder,
   Maximize2,
@@ -16,7 +24,7 @@ import {
 } from 'lucide-react'
 import { columns, centerColumnMinimum } from '../../main/geometry'
 import { useSessionActive, useWorkspace } from '../state/workspace'
-import { IconButton, Segmented, SelectionPill } from './Controls'
+import { Button, IconButton, Segmented, SelectionPill } from './Controls'
 import { UpdateReadyButton } from './Updates'
 import { PresenceCard } from './PresenceCard'
 import type { View } from '../../shared/desktop'
@@ -24,6 +32,7 @@ import styles from '../App.module.css'
 import { useCommands } from '../state/commands'
 import { requestNavigation } from '../state/navigation'
 import { useGlass } from '../materials/glass'
+import { useWorkspaceMotion } from '../motion/workspace'
 import { ApplicationMenu } from './ApplicationMenu'
 
 interface Props {
@@ -132,6 +141,28 @@ export function Workspace(props: Props) {
     !state.inspectorWidthCustom,
   )
   const sidebar = layout.overlaySidebar ? overlaySidebar : state.sidebar
+  const detailLayer = layout.overlayInspector && !focusMode
+  const detailPage = inspector && detailLayer
+  const left = focusMode ? 0 : layout.sidebar
+  const right = focusMode ? 0 : layout.inspector
+  const sidebarRef = useRef<HTMLElement>(null)
+  const inspectorRef = useRef<HTMLElement>(null)
+  const showInspector = useWorkspaceMotion(root, sidebarRef, inspectorRef, {
+    active,
+    view: selectedView,
+    width,
+    focus: focusMode,
+    left,
+    right,
+    sidebarOpen: !focusMode && sidebar,
+    sidebarOverlay: layout.overlaySidebar,
+    inspectorOpen: inspector || focusMode,
+    detailPage: detailLayer,
+  })
+  const detailHeader = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    if (detailPage && active) detailHeader.current?.querySelector('button')?.focus()
+  }, [active, detailPage])
   const drag = (
     kind: 'sidebarWidth' | 'inspectorWidth',
     event: React.PointerEvent<HTMLButtonElement>,
@@ -257,22 +288,17 @@ export function Workspace(props: Props) {
   return (
     <div
       ref={root}
-      className={`${styles.shell} ${!layout.sidebar || focusMode ? styles.sidebarHidden : ''} ${props.platform === 'darwin' && (!layout.sidebar || focusMode) ? styles.macCollapsed : ''}`}
-      style={{
-        gridTemplateColumns: focusMode
-          ? '400px 0 minmax(0,1fr)'
-          : `${layout.sidebar}px 0 minmax(0,1fr) 0 ${layout.inspector}px`,
-      }}
+      className={`${styles.shell} ${props.platform === 'darwin' ? styles.macWorkspace : ''} ${showInspector && !detailLayer ? styles.splitWorkspace : ''}`}
+      data-focus-mode={focusMode ? '' : undefined}
+      style={
+        {
+          '--workspace-left': `${left}px`,
+          '--workspace-right': `${right}px`,
+        } as CSSProperties
+      }
       onPointerDown={(event) => {
         const target = event.target as HTMLElement
         if (target.closest('dialog,[role="dialog"]')) return
-        if (
-          !focusMode &&
-          layout.overlayInspector &&
-          inspector &&
-          !target.closest('[data-region="inspector"],button[aria-label="詳情"]')
-        )
-          state.patch({ inspector: false })
         if (
           layout.overlaySidebar &&
           overlaySidebar &&
@@ -292,7 +318,9 @@ export function Workspace(props: Props) {
             ...(root.current?.querySelectorAll<HTMLElement>('[data-region]') ?? []),
           ].filter(
             (element) =>
-              element.offsetWidth > 0 && getComputedStyle(element).visibility !== 'hidden',
+              element.offsetWidth > 0 &&
+              !element.closest('[inert]') &&
+              getComputedStyle(element).visibility !== 'hidden',
           )
           const currentRegion = [...regions]
             .reverse()
@@ -308,15 +336,18 @@ export function Workspace(props: Props) {
       {!focusMode && (
         <>
           <nav
+            ref={sidebarRef}
             data-region="sidebar"
             data-glass="sidebar"
+            data-pane-open={sidebar}
             aria-label="主要導覽"
+            inert={!sidebar}
             className={`${styles.sidebar} ${layout.overlaySidebar ? styles.sidebarOverlay : ''}`}
             onClick={(event) => {
               if (layout.overlaySidebar && (event.target as HTMLElement).closest('button'))
                 setOverlaySidebar(false)
             }}
-            style={{ gridColumn: 1, gridRow: 1, visibility: sidebar ? 'visible' : 'hidden' }}
+            style={{ gridColumn: 1, gridRow: 1 }}
           >
             <SelectionPill selected={selectedView} selector="button[aria-current=page]" />
             {sidebarContent}
@@ -325,14 +356,15 @@ export function Workspace(props: Props) {
         </>
       )}
       <section
-        className={`${styles.main} ${(props.floating ?? (state.view === 'chat' || focusMode)) ? styles.floating : ''}`}
+        className={`${styles.main} ${(props.floating ?? (state.view === 'chat' || focusMode)) ? styles.floating : ''} ${detailPage ? styles.behindDetail : ''}`}
+        inert={detailPage}
         style={{ gridColumn: focusMode ? 1 : 3, gridRow: 1 }}
       >
         <header
           data-region="toolbar"
           className={`${styles.toolbar} ${props.toolbar ? styles.customToolbar : ''} ${props.scrolled ? styles.toolbarScrolled : ''}`}
         >
-          <IconButton label="側邊欄" onClick={toggleSidebar}>
+          <IconButton label="側邊欄" aria-expanded={!focusMode && sidebar} onClick={toggleSidebar}>
             <PanelLeft size={16} strokeWidth={1.5} />
           </IconButton>
           {props.toolbar ?? (
@@ -349,23 +381,17 @@ export function Workspace(props: Props) {
               )}
               <div ref={glass.ref} data-glass="toolbar" className={styles.toolbarGroup}>
                 <IconButton
-                  label={focusMode ? '還原版面' : '放大詳情'}
-                  onClick={() => state.toggle('focusMode')}
-                >
-                  {focusMode ? (
-                    <Minimize2 size={16} strokeWidth={1.5} />
-                  ) : (
-                    <Maximize2 size={16} strokeWidth={1.5} />
-                  )}
-                </IconButton>
-                <IconButton label="詳情" onClick={toggleInspector}>
-                  <PanelRight size={16} strokeWidth={1.5} />
-                </IconButton>
-                <IconButton
                   label="搜尋已載入內容"
                   onClick={() => window.dispatchEvent(new Event('yuki:search'))}
                 >
                   <Search size={16} strokeWidth={1.5} />
+                </IconButton>
+                <IconButton
+                  label="詳情"
+                  aria-expanded={inspector || focusMode}
+                  onClick={toggleInspector}
+                >
+                  <PanelRight size={16} strokeWidth={1.5} />
                 </IconButton>
               </div>
             </>
@@ -380,16 +406,24 @@ export function Workspace(props: Props) {
           {props.children}
         </div>
       </section>
-      {(inspector || focusMode) && (
+      {showInspector && (
         <>
           {!focusMode && layout.inspector > 0 && divider('inspectorWidth')}
           <aside
-            style={{ gridColumn: focusMode ? 3 : 5, gridRow: 1 }}
+            ref={inspectorRef}
+            style={{ gridColumn: focusMode || detailLayer ? 3 : 5, gridRow: 1 }}
             data-region="inspector"
             aria-label="詳情"
-            className={`${styles.inspector} ${layout.overlayInspector && !focusMode ? styles.overlay : ''}`}
+            inert={!inspector && !focusMode}
+            className={`${styles.inspector} ${detailLayer ? styles.detailPage : ''}`}
           >
-            <header className={styles.inspectorHeader}>
+            <header className={styles.inspectorHeader} ref={detailHeader}>
+              {detailLayer && (
+                <Button variant="plain" aria-label="關閉詳情" onClick={closeInspector}>
+                  <ArrowLeft size={16} strokeWidth={1.5} />
+                  返回
+                </Button>
+              )}
               {props.inspectorTitle ? (
                 <strong>{props.inspectorTitle}</strong>
               ) : (
@@ -400,9 +434,23 @@ export function Workspace(props: Props) {
                   onChange={(inspectorTab) => state.patch({ inspectorTab })}
                 />
               )}
-              <IconButton label="關閉詳情" onClick={closeInspector}>
-                <X size={16} strokeWidth={1.5} />
-              </IconButton>
+              {!detailLayer && (
+                <>
+                  <IconButton
+                    label={focusMode ? '還原版面' : '放大詳情'}
+                    onClick={() => state.toggle('focusMode')}
+                  >
+                    {focusMode ? (
+                      <Minimize2 size={16} strokeWidth={1.5} />
+                    ) : (
+                      <Maximize2 size={16} strokeWidth={1.5} />
+                    )}
+                  </IconButton>
+                  <IconButton label="關閉詳情" onClick={closeInspector}>
+                    <X size={16} strokeWidth={1.5} />
+                  </IconButton>
+                </>
+              )}
             </header>
             <div
               className={styles.inspectorBody}

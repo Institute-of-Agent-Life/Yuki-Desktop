@@ -65,7 +65,7 @@ export function IconButton({
   variant = 'plain',
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; variant?: 'plain' | 'send' }) {
-  const press = usePress<HTMLButtonElement>()
+  const press = usePress<HTMLButtonElement>('compact')
   return (
     <button
       {...props}

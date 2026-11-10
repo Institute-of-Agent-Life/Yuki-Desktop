@@ -23,8 +23,14 @@ export function Markdown({
   id,
   text,
   rendered,
+  hydrate = true,
   ...props
-}: HTMLAttributes<HTMLDivElement> & { id: string; text: string; rendered?: string }) {
+}: HTMLAttributes<HTMLDivElement> & {
+  id: string
+  text: string
+  rendered?: string
+  hydrate?: boolean
+}) {
   const markdown = useMarkdown(text),
     html = rendered ?? markdown,
     root = useRef<HTMLDivElement>(null)
@@ -32,7 +38,7 @@ export function Markdown({
   const [revision, setRevision] = useState(0)
   useEffect(() => {
     // Ordinary text/code/math need no observers, IPC subscriptions or DOM hydration.
-    if (!root.current!.querySelector('[data-mermaid], [data-media-ref]')) return
+    if (!hydrate || !root.current!.querySelector('[data-mermaid], [data-media-ref]')) return
     root.current!.innerHTML = html
     if (!activeSession) return
     let active = true
@@ -124,6 +130,6 @@ export function Markdown({
       unsubscribe()
       resources.forEach(release)
     }
-  }, [html, id, activeSession, revision])
+  }, [html, id, activeSession, revision, hydrate])
   return <div {...props} ref={root} dangerouslySetInnerHTML={{ __html: html }} />
 }

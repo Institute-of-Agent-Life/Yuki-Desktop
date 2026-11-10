@@ -1,0 +1,58 @@
+.root {
+  position: relative;
+  --glass-neutral-tint: color-mix(in srgb, var(--bg-elevated) 12%, transparent);
+  --glass-edge: rgba(255, 255, 255, 0.94);
+  --glass-edge-shadow: rgba(29, 54, 102, 0.18);
+}
+:global([data-theme='dark']) .root {
+  --glass-neutral-tint: color-mix(in srgb, var(--bg-elevated) 17%, transparent);
+  --glass-edge: rgba(221, 236, 255, 0.56);
+  --glass-edge-shadow: rgba(177, 198, 242, 0.12);
+}
+.surface {
+  position: absolute;
+  inset: 0 calc(-1 * var(--glass-bleed-inline, 0px)) calc(-1 * var(--glass-bleed-tail, 0px));
+  padding: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
+  border-radius: inherit;
+  clip-path: inset(
+    0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px) round var(--glass-radius, 14px)
+  );
+  pointer-events: none;
+  background: var(--glass-tint, var(--glass-neutral-tint));
+}
+.surface::before {
+  inset: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
+  background: linear-gradient(
+    154deg,
+    var(--glass-edge) 4%,
+    var(--glass-edge-shadow) 54%,
+    var(--glass-edge) 100%
+  );
+}
+.surface:global([data-refracting])::before {
+  display: block;
+}
+.surface:global([data-refracting]) {
+  backdrop-filter: saturate(116%) var(--refract,);
+}
+.surface:global([data-liquid])::before,
+.surface:global([data-liquid])::after {
+  display: none;
+}
+:global([data-opaque='true']) .surface {
+  background: var(--glass-solid, var(--bg-elevated));
+}
+:global([data-opaque='true']) .surface:not([data-liquid])::before {
+  display: block;
+  background: var(--separator-strong);
+}
+@media (forced-colors: active) {
+  .surface {
+    background: Canvas;
+    backdrop-filter: none !important;
+  }
+  .surface:not([data-liquid])::before {
+    background: CanvasText;
+    forced-color-adjust: none;
+  }
+}

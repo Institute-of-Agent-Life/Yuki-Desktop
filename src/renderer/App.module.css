@@ -78,11 +78,26 @@
   gap: 8px;
   margin-top: 12px;
 }
+@property --workspace-left {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+@property --workspace-right {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
 .shell {
   display: grid;
+  grid-template-columns: var(--workspace-left) 0 minmax(0, 1fr) 0 var(--workspace-right);
   grid-template-rows: minmax(0, 1fr);
   height: 100%;
   min-height: 0;
+  overflow: clip;
+}
+.shell[data-focus-mode] {
+  grid-template-columns: 400px 0 minmax(0, 1fr);
 }
 .sidebar {
   position: relative;
@@ -98,6 +113,16 @@
   overflow-y: auto;
   min-width: 0;
   min-height: 0;
+}
+.sidebar:not(.sidebarOverlay) {
+  justify-self: end;
+  width: max(0px, calc(max(var(--workspace-left), var(--workspace-left-reveal, 0px)) - 12px));
+}
+.sidebar[data-pane-open='false'] {
+  visibility: hidden;
+}
+.shell[data-sidebar-moving] .sidebar {
+  visibility: visible;
 }
 .presence {
   display: flex;
@@ -160,14 +185,16 @@
   color: var(--accent-on);
 }
 .main {
+  --right-radius: clamp(0px, calc(14px - var(--workspace-right)), 14px);
   isolation: isolate;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   position: relative;
-  margin: 6px 6px 6px 0;
-  border-radius: 14px;
+  margin: 6px max(0px, calc(6px - var(--workspace-right))) 6px
+    max(0px, calc(6px - var(--workspace-left)));
+  border-radius: 14px var(--right-radius) var(--right-radius) 14px;
   overflow: hidden;
   background: var(--bg-content);
   box-shadow: var(--shadow-panel);
@@ -176,8 +203,9 @@
 :global([data-material='mica']) .sidebar:not(.sidebarOverlay) {
   background: var(--mat-sidebar);
 }
-.sidebarHidden .main {
-  margin-left: 6px;
+.shell[data-focus-mode] .main {
+  margin-right: 0;
+  border-radius: 14px 0 0 14px;
 }
 .floating .toolbar {
   position: absolute;
@@ -194,11 +222,11 @@
   transition: opacity var(--motion-base) var(--ease-standard);
   background: linear-gradient(
     var(--bg-content),
-    color-mix(in srgb, var(--bg-content) 82%, transparent) 55%,
+    color-mix(in srgb, var(--bg-content) 94%, transparent) 68%,
     transparent
   );
   backdrop-filter: blur(6px);
-  mask-image: linear-gradient(#000 55%, transparent);
+  mask-image: linear-gradient(#000 68%, transparent);
 }
 .floating .toolbarScrolled {
   box-shadow: none;
@@ -262,8 +290,11 @@
   font-size: 15px;
   line-height: 20px;
 }
-.macCollapsed .toolbar {
-  padding-left: 86px;
+.macWorkspace {
+  --traffic-light-inset: calc(92px - max(6px, var(--workspace-left)));
+}
+.macWorkspace .toolbar {
+  padding-left: max(20px, var(--traffic-light-inset));
 }
 :global([data-platform='win32']) .toolbar {
   padding-right: 150px;
@@ -282,6 +313,8 @@
   flex-direction: column;
 }
 .composer {
+  --composer-tint: 28%;
+  --composer-rim: rgb(255 255 255 / 0.56);
   position: absolute;
   z-index: 6;
   bottom: 14px;
@@ -290,46 +323,91 @@
   margin: 0 auto;
   width: min(712px, calc(100% - 40px));
   max-height: 200px;
-  overflow-y: auto;
-  border-radius: 20px;
-  box-shadow: var(--shadow-glass);
-  padding: 10px 10px 8px 16px;
-  background: var(--mat-thick);
-  backdrop-filter: blur(28px) saturate(170%) var(--refract,);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 22px;
+  box-shadow:
+    var(--shadow-glass),
+    inset 0 1px 0 var(--composer-rim);
+  padding: 8px;
+  background: color-mix(in srgb, var(--bg-elevated) var(--composer-tint), transparent);
+  backdrop-filter: blur(2px) saturate(116%) var(--refract,);
+}
+:global([data-theme='dark']) .composer {
+  --composer-tint: 36%;
+  --composer-rim: rgb(221 236 255 / 0.28);
+}
+:global([data-opaque='true']) .composer {
+  --composer-rim: transparent;
+  background: var(--bg-elevated);
+}
+@media (forced-colors: active) {
+  .composer {
+    background: Canvas;
+    backdrop-filter: none;
+    outline: 1px solid CanvasText;
+  }
+  .composer::after {
+    display: none;
+  }
 }
 .composer:focus-within {
-  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline: 3px solid var(--focus-ring, color-mix(in srgb, var(--accent) 45%, transparent));
   outline-offset: 1px;
 }
 .composer textarea {
-  width: 100%;
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  field-sizing: content;
   resize: none;
   display: block;
   min-height: 22px;
   max-height: 130px;
-  padding: 0 6px 0 0;
+  padding: 0 5px;
   border: 0;
   background: none;
   font-size: 14px;
   line-height: 22px;
   outline: none;
 }
-.composerBottom {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  justify-content: flex-end;
-  margin: 6px 0 0 -8px;
+.composer textarea::placeholder {
+  color: var(--text-secondary);
+  opacity: 1;
 }
-.composerBottom small {
-  margin-left: auto;
+.composerRow {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 3px;
+}
+.composerExtras {
+  min-height: 0;
+  overflow: auto;
+}
+.composerRow button {
+  flex-shrink: 0;
+}
+.composerRow small {
+  max-width: 27%;
+  margin-right: 4px;
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.composerError {
+  flex-shrink: 0;
+  margin: 4px 8px 0;
+  color: var(--status-failed);
+}
+.composerError:empty {
+  margin: 0;
+}
 .inspector {
   position: relative;
-  margin: 52px 6px 6px 0;
+  margin: 6px 6px 6px 0;
   border-radius: 14px;
   overflow: hidden;
   box-shadow: var(--shadow-panel);
@@ -338,6 +416,19 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+.shell:not([data-focus-mode]) .inspector:not(.detailPage) {
+  justify-self: start;
+  width: max(0px, calc(max(var(--workspace-right), var(--workspace-right-reveal, 0px)) - 6px));
+}
+.splitWorkspace .main {
+  box-shadow: none;
+}
+.splitWorkspace .inspector {
+  border-left: var(--line) solid var(--separator);
+  border-radius: 0 14px 14px 0;
+  background: var(--bg-content);
+  box-shadow: none;
 }
 .inspectorHeader {
   height: 52px;
@@ -379,16 +470,43 @@
 .divider button:hover {
   background: color-mix(in srgb, var(--accent) 25%, transparent);
 }
-.overlay {
-  position: absolute;
-  top: 52px;
-  margin-top: 6px;
-  bottom: 16px;
-  right: 16px;
-  width: min(380px, calc(100vw - 48px));
-  border-radius: 14px;
-  box-shadow: var(--shadow-sheet);
-  z-index: 5;
+.behindDetail {
+  visibility: hidden;
+}
+.shell[data-detail-moving] .behindDetail {
+  visibility: visible;
+}
+.detailPage {
+  z-index: 3;
+  background: var(--bg-content);
+  margin-left: max(0px, calc(6px - var(--workspace-left)));
+}
+.detailPage[inert] {
+  opacity: 0;
+  translate: 24px;
+}
+.detailPage .inspectorHeader {
+  border-bottom: var(--line) solid var(--separator);
+  -webkit-app-region: drag;
+}
+.detailPage .inspectorHeader button {
+  -webkit-app-region: no-drag;
+}
+.detailPage :global([data-work-detail]) {
+  width: min(100%, 760px);
+  margin-inline: auto;
+}
+.macWorkspace .detailPage .inspectorHeader {
+  padding-left: max(16px, var(--traffic-light-inset));
+}
+:global([data-platform='win32']) .detailPage .inspectorHeader {
+  padding-right: 150px;
+}
+:global([data-platform='linux']) .detailPage .inspectorHeader {
+  padding-right: max(
+    16px,
+    calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 12px)
+  );
 }
 .sidebarOverlay {
   position: absolute;
@@ -399,6 +517,10 @@
   box-shadow: var(--shadow-sheet);
   z-index: 5;
 }
+.sidebarOverlay[data-pane-open='false'] {
+  opacity: 0;
+  translate: -20px;
+}
 .search {
   width: 100%;
   padding: 8px;
@@ -406,8 +528,7 @@
 }
 @media (max-height: 599px) {
   .composer {
-    max-height: 96px;
-    padding: 6px 10px 8px 16px;
+    max-height: min(144px, 36%);
   }
   .composer textarea {
     max-height: 44px;

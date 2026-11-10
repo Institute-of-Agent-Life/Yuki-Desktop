@@ -713,14 +713,16 @@ function Gallery() {
   const [zoom, setZoom] = useState(145)
   const [changes, setChanges] = useState({ switch: 0, segment: 0, button: 0 })
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
+  const platform =
+    new URLSearchParams(location.search).get('platform') === 'darwin' ? 'darwin' : 'linux'
   document.documentElement.dataset.theme = theme
-  document.documentElement.dataset.platform = 'linux'
+  document.documentElement.dataset.platform = platform
   return (
     <Workspace
       floating={false}
       name={new URLSearchParams(window.location.search).get('name') ?? '角色'}
       status="元件驗證"
-      platform="linux"
+      platform={platform}
       inspector={<p>詳情內容</p>}
     >
       <Banner>離線狀態</Banner>

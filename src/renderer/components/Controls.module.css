@@ -264,6 +264,13 @@
 .primary,
 .send {
   --press-background: var(--accent-strong);
+  --hl: rgba(255, 255, 255, 0.08);
+}
+.primary[data-held='true'],
+.send[data-held='true'] {
+  box-shadow:
+    inset 0 1px 3px rgba(12, 24, 58, 0.3),
+    0 1px 1px rgba(12, 24, 58, 0.16);
 }
 
 :global([data-contrast='true']) .icon[aria-pressed='true'] {

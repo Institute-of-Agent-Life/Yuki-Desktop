@@ -3,6 +3,7 @@ import { createStore, useStore, type StoreApi } from 'zustand'
 import type { View, NavigationTarget } from '../../shared/desktop'
 import type { ArtifactSource, AttachmentSource, Connection } from '../../shared/api'
 import type { MessageReference } from '../../shared/message'
+import { inspectorSplitMinimum } from '../../main/geometry'
 import { requestNavigation } from './navigation'
 
 export type InspectorTab = 'work' | 'computer' | 'files'
@@ -35,6 +36,12 @@ interface WorkspaceState {
   setWidth(key: 'sidebarWidth' | 'inspectorWidth', value: number | null): void
   patch(value: Partial<WorkspaceState>): void
 }
+const primaryView = (state: WorkspaceState, view: View) => ({
+  view,
+  focusMode: false,
+  inspector: state.inspector && window.innerWidth >= inspectorSplitMinimum,
+  inspectorTab: inspectorFor(view) ?? state.inspectorTab,
+})
 const sessions = new Map<string, StoreApi<WorkspaceState>>()
 const context = createContext({ scope: 'default', active: true })
 export const workspaceScope = (connection: Connection) =>
@@ -71,19 +78,15 @@ export function workspaceFor(scope: string) {
       navigate: (target) =>
         requestNavigation(() =>
           set((state) => ({
+            ...primaryView(state, target.view),
             target,
-            view: target.view,
-            focusMode: false,
-            inspectorTab: inspectorFor(target.view) ?? state.inspectorTab,
           })),
         ),
       setView: (view) =>
         requestNavigation(() =>
           set((state) => ({
-            view,
+            ...primaryView(state, view),
             target: null,
-            focusMode: false,
-            inspectorTab: inspectorFor(view) ?? state.inspectorTab,
           })),
         ),
       toggle: (key) => {

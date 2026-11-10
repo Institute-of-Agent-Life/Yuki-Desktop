@@ -1,9 +1,10 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 
 const NS = 'http://www.w3.org/2000/svg'
 const presets = {
   toolbar: [10, 12, 0],
   composer: [16, 18, 0],
+  bubble: [14, 18, 0],
   toast: [10, 12, 0],
   slider: [7, 10, 0.32],
   toggle: [5, 7, 0.2],
@@ -19,26 +20,34 @@ export function roundedDistance(x: number, y: number, hx: number, hy: number, ra
   return Math.min(Math.max(qx, qy), 0) + Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - radius
 }
 
-function lens(width: number, height: number, radius: number, kind: GlassKind) {
-  const key = `${width}/${height}/${radius}/${kind}`
+function lens(
+  width: number,
+  height: number,
+  radius: number,
+  kind: GlassKind,
+  inline: number,
+  bottom: number,
+) {
+  const key = `${width}/${height}/${radius}/${kind}/${inline}/${bottom}`
   const cached = maps.get(key)
   if (cached) return cached
   const [edgeHeight, amount, zoom] = presets[kind]
   const canvas = document.createElement('canvas'),
     rim = document.createElement('canvas')
-  canvas.width = rim.width = width * 2
-  canvas.height = rim.height = height * 2
+  const resolution = kind === 'bubble' ? Math.min(1, 360 / Math.max(width, height)) : 2
+  canvas.width = rim.width = Math.max(1, Math.round(width * resolution))
+  canvas.height = rim.height = Math.max(1, Math.round(height * resolution))
   const context = canvas.getContext('2d')!,
     lightContext = rim.getContext('2d')!
   const pixels = context.createImageData(canvas.width, canvas.height)
   const lights = lightContext.createImageData(canvas.width, canvas.height)
-  const hx = width / 2,
-    hy = height / 2,
-    normalRadius = Math.min(radius * 1.5, hx, hy)
+  const hx = width / 2 - inline,
+    hy = (height - bottom) / 2,
+    normalRadius = Math.min(radius * (kind === 'bubble' ? 1 : 1.5), hx, hy)
   for (let j = 0; j < canvas.height; j++)
     for (let i = 0; i < canvas.width; i++) {
-      const x = (i + 0.5) / 2 - hx,
-        y = (j + 0.5) / 2 - hy,
+      const x = ((i + 0.5) * width) / canvas.width - width / 2,
+        y = ((j + 0.5) * height) / canvas.height - hy,
         k = (j * canvas.width + i) * 4
       const distance = roundedDistance(x, y, hx, hy, radius),
         inset = -distance
@@ -54,7 +63,8 @@ function lens(width: number, height: number, radius: number, kind: GlassKind) {
       let dx = 0,
         dy = 0
       if (distance <= 0 && inset < edgeHeight) {
-        const arc = 1 - Math.sqrt(Math.max(0, 1 - (1 - inset / edgeHeight) ** 2))
+        const edge = 1 - inset / edgeHeight
+        const arc = kind === 'bubble' ? edge ** 2.4 : 1 - Math.sqrt(Math.max(0, 1 - edge ** 2))
         dx = -arc * nx
         dy = -arc * ny
       }
@@ -86,7 +96,7 @@ function lens(width: number, height: number, radius: number, kind: GlassKind) {
 }
 
 /** Samples only the backdrop; foreground text remains on the original surface. */
-export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false) {
+export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false, enabled = true) {
   const ref = useRef<T>(null),
     strength = useRef(dynamic ? 0 : 1)
   const displacement = useRef<SVGElement | null>(null)
@@ -97,7 +107,7 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
   }
   const attachment = useRef<{ element: T; kind: GlassKind; dispose(): void } | undefined>(undefined)
   useLayoutEffect(() => {
-    const element = ref.current
+    const element = enabled ? ref.current : null
     if (attachment.current?.element === element && attachment.current?.kind === kind) return
     attachment.current?.dispose()
     attachment.current = undefined
@@ -144,14 +154,17 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
       const w = element.offsetWidth,
         h = element.offsetHeight
       if (!w || !h) return
+      const style = getComputedStyle(element)
+      const inline = kind === 'bubble' ? parseFloat(style.paddingInlineStart) : 0
+      const bottom = kind === 'bubble' ? parseFloat(style.paddingBottom) : 0
       const r = Math.min(
-        parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0,
-        w / 2,
-        h / 2,
+        parseFloat(style.borderTopLeftRadius) || 0,
+        w / 2 - inline,
+        (h - bottom) / 2,
       )
-      const next = `${w}/${h}/${r}`
+      const next = `${w}/${h}/${r}/${inline}/${bottom}`
       if (next !== size) {
-        const map = lens(w, h, r, kind)
+        const map = lens(w, h, r, kind, inline, bottom)
         filter.setAttribute('width', String(w))
         filter.setAttribute('height', String(h))
         image.setAttribute('width', String(w))
@@ -194,4 +207,29 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
     [],
   )
   return { ref, setStrength }
+}
+
+const bubbleVisibility = new WeakMap<Element, (visible: boolean) => void>()
+let bubbleObserver: IntersectionObserver | undefined
+
+export function useConversationGlass() {
+  const [visible, setVisible] = useState(false)
+  const { ref } = useGlass<HTMLSpanElement>('bubble', false, visible)
+  return useCallback(
+    (element: HTMLSpanElement | null) => {
+      ref.current = element
+      if (!element) return
+      const observer = (bubbleObserver ??= new IntersectionObserver((entries) => {
+        for (const entry of entries) bubbleVisibility.get(entry.target)?.(entry.isIntersecting)
+      }))
+      bubbleVisibility.set(element, setVisible)
+      observer.observe(element)
+      return () => {
+        observer.unobserve(element)
+        bubbleVisibility.delete(element)
+        ref.current = null
+      }
+    },
+    [ref],
+  )
 }

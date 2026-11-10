@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { ArrowUp, Mic, Plus } from 'lucide-react'
 import { useGlass } from '../materials/glass'
 import { IconButton } from './Controls'
@@ -31,17 +31,18 @@ export function Composer({
   children?: ReactNode
 }) {
   const glass = useGlass<HTMLDivElement>('composer')
-  const input = useRef<HTMLTextAreaElement>(null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const feedbackId = useId()
-  useEffect(() => {
-    const element = input.current
-    if (element) {
-      element.style.height = 'auto'
-      element.style.height = `${element.scrollHeight}px`
-    }
-  }, [draft])
+  const shortcutId = `${feedbackId}-shortcut`
+  const shortcut =
+    platform === 'darwin'
+      ? commandEnter
+        ? '⌘↩ 送出'
+        : '↩ 送出 · ⇧↩ 換行'
+      : commandEnter
+        ? 'Ctrl+Enter 送出'
+        : 'Enter 送出 · Shift+Enter 換行'
   const submit = async () => {
     if (sending || blocked || (!normalizeMessageText(draft) && !hasContent)) return
     setSending(true)
@@ -56,57 +57,54 @@ export function Composer({
   }
   return (
     <div ref={glass.ref} data-glass="composer" className={styles.composer} data-region="composer">
-      {children}
-      <textarea
-        ref={input}
-        aria-label={`和 ${name} 說點什麼`}
-        aria-describedby={feedbackId}
-        aria-invalid={!!error}
-        placeholder={`和 ${name} 說點什麼…`}
-        value={draft}
-        onChange={(event) => {
-          setError('')
-          onDraft(event.target.value)
-        }}
-        onKeyDown={(event) => {
-          if (
-            event.key === 'Enter' &&
-            !event.shiftKey &&
-            !event.nativeEvent.isComposing &&
-            event.nativeEvent.keyCode !== 229 &&
-            (!commandEnter || event.metaKey || event.ctrlKey)
-          ) {
-            event.preventDefault()
-            void submit()
-          }
-        }}
-      />
-      <div className={styles.composerBottom}>
+      <div className={styles.composerExtras}>{children}</div>
+      <div className={styles.composerRow}>
         <IconButton label="附加檔案" disabled={!onAttach} onClick={onAttach}>
           <Plus size={18} strokeWidth={1.6} />
         </IconButton>
         <IconButton label="語音輸入" disabled={!onRecord} onClick={onRecord}>
           <Mic size={18} strokeWidth={1.6} />
         </IconButton>
-        <small id={feedbackId} aria-live="polite">
-          {error ||
-            (platform === 'darwin'
-              ? commandEnter
-                ? '⌘↩ 送出'
-                : '↩ 送出 · ⇧↩ 換行'
-              : commandEnter
-                ? 'Ctrl+Enter 送出'
-                : 'Enter 送出 · Shift+Enter 換行')}
+        <textarea
+          rows={1}
+          aria-label={`和 ${name} 說點什麼`}
+          aria-describedby={error ? feedbackId : shortcutId}
+          aria-invalid={!!error}
+          placeholder={`和 ${name} 說點什麼…`}
+          value={draft}
+          onChange={(event) => {
+            setError('')
+            onDraft(event.target.value)
+          }}
+          onKeyDown={(event) => {
+            if (
+              event.key === 'Enter' &&
+              !event.shiftKey &&
+              !event.nativeEvent.isComposing &&
+              event.nativeEvent.keyCode !== 229 &&
+              (!commandEnter || event.metaKey || event.ctrlKey)
+            ) {
+              event.preventDefault()
+              if (!event.repeat) void submit()
+            }
+          }}
+        />
+        <small id={shortcutId} title={shortcut}>
+          {shortcut}
         </small>
         <IconButton
           label="送出"
           variant="send"
+          aria-busy={sending}
           disabled={sending || blocked || (!normalizeMessageText(draft) && !hasContent)}
           onClick={() => void submit()}
         >
           <ArrowUp size={18} strokeWidth={1.6} />
         </IconButton>
       </div>
+      <p className={styles.composerError} id={feedbackId} aria-live="polite">
+        {error}
+      </p>
     </div>
   )
 }

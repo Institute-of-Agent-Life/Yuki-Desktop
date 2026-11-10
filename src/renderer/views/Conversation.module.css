@@ -5,27 +5,79 @@
   min-height: 0;
   position: relative;
   padding-top: 52px;
+  --lens-line: color-mix(in srgb, var(--accent) 16%, transparent);
+  background:
+    linear-gradient(
+      132deg,
+      transparent 31%,
+      var(--lens-line) 31% calc(31% + 1px),
+      transparent calc(31% + 1px) 66%,
+      var(--lens-line) 66% calc(66% + 1px),
+      transparent calc(66% + 1px)
+    ),
+    radial-gradient(
+      ellipse at 106% 120%,
+      color-mix(in srgb, var(--accent) 16%, transparent) 48%,
+      transparent 48.2%
+    ),
+    radial-gradient(
+      ellipse at -16% 70%,
+      color-mix(in srgb, var(--accent) 9%, transparent) 49%,
+      transparent 49.25%
+    ),
+    var(--bg-content);
 }
 .messages {
   overflow: auto;
   flex: 1;
   min-height: 0;
-  padding: calc(24px + var(--notice-h, 0px)) max(24px, calc((100% - 680px) / 2))
-    calc(var(--composer-h, 84px) + 40px);
-  scroll-padding-block: 24px calc(var(--composer-h, 84px) + 40px);
+  padding: calc(20px + var(--notice-h, 0px)) max(24px, calc((100% - 680px) / 2))
+    calc(var(--composer-h, 46px) + 32px);
+  scroll-padding-block: 20px calc(var(--composer-h, 46px) + 32px);
   overflow-anchor: none;
 }
 .message {
   position: relative;
   display: flex;
-  gap: 12px;
-  margin: 0 0 24px;
-  padding: 8px;
-  border-radius: 10px;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 14px;
+  width: fit-content;
+  max-width: min(620px, 100%);
+  border-radius: 18px;
+}
+.message > [role='img'] {
+  margin-top: 7px;
+}
+.message:has(+ .consecutive) {
+  margin-bottom: 5px;
 }
 .messageBody {
-  flex: 1;
+  position: relative;
   min-width: 0;
+}
+.bubble {
+  --glass-radius: 18px;
+  --glass-bleed-inline: 22px;
+  --glass-bleed-tail: 30px;
+  min-width: 0;
+  padding: 8px 13px;
+  border-radius: var(--glass-radius);
+}
+.bubble > :global([data-liquid-outline]) {
+  position: absolute;
+  top: 0;
+  left: calc(-1 * var(--glass-bleed-inline));
+  width: calc(100% + 2 * var(--glass-bleed-inline));
+  height: calc(100% + var(--glass-bleed-tail));
+  color: var(--glass-edge);
+  filter: drop-shadow(0 0.75px 1px var(--glass-edge-shadow));
+  pointer-events: none;
+}
+.bubbleCopy {
+  position: relative;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .dateSeparator {
   text-align: center;
@@ -44,25 +96,20 @@
   display: flex;
   align-items: baseline;
   gap: 12px;
-  margin-bottom: 6px;
+  margin-bottom: 3px;
 }
 .message time {
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
   color: var(--text-tertiary);
 }
 .ownMessage {
   margin-left: auto;
-  width: fit-content;
-  max-width: min(520px, 88%);
-  background: var(--accent-subtle);
-  padding: 8px 14px;
-  border-radius: 18px 18px 6px 18px;
-  margin-bottom: 16px;
-  white-space: normal;
+  max-width: min(560px, 88%);
 }
-.ownMessage > p {
-  white-space: pre-wrap;
-  margin: 0 0 8px;
+.ownMessage .bubble {
+  --glass-tint: color-mix(in srgb, var(--accent) 10%, transparent);
+  --glass-solid: var(--accent-subtle);
 }
 .selected {
   outline: 2px solid var(--accent);
@@ -153,6 +200,7 @@
   text-decoration: underline;
 }
 .pending {
+  min-height: 28px;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -161,12 +209,50 @@
   flex-wrap: wrap;
 }
 .processing {
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.processing > [role='img'] {
+  margin-top: 0;
+}
+.processing .bubbleCopy {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--text-secondary);
-  font-size: 11px;
-  padding: 4px max(24px, calc((100% - 712px) / 2));
+}
+.waitDots {
+  display: inline-flex;
+  gap: 3px;
+}
+.waitDots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: wait-dot 1200ms ease-in-out infinite alternate;
+}
+.waitDots i:nth-child(2) {
+  animation-delay: 140ms;
+}
+.waitDots i:nth-child(3) {
+  animation-delay: 280ms;
+}
+@keyframes wait-dot {
+  from {
+    opacity: 0.42;
+  }
+  to {
+    opacity: 1;
+  }
+}
+:global([data-motion='reduced']) .waitDots i {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .waitDots i {
+    animation: none;
+  }
 }
 .newMessages {
   position: absolute;
@@ -265,17 +351,12 @@
 }
 .conversationIntroduction {
   display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 8px;
-  margin: 24px 0;
-}
-.conversationIntroduction > span {
-  outline: 1px solid var(--separator);
-  outline-offset: 4px;
+  margin: 0 0 18px;
 }
 .conversationIntroduction h2 {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 20px;
   margin: 0;
@@ -329,24 +410,8 @@
   backdrop-filter: blur(28px) saturate(170%);
   box-shadow: var(--shadow-glass);
 }
-.processing {
-  position: absolute;
-  bottom: calc(var(--composer-h, 84px) + 22px);
-  pointer-events: none;
-}
-@media (max-height: 599px) {
-  .conversationIntroduction {
-    flex-direction: row;
-    margin: 12px 0;
-  }
-  .conversationIntroduction > span {
-    width: 28px !important;
-    height: 28px !important;
-    outline: none;
-  }
-  .conversationIntroduction p {
-    display: none;
-  }
+:global([data-opaque='true']) .chat {
+  background: var(--bg-content);
 }
 
 :global([data-contrast='true']) .entry[aria-current] {

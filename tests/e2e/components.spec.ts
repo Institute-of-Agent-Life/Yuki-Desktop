@@ -35,6 +35,7 @@ test('actual column drags preserve center width at 1180', async ({ page }) => {
   await page.goto('http://127.0.0.1:4178/components.html')
   await page.getByRole('button', { name: '詳情', exact: true }).click()
   const divider = page.getByRole('separator', { name: '調整詳情寬度' })
+  await divider.click({ trial: true })
   const box = await divider.boundingBox()
   await page.mouse.move(box!.x + 4, box!.y + 100)
   await page.mouse.down()

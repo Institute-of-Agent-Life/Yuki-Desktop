@@ -106,6 +106,7 @@ test(
         .click()
       await expect(page.getByRole('button', { name: '還原版面', exact: true })).toBeVisible()
       await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled()
+      await page.getByRole('button', { name: '關閉詳情', exact: true }).click()
       await captureWorkspace(
         app,
         page,
