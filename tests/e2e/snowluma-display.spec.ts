@@ -1,11 +1,179 @@
 import { expect, test } from '@playwright/test'
-import { mkdtemp } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { currentConnection, pairUI } from '../fixtures/backend'
+import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
 import { isolatedDesktop } from '../fixtures/isolated-desktop'
 import { navigate } from '../fixtures/navigation'
 import type { Computer, Profile } from '../../src/shared/api'
+
+test(
+  'switching displays keeps focus, the visible source, and separate control',
+  {
+    tag: '@unix-manager',
+  },
+  async () => {
+    test.setTimeout(60000)
+    const rig = await yukiFixture({ computer: true, snowluma: true })
+    const app = await rig.launch('display-switch')
+    const info = test.info()
+    const evidence: unknown[] = []
+    const qq = async () =>
+      (await readFile(join(rig.root, 'qq-rfb.jsonl'), 'utf8'))
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map(
+          (line) =>
+            JSON.parse(line) as { session: number; kind: string; down?: boolean; key?: number },
+        )
+    const sandbox = async () =>
+      (await (await fetch(rig.base + '/__test/computer')).json()) as {
+        control: Computer['control']
+        mutations: number
+        events: { kind: string; hex?: string }[]
+      }
+    let passed = false
+    try {
+      const page = await app.firstWindow()
+      await pairUI(page, rig.base, await rig.code())
+      const { characterId, deviceId } = await currentConnection(page)
+      const name = await page.evaluate(async (id) => {
+        const result = await window.yuki.client.read<Profile>(id, { kind: 'character' })
+        if (!result.ok) throw Error(result.code)
+        return result.value.display_name
+      }, characterId)
+      await navigate(page, name + ' 的電腦')
+      const picker = page.getByRole('combobox', { name: '顯示器' })
+      const display = page.getByRole('application', { name: '遠端電腦畫面' })
+      const capture = page.getByRole('button', { name: '截圖存檔', exact: true })
+      const keyboard = page.getByRole('button', { name: '傳送 Ctrl Alt Delete', exact: true })
+      const takeQQ = page.getByRole('button', { name: '接手 QQ', exact: true })
+      const endQQ = page.getByRole('button', { name: '結束 QQ 控制', exact: true })
+      const returnSandbox = page.getByRole('button', { name: `交回給 ${name}`, exact: true })
+
+      const verifyDisplay = async (source: 'sandbox' | 'qq-view', controlling: boolean) => {
+        await expect(picker).toHaveValue(source)
+        await expect(capture).toBeEnabled()
+        const frame = () =>
+          display.locator('canvas').evaluate((canvas: HTMLCanvasElement) => ({
+            size: [canvas.width, canvas.height],
+            pixel: Array.from(canvas.getContext('2d')!.getImageData(0, 0, 1, 1).data),
+          }))
+        await expect
+          .poll(frame, { timeout: 5000 })
+          .toEqual(
+            source === 'sandbox'
+              ? { size: [960, 600], pixel: [53, 48, 45, 255] }
+              : { size: [640, 480], pixel: [22, 117, 225, 255] },
+          )
+        if (controlling) await expect(keyboard).toBeEnabled()
+        else await expect(keyboard).toBeDisabled()
+        evidence.push({ source, controlling, frame: await frame() })
+      }
+
+      await verifyDisplay('sandbox', false)
+      const pointerRegion = await picker.evaluate((element) => {
+        for (let node: Element | null = element; node; node = node.parentElement) {
+          const region = getComputedStyle(node).getPropertyValue('-webkit-app-region')
+          if (region === 'drag' || region === 'no-drag') return region
+        }
+        return 'none'
+      })
+      evidence.push({ pointerRegion })
+      expect.soft(pointerRegion, 'the display picker accepts pointer input').not.toBe('drag')
+      await page.getByRole('button', { name: '接手', exact: true }).click()
+      await expect(returnSandbox).toBeEnabled()
+      const { control, mutations } = await sandbox()
+      expect(control).toMatchObject({ holder: 'human', device_id: deviceId })
+      evidence.push({ sandboxLease: control, mutations })
+
+      await picker.focus()
+      await page.keyboard.press('q')
+      await expect(picker).toHaveValue('qq-view', { timeout: 5000 })
+      await expect.soft(picker).toBeFocused({ timeout: 1000 })
+      await verifyDisplay('qq-view', false)
+      await display.click()
+      await page.keyboard.press('v')
+      await takeQQ.click()
+      await verifyDisplay('qq-view', true)
+      await expect(endQQ).toBeVisible()
+      const qqControl = (await qq()).filter(({ kind }) => kind === 'open').at(-1)!.session
+      await display.click()
+      await page.keyboard.press('x')
+      await expect
+        .poll(async () => (await qq()).filter(({ kind }) => kind === 'key'))
+        .toEqual([
+          { session: qqControl, kind: 'key', down: true, key: 120 },
+          { session: qqControl, kind: 'key', down: false, key: 120 },
+        ])
+      await page.screenshot({ path: info.outputPath('qq-control.png') })
+
+      await picker.focus()
+      await picker.selectOption('sandbox')
+      await expect.soft(picker).toBeFocused({ timeout: 1000 })
+      await verifyDisplay('sandbox', true)
+      await expect
+        .poll(async () =>
+          (await qq()).some(({ kind, session }) => kind === 'close' && session === qqControl),
+        )
+        .toBe(true)
+      await expect(returnSandbox).toBeEnabled()
+      await display.click()
+      await page.keyboard.press('s')
+      await expect
+        .poll(async () =>
+          (await sandbox()).events.some(
+            ({ kind, hex }) =>
+              (kind === 'key' || kind === 'extended') &&
+              Buffer.from(hex!, 'hex').readUInt32BE(4) === 115,
+          ),
+        )
+        .toBe(true)
+      await page.screenshot({ path: info.outputPath('sandbox-control.png') })
+
+      await picker.selectOption('qq-view')
+      await picker.selectOption('sandbox')
+      await picker.selectOption('qq-view')
+      await verifyDisplay('qq-view', false)
+      await expect(takeQQ).toBeVisible()
+      await expect(endQQ).toHaveCount(0)
+      await takeQQ.click()
+      await verifyDisplay('qq-view', true)
+      await endQQ.click()
+      await verifyDisplay('qq-view', false)
+      await picker.selectOption('sandbox')
+      await verifyDisplay('sandbox', true)
+      const resumedSandbox = await sandbox()
+      expect(resumedSandbox).toMatchObject({ control, mutations })
+      evidence.push({
+        resumedSandboxLease: resumedSandbox.control,
+        mutations: resumedSandbox.mutations,
+      })
+      await returnSandbox.click()
+      await page
+        .getByRole('dialog', { name: `交回給 ${name}` })
+        .getByRole('button', { name: '交回', exact: true })
+        .click()
+      await expect.poll(async () => (await sandbox()).control?.holder).toBe('none')
+      passed = info.errors.length === 0
+    } finally {
+      try {
+        await writeFile(
+          info.outputPath('display-switch.json'),
+          JSON.stringify({ evidence, qq: await qq(), sandbox: await sandbox() }, null, 2) + '\n',
+        )
+      } finally {
+        await app
+          .evaluate(({ dialog }) => {
+            dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
+          })
+          .catch(() => {})
+        await app.close().finally(() => rig.close(passed))
+      }
+    }
+  },
+)
 
 test('switch between a real sandbox and SnowLuma login without taking the sandbox lease', async () => {
   const base = process.env.YUKI_DESKTOP_QQ_BACKEND_URL
