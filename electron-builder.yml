@@ -42,7 +42,7 @@ publish:
   releaseType: draft
   tagNamePrefix: desktop-v
 mac:
-  icon: resources/icons/app/1024x1024.png
+  icon: resources/icons/app/icon.icns
   category: public.app-category.productivity
   minimumSystemVersion: '13.0.0'
   target: [dmg, zip]
