@@ -8,6 +8,7 @@ import { centerColumnMinimum } from '../../src/main/geometry'
 const sidebar = (page: Page) => page.getByRole('separator', { name: '調整側邊欄', exact: true })
 const inspector = (page: Page) => page.getByRole('separator', { name: '調整詳情寬度', exact: true })
 async function drag(page: Page, handle: Locator, dx: number) {
+  await handle.click({ trial: true })
   const bounds = await handle.boundingBox()
   expect(bounds).not.toBeNull()
   const x = bounds!.x + bounds!.width / 2,

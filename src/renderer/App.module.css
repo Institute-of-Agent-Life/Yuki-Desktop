@@ -78,11 +78,26 @@
   gap: 8px;
   margin-top: 12px;
 }
+@property --workspace-left {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+@property --workspace-right {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
 .shell {
   display: grid;
+  grid-template-columns: var(--workspace-left) 0 minmax(0, 1fr) 0 var(--workspace-right);
   grid-template-rows: minmax(0, 1fr);
   height: 100%;
   min-height: 0;
+  overflow: clip;
+}
+.shell[data-focus-mode] {
+  grid-template-columns: 400px 0 minmax(0, 1fr);
 }
 .sidebar {
   position: relative;
@@ -98,6 +113,16 @@
   overflow-y: auto;
   min-width: 0;
   min-height: 0;
+}
+.sidebar:not(.sidebarOverlay) {
+  justify-self: end;
+  width: max(0px, calc(max(var(--workspace-left), var(--workspace-left-reveal, 0px)) - 12px));
+}
+.sidebar[data-pane-open='false'] {
+  visibility: hidden;
+}
+.shell[data-sidebar-moving] .sidebar {
+  visibility: visible;
 }
 .presence {
   display: flex;
@@ -160,14 +185,16 @@
   color: var(--accent-on);
 }
 .main {
+  --right-radius: clamp(0px, calc(14px - var(--workspace-right)), 14px);
   isolation: isolate;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   position: relative;
-  margin: 6px 6px 6px 0;
-  border-radius: 14px;
+  margin: 6px max(0px, calc(6px - var(--workspace-right))) 6px
+    max(0px, calc(6px - var(--workspace-left)));
+  border-radius: 14px var(--right-radius) var(--right-radius) 14px;
   overflow: hidden;
   background: var(--bg-content);
   box-shadow: var(--shadow-panel);
@@ -176,8 +203,9 @@
 :global([data-material='mica']) .sidebar:not(.sidebarOverlay) {
   background: var(--mat-sidebar);
 }
-.sidebarHidden .main {
-  margin-left: 6px;
+.shell[data-focus-mode] .main {
+  margin-right: 0;
+  border-radius: 14px 0 0 14px;
 }
 .floating .toolbar {
   position: absolute;
@@ -262,8 +290,11 @@
   font-size: 15px;
   line-height: 20px;
 }
-.macCollapsed .toolbar {
-  padding-left: 86px;
+.macWorkspace {
+  --traffic-light-inset: calc(92px - max(6px, var(--workspace-left)));
+}
+.macWorkspace .toolbar {
+  padding-left: max(20px, var(--traffic-light-inset));
 }
 :global([data-platform='win32']) .toolbar {
   padding-right: 150px;
@@ -360,9 +391,11 @@
   display: flex;
   flex-direction: column;
 }
+.shell:not([data-focus-mode]) .inspector:not(.detailPage) {
+  justify-self: start;
+  width: max(0px, calc(max(var(--workspace-right), var(--workspace-right-reveal, 0px)) - 6px));
+}
 .splitWorkspace .main {
-  margin-right: 0;
-  border-radius: 14px 0 0 14px;
   box-shadow: none;
 }
 .splitWorkspace .inspector {
@@ -414,11 +447,17 @@
 .behindDetail {
   visibility: hidden;
 }
-.detailPage {
-  background: var(--bg-content);
+.shell[data-detail-moving] .behindDetail {
+  visibility: visible;
 }
-.sidebarHidden .detailPage {
-  margin-left: 6px;
+.detailPage {
+  z-index: 3;
+  background: var(--bg-content);
+  margin-left: max(0px, calc(6px - var(--workspace-left)));
+}
+.detailPage[inert] {
+  opacity: 0;
+  translate: 24px;
 }
 .detailPage .inspectorHeader {
   border-bottom: var(--line) solid var(--separator);
@@ -431,8 +470,8 @@
   width: min(100%, 760px);
   margin-inline: auto;
 }
-.macCollapsed .detailPage .inspectorHeader {
-  padding-left: 86px;
+.macWorkspace .detailPage .inspectorHeader {
+  padding-left: max(16px, var(--traffic-light-inset));
 }
 :global([data-platform='win32']) .detailPage .inspectorHeader {
   padding-right: 150px;
@@ -451,6 +490,10 @@
   padding-top: 12px;
   box-shadow: var(--shadow-sheet);
   z-index: 5;
+}
+.sidebarOverlay[data-pane-open='false'] {
+  opacity: 0;
+  translate: -20px;
 }
 .search {
   width: 100%;
