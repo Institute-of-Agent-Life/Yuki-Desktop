@@ -261,6 +261,7 @@ export async function recordBusinessState(page: Page, name: string, computer = f
 export async function yukiFixture(
   options: {
     managedUpdates?: boolean
+    nativeShell?: boolean
     computer?: boolean
     computerWork?: boolean
     character?: boolean
