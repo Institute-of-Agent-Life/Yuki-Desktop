@@ -137,7 +137,8 @@ test('narrow overlays leave the workspace in place and reduced motion settles im
       openLeft.before.sidebar,
       openLeft.after.sidebar,
     ),
-  ).toBeGreaterThan(1)
+    // As above: one in-between position shows a slide on runners that draw few frames.
+  ).toBeGreaterThan(0)
   await move(left)
   const details = page.getByRole('button', { name: '詳情', exact: true })
   const openRight = await move(details)
