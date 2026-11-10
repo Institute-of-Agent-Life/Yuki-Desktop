@@ -1429,10 +1429,15 @@ export function Message({
       onContextMenu={(click) => {
         click.preventDefault()
         const link = (click.target as HTMLElement).closest<HTMLAnchorElement>('a[href]')
+        const selection = window.getSelection()
+        const selectedText =
+          selection?.rangeCount && selection.getRangeAt(0).intersectsNode(click.currentTarget)
+            ? selection.toString()
+            : ''
         action(
           window.yuki.client
             .contextMenu({
-              text: event.content,
+              text: selectedText || event.content,
               ...(link ? { link: link.href } : {}),
             })
             .then(unwrap),

@@ -106,6 +106,8 @@ SOUL 測試使用本版後端的 `tests.support.soul_reference_server`，由明�
 
 `native-toolbar-scroll.spec.ts` 以真對話的唯一 5,000 字訊息與原事件，經實際滑鼠滾輪驗證工具列捲動材質、回到頂端、四種外觀及設定頁隔離，再以短訊息確認 Main 回覆可接續；不直接賦值捲動狀態。
 
+`native-message-copy.spec.ts` 以隔離的源 App、macOS 原生右鍵選單及系統剪貼簿驗證選區、全文與 ⌘C。先設定 `YUKI_BACKEND_TEST_ROOT` 和 `YUKI_BACKEND_TEST_PYTHON` 指向固定版後端與其 Python，並在已授予輔助使用權限的互動桌面執行 `YUKI_NATIVE_MESSAGE_COPY=1 npm run test:e2e -- native-message-copy.spec.ts`。輸出包含 `message-copy.json` 和 Playwright trace。
+
 `native-about-layout.spec.ts` 使用啟用角色夾具的全新隔離服務，經設定控制切換外觀，在標準與矮工作區量測角色頁欄寬、記憶排版和小字對比，再從記憶依據按鈕回到同一原始事件。Windows 同時保留核對 PID／HWND 的原生視窗擷取。畫面證據供人工對照；工作區模擬、原生視窗和 OS 顯示縮放分別記錄。
 
 `native-file-layout.spec.ts` 以真服務交付的兩個同名成果驗證列表、原版本預覽與來源跳轉，檢查長檔名保留副檔名、時間／來源可讀及矮工作區的儲存入口。Mac 標準尺寸為 1440×900，Windows 原生檢查採 1360×833，另檢查 1100×760 與 960×492 工作區；後者可能使用 Electron 工作區模擬，證據會明列。Windows 圖片只擷取本次 App 的 HWND。
