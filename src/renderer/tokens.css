@@ -200,7 +200,8 @@ button:disabled {
 }
 button,
 input,
-textarea {
+textarea,
+select {
   -webkit-app-region: no-drag;
 }
 :focus-visible {
