@@ -139,6 +139,33 @@ if (connectorMode === 'supervision-revoked' || connectorMode === 'supervision-re
             lastExit: { code: null, signal: 'SIGKILL', at: '2026-11-09T12:49:00.000Z' },
           },
   }
+// A running Desktop-owned Connector. 3a Connectors report owner control, activity and macOS
+// permissions; `control-old` is 0.4.4 and reports none of them.
+if (connectorMode?.startsWith('control-'))
+  connectorState = {
+    ...preparedConnector(),
+    paired: true,
+    deviceId: 'fixture-connector-device',
+    server: connectorConnection.baseUrl,
+    running: true,
+    computer:
+      connectorMode === 'control-windows'
+        ? { platform: 'win32', shell: 'powershell' }
+        : { platform: 'darwin', shell: '/bin/zsh' },
+    admission: { matched: true, connected: true },
+    supervision: {
+      link: 'connected',
+      restarts: 0,
+      restartPending: false,
+      ...(connectorMode === 'control-old'
+        ? {}
+        : {
+            control: { holder: 'none', since: '2026-11-10T01:00:00.000Z', reason: 'start' },
+            activity: { tool: 'computer' },
+            permissions: { screen: false, input: true },
+          }),
+    },
+  }
 if (connectorMode === 'paired' || connectorMode === 'terminal-detail')
   connectorState = {
     ...preparedConnector(),
@@ -190,6 +217,15 @@ const operationReads: { id: string; cursor: number }[] = []
 const hintListeners = new Set<Parameters<typeof window.yuki.client.onHint>[0]>()
 Object.assign(window, {
   __connectorOperationReads: operationReads,
+  /** A new Connector report: main records it and hints every renderer to refresh. */
+  __connectorReport(change: object) {
+    if (!connectorState.available) throw Error('Connector runtime has not been prepared')
+    connectorState = {
+      ...connectorState,
+      supervision: { ...connectorState.supervision!, ...change },
+    }
+    for (const listener of hintListeners) listener(connectorConnection.characterId, 'refresh', {})
+  },
   __connectorAdvance(phase: string, emit = true) {
     operationPhase = phase
     if (phase === 'deviceChanged')
@@ -533,6 +569,22 @@ window.yuki = {
         admission: { matched: true, connected: false },
       }
       return { ok: true, value: connectorState }
+    },
+    control: async (holder) => {
+      connectorCalls.push({ method: 'control', input: holder })
+      if (!connectorState.available) throw Error('Connector runtime has not been prepared')
+      connectorState = {
+        ...connectorState,
+        supervision: {
+          ...connectorState.supervision!,
+          control: { holder, since: new Date().toISOString(), reason: 'desktop' },
+        },
+      }
+      return { ok: true, value: connectorState }
+    },
+    permissionSettings: async (permission) => {
+      connectorCalls.push({ method: 'permissionSettings', input: permission })
+      return { ok: true, value: undefined }
     },
     service: async (action) => {
       connectorCalls.push({ method: 'service', input: action })

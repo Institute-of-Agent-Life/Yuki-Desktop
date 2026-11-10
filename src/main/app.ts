@@ -59,7 +59,9 @@ import { LoginItem } from './login-item'
 import { diagnostics } from './diagnostics'
 import { AgentConnector } from './agent-connector'
 import type {
+  ConnectorHolder,
   ConnectorPairing,
+  ConnectorPermission,
   ConnectorServiceAction,
   ConnectorConfiguration,
   ConnectorTarget,
@@ -367,6 +369,7 @@ else {
       changed: () => {
         for (const connection of connections.list())
           win?.webContents.send('yuki:hint', connection.characterId, 'refresh')
+        native.connectorOperation(connector.current(), (holder) => connector.control(holder))
       },
     })
     void connector.restore().catch((error: unknown) => {
@@ -390,6 +393,20 @@ else {
       connector.server(input),
     )
     action('connector-service', (command: ConnectorServiceAction) => connector.service(command))
+    action('connector-control', (holder: ConnectorHolder, id?: string) => {
+      connector.control(holder)
+      return connector.state(id)
+    })
+    const privacyPanes: Record<ConnectorPermission, string> = {
+      screen: 'Privacy_ScreenCapture',
+      input: 'Privacy_Accessibility',
+    }
+    action('connector-permission-settings', (permission: ConnectorPermission) => {
+      if (!Object.hasOwn(privacyPanes, permission)) throw new ApiError('validation_error')
+      return shell.openExternal(
+        `x-apple.systempreferences:com.apple.preference.security?${privacyPanes[permission]}`,
+      )
+    })
     action('connector-full-access', async (enabled: boolean, id?: string) => {
       const state = await connector.fullAccess(enabled)
       if (id && state.available && state.deviceId) {

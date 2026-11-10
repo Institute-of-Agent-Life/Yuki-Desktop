@@ -28,14 +28,33 @@ export interface ConnectorAdmission {
 }
 /** Connection state reported by the Connector's own stdout state lines (0.4.4+). */
 export type ConnectorLink =
-  | 'connected'
-  | 'disconnected'
-  | 'authorization_lost'
-  | 'protocol_unsupported'
+  'connected' | 'disconnected' | 'authorization_lost' | 'protocol_unsupported'
+/** Who may give input on this computer: `owner` means Yuki is stopped (「停止」). */
+export type ConnectorHolder = 'owner' | 'none'
+/** The Connector's own control line; Desktop keeps the last one in memory only. */
+export interface ConnectorControl {
+  holder: ConnectorHolder
+  since: string
+  /** `start`, `desktop` (「停止」/「繼續」), `owner_input` or `resume` (asked in chat). */
+  reason: string
+}
+export type ConnectorActivityTool = 'computer' | 'browser'
+export type ConnectorPermission = 'screen' | 'input'
+/** Plain text for why Yuki was stopped, shared by the page and the tray. */
+export const holdReasons: Record<string, string> = {
+  owner_input: '偵測到本人操作滑鼠或鍵盤',
+  desktop: '在 Desktop 按下「停止」',
+}
 /** Desktop's supervision of the Connector child process it owns. */
 export interface ConnectorSupervision {
   link?: ConnectorLink
   reason?: string
+  /** Reported by 3a Connectors; older ones print no control, activity or permission lines. */
+  control?: ConnectorControl
+  /** From an activity `start` until 10 s after the last `end`, while the child runs. */
+  activity?: { tool: ConnectorActivityTool }
+  /** macOS screen-recording and accessibility preflight results. */
+  permissions?: Record<ConnectorPermission, boolean>
   /** Automatic restarts since the last explicit start. */
   restarts: number
   restartPending: boolean
@@ -137,6 +156,8 @@ export interface ConnectorBridge {
   pair(input: ConnectorPairing): Promise<ApiReply<ConnectorState>>
   server(input: { characterId: string; server: string }): Promise<ApiReply<ConnectorState>>
   service(action: ConnectorServiceAction): Promise<ApiReply<ConnectorState>>
+  control(holder: ConnectorHolder, characterId?: string): Promise<ApiReply<ConnectorState>>
+  permissionSettings(permission: ConnectorPermission): Promise<ApiReply<void>>
   fullAccess(enabled: boolean, characterId?: string): Promise<ApiReply<ConnectorState>>
   discover(driver?: ConnectorDriver): Promise<ApiReply<ConnectorCandidate[]>>
   configure(

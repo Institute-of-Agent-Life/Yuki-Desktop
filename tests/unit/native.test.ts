@@ -224,3 +224,79 @@ it('uses the identified role name before its private profile or avatar has loade
   expect(tray.menu.some((item) => item.label === '開啟 Mika')).toBe(false)
   shell.close()
 })
+
+/*
+ * Tray view of the owner-control facts (Yuki task book 2026-11-09 §5.5 item 5), written before
+ * the code:
+ *
+ * T1 Yuki operating (computer or browser) is not shown, or its 「停止」 does not ask for `owner`.
+ * T2 A stop is not shown with its reason, or its 「繼續」 does not ask for `none`.
+ * T3 Idle, an old Connector (no holder known) or no Desktop-owned Connector adds tray items.
+ * T4 An activity line while stopped reads as operating instead of stopped.
+ * T5 The existing open/show/quit items disappear, or a tray created later misses the state.
+ */
+it('shows Yuki operating or stopped in the tray with one action that asks the Connector', () => {
+  os.trays.length = 0
+  const control = vi.fn(),
+    shell = new NativeShell(
+      () => undefined,
+      () => {},
+      () => {},
+    )
+  shell.characterName('mika-id', 'Mika')
+  // T5: the state reported before the tray exists is there when the tray is created.
+  shell.connectorOperation(
+    { restarts: 0, restartPending: false, activity: { tool: 'browser' } },
+    control,
+  )
+  shell.update(defaultPreferences)
+  const tray = os.trays[0] as FakeTray
+  const labels = () => tray.menu.map((item) => item.label).filter(Boolean)
+  expect(labels()).toEqual(['Yuki 正在操作瀏覽器', '停止', '開啟 Mika', '顯示視窗', '結束'])
+  tray.menu.find((item) => item.label === '停止')!.click!()
+  expect(control).toHaveBeenLastCalledWith('owner')
+  shell.connectorOperation(
+    {
+      restarts: 0,
+      restartPending: false,
+      control: { holder: 'none', since: '2026-11-10T01:00:00Z', reason: 'resume' },
+      activity: { tool: 'computer' },
+    },
+    control,
+  )
+  expect(labels()[0]).toBe('Yuki 正在操作電腦')
+  // T2/T4: a stop wins over a late activity line and names its reason.
+  shell.connectorOperation(
+    {
+      restarts: 0,
+      restartPending: false,
+      control: { holder: 'owner', since: '2026-11-10T01:00:05Z', reason: 'owner_input' },
+      activity: { tool: 'computer' },
+    },
+    control,
+  )
+  expect(labels()).toEqual([
+    '已叫停：偵測到本人操作滑鼠或鍵盤',
+    '繼續',
+    '開啟 Mika',
+    '顯示視窗',
+    '結束',
+  ])
+  tray.menu.find((item) => item.label === '繼續')!.click!()
+  expect(control).toHaveBeenLastCalledWith('none')
+  // T3: idle, an old Connector and no Connector add nothing.
+  for (const supervision of [
+    {
+      restarts: 0,
+      restartPending: false,
+      control: { holder: 'none' as const, since: '2026-11-10T01:00:00Z', reason: 'start' },
+    },
+    { restarts: 0, restartPending: false },
+    undefined,
+  ]) {
+    shell.connectorOperation(supervision, control)
+    expect(labels()).toEqual(['開啟 Mika', '顯示視窗', '結束'])
+  }
+  expect(control).toHaveBeenCalledTimes(2)
+  shell.close()
+})

@@ -15,19 +15,40 @@
  * F9 The restart count is not reset by an explicit start.
  * F10 `authorization_lost` is treated as a failure to restart; the live child is replaced.
  * F11 The diagnostics export lacks the stderr tail or the supervision facts.
+ *
+ * Owner control, activity and permissions (Yuki task book 2026-11-09 §5.5 items 3–5, §7.4 D1,
+ * D8–D10), also written before the code:
+ *
+ * C1 (D10) A restarted child is not told the stopped holder, or that child's own startup line
+ *    (`holder:none`, `reason:start`, printed before it read stdin) replaces Desktop's stop, so
+ *    the next restart sends `none`.
+ * C2 「停止」/「繼續」 is not one JSON line on the live child's stdin, or the state does not
+ *    follow the holder and reason the Connector then reports.
+ * C3 A stop pressed while the child is between restarts is lost instead of reaching the next one.
+ * C4 `owner_input` from the Connector (the owner's mouse/keyboard, screen sharing included) is not
+ *    reflected as holder `owner` with its reason and time.
+ * C5 Activity: `start` is not shown, `end` clears it at once (flicker between actions) or never
+ *    clears it, or a child that exited still reads as operating.
+ * C6 An old Connector (0.4.4: no control/activity/permissions lines) receives control lines it
+ *    never asked for, or its state grows control/activity/permission facts.
+ * C7 Unknown holders, tools, phases or non-boolean permissions are accepted; the new line types
+ *    break state-line parsing.
+ * C8 The permissions line is not exposed in the state.
+ * C9 EOF no longer stops the child once control lines share its stdin.
  */
-import { mkdir, mkdtemp, readFile, rm, writeFile, readdir } from 'node:fs/promises'
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, expect, it, vi } from 'vitest'
-import { AgentConnector, rotatingLog, stateLine } from '../../src/main/agent-connector'
+import { AgentConnector, connectorLine, rotatingLog } from '../../src/main/agent-connector'
 import type { ConnectorAvailableState, ConnectorState } from '../../src/shared/connector'
 
-type Step = 'crash' | 'connect-then-crash' | 'stay' | 'auth'
+type Step = 'crash' | 'connect-then-crash' | 'stay' | 'auth' | 'old' | 'contract' | 'deaf'
 interface ChildEvent {
-  kind: 'start' | 'eof'
+  kind: 'start' | 'eof' | 'stdin'
   step?: Step
+  line?: string
   pid: number
   at: number
 }
@@ -65,6 +86,48 @@ if (step === 'crash') {
 }
 `
 
+// A Connector stand-in for the owner-control contract. `contract` answers each stdin control line
+// with the Connector's own control line; `deaf` prints its startup line and dies before reading
+// stdin (it only records what arrived); `old` is 0.4.4 and prints no control lines. Lines the
+// test appends to emit.jsonl are printed as the Connector's own reports (owner input, activity).
+const contract = `
+const fs = require('node:fs'), path = require('node:path'), readline = require('node:readline')
+const dir = process.argv[process.argv.indexOf('--data-dir') + 1]
+const file = path.join(dir, 'events.jsonl')
+const event = (value) =>
+  fs.appendFileSync(file, JSON.stringify({ ...value, pid: process.pid, at: Date.now() }) + '\\n')
+const starts = fs.existsSync(file)
+  ? fs.readFileSync(file, 'utf8').split('\\n').filter(Boolean).filter((line) => JSON.parse(line).kind === 'start').length
+  : 0
+const plan = JSON.parse(fs.readFileSync(path.join(dir, 'plan.json'), 'utf8'))
+const step = plan[Math.min(starts, plan.length - 1)]
+const print = (value) => process.stdout.write(JSON.stringify(value) + '\\n')
+event({ kind: 'start', step })
+print({ type: 'state', state: 'connected' })
+if (step !== 'old')
+  print({ type: 'control', holder: 'none', since: new Date().toISOString(), reason: 'start' })
+readline
+  .createInterface({ input: process.stdin, crlfDelay: Infinity })
+  .on('line', (line) => {
+    event({ kind: 'stdin', line })
+    const value = step === 'contract' ? JSON.parse(line) : {}
+    if (value.type === 'control')
+      print({ type: 'control', holder: value.holder, since: new Date().toISOString(), reason: 'desktop' })
+  })
+  .on('close', () => {
+    event({ kind: 'eof' })
+    process.exit(0)
+  })
+const emit = path.join(dir, 'emit.jsonl')
+let offset = fs.existsSync(emit) ? fs.readFileSync(emit, 'utf8').length : 0
+setInterval(() => {
+  if (!fs.existsSync(emit)) return
+  const text = fs.readFileSync(emit, 'utf8')
+  for (const line of text.slice(offset).split('\\n').filter(Boolean)) process.stdout.write(line + '\\n')
+  offset = text.length
+}, 20)
+`
+
 const temporary: string[] = []
 const live: AgentConnector[] = []
 afterEach(async () => {
@@ -72,7 +135,7 @@ afterEach(async () => {
   for (const path of temporary.splice(0)) await rm(path, { recursive: true, force: true })
 })
 
-async function supervised(plan: Step[]) {
+async function supervised(plan: Step[], script = child) {
   const directory = await mkdtemp(join(tmpdir(), 'connector-supervisor-'))
   temporary.push(directory)
   await writeFile(join(directory, 'plan.json'), JSON.stringify(plan))
@@ -111,7 +174,7 @@ async function supervised(plan: Step[]) {
     runtime: {
       directory,
       executable: process.execPath,
-      arguments: ['-e', child, '--'],
+      arguments: ['-e', script, '--'],
       version: '0.4.4',
       protocol: 4,
       build: 'supervisor-fixture',
@@ -131,7 +194,13 @@ async function supervised(plan: Step[]) {
     expect(value.available).toBe(true)
     return value as ConnectorAvailableState
   }
-  return { connector, directory, events, starts, state, changed }
+  const stdin = async (pid: number) =>
+    (await events())
+      .filter((event) => event.kind === 'stdin' && event.pid === pid)
+      .map((event) => event.line)
+  const emit = (value: unknown) =>
+    appendFile(join(directory, 'emit.jsonl'), JSON.stringify(value) + '\n')
+  return { connector, directory, events, starts, state, changed, stdin, emit }
 }
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -229,18 +298,182 @@ it('authorization_lost keeps the live child and reports it without restarting', 
   expect(fixture.changed).toHaveBeenCalled()
 }, 30000)
 
-it('reads only state lines from the shared stdout channel', () => {
-  expect(stateLine('{"type":"state","state":"connected"}\r')).toEqual({ link: 'connected' })
-  expect(stateLine('{"type":"state","state":"disconnected","reason":"http_502"}')).toEqual({
+it('reads only the Connector report lines from the shared stdout channel', () => {
+  expect(connectorLine('{"type":"state","state":"connected"}\r')).toEqual({
+    type: 'state',
+    link: 'connected',
+  })
+  expect(connectorLine('{"type":"state","state":"disconnected","reason":"http_502"}')).toEqual({
+    type: 'state',
     link: 'disconnected',
     reason: 'http_502',
   })
-  expect(stateLine('{"problem":"connector_configuration_failed"}')).toBeUndefined()
-  expect(stateLine('{"type":"state","state":"not_a_state"}')).toBeUndefined()
-  expect(stateLine('{"type":"activity","state":"connected"}')).toBeUndefined()
-  expect(stateLine('not json')).toBeUndefined()
-  expect(stateLine('null')).toBeUndefined()
+  expect(connectorLine('{"problem":"connector_configuration_failed"}')).toBeUndefined()
+  expect(connectorLine('{"type":"state","state":"not_a_state"}')).toBeUndefined()
+  expect(connectorLine('{"type":"activity","state":"connected"}')).toBeUndefined()
+  expect(connectorLine('not json')).toBeUndefined()
+  expect(connectorLine('null')).toBeUndefined()
+  // C7: the three 3a lines, exactly as the shared contract writes them.
+  expect(
+    connectorLine(
+      '{"type":"control","holder":"owner","since":"2026-11-10T01:00:05Z","reason":"owner_input"}',
+    ),
+  ).toEqual({
+    type: 'control',
+    control: { holder: 'owner', since: '2026-11-10T01:00:05Z', reason: 'owner_input' },
+  })
+  expect(
+    connectorLine('{"type":"activity","tool":"browser","action":"click","phase":"start"}'),
+  ).toEqual({ type: 'activity', tool: 'browser', phase: 'start' })
+  expect(connectorLine('{"type":"permissions","screen":false,"input":true}')).toEqual({
+    type: 'permissions',
+    permissions: { screen: false, input: true },
+  })
+  expect(connectorLine('{"type":"control","holder":"yuki","since":"x","reason":"start"}')).toBe(
+    undefined,
+  )
+  expect(connectorLine('{"type":"activity","tool":"terminal","phase":"start"}')).toBeUndefined()
+  expect(connectorLine('{"type":"activity","tool":"computer","phase":"done"}')).toBeUndefined()
+  expect(connectorLine('{"type":"permissions","screen":"granted","input":true}')).toBeUndefined()
 })
+
+const OWNER = '{"type":"control","holder":"owner"}'
+const NONE = '{"type":"control","holder":"none"}'
+
+it('keeps a stop across restarts and round-trips 停止/繼續 through the live child', async () => {
+  const fixture = await supervised(['contract', 'deaf', 'contract'], contract)
+  const control = async () => (await fixture.state()).supervision?.control
+  await fixture.connector.service('start')
+  await vi.waitFor(
+    async () => expect(await control()).toMatchObject({ holder: 'none', reason: 'start' }),
+    until,
+  )
+  const [first] = await fixture.starts()
+  // Desktop knew no holder when it spawned this child, so it wrote none.
+  expect(await fixture.stdin(first!.pid)).toEqual([])
+  // C2: 「停止」 is one line on the live child's stdin; the state follows the Connector's answer.
+  fixture.connector.control('owner')
+  await vi.waitFor(async () => expect(await fixture.stdin(first!.pid)).toEqual([OWNER]), until)
+  await vi.waitFor(async () =>
+    expect(await control()).toMatchObject({ holder: 'owner', reason: 'desktop' }),
+  )
+  // C1/D10: the restarted child is told before anything else; its own startup line, printed
+  // before it read stdin, does not replace the stop even though it dies without answering.
+  process.kill(first!.pid, 'SIGKILL')
+  await vi.waitFor(async () => expect(await fixture.starts()).toHaveLength(2), until)
+  const deaf = (await fixture.starts())[1]!
+  await vi.waitFor(async () => expect(await fixture.stdin(deaf.pid)).toEqual([OWNER]), until)
+  await vi.waitFor(async () => expect((await fixture.state()).running).toBe(true))
+  await wait(300)
+  expect(await control()).toMatchObject({ holder: 'owner', reason: 'desktop' })
+  // C3: 「繼續」 pressed between restarts reaches the next child first.
+  process.kill(deaf.pid, 'SIGKILL')
+  await vi.waitFor(
+    async () => expect((await fixture.state()).supervision?.restartPending).toBe(true),
+    until,
+  )
+  fixture.connector.control('none')
+  expect(await control()).toMatchObject({ holder: 'none', reason: 'desktop' })
+  await vi.waitFor(async () => expect(await fixture.starts()).toHaveLength(3), until)
+  const third = (await fixture.starts())[2]!
+  await vi.waitFor(async () => expect(await fixture.stdin(third.pid)).toEqual([NONE]), until)
+  fixture.connector.control('owner')
+  await vi.waitFor(async () => expect(await fixture.stdin(third.pid)).toEqual([NONE, OWNER]), until)
+  // C4: the Connector's own reports replace Desktop's request with their real reason and time.
+  const resumed = {
+    type: 'control',
+    holder: 'none',
+    since: '2026-11-10T01:00:00Z',
+    reason: 'resume',
+  }
+  await fixture.emit(resumed)
+  await vi.waitFor(async () =>
+    expect(await control()).toEqual({ holder: 'none', since: resumed.since, reason: 'resume' }),
+  )
+  const input = {
+    type: 'control',
+    holder: 'owner',
+    since: '2026-11-10T01:00:05Z',
+    reason: 'owner_input',
+  }
+  await fixture.emit(input)
+  await vi.waitFor(async () =>
+    expect(await control()).toEqual({ holder: 'owner', since: input.since, reason: 'owner_input' }),
+  )
+  // C8: preflight facts are part of the supervision state.
+  await fixture.emit({ type: 'permissions', screen: false, input: true })
+  await vi.waitFor(async () =>
+    expect((await fixture.state()).supervision?.permissions).toEqual({
+      screen: false,
+      input: true,
+    }),
+  )
+  // C9: EOF still stops the child; nothing restarts it.
+  await fixture.connector.service('stop')
+  expect((await fixture.events()).at(-1)).toMatchObject({ kind: 'eof', pid: third.pid })
+  await wait(1500)
+  expect(await fixture.starts()).toHaveLength(3)
+  const output = process.env.YUKI_E2E_OUTPUT ?? fixture.directory
+  await mkdir(output, { recursive: true })
+  await writeFile(
+    join(output, 'connector-control.json'),
+    JSON.stringify({ events: await fixture.events(), state: await fixture.state() }, null, 2),
+  )
+}, 40000)
+
+it('shows Yuki operating from an activity start until a while after its end, never after an exit', async () => {
+  const fixture = await supervised(['contract'], contract)
+  const activity = async () => (await fixture.state()).supervision?.activity
+  await fixture.connector.service('start')
+  await vi.waitFor(async () => expect((await fixture.state()).supervision?.link).toBe('connected'))
+  expect(await activity()).toBeUndefined()
+  await fixture.emit({ type: 'activity', tool: 'browser', action: 'navigate', phase: 'start' })
+  await vi.waitFor(async () => expect(await activity()).toEqual({ tool: 'browser' }), until)
+  // C5: no flicker between one action's end and the next action's start.
+  await fixture.emit({ type: 'activity', tool: 'browser', action: 'navigate', phase: 'end' })
+  await wait(500)
+  expect(await activity()).toEqual({ tool: 'browser' })
+  await fixture.emit({ type: 'activity', tool: 'computer', action: 'click', phase: 'start' })
+  await vi.waitFor(async () => expect(await activity()).toEqual({ tool: 'computer' }), until)
+  await fixture.emit({ type: 'activity', tool: 'computer', action: 'click', phase: 'end' })
+  const ended = Date.now()
+  await wait(500)
+  expect(await activity()).toEqual({ tool: 'computer' })
+  await vi.waitFor(async () => expect(await activity()).toBeUndefined(), {
+    timeout: 20000,
+    interval: 100,
+  })
+  expect(Date.now() - ended).toBeGreaterThanOrEqual(9000)
+  // An exited child operates nothing, even mid-action.
+  await fixture.emit({ type: 'activity', tool: 'computer', action: 'type', phase: 'start' })
+  await vi.waitFor(async () => expect(await activity()).toEqual({ tool: 'computer' }), until)
+  const [started] = await fixture.starts()
+  process.kill(started!.pid, 'SIGKILL')
+  await vi.waitFor(
+    async () => expect((await fixture.state()).supervision?.restartPending).toBe(true),
+    until,
+  )
+  expect(await activity()).toBeUndefined()
+}, 40000)
+
+it('an old Connector without control lines is never sent one and reports no control facts', async () => {
+  const fixture = await supervised(['old'], contract)
+  await fixture.connector.service('start')
+  await vi.waitFor(async () => expect((await fixture.state()).supervision?.link).toBe('connected'))
+  await wait(300)
+  const [started] = await fixture.starts()
+  expect(await fixture.stdin(started!.pid)).toEqual([])
+  const { supervision } = await fixture.state()
+  expect(supervision?.control).toBeUndefined()
+  expect(supervision?.activity).toBeUndefined()
+  expect(supervision?.permissions).toBeUndefined()
+  // A restart of the old child still has nothing to send.
+  process.kill(started!.pid, 'SIGKILL')
+  await vi.waitFor(async () => expect(await fixture.starts()).toHaveLength(2), until)
+  await vi.waitFor(async () => expect((await fixture.state()).supervision?.link).toBe('connected'))
+  await wait(300)
+  expect(await fixture.stdin((await fixture.starts())[1]!.pid)).toEqual([])
+}, 30000)
 
 it('rotates stderr like connector.log: current file plus two backups, oldest dropped', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'connector-stderr-'))

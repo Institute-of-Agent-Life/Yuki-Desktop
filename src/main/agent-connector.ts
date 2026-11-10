@@ -7,14 +7,18 @@ import { dirname } from 'node:path'
 import { createInterface } from 'node:readline'
 import { gte, valid } from 'semver'
 import type {
+  ConnectorActivityTool,
   ConnectorAvailableState,
   ConnectorAdmission,
   ConnectorCandidate,
   ConnectorConfiguration,
+  ConnectorControl,
   ConnectorDiagnostic,
   ConnectorDriver,
+  ConnectorHolder,
   ConnectorPairing,
   ConnectorLink,
+  ConnectorPermission,
   ConnectorServiceAction,
   ConnectorState,
   ConnectorSupervision,
@@ -76,6 +80,8 @@ const RESTART_MAX_DELAY = 60_000
 // The same rotation as the Connector's own connector.log (4 MiB, two backups).
 const LOG_BYTES = 4 * 1024 * 1024
 const LOG_BACKUPS = 2
+/** Yuki reads as operating until this long after its last action ended: the gap between actions. */
+const ACTIVITY_LINGER = 10_000
 const LINKS: readonly ConnectorLink[] = [
   'connected',
   'disconnected',
@@ -110,8 +116,13 @@ export function rotatingLog(path: string, limit = LOG_BYTES, backups = LOG_BACKU
     size += chunk.length
   }
 }
-/** One stdout line from `run --desktop-stdin`; other output on the channel is not a state. */
-export function stateLine(line: string): { link: ConnectorLink; reason?: string } | undefined {
+export type ConnectorLine =
+  | { type: 'state'; link: ConnectorLink; reason?: string }
+  | { type: 'control'; control: ConnectorControl }
+  | { type: 'activity'; tool: ConnectorActivityTool; phase: 'start' | 'end' }
+  | { type: 'permissions'; permissions: Record<ConnectorPermission, boolean> }
+/** One report line from `run --desktop-stdin`; other output on the channel is not a report. */
+export function connectorLine(line: string): ConnectorLine | undefined {
   let value: unknown
   try {
     value = JSON.parse(line)
@@ -119,10 +130,39 @@ export function stateLine(line: string): { link: ConnectorLink; reason?: string 
     return undefined
   }
   if (typeof value !== 'object' || value === null) return undefined
-  const { type, state, reason } = value as Record<string, unknown>
-  if (type !== 'state' || !LINKS.includes(state as ConnectorLink)) return undefined
-  return { link: state as ConnectorLink, ...(typeof reason === 'string' ? { reason } : {}) }
+  const fields = value as Record<string, unknown>
+  switch (fields.type) {
+    case 'state':
+      if (!LINKS.includes(fields.state as ConnectorLink)) return undefined
+      return {
+        type: 'state',
+        link: fields.state as ConnectorLink,
+        ...(typeof fields.reason === 'string' ? { reason: fields.reason } : {}),
+      }
+    case 'control':
+      if (fields.holder !== 'owner' && fields.holder !== 'none') return undefined
+      return {
+        type: 'control',
+        control: {
+          holder: fields.holder,
+          since: String(fields.since),
+          reason: String(fields.reason),
+        },
+      }
+    case 'activity':
+      if (
+        (fields.tool !== 'computer' && fields.tool !== 'browser') ||
+        (fields.phase !== 'start' && fields.phase !== 'end')
+      )
+        return undefined
+      return { type: 'activity', tool: fields.tool, phase: fields.phase }
+    case 'permissions':
+      if (typeof fields.screen !== 'boolean' || typeof fields.input !== 'boolean') return undefined
+      return { type: 'permissions', permissions: { screen: fields.screen, input: fields.input } }
+  }
+  return undefined
 }
+const controlLine = (holder: ConnectorHolder) => JSON.stringify({ type: 'control', holder }) + '\n'
 function computerRuntime(runtime: ConnectorRuntime) {
   return runtime.protocol
     ? runtime.protocol >= 4
@@ -182,6 +222,7 @@ export class AgentConnector {
   private pendingRestart?: { dataDirectory: string; timer: NodeJS.Timeout }
   /** Restarts since the child last reported `connected`; sets the backoff. */
   private failures = 0
+  private activityEnd?: NodeJS.Timeout
   private readonly supervision = new Map<string, Omit<ConnectorSupervision, 'restartPending'>>()
   constructor(
     private readonly options: ConnectorOptions,
@@ -491,6 +532,9 @@ export class AgentConnector {
         closed: new Promise((resolve) =>
           child.once('close', (code: number | null, signal: NodeJS.Signals | null) => {
             if (this.process === owned) this.process = undefined
+            clearTimeout(this.activityEnd)
+            if (this.supervision.get(target.dataDirectory)?.activity)
+              this.record(target.dataDirectory, { activity: undefined })
             if (!owned.stopping) {
               this.record(target.dataDirectory, {
                 link: undefined,
@@ -506,11 +550,46 @@ export class AgentConnector {
         ),
       }
       this.process = owned
+      // A child which already exited owns no writable parent pipe. Its close
+      // event, rather than another execution or signal, finishes cleanup.
+      child.stdin.on('error', () => {})
+      // The holder survives restarts (task book §7.4 D10): tell the new child before anything else.
+      const holder = this.supervision.get(target.dataDirectory)?.control?.holder
+      if (holder) child.stdin.write(controlLine(holder))
       createInterface({ input: child.stdout, crlfDelay: Infinity }).on('line', (line) => {
-        const state = stateLine(line)
-        if (!state || this.process !== owned) return
-        if (state.link === 'connected') this.failures = 0
-        this.record(target.dataDirectory, { link: state.link, reason: state.reason })
+        const report = connectorLine(line)
+        if (!report || this.process !== owned) return
+        switch (report.type) {
+          case 'state':
+            if (report.link === 'connected') this.failures = 0
+            this.record(target.dataDirectory, { link: report.link, reason: report.reason })
+            break
+          case 'control':
+            // A repeat of the current holder (such as this child's answer to the holder written
+            // above) keeps when and why it began; the startup line predates that holder.
+            if (
+              this.supervision.get(target.dataDirectory)?.control?.holder ===
+                report.control.holder ||
+              (report.control.reason === 'start' && holder)
+            )
+              return
+            this.record(target.dataDirectory, { control: report.control })
+            break
+          case 'activity':
+            clearTimeout(this.activityEnd)
+            if (report.phase === 'end') {
+              this.activityEnd = setTimeout(() => {
+                this.record(target.dataDirectory, { activity: undefined })
+                this.options.changed?.()
+              }, ACTIVITY_LINGER)
+              return
+            }
+            if (this.supervision.get(target.dataDirectory)?.activity?.tool === report.tool) return
+            this.record(target.dataDirectory, { activity: { tool: report.tool } })
+            break
+          case 'permissions':
+            this.record(target.dataDirectory, { permissions: report.permissions })
+        }
         this.options.changed?.()
       })
       const stderr = rotatingLog(join(target.dataDirectory, 'connector-stderr.log'))
@@ -522,9 +601,6 @@ export class AgentConnector {
           console.error('Connector stderr log failed', (error as NodeJS.ErrnoException).code)
         }
       })
-      // A child which already exited owns no writable parent pipe. Its close
-      // event, rather than another execution or signal, finishes cleanup.
-      child.stdin.on('error', () => {})
       await owned.spawned
     })().finally(() => {
       if (this.starting === starting) this.starting = undefined
@@ -677,6 +753,30 @@ export class AgentConnector {
       action === 'start' ? this.supervise(installation) : this.stopAfterStart(installation),
     )
     return this.state(undefined, installation)
+  }
+  /**
+   * 「停止」 (`owner`) or 「繼續」 (`none`). The holder lives in memory for this app session, is
+   * written to the live child and to every child started later; the Connector's own control
+   * lines then replace it. Nothing is persisted.
+   */
+  control(holder: ConnectorHolder) {
+    if (holder !== 'owner' && holder !== 'none') throw new ApiError('validation_error')
+    const installation = this.installations.selected()
+    if (!installation) throw new ApiError('connector_not_installed')
+    if (!installation.managed) throw new ApiError('connector_independent_installation')
+    this.record(installation.dataDirectory, {
+      control: { holder, since: new Date().toISOString(), reason: 'desktop' },
+    })
+    if (this.process?.installation.dataDirectory === installation.dataDirectory)
+      this.process.child.stdin.write(controlLine(holder))
+    this.options.changed?.()
+  }
+  /** The selected Desktop-owned Connector's supervision, for the tray. */
+  current(): ConnectorSupervision | undefined {
+    const installation = this.installations.selected()
+    return installation?.managed && this.supervision.has(installation.dataDirectory)
+      ? this.supervisionOf(installation.dataDirectory)
+      : undefined
   }
   async server(input: { characterId: string; server: string }): Promise<ConnectorState> {
     const installation = this.installations.selected() ?? null

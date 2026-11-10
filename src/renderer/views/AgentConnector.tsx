@@ -7,6 +7,7 @@ import type {
   ConnectorDiagnostic,
   ConnectorDriver,
   ConnectorInstance,
+  ConnectorPermission,
   ConnectorState,
 } from '../../shared/connector'
 import {
@@ -109,6 +110,12 @@ const linkText = (installation: ConnectorAvailableState) => {
       return '執行中，尚未回報連線狀態'
   }
 }
+
+// macOS asks for both when the Connector, a child of Yuki.app, looks at or uses the screen.
+const macPermissions: { permission: ConnectorPermission; title: string; description: string }[] = [
+  { permission: 'screen', title: '螢幕錄製', description: '讓 Yuki 看到這台電腦的畫面。' },
+  { permission: 'input', title: '輔助使用', description: '讓 Yuki 操作滑鼠與鍵盤。' },
+]
 
 type Feedback = {
   section: 'status' | 'permission' | 'agents' | 'installation' | 'server'
@@ -673,6 +680,32 @@ export function AgentConnector({
                 />
               )}
             </Row>
+            {available.computer?.platform === 'darwin' &&
+              available.supervision?.permissions &&
+              macPermissions.map(({ permission, title, description }) =>
+                available.supervision!.permissions![permission] ? (
+                  <Row key={permission} title={title} description={description}>
+                    <span>已允許</span>
+                  </Row>
+                ) : (
+                  <Row
+                    key={permission}
+                    title={title}
+                    description={`${description}在系統設定允許 Yuki 後，關閉再開啟「本機連接」重新檢查。`}
+                  >
+                    <span>未允許</span>
+                    <Button
+                      onClick={() =>
+                        void perform(async () => {
+                          unwrap(await window.yuki.connector.permissionSettings(permission))
+                        }, 'permission')
+                      }
+                    >
+                      打開系統設定
+                    </Button>
+                  </Row>
+                ),
+              )}
           </SettingsSection>
           <SettingsSection title="本機 Agent（可選）">
             {!editorOpen && !removing && feedback('agents')}

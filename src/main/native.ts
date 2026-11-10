@@ -5,18 +5,22 @@ import {
   Notification,
   Tray,
   type BrowserWindow,
+  type MenuItemConstructorOptions,
   type NativeImage,
 } from 'electron'
 import { join } from 'node:path'
 import type { Preferences, NavigationTarget } from '../shared/desktop'
 import type { ClientNotice } from './notifications'
 import type { Profile } from '../shared/api'
+import { holdReasons, type ConnectorHolder, type ConnectorSupervision } from '../shared/connector'
 
 export class NativeShell {
   private tray: Tray | undefined
   private fallbackIcon: NativeImage | undefined
   private readonly notices = new Map<Notification, string>()
   private selected: string | undefined
+  /** Yuki operating or stopped on this computer: one status line and its one action. */
+  private operation: MenuItemConstructorOptions[] = []
   private readonly desired = new Map<string, { key: string; name: string }>()
   private readonly decorations = new Map<
     string,
@@ -72,6 +76,7 @@ export class NativeShell {
     this.tray.setToolTip(this.desired.get(this.selected ?? '')?.name || 'Yuki')
     this.tray.setContextMenu(
       Menu.buildFromTemplate([
+        ...this.operation,
         ...[...this.desired].map(([characterId, { name }]) => ({
           label: `開啟 ${name}`,
           click: () => this.open({ characterId, view: 'chat' }),
@@ -88,6 +93,28 @@ export class NativeShell {
     readonly open: (target: NavigationTarget) => void,
     readonly platform: NodeJS.Platform = process.platform,
   ) {}
+  connectorOperation(
+    supervision: ConnectorSupervision | undefined,
+    control: (holder: ConnectorHolder) => void,
+  ) {
+    const reason = holdReasons[supervision?.control?.reason ?? '']
+    const tool = supervision?.activity?.tool
+    this.operation =
+      supervision?.control?.holder === 'owner'
+        ? [
+            { label: reason ? `已叫停：${reason}` : '已叫停', enabled: false },
+            { label: '繼續', click: () => control('none') },
+            { type: 'separator' },
+          ]
+        : tool
+          ? [
+              { label: `Yuki 正在操作${tool === 'browser' ? '瀏覽器' : '電腦'}`, enabled: false },
+              { label: '停止', click: () => control('owner') },
+              { type: 'separator' },
+            ]
+          : []
+    this.updateMenu()
+  }
   update(preferences: Preferences) {
     if (preferences.keepInTray && !this.tray) {
       const icon = nativeImage.createFromPath(
