@@ -35,16 +35,11 @@ export type ConnectorHolder = 'owner' | 'none'
 export interface ConnectorControl {
   holder: ConnectorHolder
   since: string
-  /** `start`, `desktop` (「停止」/「繼續」), `owner_input` or `resume` (asked in chat). */
+  /** `start`, `desktop` (「停止」/「繼續」) or `resume` (asked in chat). */
   reason: string
 }
 export type ConnectorActivityTool = 'computer' | 'browser'
 export type ConnectorPermission = 'screen' | 'input'
-/** Plain text for why Yuki was stopped, shared by the page and the tray. */
-export const holdReasons: Record<string, string> = {
-  owner_input: '偵測到本人操作滑鼠或鍵盤',
-  desktop: '在 Desktop 按下「停止」',
-}
 /** Desktop's supervision of the Connector child process it owns. */
 export interface ConnectorSupervision {
   link?: ConnectorLink

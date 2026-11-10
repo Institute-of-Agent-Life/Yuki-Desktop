@@ -857,17 +857,19 @@ test('an opened original receipt receives a late permission and terminal result 
  * Owner control on 「這台電腦」 and the macOS permission panel (Yuki task book 2026-11-09 §5.5
  * items 4–5, §5.7 permissions, §7.4 D1/D8–D10), written before the code:
  *
- * U1 Yuki operating the computer or the browser is not shown, or shows without 「停止」.
+ * U1 Yuki operating the computer or the browser is not shown, or shows without 「停止」; the
+ *    computer line still says the owner's input stops Yuki instead of that Yuki pauses while the
+ *    owner uses the computer and continues after they stop.
  * U2 「停止」 does not ask the bridge for `owner`, or the page keeps saying Yuki is operating.
- * U3 A stop from the owner's own input (screen sharing included) is not shown with its reason, or
- *    arrives only after a manual reload instead of with the Connector's report.
+ * U3 A stop is shown with any reason other than 「停止」 (the owner's own input never stops Yuki),
+ *    or a Connector report arrives only after a manual reload instead of with the report.
  * U4 「繼續」 does not ask for `none`, or a stopped page still offers 「停止」.
  * U5 An old Connector (no holder, activity or permission facts) shows any of this UI.
  * U6 macOS screen recording/accessibility status is missing, a granted permission still offers a
  *    settings button, or the button does not name the pane to open.
  * U7 A Windows Connector shows the macOS permission panel (its owner control still shows).
  */
-test('the local computer page shows Yuki operating, a stop with its reason, and 停止/繼續', async ({
+test('the local computer page shows Yuki operating, a stop from 停止, and 停止/繼續', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 720, height: 650 })
@@ -882,23 +884,26 @@ test('the local computer page shows Yuki operating, a stop with its reason, and 
         ),
       supervision,
     )
-  await expect(page.getByText('Yuki 正在操作電腦', { exact: false })).toBeVisible()
+  await expect(
+    page.getByText('Yuki 正在操作電腦；你操作時它會暫停，停手後繼續。', { exact: false }),
+  ).toBeVisible()
+  await expect(page.getByText(/叫停/)).toHaveCount(0)
   await expect(page.getByRole('button', { name: '繼續', exact: true })).toHaveCount(0)
   await page.screenshot({ path: test.info().outputPath('control-operating.png') })
   await report({ activity: { tool: 'browser' } })
   await expect(page.getByText('Yuki 正在操作瀏覽器', { exact: false })).toBeVisible()
   await page.getByRole('button', { name: '停止', exact: true }).click()
-  await expect(page.getByText('已叫停：在 Desktop 按下「停止」', { exact: false })).toBeVisible()
+  await expect(page.getByText('已按「停止」叫停。', { exact: false })).toBeVisible()
   await expect(page.getByText('Yuki 正在操作', { exact: false })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '停止', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: '繼續', exact: true }).click()
   await expect(page.getByText('Yuki 正在操作瀏覽器', { exact: false })).toBeVisible()
-  // The owner's own input stops Yuki; the page follows the Connector's report.
+  // The page follows the Connector's report (its answer to a 「停止」 from the tray).
   await report({
-    control: { holder: 'owner', since: '2026-11-10T01:00:05.000Z', reason: 'owner_input' },
+    control: { holder: 'owner', since: '2026-11-10T01:00:05.000Z', reason: 'desktop' },
   })
-  await expect(page.getByText('已叫停：偵測到本人操作滑鼠或鍵盤', { exact: false })).toBeVisible()
-  await page.screenshot({ path: test.info().outputPath('control-owner-input.png') })
+  await expect(page.getByText('已按「停止」叫停。', { exact: false })).toBeVisible()
+  await page.screenshot({ path: test.info().outputPath('control-stopped.png') })
   // Yuki resumed after the owner said so in chat; with no recent activity the page is quiet.
   await report({
     control: { holder: 'none', since: '2026-11-10T01:01:00.000Z', reason: 'resume' },

@@ -230,7 +230,8 @@ it('uses the identified role name before its private profile or avatar has loade
  * the code:
  *
  * T1 Yuki operating (computer or browser) is not shown, or its 「停止」 does not ask for `owner`.
- * T2 A stop is not shown with its reason, or its 「繼續」 does not ask for `none`.
+ * T2 A stop is not shown as the 「停止」 the owner pressed (the owner's own input never stops Yuki,
+ *    so no other reason exists), or its 「繼續」 does not ask for `none`.
  * T3 Idle, an old Connector (no holder known) or no Desktop-owned Connector adds tray items.
  * T4 An activity line while stopped reads as operating instead of stopped.
  * T5 The existing open/show/quit items disappear, or a tray created later misses the state.
@@ -265,23 +266,17 @@ it('shows Yuki operating or stopped in the tray with one action that asks the Co
     control,
   )
   expect(labels()[0]).toBe('Yuki 正在操作電腦')
-  // T2/T4: a stop wins over a late activity line and names its reason.
+  // T2/T4: a stop wins over a late activity line and says it came from 「停止」.
   shell.connectorOperation(
     {
       restarts: 0,
       restartPending: false,
-      control: { holder: 'owner', since: '2026-11-10T01:00:05Z', reason: 'owner_input' },
+      control: { holder: 'owner', since: '2026-11-10T01:00:05Z', reason: 'desktop' },
       activity: { tool: 'computer' },
     },
     control,
   )
-  expect(labels()).toEqual([
-    '已叫停：偵測到本人操作滑鼠或鍵盤',
-    '繼續',
-    '開啟 Mika',
-    '顯示視窗',
-    '結束',
-  ])
+  expect(labels()).toEqual(['已按「停止」叫停', '繼續', '開啟 Mika', '顯示視窗', '結束'])
   tray.menu.find((item) => item.label === '繼續')!.click!()
   expect(control).toHaveBeenLastCalledWith('none')
   // T3: idle, an old Connector and no Connector add nothing.

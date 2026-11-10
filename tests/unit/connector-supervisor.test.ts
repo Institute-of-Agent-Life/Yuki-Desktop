@@ -25,8 +25,9 @@
  * C2 「停止」/「繼續」 is not one JSON line on the live child's stdin, or the state does not
  *    follow the holder and reason the Connector then reports.
  * C3 A stop pressed while the child is between restarts is lost instead of reaching the next one.
- * C4 `owner_input` from the Connector (the owner's mouse/keyboard, screen sharing included) is not
- *    reflected as holder `owner` with its reason and time.
+ * C4 The Connector's own control lines (its `desktop` answer to 「停止」, `resume` asked in chat)
+ *    do not replace Desktop's request with their real reason and time. The owner's own input on
+ *    the computer only makes Yuki yield; it is never a control line or a stop reason.
  * C5 Activity: `start` is not shown, `end` clears it at once (flicker between actions) or never
  *    clears it, or a child that exited still reads as operating.
  * C6 An old Connector (0.4.4: no control/activity/permissions lines) receives control lines it
@@ -316,11 +317,11 @@ it('reads only the Connector report lines from the shared stdout channel', () =>
   // C7: the three 3a lines, exactly as the shared contract writes them.
   expect(
     connectorLine(
-      '{"type":"control","holder":"owner","since":"2026-11-10T01:00:05Z","reason":"owner_input"}',
+      '{"type":"control","holder":"owner","since":"2026-11-10T01:00:05Z","reason":"desktop"}',
     ),
   ).toEqual({
     type: 'control',
-    control: { holder: 'owner', since: '2026-11-10T01:00:05Z', reason: 'owner_input' },
+    control: { holder: 'owner', since: '2026-11-10T01:00:05Z', reason: 'desktop' },
   })
   expect(
     connectorLine('{"type":"activity","tool":"browser","action":"click","phase":"start"}'),
@@ -390,15 +391,16 @@ it('keeps a stop across restarts and round-trips 停止/繼續 through the live 
   await vi.waitFor(async () =>
     expect(await control()).toEqual({ holder: 'none', since: resumed.since, reason: 'resume' }),
   )
-  const input = {
+  // The Connector's answer to the 「停止」 written above carries its own time.
+  const answer = {
     type: 'control',
     holder: 'owner',
     since: '2026-11-10T01:00:05Z',
-    reason: 'owner_input',
+    reason: 'desktop',
   }
-  await fixture.emit(input)
+  await fixture.emit(answer)
   await vi.waitFor(async () =>
-    expect(await control()).toEqual({ holder: 'owner', since: input.since, reason: 'owner_input' }),
+    expect(await control()).toEqual({ holder: 'owner', since: answer.since, reason: 'desktop' }),
   )
   // C8: preflight facts are part of the supervision state.
   await fixture.emit({ type: 'permissions', screen: false, input: true })

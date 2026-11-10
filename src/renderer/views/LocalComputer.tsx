@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Connection } from '../../shared/api'
-import { holdReasons, type ConnectorHolder } from '../../shared/connector'
+import type { ConnectorHolder } from '../../shared/connector'
 import { Banner, Button, EmptyState, Spinner } from '../components/Controls'
 import { unwrap } from '../queries/client'
 import { ConnectorTasks } from './ConnectorTasks'
@@ -20,8 +20,8 @@ export function LocalComputer({
     queryFn: () => window.yuki.connector.state(connection.characterId).then(unwrap),
     retry: false,
   })
-  // 「停止」/「繼續」 are a backup: the owner's own input already stops Yuki, and Yuki resumes when
-  // the owner says so in chat.
+  // 「停止」 is the only stop: the owner's own input just makes Yuki pause that step and retry.
+  // Yuki resumes on 「繼續」 or when the owner says so in chat.
   const control = useMutation({
     mutationFn: (holder: ConnectorHolder) =>
       window.yuki.connector.control(holder, connection.characterId).then(unwrap),
@@ -46,7 +46,6 @@ export function LocalComputer({
   )
   const available = state.data?.available ? state.data : undefined
   const supervision = available?.supervision
-  const reason = holdReasons[supervision?.control?.reason ?? '']
   if (state.isPending)
     return (
       <EmptyState title="這台電腦">
@@ -91,8 +90,7 @@ export function LocalComputer({
       {control.error && <Banner status="failed">{control.error.message}</Banner>}
       {supervision?.control?.holder === 'owner' ? (
         <Banner status="waiting">
-          {reason ? `已叫停：${reason}。` : '已叫停。'}Yuki 不會操作滑鼠、鍵盤或瀏覽器；在聊天裡請
-          Yuki 繼續，或按「繼續」。
+          已按「停止」叫停。Yuki 不會操作滑鼠、鍵盤或瀏覽器；在聊天裡請 Yuki 繼續，或按「繼續」。
           <Button disabled={control.isPending} onClick={() => control.mutate('none')}>
             繼續
           </Button>
@@ -102,7 +100,7 @@ export function LocalComputer({
           <Banner status="running">
             {supervision.activity.tool === 'browser'
               ? 'Yuki 正在操作瀏覽器。'
-              : 'Yuki 正在操作電腦；使用滑鼠或鍵盤即會叫停。'}
+              : 'Yuki 正在操作電腦；你操作時它會暫停，停手後繼續。'}
             <Button disabled={control.isPending} onClick={() => control.mutate('owner')}>
               停止
             </Button>

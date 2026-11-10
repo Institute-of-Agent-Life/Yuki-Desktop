@@ -12,7 +12,7 @@ import { join } from 'node:path'
 import type { Preferences, NavigationTarget } from '../shared/desktop'
 import type { ClientNotice } from './notifications'
 import type { Profile } from '../shared/api'
-import { holdReasons, type ConnectorHolder, type ConnectorSupervision } from '../shared/connector'
+import type { ConnectorHolder, ConnectorSupervision } from '../shared/connector'
 
 export class NativeShell {
   private tray: Tray | undefined
@@ -97,12 +97,11 @@ export class NativeShell {
     supervision: ConnectorSupervision | undefined,
     control: (holder: ConnectorHolder) => void,
   ) {
-    const reason = holdReasons[supervision?.control?.reason ?? '']
     const tool = supervision?.activity?.tool
     this.operation =
       supervision?.control?.holder === 'owner'
         ? [
-            { label: reason ? `已叫停：${reason}` : '已叫停', enabled: false },
+            { label: '已按「停止」叫停', enabled: false },
             { label: '繼續', click: () => control('none') },
             { type: 'separator' },
           ]
