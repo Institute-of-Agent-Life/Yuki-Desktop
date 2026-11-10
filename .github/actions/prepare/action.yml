@@ -1,0 +1,65 @@
+name: Prepare Desktop
+description: Pinned backend, dependencies, bundled Connector and local Bot, browsers and native tools
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: npm
+    - name: Read the pinned backend source
+      id: backend
+      shell: bash
+      run: node -e "const fs=require('node:fs');const s=JSON.parse(fs.readFileSync('contracts/source.json','utf8'));fs.appendFileSync(process.env.GITHUB_OUTPUT,'commit='+s.commit+'\n')"
+    - uses: actions/checkout@v4
+      with:
+        repository: YuanYeYouTao/Yuki
+        ref: ${{ steps.backend.outputs.commit }}
+        path: .cache/backend
+    - uses: astral-sh/setup-uv@v6
+      with:
+        version: '0.11.31'
+        enable-cache: true
+        cache-dependency-glob: |
+          .cache/backend/uv.lock
+          .cache/backend/packages/yuki-agent-connector/uv.lock
+    - uses: ilammy/msvc-dev-cmd@v1
+      if: runner.os == 'Windows'
+    - name: Prepare the actual backend test environment
+      shell: bash
+      run: uv sync --directory .cache/backend --frozen --all-extras --managed-python --python 3.12
+    - name: Select the actual backend fixture
+      shell: bash
+      run: node -e "const fs=require('node:fs'),p=require('node:path');const root=p.resolve('.cache/backend');const py=p.join(root,'.venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');fs.appendFileSync(process.env.GITHUB_ENV,'YUKI_BACKEND_TEST_ROOT='+root+'\nYUKI_BACKEND_TEST_PYTHON='+py+'\nYUKI_E2E_OUTPUT='+p.join(process.env.RUNNER_TEMP,'yuki-desktop-e2e')+'\n')"
+    - name: Verify actual backend Python SQLite extension support
+      shell: bash
+      run: node -e "require('node:child_process').execFileSync(process.env.YUKI_BACKEND_TEST_PYTHON,['-c','import sqlite3, sys; db = sqlite3.connect(sys.argv[1]); db.enable_load_extension(True); db.enable_load_extension(False); db.close(); print(sys.executable); print(sqlite3.sqlite_version)',':memory:'],{stdio:'inherit'})"
+    - shell: bash
+      run: npm ci
+    - name: Bundle the platform's standalone Connector
+      shell: bash
+      run: node build-tools/prepare-connector.mjs --backend .cache/backend
+    - name: Bundle the matching local Bot setup
+      shell: bash
+      run: node build-tools/prepare-local-bot.mjs --source .cache/backend
+    - shell: bash
+      run: npm exec playwright install -- --with-deps chromium
+    - if: runner.os == 'Linux'
+      shell: bash
+      run: sudo apt-get install --no-install-recommends -y rpm ffmpeg libnotify4 dbus-x11 gnome-keyring openbox
+    - if: runner.os == 'macOS'
+      shell: bash
+      run: brew install ffmpeg
+    - if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        choco install ffmpeg --yes --no-progress
+        node -e "for (const command of ['ffmpeg', 'ffprobe']) require('node:child_process').execFileSync(command, ['-version'], {stdio: 'inherit'})"
+    - name: Configure Electron sandbox for Ubuntu CI
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        node -e 'require("electron")'
+        electron_path="$(node --print 'require("electron")')"
+        printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile yuki-desktop-ci "%s" flags=(unconfined) {\n  userns,\n}\n' "$electron_path" | sudo tee /etc/apparmor.d/yuki-desktop-ci
+        sudo apparmor_parser --replace /etc/apparmor.d/yuki-desktop-ci
