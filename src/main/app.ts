@@ -8,6 +8,7 @@ import {
   app,
   clipboard,
   BrowserWindow,
+  desktopCapturer,
   dialog,
   ipcMain,
   nativeTheme,
@@ -357,6 +358,20 @@ else {
     const resourceRoot = app.isPackaged
       ? process.resourcesPath
       : join(app.getAppPath(), 'resources')
+    // The Connector child is attributed to Yuki.app, so Yuki.app asks on its behalf.
+    const requestPermission: Record<ConnectorPermission, () => Promise<void>> = {
+      screen: () =>
+        desktopCapturer
+          .getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } })
+          .then(
+            () => undefined,
+            (error: unknown) => console.error('Screen recording request failed', error),
+          ),
+      input: async () => {
+        systemPreferences.isTrustedAccessibilityClient(true)
+      },
+    }
+    const askedPermissions = new Set<ConnectorPermission>()
     const connector = new AgentConnector({
       root: join(app.getPath('userData'), 'agent-connector'),
       bundledRuntime: app.isPackaged
@@ -369,7 +384,18 @@ else {
       changed: () => {
         for (const connection of connections.list())
           win?.webContents.send('yuki:hint', connection.characterId, 'refresh')
-        native.connectorOperation(connector.current(), (holder) => connector.control(holder))
+        const current = connector.current()
+        native.connectorOperation(current, (holder) => connector.control(holder))
+        // macOS lists an app under a privacy pane only after it asks; ask once per launch.
+        for (const permission of ['screen', 'input'] as const)
+          if (
+            process.platform === 'darwin' &&
+            current?.permissions?.[permission] === false &&
+            !askedPermissions.has(permission)
+          ) {
+            askedPermissions.add(permission)
+            void requestPermission[permission]()
+          }
       },
     })
     void connector.restore().catch((error: unknown) => {
@@ -401,8 +427,9 @@ else {
       screen: 'Privacy_ScreenCapture',
       input: 'Privacy_Accessibility',
     }
-    action('connector-permission-settings', (permission: ConnectorPermission) => {
+    action('connector-permission-settings', async (permission: ConnectorPermission) => {
       if (!Object.hasOwn(privacyPanes, permission)) throw new ApiError('validation_error')
+      await requestPermission[permission]()
       return shell.openExternal(
         `x-apple.systempreferences:com.apple.preference.security?${privacyPanes[permission]}`,
       )
