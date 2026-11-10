@@ -137,7 +137,10 @@ test('plays and seeks both actual media sources, renders local rich text and kee
       const url = await inspector().locator('audio,video').getAttribute('src')
       expect(url).toMatch(/^app:\/\/desktop\/__media\//)
       await close()
-      expect(await page.evaluate(async (url) => (await fetch(url!)).status, url)).toBe(404)
+      // The closing detail pane keeps its media until its exit motion ends.
+      await expect
+        .poll(() => page.evaluate(async (url) => (await fetch(url!)).status, url))
+        .toBe(404)
       const artifact = await publish(name)
       await page
         .locator(`article[data-event-id="${artifact.event_id}"]`)

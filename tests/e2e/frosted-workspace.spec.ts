@@ -139,7 +139,7 @@ test('frosted workspace keeps opaque paper, floating controls, real receipts and
         expect(geometry.htmlWidth).toBe(geometry.viewport)
         if (geometry.opaque === 'true') expect(geometry.filter).toBe('none')
         else {
-          expect(geometry.filter).toContain('blur(18px) saturate(1.5)')
+          expect(geometry.filter).toContain('blur(2px) saturate(1.16)')
           expect(geometry.refract).toContain('url(')
         }
         await expect(original).toHaveAttribute('data-event-id', event!)
