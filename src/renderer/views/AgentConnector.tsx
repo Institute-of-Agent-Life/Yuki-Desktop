@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Connection } from '../../shared/api'
 import type {
+  ConnectorAvailableState,
   ConnectorCandidate,
   ConnectorDiagnostic,
   ConnectorDriver,
@@ -78,10 +79,35 @@ const summary = (state: ConnectorState | undefined): { text: string; status: Sta
   if (installation.updateAvailable) return { text: '需要更新', status: 'waiting' }
   if (!state.available) return { text: '發現原有連接', status: 'waiting' }
   if (!installation.paired) return { text: '尚未連接', status: 'offline' }
+  const supervision = installation.supervision
+  if (supervision?.link === 'authorization_lost') return { text: '授權已撤銷', status: 'failed' }
+  if (supervision?.link === 'protocol_unsupported')
+    return { text: '連接器協議不相容', status: 'failed' }
+  if (supervision?.restartPending) return { text: '連接器重新啟動中', status: 'waiting' }
   if (installation.running === false) return { text: '本機連接已停止', status: 'waiting' }
+  if (supervision?.link === 'disconnected')
+    return { text: '連線中斷，正在重新連線', status: 'waiting' }
   return installation.admission?.connected
     ? { text: '已連線', status: 'done' }
     : { text: '尚未確認連線', status: 'unknown' }
+}
+// The Connector's own state lines; older Connectors report none.
+const linkText = (installation: ConnectorAvailableState) => {
+  const supervision = installation.supervision
+  if (supervision?.restartPending) return '等待重新啟動'
+  if (installation.running !== true) return '未執行'
+  switch (supervision?.link) {
+    case 'connected':
+      return '已連線'
+    case 'disconnected':
+      return '連線中斷，正在重新連線'
+    case 'authorization_lost':
+      return '授權已撤銷'
+    case 'protocol_unsupported':
+      return '協議不相容'
+    default:
+      return '執行中，尚未回報連線狀態'
+  }
 }
 
 type Feedback = {
@@ -482,7 +508,7 @@ export function AgentConnector({
             ) : (
               <Toggle
                 label="本機連接"
-                checked={available.running === true}
+                checked={available.running === true || !!available.supervision?.restartPending}
                 disabled={busy}
                 onChange={(enabled) =>
                   void perform(async () => {
@@ -492,6 +518,64 @@ export function AgentConnector({
               />
             )}
           </Row>
+        )}
+        {available?.paired && available.managed !== false && (
+          <>
+            {available.supervision?.link === 'authorization_lost' && (
+              <Banner status="failed">
+                授權已撤銷：伺服器拒絕了這台電腦的連接器憑據（例如已在「裝置」中移除）。連接器已停止重新連線，原操作記錄會保留。
+              </Banner>
+            )}
+            {available.supervision?.link === 'protocol_unsupported' && (
+              <Banner status="failed">
+                連接器與伺服器的協議不相容，已停止重新連線。請更新較舊的一方；原身份與回執會保留。
+              </Banner>
+            )}
+            <Row
+              title="連線狀態"
+              description={
+                available.supervision?.reason
+                  ? `最近原因：${available.supervision.reason}`
+                  : undefined
+              }
+            >
+              <span>{linkText(available)}</span>
+            </Row>
+            {available.supervision?.lastExit && (
+              <Row
+                title="最近一次非預期結束"
+                description={new Date(available.supervision.lastExit.at).toLocaleString('zh-TW')}
+              >
+                <span>
+                  {available.supervision.lastExit.code !== null
+                    ? `結束代碼 ${available.supervision.lastExit.code}`
+                    : `訊號 ${available.supervision.lastExit.signal}`}
+                </span>
+              </Row>
+            )}
+            <Row
+              title="自動重新啟動"
+              description="連接器非預期結束時，Desktop 依次等待 1、2、4… 秒（最長 1 分鐘）後重新啟動；連上伺服器後重新計算。停止連接或結束 App 時不會重新啟動。"
+            >
+              <span>{available.supervision?.restarts ?? 0} 次</span>
+            </Row>
+            <Row
+              title="匯出診斷"
+              description="包含連接狀態與 connector.log、connector-stderr.log 的最後部分，可能含本機路徑；分享前請先檢查內容。"
+            >
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  void perform(async () => {
+                    if (unwrap(await window.yuki.connector.exportDiagnostics()))
+                      setNotice({ section: 'status', text: '連接器診斷已匯出。' })
+                  })
+                }
+              >
+                匯出診斷
+              </Button>
+            </Row>
+          </>
         )}
       </SettingsSection>
       {connection && (

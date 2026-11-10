@@ -432,6 +432,20 @@ else {
       }
     })
     action('connector-diagnose', (id: string) => connector.diagnose(id))
+    action('connector-export-diagnostics', async () => {
+      const summary = await connector.diagnostics()
+      const result = await dialog.showSaveDialog(win!, {
+        title: '匯出連接器診斷',
+        defaultPath: `Yuki-connector-diagnostics-${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
+        filters: [{ name: '診斷記錄', extensions: ['json'] }],
+      })
+      if (result.canceled || !result.filePath) return false
+      await writeFile(result.filePath, JSON.stringify(summary, null, 2) + '\n', {
+        encoding: 'utf8',
+        mode: 0o600,
+      })
+      return true
+    })
     action('connector-reveal-native', async (id: string) =>
       shell.showItemInFolder(await connector.nativeExecutable(id)),
     )
