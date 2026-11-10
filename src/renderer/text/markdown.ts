@@ -4,7 +4,8 @@ import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 import { useEffect, useState } from 'react'
 import type { ArtifactSource, AttachmentSource } from '../../shared/api'
 
-const markdown = new MarkdownIt({ html: false, linkify: false, breaks: true, typographer: false })
+const markdown = new MarkdownIt({ html: false, linkify: true, breaks: true, typographer: false })
+markdown.linkify.set({ fuzzyLink: false }).add('ftp:', null).add('//', null).add('mailto:', null)
 markdown.disable(['html_block', 'html_inline'])
 const ordinaryLink = markdown.validateLink
 markdown.validateLink = (href) =>
