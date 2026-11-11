@@ -207,6 +207,42 @@ const historicalEvents: EventsPage = {
   ],
 }
 const glassCase = 'conversation-glass'
+// README images: the glass conversation with realistic work data (case=showcase).
+const showcase = () => new URLSearchParams(location.search).get('case') === 'showcase'
+const scene = () => (showcase() ? glassCase : new URLSearchParams(location.search).get('case'))
+const showcaseTime = Date.parse('2026-11-11T08:00:00Z') / 1000
+const showcaseAvatar = fetch(new URL('./showcase-avatar.png', import.meta.url))
+  .then((response) => response.arrayBuffer())
+  .then((buffer) => new Uint8Array(buffer))
+const showcaseWorks: Work[] = [
+  { goal: '每天早上 8 點整理科技新聞簡報', state: 'running', hours: 0.2 },
+  { goal: '監督 Codex 修好登入頁的錯誤，跑完測試再回報', state: 'running', hours: 0.6 },
+  { goal: '整理訪談筆記', state: 'completed', hours: 1 },
+  { goal: '把週會錄音轉成逐字稿並列出待辦', state: 'completed', hours: 5 },
+  { goal: '比較三家雲端主機的價格和流量限制', state: 'completed', hours: 26 },
+].map(({ goal, state, hours }, index) => ({
+  ...work,
+  work_id: index === 2 ? 'historical-work' : `showcase-${index}`,
+  goal,
+  state,
+  updated_at: showcaseTime - hours * 3600,
+  results: [],
+}))
+const showcaseSteps = [
+  ['terminal', '讀取 workspace/interviews 裡的 6 份訪談筆記'],
+  ['terminal', '按主題分組：上手難度、價格、團隊協作'],
+  ['terminal', '標出三個值得回訪的問題，附上原始段落'],
+  ['terminal', '寫入 workspace/interviews/summary.md'],
+].map(([category, label], index) => ({
+  step_id: `showcase-step-${index}`,
+  category,
+  label,
+  record: 'committed',
+  status: 'succeeded',
+  created_at: '2026-11-11T07:5' + index + ':00Z',
+  updated_at: '2026-11-11T07:5' + index + ':30Z',
+  artifacts: [],
+}))
 const glassConversation = '22222222-2222-4222-8222-222222222222'
 const glassEntry = { ...home.main, conversation_id: glassConversation }
 const glassItems = [
@@ -334,11 +370,34 @@ Object.assign(window, {
     connector: { state: async () => ({ ok: true, value: { available: false, bundled: true } }) },
     client: {
       ...client,
+      avatarBytes: async () => ({ ok: true, value: await showcaseAvatar }),
       read: async (_id: string, route: ApiRead) => {
         reads.push(route.kind)
         if (route.kind === 'me') return { ok: true, value: { is_superuser: true } }
+        if (showcase() && route.kind === 'works')
+          return {
+            ok: true,
+            value: {
+              works: showcaseWorks.filter((item) =>
+                route.group === 'active' ? item.state !== 'completed' : item.state === 'completed',
+              ),
+              next_before: null,
+            },
+          }
+        if (showcase() && route.kind === 'steps')
+          return {
+            ok: true,
+            value: {
+              steps: showcaseSteps,
+              children: [],
+              wait: null,
+              work_revision: historicalWork.revision,
+              steps_token: 'showcase',
+              next_after: null,
+            } as WorkSteps,
+          }
         if (route.kind === 'events' && route.limit !== 1) mainHistoryReads++
-        const mode = new URLSearchParams(location.search).get('case')
+        const mode = scene()
         if (mode === 'conversation-scroll') {
           if (route.kind === 'home')
             return {
@@ -413,7 +472,7 @@ Object.assign(window, {
             return { ok: true, value }
           }
         }
-        if (new URLSearchParams(location.search).get('case') === 'computer-inspector') {
+        if (scene() === 'computer-inspector') {
           if (route.kind === 'computer') return { ok: true, value: computerView }
           if (route.kind === 'works') return { ok: true, value: activeWorkPage }
           if (route.kind === 'computer-files')
@@ -470,7 +529,16 @@ Object.assign(window, {
                   ? { ...historicalWork, goal: '整理訪談筆記', results: [] }
                   : historicalWork,
             }
-          if (route.kind === 'character') return { ok: true, value: profile }
+          if (route.kind === 'character')
+            return {
+              ok: true,
+              value: showcase()
+                ? {
+                    ...profile,
+                    avatar: { sha256: 'showcase-avatar', sizes: {} } as Profile['avatar'],
+                  }
+                : profile,
+            }
           if (route.kind === 'character-status') return { ok: true, value: characterStatus }
           if (route.kind === 'activity')
             return {
@@ -550,8 +618,7 @@ Object.assign(window, {
         return { ok: false, code: 'fixture_only' }
       },
       send: async (_id: string, text: string) => {
-        if (new URLSearchParams(location.search).get('case') !== glassCase)
-          return { ok: false, code: 'fixture_only' }
+        if (scene() !== glassCase) return { ok: false, code: 'fixture_only' }
         const requestId = crypto.randomUUID()
         submissions++
         glassOutbox = {
@@ -570,7 +637,7 @@ Object.assign(window, {
       letterDecoration: async () => ({ ok: true, value: null }),
       content: async (_id: string, value: AttachmentSource) => {
         contentReads.push(value)
-        if (new URLSearchParams(location.search).get('case') === 'conversation-scroll')
+        if (scene() === 'conversation-scroll')
           return new Promise((resolve) => {
             pendingConversationImage = {
               eventId: value.eventId,
@@ -656,7 +723,7 @@ Object.assign(window, {
 
 function Case() {
   const parameters = new URLSearchParams(location.search)
-  const mode = parameters.get('case')
+  const mode = scene()
   const [value, setValue] = useState('original message')
   const [preferences, setPreferences] = useState(defaultPreferences)
   const [calls, setCalls] = useState(0)
