@@ -54,7 +54,19 @@ test('every text surface offers native editing, copying and link actions', async
         const window = BrowserWindow.getAllWindows()[0]!
         const item = (globalThis as Host).lastMenu!.items.find((entry) => entry.label === label)
         if (!item?.enabled) throw Error(`menu item unavailable: ${label}`)
-        item.click(undefined, window, window.webContents)
+        // macOS runs editing roles natively only when a person picks them; a scripted
+        // pick sends the same command the native menu sends to the window.
+        const role = item.role?.toLowerCase()
+        const command = {
+          undo: 'undo',
+          redo: 'redo',
+          cut: 'cut',
+          copy: 'copy',
+          paste: 'paste',
+          selectall: 'selectAll',
+        }[role ?? ''] as 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll' | undefined
+        if (process.platform === 'darwin' && command) window.webContents[command]()
+        else item.click(undefined, window, window.webContents)
       }, label)
     const labels = (menu: Item[]) => menu.map((item) => item.label)
     const editing = ['復原', '重做', '剪下', '複製', '貼上', '全選']
@@ -145,6 +157,9 @@ test('every text surface offers native editing, copying and link actions', async
     const selectionMenu = await menuAt(paragraph, { x: 6, y: 8 })
     expect(labels(selectionMenu)).toEqual(['複製'])
     await choose('複製')
+    // The detail page covers the conversation in narrow layouts; return to the composer.
+    await reportLink.press('Escape')
+    await expect(box).toBeVisible()
     await menuAt(box)
     await choose('貼上')
     await expect(box).toHaveValue(selected)
