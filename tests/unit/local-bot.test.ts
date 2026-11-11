@@ -83,6 +83,7 @@ it.skipIf(process.env.YUKI_TEST_DOCKER !== '1')(
       port,
       characterName: '本機測試角色',
       personName: '本機本人',
+      sandboxProfile: 'lite',
       model: {
         protocol: 'chat_completions',
         base_url: 'http://host.docker.internal:19999/v1',
@@ -107,6 +108,14 @@ it.skipIf(process.env.YUKI_TEST_DOCKER !== '1')(
     expect(store.get<LocalBotInstallation>('local-bot')!.superuserRequestId).toBe(originalGrant)
     expect((await bot.state()).running).toBe(true)
     expect((await readFile(join(directory, 'character', 'SOUL.md'))).length).toBeGreaterThan(0)
+    // The sandbox Manager runs from the same image with the chosen profile; its data
+    // volumes exist outside the project. Yuki answers whether or not it is ready yet.
+    const override = await readFile(join(directory, 'docker-compose.local.yml'), 'utf8')
+    expect(override).toContain('YUKI_SANDBOX_PROFILE: lite')
+    expect(override).not.toContain('${YUKI_LOCAL_IMAGE')
+    expect(override).not.toContain('${YUKI_LOCAL_GID')
+    for (const volume of ['yuki-sandbox-state', 'yuki-sandbox-home', 'yuki-media-cache'])
+      await runDocker(['volume', 'inspect', volume])
 
     // Failures: reconnect must not revive a revoked grant, and the old
     // installation format without a grant UUID must not create a new one.
