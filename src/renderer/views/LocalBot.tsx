@@ -90,7 +90,7 @@ export function LocalBot({
       <section data-glass="card" className={styles.welcomeInner}>
         <h1>在本機部署 Yuki</h1>
         <p>
-          Yuki
+          需要先安裝 Docker（macOS 可用 Docker Desktop、OrbStack 或 Colima）。Yuki
           和資料保存在你選的目錄。模型可以使用遠端服務或你已有的本機服務；這裡不附帶模型，也不要求先接
           QQ 或其他聊天平台。
         </p>
@@ -289,7 +289,7 @@ export function LocalBot({
             </Button>
           </div>
         )}
-        <small>關閉桌面視窗不會刪除資料。本機聊天服務不代表持久終端環境已安裝。</small>
+        <small>關閉桌面視窗不會刪除資料。Yuki 的電腦（終端、瀏覽器與桌面）會一起安裝。</small>
       </section>
     </div>
   )
