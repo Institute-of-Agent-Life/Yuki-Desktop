@@ -211,6 +211,9 @@ const glassCase = 'conversation-glass'
 const showcase = () => new URLSearchParams(location.search).get('case') === 'showcase'
 const scene = () => (showcase() ? glassCase : new URLSearchParams(location.search).get('case'))
 const showcaseTime = Date.parse('2026-11-11T08:00:00Z') / 1000
+const showcaseAvatar = fetch(new URL('./showcase-avatar.png', import.meta.url))
+  .then((response) => response.arrayBuffer())
+  .then((buffer) => new Uint8Array(buffer))
 const showcaseWorks: Work[] = [
   { goal: '每天早上 8 點整理科技新聞簡報', state: 'running', hours: 0.2 },
   { goal: '監督 Codex 修好登入頁的錯誤，跑完測試再回報', state: 'running', hours: 0.6 },
@@ -367,6 +370,7 @@ Object.assign(window, {
     connector: { state: async () => ({ ok: true, value: { available: false, bundled: true } }) },
     client: {
       ...client,
+      avatarBytes: async () => ({ ok: true, value: await showcaseAvatar }),
       read: async (_id: string, route: ApiRead) => {
         reads.push(route.kind)
         if (route.kind === 'me') return { ok: true, value: { is_superuser: true } }
@@ -525,7 +529,16 @@ Object.assign(window, {
                   ? { ...historicalWork, goal: '整理訪談筆記', results: [] }
                   : historicalWork,
             }
-          if (route.kind === 'character') return { ok: true, value: profile }
+          if (route.kind === 'character')
+            return {
+              ok: true,
+              value: showcase()
+                ? {
+                    ...profile,
+                    avatar: { sha256: 'showcase-avatar', sizes: {} } as Profile['avatar'],
+                  }
+                : profile,
+            }
           if (route.kind === 'character-status') return { ok: true, value: characterStatus }
           if (route.kind === 'activity')
             return {
