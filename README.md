@@ -2,20 +2,20 @@
 
 在桌面上和你的 Yuki 對話：看她正在做的工作和成果，看她自己的電腦，也可以在你允許時讓她使用這台電腦。
 
-<p align="center"><img src="docs/images/showcase/send.gif" alt="傳送訊息，Yuki 回覆" width="735"></p>
+<p align="center"><img src="img/showcase/send.gif" alt="傳送訊息，Yuki 回覆" width="735"></p>
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/showcase/work-detail.webp" alt="對話旁打開工作詳情，逐步看她做了什麼"></td>
-    <td width="50%"><img src="docs/images/showcase/works.webp" alt="進行中與已完成的工作"></td>
+    <td width="50%"><img src="img/showcase/work-detail.webp" alt="對話旁打開工作詳情，逐步看她做了什麼"></td>
+    <td width="50%"><img src="img/showcase/works.webp" alt="進行中與已完成的工作"></td>
   </tr>
   <tr>
     <td align="center">對話旁打開工作詳情，逐步看她做了什麼</td>
     <td align="center">進行中與已完成的工作</td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/images/showcase/conversation-after.webp" alt="淺色"></td>
-    <td width="50%"><img src="docs/images/showcase/conversation-dark.webp" alt="深色"></td>
+    <td width="50%"><img src="img/showcase/conversation-after.webp" alt="淺色"></td>
+    <td width="50%"><img src="img/showcase/conversation-dark.webp" alt="深色"></td>
   </tr>
   <tr>
     <td align="center">淺色</td>
@@ -23,7 +23,7 @@
   </tr>
 </table>
 
-<p align="center"><a href="docs/images/showcase/yuki-desktop-tour.mp4">▶ 觀看 18 秒介紹影片</a> · <a href="https://github.com/YuanYeYouTao/Yuki">Yuki 後端</a></p>
+<p align="center"><a href="img/showcase/yuki-desktop-tour.mp4">▶ 觀看 18 秒介紹影片</a> · <a href="https://github.com/YuanYeYouTao/Yuki">Yuki 後端</a></p>
 
 ## 說明
 

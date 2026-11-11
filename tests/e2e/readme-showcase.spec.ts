@@ -1,6 +1,6 @@
 /** README images and the tour video. Run only on request:
  *  PROMO_OUT=<dir> npx playwright test tests/e2e/readme-showcase.spec.ts
- *  then python3 build-tools/readme-media.py <dir> docs/images/showcase */
+ *  then python3 build-tools/readme-media.py <dir> img/showcase */
 import { test } from '@playwright/test'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
