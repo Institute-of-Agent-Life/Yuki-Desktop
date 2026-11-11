@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from fastapi import FastAPI
-from sqlalchemy import select
+from sqlalchemy import func, select
 from tests.support.desktop_fault_fixture import DesktopFaultFixture
 from tests.support.desktop_reference_server import main
 from tests.support.workspace_snapshots import snapshot_bytes
@@ -195,6 +195,23 @@ def media_routes(self, app: FastAPI):
             await expire(event_id)
 
         asyncio.create_task(remove_original())
+        return {"ok": True}
+
+    @app.post("/__test/link-work-scenario")
+    async def link_work_scenario(body: dict):
+        """The next app message starts a work whose sent result carries body['text']."""
+        async with self.runtime.database.read_session() as reader:
+            after_event_id = await reader.scalar(select(func.max(ChatEventModel.id)))
+        self.work_scenario = {
+            "after_event_id": after_event_id or 0,
+            "event_id": None,
+            "work_id": None,
+            "script": [
+                ("manage_task", {"action": "start", "goal": body["goal"]}),
+                ("send", {"text": body["text"]}),
+                ("manage_task", {"action": "finish", "result": "links delivered"}),
+            ],
+        }
         return {"ok": True}
 
     @app.post("/__test/media-artifact")

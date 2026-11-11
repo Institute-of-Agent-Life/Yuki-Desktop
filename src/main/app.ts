@@ -730,6 +730,42 @@ else {
         })
       })
     })
+    const openExternal = async (raw: string) => {
+      const url = new URL(raw)
+      if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password)
+        throw new ApiError('validation_error')
+      const result = await dialog.showMessageBox(win!, {
+        type: 'question',
+        title: '開啟外部連結',
+        message: `在瀏覽器開啟 ${url.hostname}？`,
+        detail: url.toString(),
+        buttons: ['取消', '開啟'],
+        defaultId: 0,
+        cancelId: 0,
+      })
+      if (result.response === 1) await shell.openExternal(url.toString())
+    }
+    // Only web addresses open; any link can still be copied.
+    const linkMenu = (link: string, done = () => {}): Electron.MenuItemConstructorOptions[] => [
+      ...(['https:', 'http:'].includes(new URL(link).protocol)
+        ? [
+            {
+              label: '開啟連結',
+              click: () => {
+                void openExternal(link)
+                done()
+              },
+            },
+          ]
+        : []),
+      {
+        label: '複製連結',
+        click: () => {
+          clipboard.writeText(link)
+          done()
+        },
+      },
+    ]
     action('context-menu', (options: { text: string; link?: string; save?: boolean }) => {
       if (
         typeof options.text !== 'string' ||
@@ -745,17 +781,7 @@ else {
               resolve(null)
             },
           },
-          ...(options.link
-            ? [
-                {
-                  label: '複製連結文字',
-                  click: () => {
-                    clipboard.writeText(options.link!)
-                    resolve(null)
-                  },
-                },
-              ]
-            : []),
+          ...(options.link ? linkMenu(options.link, () => resolve(null)) : []),
           ...(options.save ? [{ label: '存成檔案', click: () => resolve('save') }] : []),
         ])
         menu.popup({ window: win!, callback: () => resolve(null) })
@@ -776,21 +802,7 @@ else {
     action('subscribe', () => connections.publishStates())
     action('reconnect', () => connections.reconnect())
     powerMonitor.on('resume', () => connections.reconnect())
-    action('external', async (raw: string) => {
-      const url = new URL(raw)
-      if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password)
-        throw new ApiError('validation_error')
-      const result = await dialog.showMessageBox(win!, {
-        type: 'question',
-        title: '開啟外部連結',
-        message: `在瀏覽器開啟 ${url.hostname}？`,
-        detail: url.toString(),
-        buttons: ['取消', '開啟'],
-        defaultId: 0,
-        cancelId: 0,
-      })
-      if (result.response === 1) await shell.openExternal(url.toString())
-    })
+    action('external', openExternal)
     action('meta', (server: string) => connections.meta(server))
     action('pair', async (server: string, code: string, label: string) => {
       const result = await connections.pair(server, code, label)
@@ -1090,6 +1102,35 @@ else {
         !connections.publicList().some((connection) => !connection.needsPairing),
       )
       win = created
+      // Every text surface without its own menu gets the platform's ordinary one.
+      created.webContents.on('context-menu', (_event, params) => {
+        const can = params.editFlags
+        const suggestions = params.dictionarySuggestions.map((word) => ({
+          label: word,
+          click: () => created.webContents.replaceMisspelling(word),
+        }))
+        const items: Electron.MenuItemConstructorOptions[] = params.isEditable
+          ? [
+              ...suggestions,
+              ...(suggestions.length ? [{ type: 'separator' as const }] : []),
+              { label: '復原', role: 'undo', enabled: can.canUndo },
+              { label: '重做', role: 'redo', enabled: can.canRedo },
+              { type: 'separator' },
+              { label: '剪下', role: 'cut', enabled: can.canCut },
+              { label: '複製', role: 'copy', enabled: can.canCopy },
+              { label: '貼上', role: 'paste', enabled: can.canPaste },
+              { label: '全選', role: 'selectAll', enabled: can.canSelectAll },
+            ]
+          : params.selectionText
+            ? [{ label: '複製', role: 'copy' }]
+            : []
+        if (params.linkURL)
+          items.push(
+            ...(items.length ? [{ type: 'separator' as const }] : []),
+            ...linkMenu(params.linkURL),
+          )
+        if (items.length) Menu.buildFromTemplate(items).popup({ window: created })
+      })
       let closeAllowed = false
       created.on('close', (event) => {
         if (quitAllowed || closeAllowed) return

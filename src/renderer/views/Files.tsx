@@ -463,23 +463,7 @@ function Content({ id, content, open }: { id: string; content: CachedContent; op
           id={id}
           text={content.mime === 'text/markdown' && !raw ? text : ''}
           className={`${chatStyles.markdown} ${content.mime === 'text/markdown' && !raw ? styles.document : styles.lines}`}
-          onClick={(event) => {
-            const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href]')
-            if (link) {
-              event.preventDefault()
-              void window.yuki.client
-                .external(link.href)
-                .then(unwrap)
-                .catch((error) => setProblem(error.message))
-            }
-            const copy = (event.target as HTMLElement).closest('button[data-code-copy]')
-            const code = copy?.parentElement?.querySelector('pre code')?.textContent
-            if (code !== undefined && code !== null)
-              void window.yuki.client
-                .copy(code)
-                .then(unwrap)
-                .catch((error) => setProblem(error.message))
-          }}
+          onProblem={setProblem}
           rendered={content.mime === 'text/markdown' && !raw ? undefined : html}
         />
         {!html && problem && <pre>{text}</pre>}

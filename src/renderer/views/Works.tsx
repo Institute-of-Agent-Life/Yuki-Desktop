@@ -26,6 +26,8 @@ import {
 import { hidesPrivateData, problemText, unwrap } from '../queries/client'
 import { useWorkspace } from '../state/workspace'
 import styles from './Works.module.css'
+import chatStyles from './Conversation.module.css'
+import { Markdown } from '../text/RichMarkdown'
 import { formatDateTime } from '../../shared/time'
 import type { DisplayTimeZone } from '../../shared/desktop'
 import { useDisplayTime } from '../state/time'
@@ -256,7 +258,8 @@ export function WorkDetail({
 }) {
   const { zone } = useDisplayTime()
   const query = useQueryClient(),
-    [cancel, setCancel] = useState<Work | null>(null)
+    [cancel, setCancel] = useState<Work | null>(null),
+    [linkProblem, setLinkProblem] = useState('')
   const work = useQuery({
     queryKey: [id, 'work', workId],
     queryFn: () => read<Work>(id, { kind: 'work', workId }),
@@ -420,8 +423,15 @@ export function WorkDetail({
             <section>
               <h3>已傳送的訊息與成果</h3>
               {data.results.map((result) => (
-                <p key={result.event_id}>{result.text}</p>
+                <Markdown
+                  key={result.event_id}
+                  id={id}
+                  text={result.text}
+                  className={chatStyles.markdown}
+                  onProblem={setLinkProblem}
+                />
               ))}
+              {linkProblem && <Banner status="failed">{linkProblem}</Banner>}
               <WorkArtifacts work={data} open={artifact} />
             </section>
           )}
@@ -526,13 +536,20 @@ function QuestionBox({
   commandEnter: boolean
 }) {
   const [answer, setAnswer] = useState(false),
+    [problem, setProblem] = useState(''),
     root = useRef<HTMLDivElement>(null)
   return (
     <div className={styles.question} ref={root}>
-      <p className={styles.questionLabel}>
+      <div className={styles.questionLabel}>
         <CircleHelp size={16} />
-        <span>{question.text}</span>
-      </p>
+        <Markdown
+          id={id}
+          text={question.text}
+          className={chatStyles.markdown}
+          onProblem={setProblem}
+        />
+      </div>
+      {problem && <Banner status="failed">{problem}</Banner>}
       {answer ? (
         <WorkReply
           id={id}
