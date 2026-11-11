@@ -1,6 +1,8 @@
 import type { ApiReply, Connection } from './api'
 import type { ProviderPreset } from './models'
 
+// The sandbox's size: terminal only, plus a headless browser, plus a watchable desktop.
+export type SandboxProfile = 'lite' | 'headless' | 'desktop'
 export interface LocalBotInstallation {
   directory: string
   address: string
@@ -8,6 +10,7 @@ export interface LocalBotInstallation {
   port: number
   characterName: string
   personName: string
+  sandboxProfile?: SandboxProfile
   personRequestId: string
   pairRequestId: string
   superuserRequestId?: string
@@ -27,6 +30,7 @@ export interface LocalBotConfiguration {
   port: number
   characterName: string
   personName: string
+  sandboxProfile: SandboxProfile
   model?: {
     protocol: 'chat_completions' | 'responses' | 'anthropic_messages' | 'gemini'
     base_url: string

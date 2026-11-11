@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Connection } from '../../shared/api'
-import type { LocalBotState } from '../../shared/local-bot'
+import type { LocalBotState, SandboxProfile } from '../../shared/local-bot'
 import type { ProviderPreset } from '../../shared/models'
 import { ModelConnectionForm, type ConnectionDraft } from './ModelConnectionForm'
 import { Banner, Button, TextField } from '../components/Controls'
@@ -24,6 +24,7 @@ export function LocalBot({
     [characterName, setCharacterName] = useState('Yuki'),
     [personName, setPersonName] = useState('')
   const [port, setPort] = useState('8080')
+  const [sandboxProfile, setSandboxProfile] = useState<SandboxProfile>('desktop')
   const [presets, setPresets] = useState<ProviderPreset[]>()
   const [preset, setPreset] = useState(0)
   const [modelConnection, setModelConnection] = useState<ConnectionDraft>({
@@ -43,6 +44,7 @@ export function LocalBot({
       setPort(String(value.installation.port))
       setCharacterName(value.installation.characterName)
       setPersonName(value.installation.personName)
+      setSandboxProfile(value.installation.sandboxProfile ?? 'desktop')
     }
     if (!value.configured && value.docker && value.bundled && presets === undefined) {
       const catalog = unwrap(await window.yuki.localBot.presets())
@@ -122,6 +124,7 @@ export function LocalBot({
                   port: Number(port),
                   characterName,
                   personName,
+                  sandboxProfile,
                   ...(state?.configured
                     ? {}
                     : {
@@ -208,6 +211,17 @@ export function LocalBot({
               <small>
                 同機模型的 localhost 會轉為容器可達的 host.docker.internal；服務本身須允許這個來源。
               </small>
+              <label htmlFor="local-sandbox">Yuki 的電腦</label>
+              <select
+                id="local-sandbox"
+                value={sandboxProfile}
+                disabled={busy}
+                onChange={(event) => setSandboxProfile(event.target.value as SandboxProfile)}
+              >
+                <option value="desktop">完整桌面：可觀看與接管（約 3 GiB 記憶體）</option>
+                <option value="headless">無頭瀏覽器（約 1 GiB）</option>
+                <option value="lite">只有終端與檔案（約 512 MiB）</option>
+              </select>
               <label htmlFor="local-port">本機連接埠</label>
               <TextField
                 id="local-port"

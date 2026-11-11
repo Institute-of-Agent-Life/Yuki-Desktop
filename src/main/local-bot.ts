@@ -202,6 +202,7 @@ export class LocalBot {
       image: manifest.image,
       characterName: input.characterName.trim(),
       personName: input.personName.trim(),
+      sandboxProfile: input.sandboxProfile,
       personRequestId: randomUUID(),
       pairRequestId: randomUUID(),
       superuserRequestId: randomUUID(),
@@ -223,14 +224,16 @@ export class LocalBot {
     // These variables belong to this Compose invocation, not the user's shell or
     // another project. Put its explicit image/port into the local override file.
     const override = await readFile(join(directory, 'docker-compose.local.yml'), 'utf8')
+    // The Bot and the sandbox Manager both use this image and the user's group.
     const configuredOverride = override
-      .replace(
+      .replaceAll(
         '${YUKI_LOCAL_IMAGE:-ghcr.io/yuanyeyoutao/yuki:${YUKI_VERSION:?missing}}',
         JSON.stringify(item.image),
       )
       .replace('${YUKI_LOCAL_PORT:-8080}', String(item.port))
-      .replace('${YUKI_LOCAL_UID:-10001}', String(process.getuid?.() ?? 10001))
-      .replace('${YUKI_LOCAL_GID:-10001}', String(process.getgid?.() ?? 10001))
+      .replaceAll('${YUKI_LOCAL_UID:-10001}', String(process.getuid?.() ?? 10001))
+      .replaceAll('${YUKI_LOCAL_GID:-10001}', String(process.getgid?.() ?? 10001))
+      .replace('${YUKI_SANDBOX_PROFILE:-desktop}', item.sandboxProfile ?? 'desktop')
     const { writeFile } = await import('node:fs/promises')
     await writeFile(join(directory, 'docker-compose.local.yml'), configuredOverride)
     this.options.progress('準備本機 Yuki 映像')
@@ -277,6 +280,18 @@ export class LocalBot {
       'webui-config',
     ])
       await mkdir(join(directory, name), { recursive: true })
+    // The sandbox's data lives in Docker volumes outside this Compose project, so that
+    // `compose down -v` keeps it (the backend's deploy/sandbox/prepare.sh).
+    for (const volume of [
+      'yuki-sandbox-state',
+      'yuki-sandbox-home',
+      'yuki-sandbox-runtime',
+      'yuki-sandbox-code',
+      'yuki-media-cache',
+    ])
+      await this.run(['volume', 'inspect', volume]).catch(() =>
+        this.run(['volume', 'create', volume]),
+      )
     this.options.progress('初始化 Yuki 與資料庫')
     await this.compose(item, [
       'run',
@@ -296,10 +311,12 @@ export class LocalBot {
     const item = this.installation()
     this.options.progress('啟動本機 Yuki')
     await this.compose(item, ['up', '-d', '--wait', 'bot'])
+    // Yuki answers without its sandbox; the sandbox reports its own state when it is ready.
+    await this.compose(item, ['up', '-d', 'manager'])
     return this.state()
   }
   async stop() {
-    await this.compose(this.installation(), ['stop', 'bot'])
+    await this.compose(this.installation(), ['stop', 'bot', 'manager'])
     return this.state()
   }
   async connect(newCode = true) {
