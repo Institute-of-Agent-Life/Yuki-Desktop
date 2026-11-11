@@ -156,7 +156,10 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  flex: 1 1 220px;
+  /* Only as wide as its control, so the description keeps the rest of the row;
+     on a narrow row it wraps below and stays at the right. */
+  flex: 0 1 auto;
+  margin-left: auto;
   flex-wrap: wrap;
   min-width: 0;
   max-width: 100%;

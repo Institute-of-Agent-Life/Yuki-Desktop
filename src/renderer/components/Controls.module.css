@@ -238,6 +238,22 @@
 .dialog[open]::backdrop {
   animation: scrim-enter 160ms var(--ease-standard);
 }
+/* Closing fades out instead of vanishing; display and the top layer stay until it ends. */
+.dialog,
+.dialog::backdrop {
+  transition:
+    opacity var(--motion-fast) var(--ease-exit),
+    transform var(--motion-fast) var(--ease-exit),
+    overlay var(--motion-fast) allow-discrete,
+    display var(--motion-fast) allow-discrete;
+}
+.dialog:not([open]) {
+  opacity: 0;
+  transform: scale(0.98);
+}
+.dialog:not([open])::backdrop {
+  opacity: 0;
+}
 @keyframes sheet-enter {
   from {
     opacity: 0;
