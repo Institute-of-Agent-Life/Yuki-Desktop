@@ -4,7 +4,8 @@ const NS = 'http://www.w3.org/2000/svg'
 const presets = {
   toolbar: [10, 12, 0],
   composer: [16, 18, 0],
-  bubble: [14, 18, 0],
+  // Gentle: a stronger bend curls the backdrop's thin lines into hooks at the corners.
+  bubble: [12, 8, 0],
   toast: [10, 12, 0],
   slider: [7, 10, 0.32],
   toggle: [5, 7, 0.2],

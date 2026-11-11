@@ -455,28 +455,30 @@ export function Settings({
             ))
           ) : shown === 'yukis' ? (
             <>
-              <SettingsSection title="已連接">
-                {connections.map((item) => {
-                  const current = item.characterId === connection?.characterId
-                  const status = item.needsPairing
-                    ? '需要重新配對'
-                    : item.logout
-                      ? '登出尚未完成'
-                      : current
-                        ? '目前使用中'
-                        : ''
-                  return (
-                    <Row
-                      key={item.characterId}
-                      title={item.name}
-                      description={`${item.baseUrl}${status ? ` · ${status}` : ''}`}
-                    >
-                      <Avatar name={item.name} size={24} />
-                      {!current && <Button onClick={() => onSelect(item)}>切換</Button>}
-                    </Row>
-                  )
-                })}
-              </SettingsSection>
+              {connections.length > 0 && (
+                <SettingsSection title="已連接">
+                  {connections.map((item) => {
+                    const current = item.characterId === connection?.characterId
+                    const status = item.needsPairing
+                      ? '需要重新配對'
+                      : item.logout
+                        ? '登出尚未完成'
+                        : current
+                          ? '目前使用中'
+                          : ''
+                    return (
+                      <Row
+                        key={item.characterId}
+                        title={item.name}
+                        description={`${item.baseUrl}${status ? ` · ${status}` : ''}`}
+                      >
+                        <Avatar name={item.name} size={24} />
+                        {!current && <Button onClick={() => onSelect(item)}>切換</Button>}
+                      </Row>
+                    )
+                  })}
+                </SettingsSection>
+              )}
               <SettingsSection title="新增">
                 <Row title="連接已有 Yuki" description="用配對連結或綁定碼連接。">
                   <Button onClick={onAddCharacter}>連接…</Button>

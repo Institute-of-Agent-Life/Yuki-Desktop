@@ -33,7 +33,8 @@
   display: block;
 }
 .surface:global([data-refracting]) {
-  backdrop-filter: saturate(116%) var(--refract,);
+  /* A slight blur first, so thin backdrop lines bend smoothly instead of fraying. */
+  backdrop-filter: blur(1px) saturate(116%) var(--refract,);
 }
 .surface:global([data-liquid])::before,
 .surface:global([data-liquid])::after {
