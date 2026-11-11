@@ -18,18 +18,21 @@ function mermaid() {
   return diagrams
 }
 
-/** Markdown remains readable while its visible diagrams and authorized images load. */
+/** Markdown remains readable while its visible diagrams and authorized images load.
+ *  Its links open through the confirmed external path and code blocks copy, wherever it is shown. */
 export function Markdown({
   id,
   text,
   rendered,
   hydrate = true,
+  onProblem,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   id: string
   text: string
   rendered?: string
   hydrate?: boolean
+  onProblem?(message: string): void
 }) {
   const markdown = useMarkdown(text),
     html = rendered ?? markdown,
@@ -131,5 +134,29 @@ export function Markdown({
       resources.forEach(release)
     }
   }, [html, id, activeSession, revision, hydrate])
-  return <div {...props} ref={root} dangerouslySetInnerHTML={{ __html: html }} />
+  return (
+    <div
+      {...props}
+      ref={root}
+      onClick={(click) => {
+        const target = click.target as HTMLElement
+        const link = target.closest<HTMLAnchorElement>('a[href]')
+        const code = target
+          .closest('button[data-code-copy]')
+          ?.parentElement?.querySelector('pre code')?.textContent
+        const work = link
+          ? window.yuki.client.external(link.href)
+          : typeof code === 'string'
+            ? window.yuki.client.copy(code)
+            : undefined
+        if (!work) return
+        click.preventDefault()
+        click.stopPropagation()
+        void work
+          .then(unwrap)
+          .catch((error) => onProblem?.(error instanceof Error ? error.message : '操作未完成。'))
+      }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
 }

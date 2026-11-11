@@ -1544,22 +1544,7 @@ export function Message({
             text={parseMessage(content).text}
             hydrate={!!event}
             className={styles.markdown}
-            onClick={(click) => {
-              const copy = (click.target as HTMLElement).closest('button[data-code-copy]')
-              if (copy) {
-                click.stopPropagation()
-                const text = copy.parentElement?.querySelector('pre code')?.textContent
-                if (event && text !== undefined && text !== null)
-                  action(window.yuki.client.copy(text).then(unwrap))
-                return
-              }
-              const link = (click.target as HTMLElement).closest<HTMLAnchorElement>('a[href]')
-              if (link) {
-                click.preventDefault()
-                click.stopPropagation()
-                if (event) action(window.yuki.client.external(link.href).then(unwrap))
-              }
-            }}
+            onProblem={setError}
           />
           {error && <Banner status="failed">{error}</Banner>}
           {own && receipt && <Pending item={receipt} verify={() => verify(receipt.requestId)} />}
