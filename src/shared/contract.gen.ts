@@ -2420,6 +2420,8 @@ export interface components {
         };
         /** Work */
         Work: {
+            /** Admission */
+            admission?: string | null;
             budget: components["schemas"]["WorkBudget"];
             /** Child Count */
             child_count: number;

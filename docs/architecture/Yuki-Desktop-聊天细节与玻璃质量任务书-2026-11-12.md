@@ -29,7 +29,7 @@
 
 ## 2. 失败情形（先写，再写代码）
 
-E2E `chat-polish.spec.ts`、`glass-quality.spec.ts`、`message-flow.spec.ts`、`instant-send.spec.ts`。
+E2E `chat-polish.spec.ts`、`glass-quality.spec.ts`、`message-flow.spec.ts`、`instant-send.spec.ts`、`private-work.spec.ts`（第 7 条，真实后端：测试服务让模型先调用 `get_schedules` 再 `send`）。
 
 1. 选中消息时 `article` 有外框，或外框没有画在气泡上，或头像落在外框内。
 2. 送出中、已接收、已取得原回执时消息下出现状态行；离线保存时没有「連線後送出」。

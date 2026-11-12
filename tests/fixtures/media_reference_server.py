@@ -214,6 +214,19 @@ def media_routes(self, app: FastAPI):
         }
         return {"ok": True}
 
+    @app.post("/__test/private-execution-scenario")
+    async def private_execution_scenario(body: dict):
+        """The next app message runs a non-send tool first, so the Host admits its Work."""
+        async with self.runtime.database.read_session() as reader:
+            after_event_id = await reader.scalar(select(func.max(ChatEventModel.id)))
+        self.work_scenario = {
+            "after_event_id": after_event_id or 0,
+            "event_id": None,
+            "work_id": None,
+            "script": [("get_schedules", {}), ("send", {"text": body["text"]})],
+        }
+        return {"ok": True}
+
     @app.post("/__test/media-artifact")
     async def publish(body: dict):
         path = (self.root / body["path"]).resolve()
