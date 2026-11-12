@@ -14,6 +14,8 @@ async function freeze(page: Page) {
   const cdp = await page.context().newCDPSession(page)
   await cdp.send('Animation.enable')
   await cdp.send('Animation.setPlaybackRate', { playbackRate: 0 })
+  // The hold outlasts a navigation, so the next pane must be let go to grow.
+  return () => cdp.send('Animation.setPlaybackRate', { playbackRate: 1 })
 }
 const box = (locator: Locator) =>
   locator.evaluate((element) => {
@@ -88,7 +90,7 @@ test('a sheet withdraws from the size it had, whether its owner clears it or rem
     await correction.evaluate((dialog) => getComputedStyle(dialog, '::backdrop').backdropFilter),
   ).toBe('none')
   const corrected = await box(correction)
-  await freeze(page)
+  const thaw = await freeze(page)
   await correction.getByRole('button', { name: '取消', exact: true }).click()
   // 3: its owner clears the content as it closes; the glass still starts at the open size.
   const correctionGhost = await ghost(page)
@@ -96,6 +98,7 @@ test('a sheet withdraws from the size it had, whether its owner clears it or rem
   sameBox(correctionGhost.box, corrected)
   expect(correctionGhost.rim).toBe(true)
   expect(correctionGhost.bend).toBe(true)
+  await thaw()
 
   await page.goto('http://127.0.0.1:4178/about-profile.html?administrator=true&avatar=supported')
   await page
@@ -206,4 +209,39 @@ test('the menu and sheets draw no frame, and a focused composer stays its own sh
   const contrast = await focused()
   expect(contrast.outline).toBe('none')
   expect(rings(contrast.shadow)).toBeGreaterThan(0)
+})
+
+test('a sheet that grew out of a button is lit along its own corners once it has grown', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.goto('http://127.0.0.1:4178/about-profile.html?administrator=true&avatar=supported')
+  await page
+    .getByRole('region', { name: '頭像', exact: true })
+    .getByRole('button', { name: '更換頭像', exact: true })
+    .click()
+  const sheet = page.getByRole('dialog', { name: '更換 Yuki 的頭像' })
+  await expect(sheet).toHaveAttribute('data-refracting', 'true')
+  await expect.poll(() => sheet.evaluate((element) => element.getAnimations().length)).toBe(0)
+  await page.waitForTimeout(300)
+  // 12: 40px from the left the top edge is straight for a 22px corner, so its light is there;
+  // a map drawn from the growing frame's far larger corner leaves it dark.
+  const light = await sheet.evaluate(async (element: HTMLElement) => {
+    const image = new Image()
+    image.src = getComputedStyle(element)
+      .getPropertyValue('--rim')
+      .match(/url\("?(.*?)"?\)$/)![1]!
+    await image.decode()
+    const scale = image.width / element.offsetWidth,
+      canvas = new OffscreenCanvas(image.width, image.height),
+      context = canvas.getContext('2d')!
+    context.drawImage(image, 0, 0)
+    return {
+      radius: getComputedStyle(element).borderTopLeftRadius,
+      edge: context.getImageData(Math.round(40 * scale), 1, 1, 1).data[3]!,
+    }
+  })
+  evidence.grownSheet = light
+  expect(light.radius).toBe('22px')
+  expect(light.edge).toBeGreaterThan(32)
 })

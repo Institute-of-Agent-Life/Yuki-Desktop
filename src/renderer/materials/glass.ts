@@ -271,6 +271,21 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
       const w = element.offsetWidth,
         h = element.offsetHeight
       if (!w || !h) return
+      // A pane growing out of a button has a far larger corner mid-flight; its maps wait for the
+      // pane's own corner, or the light would keep that oversized arc once it has grown.
+      const morphing = element
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation.effect instanceof KeyframeEffect &&
+            animation.effect.getKeyframes().some((frame) => 'borderRadius' in frame),
+        )
+      if (morphing.length) {
+        void Promise.allSettled(morphing.map((animation) => animation.finished)).then(() => {
+          if (attachment.current?.element === element) sync()
+        })
+        return
+      }
       const style = getComputedStyle(element)
       const inline = kind === 'bubble' ? parseFloat(style.paddingInlineStart) : 0
       const bottom = kind === 'bubble' ? parseFloat(style.paddingBottom) : 0
