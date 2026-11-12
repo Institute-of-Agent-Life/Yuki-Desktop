@@ -1,0 +1,4 @@
+/* The departing words are only drawn, so they are never read, selected or found a second time. */
+[data-draft-release]::before {
+  content: attr(data-draft-release);
+}

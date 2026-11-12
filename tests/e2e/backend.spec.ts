@@ -8,6 +8,7 @@ import {
   pairUI,
   waitForMainEnded,
   yukiFixture,
+  waitForAcceptedMessage,
 } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
 import { crashElectron } from '../fixtures/electron-process'
@@ -41,13 +42,7 @@ test('actual Yuki container: pairing, real ledger reply, lost response, cold rec
     for (const path of proxy.held.keys()) if (path.endsWith(me)) proxy.releaseResponses(path)
     await expect(page.getByRole('button', { name: '送出', exact: true })).toBeEnabled()
     await expect(composer).toHaveValue('等待送出期間的新草稿')
-    const sent = await page.evaluate(async (id) => {
-      const result = await window.yuki.client.outbox(id)
-      if (!result.ok) throw Error(result.code)
-      const item = result.value.find((item) => item.body.text === '第一則原始訊息')
-      if (!item?.eventId) throw Error('Original accepted request is missing')
-      return { requestId: item.requestId, eventId: item.eventId }
-    }, connection.characterId)
+    const sent = await waitForAcceptedMessage(page, connection.characterId, '第一則原始訊息')
     const original = await waitForMainEnded(page, connection.characterId, sent.requestId)
     expect(original.event_id).toBe(sent.eventId)
     expect(original.result_event_ids).toHaveLength(1)

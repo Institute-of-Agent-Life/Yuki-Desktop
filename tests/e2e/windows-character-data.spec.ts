@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { AutomationPage, Connection, MemoryPage } from '../../src/shared/api'
 import { expectContainedText } from '../fixtures/contained-text'
-import { pairUI, waitForMainEnded } from '../fixtures/backend'
+import { pairUI, waitForMainEnded, waitForAcceptedMessage } from '../fixtures/backend'
 import { launchShell } from '../fixtures/shell-app'
 
 async function connection(page: Page) {
@@ -101,16 +101,7 @@ test('Windows native character data keeps original memory receipts across crashe
     await composer.fill(sourceText)
     await pa.getByRole('button', { name: '送出', exact: true }).click()
     await expect(composer).toHaveValue('')
-    const sent = await pa.evaluate(
-      async ({ id, text }) => {
-        const result = await window.yuki.client.outbox(id)
-        if (!result.ok) throw Error(result.code)
-        const item = result.value.find((item) => item.body.text === text)
-        if (!item?.eventId) throw Error('Original accepted request is missing')
-        return { requestId: item.requestId, eventId: item.eventId }
-      },
-      { id: owner.characterId, text: sourceText },
-    )
+    const sent = await waitForAcceptedMessage(pa, owner.characterId, sourceText)
     const receipt = await waitForMainEnded(pa, owner.characterId, sent.requestId)
     expect(receipt.event_id).toBe(sent.eventId)
     expect(receipt.result_event_ids).toHaveLength(1)

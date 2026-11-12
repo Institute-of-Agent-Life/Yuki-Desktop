@@ -930,7 +930,7 @@ else {
       return true
     })
     clientAction('send', (id: string, text: string, uploads?: string[]) =>
-      connections.send(id, text, uploads),
+      connections.queue(id, text, uploads).then(({ item }) => item),
     )
     clientAction('uploads', (id: string) => connections.uploads(id).list())
     clientAction('work-command', (id: string, command: WorkCommand, question?: WorkDraftQuestion) =>
@@ -1033,7 +1033,7 @@ else {
         throw new ApiError('microphone_denied')
       microphoneRequested = true
     })
-    clientAction('outbox', (id: string) => connections.box(id).list())
+    clientAction('outbox', (id: string) => connections.outbox(id))
     clientAction('verify', (id: string, requestId: string) => connections.verify(id, requestId))
     clientAction('draft', (id: string, text?: string) => connections.box(id).draft(text))
     for (const connection of connections.list()) {

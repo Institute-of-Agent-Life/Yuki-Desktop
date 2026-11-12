@@ -2,7 +2,7 @@ import { useFloatingInsets } from '../materials/floating'
 import { ConversationGlass } from '../materials/ConversationGlass'
 import glassStyles from '../materials/ConversationGlass.module.css'
 import { reducedMotion } from '../motion/hooks'
-import { animateBubble } from '../motion/bubble'
+import { animateBubble, releaseDraft } from '../motion/bubble'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
@@ -53,8 +53,9 @@ import { LocalComputer } from './LocalComputer'
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
   window.yuki.client.read<T>(id, route).then(unwrap)
 
+type Receipt = OutboxItem & { sending: boolean }
 type MessageRecord =
-  { event: PublicEvent; receipt?: OutboxItem } | { event?: undefined; receipt: OutboxItem }
+  { event: PublicEvent; receipt?: Receipt } | { event?: undefined; receipt: Receipt }
 
 const messageTime = ({ event, receipt }: MessageRecord) =>
   event ? event.created_at : new Date(receipt.createdAt).toISOString()
@@ -163,7 +164,8 @@ export function Conversation({
     range: '',
     event: 0,
   })
-  const sentMessages = useRef(new Set<string>())
+  // Each sent request remembers where its words were typed, the start of its bubble.
+  const sentMessages = useRef(new Map<string, DOMRect | undefined>())
   const liveMessage = useRef<Home['main']>(undefined)
   const home = useQuery({ queryKey: [id, 'home'], queryFn: () => read<Home>(id, { kind: 'home' }) })
   const me = useMe(id)
@@ -460,11 +462,13 @@ export function Conversation({
       liveMessage.current = undefined
       return
     }
-    for (const requestId of sentMessages.current) {
+    for (const [requestId, origin] of sentMessages.current) {
       const row = log.querySelector(`[data-message-request="${CSS.escape(requestId)}"]`)
       if (!row) continue
       sentMessages.current.delete(requestId)
-      animateBubble(row, true)
+      // Measure where the message rests once the list shows its end.
+      log.scrollTop = log.scrollHeight
+      animateBubble(row, true, origin)
     }
     const hint = liveMessage.current
     if (!hint || !eventData || eventData.latest_event_id < hint.latest_event_id) return
@@ -576,6 +580,10 @@ export function Conversation({
     choose(connection.conversationId)
   }
   const send = async () => {
+    const field = list.current?.parentElement?.querySelector<HTMLTextAreaElement>(
+      '[data-region="composer"] textarea',
+    )
+    const origin = field?.getBoundingClientRect()
     const submittedDraft = currentDraft.current
     const sentReferences = currentReferences.current
     const text = referencedMessage(sentReferences, submittedDraft)
@@ -586,8 +594,9 @@ export function Conversation({
         uploads.data?.map((item) => item.requestId),
       ),
     )
-    sentMessages.current.add(receipt.requestId)
+    sentMessages.current.set(receipt.requestId, origin)
     if (currentDraft.current === submittedDraft) {
+      if (field && !reducedMotion()) releaseDraft(field)
       currentDraft.current = ''
       setDraft('')
     }
@@ -1415,7 +1424,7 @@ function MessageStage({
   )
 }
 
-function Pending({ item, verify }: { item: OutboxItem; verify(): Promise<void> }) {
+function Pending({ item, verify }: { item: Receipt; verify(): Promise<void> }) {
   const [error, setError] = useState(''),
     [busy, setBusy] = useState(false)
   return (
@@ -1424,14 +1433,16 @@ function Pending({ item, verify }: { item: OutboxItem; verify(): Promise<void> }
         {item.problem
           ? problemText(item.problem)
           : item.state === 'draft'
-            ? '連線後送出'
+            ? item.sending
+              ? '送出中'
+              : '連線後送出'
             : item.state === 'submitted'
               ? '狀態未確認'
               : item.state === 'accepted'
                 ? '已接收'
                 : '已取得原回執'}
       </span>
-      {item.state !== 'result' && (
+      {item.state !== 'result' && !item.sending && (
         <Button
           variant="plain"
           loading={busy}

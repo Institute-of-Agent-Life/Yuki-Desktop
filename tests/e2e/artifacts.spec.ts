@@ -11,6 +11,7 @@ import {
   pairUI,
   waitForMainEnded,
   yukiFixture,
+  waitForAcceptedMessage,
 } from '../fixtures/backend'
 import type { ArtifactPage, Profile } from '../../src/shared/api'
 
@@ -35,13 +36,7 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
     await composer.fill('請把成果交給我')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(composer).toHaveValue('')
-    const sent = await page.evaluate(async (id) => {
-      const result = await window.yuki.client.outbox(id)
-      if (!result.ok) throw Error(result.code)
-      const item = result.value.find((item) => item.body.text === '請把成果交給我')
-      if (!item?.eventId) throw Error('Original accepted request is missing')
-      return { requestId: item.requestId, eventId: item.eventId }
-    }, connection.characterId)
+    const sent = await waitForAcceptedMessage(page, connection.characterId, '請把成果交給我')
     const replied = await waitForMainEnded(page, connection.characterId, sent.requestId)
     expect(replied.event_id).toBe(sent.eventId)
     expect(replied.result_event_ids).toHaveLength(1)

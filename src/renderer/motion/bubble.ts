@@ -1,7 +1,8 @@
+import { Spring, springs } from './spring'
+import './bubble.css'
+
 const svgNamespace = 'http://www.w3.org/2000/svg'
 const quarter = (4 / 3) * Math.tan(Math.PI / 8)
-
-const liquidBubbleDuration = 520
 
 // Pull the middle of one rounded corner outward with a smooth displacement.
 // The displacement has zero slope where the corner joins the straight edges.
@@ -64,19 +65,27 @@ function liquidPath(
   ].join(' ')
 }
 
-const phases = [
-  { offset: 0, width: 0.18, height: 0.43, tail: 0.05, sink: 10, glass: 0.34, ink: 0 },
-  { offset: 0.24, width: 0.3, height: 0.58, tail: 1, sink: 4, glass: 1, ink: 0 },
-  { offset: 0.54, width: 0.79, height: 0.89, tail: 0.72, sink: 0, glass: 1, ink: 1 },
-  { offset: 0.74, width: 1, height: 1, tail: 0.36, sink: 0, glass: 1, ink: 1 },
-  { offset: 0.91, width: 1, height: 1, tail: 0.05, sink: 0, glass: 1, ink: 1 },
-  { offset: 1, width: 1, height: 1, tail: 0, sink: 0, glass: 1, ink: 1 },
-]
+// One spring carries the whole entry, sampled per frame so every property keeps
+// its velocity: no keyframe stops the drop halfway.
+function entry() {
+  const spring = new Spring(0)
+  spring.aim(1, springs.bubble)
+  const samples = [{ value: 0, velocity: 0 }]
+  while (spring.value !== 1 || spring.velocity !== 0) {
+    spring.step(1 / 60)
+    samples.push({ value: spring.value, velocity: spring.velocity })
+  }
+  return samples
+}
 
-export function animateBubble(row: Element, outgoing: boolean) {
+const clamp = (value: number) => Math.min(1, Math.max(0, value))
+
+// Own messages rise from the composer text at `origin`; Yuki's replies grow in place.
+export function animateBubble(row: Element, outgoing: boolean, origin?: DOMRect) {
   const surface = row.querySelector<HTMLElement>('[data-glass="bubble"]')
   const copy = row.querySelector<HTMLElement>('[data-bubble-copy]')
-  if (!surface || !copy) return
+  const bubble = surface?.parentElement
+  if (!surface || !copy || !bubble) return
 
   const box = surface.getBoundingClientRect()
   const copyBox = copy.getBoundingClientRect()
@@ -86,19 +95,56 @@ export function animateBubble(row: Element, outgoing: boolean) {
   const width = box.width - 2 * inline
   const height = box.height - bottom
   const radius = parseFloat(style.borderTopLeftRadius)
+  const startWidth = Math.min(width, Math.max(36, width * 0.2))
+  const startHeight = Math.min(height, Math.max(22, height * 0.4))
 
-  // The backdrop and the text mask share the contour in their own coordinates.
-  const frames = phases.map((phase) => {
-    const w = Math.min(width, Math.max(28, width * phase.width))
-    const h = Math.min(height, Math.max(19, height * phase.height))
-    const args = [inline, height - h + phase.sink, w, h, radius, phase.tail * (bottom - 6)] as const
+  // The drop rises no further than the list's own bottom space, so scrolling never changes.
+  const log = row.closest('[role="log"]')
+  const room = log
+    ? log.getBoundingClientRect().top - log.scrollTop + log.scrollHeight - box.bottom
+    : 0
+  const rise = Math.max(
+    0,
+    Math.min(
+      room,
+      origin ? origin.top + origin.height / 2 - (box.top + height - startHeight / 2) : 10,
+    ),
+  )
+
+  // The text scales from the drop's growing corner to whatever the glass can hold.
+  const side = outgoing ? box.right - inline - copyBox.right : copyBox.left - box.left - inline
+  const under = box.top + height - copyBox.bottom
+  const fit = (w: number, h: number) =>
+    clamp(Math.min((w - side) / copyBox.width, (h - under) / copyBox.height))
+
+  const samples = entry()
+  const fastest = Math.max(...samples.map((sample) => sample.velocity))
+  const last = samples.length - 1
+  const frames = samples.map(({ value, velocity }, index) => {
+    const grow = Math.min(1, value)
+    const w = startWidth + (width - startWidth) * grow
+    const h = startHeight + (height - startHeight) * grow
+    // The tail is the drop's stretch: longest at full speed, gone once it rests.
+    const reach = (Math.max(0, velocity) / fastest) * (bottom - 6)
     const px = (x: number) => (outgoing ? box.width - x : x)
-    const path = (dx: number, dy: number) =>
-      liquidPath(...args, (x, y) => `${(px(x) - dx).toFixed(2)} ${(y - dy).toFixed(2)}`)
+    const path = liquidPath(
+      inline,
+      height - h,
+      w,
+      h,
+      radius,
+      reach,
+      (x, y) => `${px(x).toFixed(2)} ${y.toFixed(2)}`,
+    )
+    const settle = clamp((index / last - 0.5) / 0.5)
     return {
-      ...phase,
-      contour: `path("${path(0, 0)}")`,
-      inkMask: `path("${path(copyBox.left - box.left, copyBox.top - box.top)}")`,
+      offset: index / last,
+      contour: `path("${path}")`,
+      glass: Math.min(1, 0.55 + 1.5 * value),
+      lift: `translateY(${((1 - value) * rise).toFixed(2)}px)`,
+      scale: `scale(${fit(w, h).toFixed(4)})`,
+      ink: clamp((value - 0.55) / 0.35),
+      settle,
     }
   })
 
@@ -115,33 +161,88 @@ export function animateBubble(row: Element, outgoing: boolean) {
   surface.dataset.liquid = ''
 
   const timing: KeyframeAnimationOptions = {
-    duration: liquidBubbleDuration,
+    duration: (last * 1000) / 60,
     easing: 'linear',
     fill: 'backwards',
   }
-  const easing = 'cubic-bezier(.25, .12, .36, 1)'
   const glass = surface.animate(
-    frames.map(({ offset, contour, glass }) => ({
-      offset,
-      easing,
-      clipPath: contour,
-      opacity: glass,
-    })),
+    frames.map(({ offset, contour, glass }) => ({ offset, clipPath: contour, opacity: glass })),
     timing,
   )
-  const stroke = edge.animate(
-    frames.map(({ offset, contour, glass }) => ({ offset, easing, d: contour, opacity: glass })),
-    timing,
-  )
-  const text = copy.animate(
-    frames.map(({ offset, inkMask, ink }) => ({ offset, easing, clipPath: inkMask, opacity: ink })),
-    timing,
-  )
+  const others = [
+    bubble.animate(
+      [
+        ...frames.map(({ offset, lift }) => ({ offset, transform: lift })),
+        // The resting shadow belongs to the resting shape.
+        { offset: 0, boxShadow: 'none' },
+        { offset: 0.5, boxShadow: 'none' },
+      ].sort((a, b) => a.offset - b.offset),
+      timing,
+    ),
+    edge.animate(
+      frames.map(({ offset, contour, glass, settle }) => ({
+        offset,
+        d: contour,
+        opacity: glass * (1 - settle),
+      })),
+      timing,
+    ),
+    copy.animate(
+      frames.map(({ offset, scale, ink }) => ({
+        offset,
+        transform: scale,
+        transformOrigin: outgoing ? '100% 100%' : '0 100%',
+        opacity: ink,
+      })),
+      timing,
+    ),
+    // The resting rim returns while the drawn edge fades, so the end has no switch.
+    ...(['::before', '::after'] as const).map((pseudoElement) =>
+      surface.animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }], {
+        ...timing,
+        pseudoElement,
+      }),
+    ),
+  ]
   const finish = () => {
-    stroke.cancel()
-    text.cancel()
+    for (const animation of others) animation.cancel()
     delete surface.dataset.liquid
     outline.remove()
   }
   void glass.finished.then(finish, finish)
+}
+
+// The sent words leave the composer upward while their bubble rises from it.
+export function releaseDraft(field: HTMLTextAreaElement) {
+  const box = field.getBoundingClientRect()
+  const style = getComputedStyle(field)
+  const words = document.createElement('div')
+  words.dataset.draftRelease = field.value
+  words.setAttribute('aria-hidden', 'true')
+  Object.assign(words.style, {
+    position: 'fixed',
+    left: `${box.left}px`,
+    top: `${box.top}px`,
+    width: `${box.width}px`,
+    height: `${box.height}px`,
+    padding: style.padding,
+    font: style.font,
+    letterSpacing: style.letterSpacing,
+    color: style.color,
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'break-word',
+    overflow: 'hidden',
+    pointerEvents: 'none',
+    zIndex: '7',
+  })
+  document.body.append(words)
+  words.scrollTop = field.scrollTop
+  const leave = words.animate([{ opacity: 1 }, { opacity: 0, transform: 'translateY(-10px)' }], {
+    duration: 180,
+    easing: 'cubic-bezier(.3, 0, .2, 1)',
+  })
+  // The placeholder returns only as the words clear, so the two never overlap.
+  field.animate([{ opacity: 0 }, { opacity: 0, offset: 0.4 }, { opacity: 1 }], { duration: 260 })
+  const remove = () => words.remove()
+  void leave.finished.then(remove, remove)
 }
