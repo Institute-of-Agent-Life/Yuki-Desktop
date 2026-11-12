@@ -52,13 +52,25 @@ function lens(
   const hx = width / 2 - inline,
     hy = (height - bottom) / 2,
     normalRadius = Math.min(radius * (kind === 'bubble' ? 1 : 1.5), hx, hy)
-  for (let j = 0; j < canvas.height; j++)
+  // Outside the pane and deeper than its bezel and glow nothing bends or shines. Every pixel
+  // starts neutral, and rows clear of the corners only visit the bezel at either side: most of a
+  // large pane is never computed.
+  const band = Math.max(edgeHeight, 10)
+  new Uint32Array(pixels.data.buffer).fill(
+    new Uint32Array(new Uint8ClampedArray([128, 128, 128, 255]).buffer)[0]!,
+  )
+  const skipFrom = Math.floor(((width / 2 - hx + band) * canvas.width) / width),
+    skipTo = Math.ceil(((width / 2 + hx - band) * canvas.width) / width) - 1
+  for (let j = 0; j < canvas.height; j++) {
+    const y = ((j + 0.5) * height) / canvas.height - hy,
+      clear = !zoom && Math.abs(y) < hy - Math.max(band, radius)
     for (let i = 0; i < canvas.width; i++) {
+      if (clear && i === skipFrom && skipTo > skipFrom) i = skipTo
       const x = ((i + 0.5) * width) / canvas.width - width / 2,
-        y = ((j + 0.5) * height) / canvas.height - hy,
         k = (j * canvas.width + i) * 4
       const distance = roundedDistance(x, y, hx, hy, radius),
         inset = -distance
+      if (!zoom && (distance > 0 || inset >= band)) continue
       let nx =
         roundedDistance(x + 0.5, y, hx, hy, normalRadius) -
         roundedDistance(x - 0.5, y, hx, hy, normalRadius)
@@ -99,6 +111,7 @@ function lens(
         )
       }
     }
+  }
   context.putImageData(pixels, 0, 0)
   lightContext.putImageData(lights, 0, 0)
   const result = { displacement: canvas.toDataURL(), rim: rim.toDataURL() }
