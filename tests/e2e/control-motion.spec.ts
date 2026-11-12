@@ -196,7 +196,8 @@ test('SVG lens really displaces backdrop pixels while foreground text stays shar
         b = await decode(off)
       let changed = 0,
         foreground = 0,
-        movedForeground = 0
+        movedForeground = 0,
+        fringe = 0
       for (let k = 0; k < a.data.length; k += 4) {
         if (
           Math.abs(a.data[k]! - b.data[k]!) +
@@ -205,16 +206,22 @@ test('SVG lens really displaces backdrop pixels while foreground text stays shar
           30
         )
           changed++
+        // The text sits in the middle third; dispersion colours only the rounded ends.
+        const x = (k / 4) % a.width
+        if (a.data[k]! < 80 && a.data[k + 1]! > 180 && a.data[k + 2]! > 180) fringe++
+        if (x < a.width / 3 || x > (2 * a.width) / 3) continue
         const redA = a.data[k]! > 180 && a.data[k + 1]! < 80 && a.data[k + 2]! < 80
         const redB = b.data[k]! > 180 && b.data[k + 1]! < 80 && b.data[k + 2]! < 80
         if (redA) foreground++
         if (redA !== redB) movedForeground++
       }
-      return { changed, foreground, movedForeground }
+      return { changed, foreground, movedForeground, fringe }
     },
     { on: on.toString('base64'), off: off.toString('base64') },
   )
   expect(pixels.changed).toBeGreaterThan(100)
   expect(pixels.foreground).toBeGreaterThan(20)
   expect(pixels.movedForeground).toBe(0)
+  // Edges crossing the rim split into red and cyan: cyan exists only through dispersion.
+  expect(pixels.fringe).toBeGreaterThan(20)
 })

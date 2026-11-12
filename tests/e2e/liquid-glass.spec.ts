@@ -232,3 +232,49 @@ test('the sidebar keeps its native material with a rim lit from the upper left',
     await sidebar.evaluate((element) => getComputedStyle(element, '::before').backgroundImage),
   ).toMatch(/^linear-gradient\(154deg/)
 })
+
+test('only panes over moving content disperse, and blue buttons are tinted glass lit like the rest', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 820 })
+  await page.goto(`${regressions}?case=conversation-glass`)
+  await expect(page.getByText('幫我整理一下這週的訪談筆記。', { exact: true })).toBeVisible()
+  // Dispersion costs one extra bend, spent only where an edge can cross a moving backdrop.
+  const bends = (pane: Locator) =>
+    pane.evaluate((element) => {
+      const id = getComputedStyle(element).backdropFilter.match(/url\("?#([^")]+)/)![1]!
+      return document.getElementById(id)!.querySelectorAll('feDisplacementMap').length
+    })
+  const composer = page.locator('[data-region="composer"]')
+  await expect(composer).toHaveAttribute('data-refracting', 'true')
+  const bubble = page.locator('article[data-event-id="34"] [data-glass="bubble"]')
+  await expect(bubble).toHaveAttribute('data-refracting', 'true')
+  evidence.bends = { composer: await bends(composer), bubble: await bends(bubble) }
+  expect(await bends(composer)).toBe(2)
+  expect(await bends(bubble)).toBe(1)
+
+  await page.goto(gallery)
+  const primary = page.getByRole('button', { name: '開啟對話框', exact: true })
+  const rim = (button: Locator) =>
+    button.evaluate((node) => ({
+      sheen: getComputedStyle(node).backgroundImage,
+      edge: getComputedStyle(node, '::before').backgroundImage,
+      shown: getComputedStyle(node, '::before').display,
+    }))
+  const lit = await rim(primary)
+  evidence.tinted = lit
+  expect(lit.sheen).toMatch(/^linear-gradient/)
+  expect(lit.edge).toMatch(/radial-gradient.*linear-gradient\(154deg/)
+  // The rim nearest the pointer catches more light, as on clear glass.
+  const box = (await primary.boundingBox())!
+  const edge = { x: box.x + box.width - 14, y: box.y, width: 8, height: 2 }
+  await page.mouse.move(5, 5)
+  await page.waitForTimeout(100)
+  const far = await brightness(page, edge)
+  await page.mouse.move(edge.x + 4, edge.y - 6)
+  await page.waitForTimeout(100)
+  const near = await brightness(page, edge)
+  evidence.tintedPointer = { far, near }
+  expect(near).toBeGreaterThan(far + 3)
+  expect((await rim(page.getByRole('button', { name: '停用', exact: true }))).shown).toBe('none')
+})

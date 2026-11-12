@@ -1,16 +1,18 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 
 const NS = 'http://www.w3.org/2000/svg'
+// [bezel width, bend, magnification, red bend relative to the rest]. Only panes floating over
+// moving content disperse: over a flat or blurred backdrop the fringe has nothing to colour.
 const presets = {
-  toolbar: [10, 12, 0],
-  composer: [16, 18, 0],
+  toolbar: [10, 12, 0, 1.22],
+  composer: [16, 18, 0, 1.22],
   // Gentle: a stronger bend curls the backdrop's thin lines into hooks at the corners.
-  bubble: [12, 8, 0],
-  card: [18, 14, 0],
-  sheet: [20, 16, 0],
-  slider: [7, 10, 0.32],
-  toggle: [5, 7, 0.2],
-  segment: [6, 8, 0.12],
+  bubble: [12, 8, 0, 0],
+  card: [18, 14, 0, 0],
+  sheet: [20, 16, 0, 0],
+  slider: [7, 10, 0.32, 0],
+  toggle: [5, 7, 0.2, 0],
+  segment: [6, 8, 0.12, 0],
 } as const
 export type GlassKind = keyof typeof presets
 const maps = new Map<string, { displacement: string; rim: string }>()
@@ -109,7 +111,7 @@ function lens(
 // One listener moves the light source for every pane: rims are lit by a fixed-position
 // gradient centred on the pointer, masked by each pane's own light map.
 let pointerLight = false
-function followPointer() {
+export function followPointer() {
   if (pointerLight) return
   pointerLight = true
   const root = document.documentElement
@@ -139,10 +141,16 @@ function followPointer() {
 export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false, enabled = true) {
   const ref = useRef<T>(null),
     strength = useRef(dynamic ? 0 : 1)
-  const displacement = useRef<SVGElement | null>(null)
+  const displacement = useRef<SVGElement | null>(null),
+    fringe = useRef<SVGElement | null>(null)
+  const bend = (value: number) => {
+    const [, amount, , red] = presets[kind]
+    displacement.current?.setAttribute('scale', String(2 * amount * value))
+    fringe.current?.setAttribute('scale', String(2 * amount * red * value))
+  }
   const setStrength = (value: number) => {
     strength.current = Math.max(0, value)
-    displacement.current?.setAttribute('scale', String(2 * presets[kind][1] * strength.current))
+    bend(strength.current)
     ref.current?.style.setProperty('--glass-pressure', String(Math.min(1, strength.current)))
   }
   const attachment = useRef<{ element: T; kind: GlassKind; dispose(): void } | undefined>(undefined)
@@ -180,6 +188,35 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
     }))
       warp.setAttribute(key, value)
     filter.append(image, warp)
+    // Dispersion with one extra bend: red is bent a little further than green and blue, which
+    // share the main bend, so edges crossing the rim split into red and cyan.
+    if (presets[kind][3]) {
+      const red = document.createElementNS(NS, 'feDisplacementMap'),
+        reds = document.createElementNS(NS, 'feColorMatrix'),
+        rest = document.createElementNS(NS, 'feColorMatrix'),
+        merge = document.createElementNS(NS, 'feBlend')
+      warp.setAttribute('result', 'bent')
+      for (const [key, value] of Object.entries({
+        in: 'SourceGraphic',
+        in2: 'map',
+        xChannelSelector: 'R',
+        yChannelSelector: 'G',
+        result: 'redder',
+      }))
+        red.setAttribute(key, value)
+      reds.setAttribute('in', 'redder')
+      // Both halves keep their alpha: filters premultiply, so a zero alpha would erase the colour.
+      reds.setAttribute('values', '1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0')
+      reds.setAttribute('result', 'red')
+      rest.setAttribute('in', 'bent')
+      rest.setAttribute('values', '0 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0')
+      rest.setAttribute('result', 'rest')
+      // The halves share no colour channel, so screen adds them exactly and keeps one alpha.
+      for (const [key, value] of Object.entries({ in: 'red', in2: 'rest', mode: 'screen' }))
+        merge.setAttribute(key, value)
+      filter.append(red, reds, rest, merge)
+      fringe.current = red
+    }
     defs.append(filter)
     svg.append(defs)
     document.body.append(svg)
@@ -216,7 +253,7 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
       }
       element.style.setProperty('--refract', `url(#${id})`)
       element.dataset.refracting = 'true'
-      warp.setAttribute('scale', String(2 * presets[kind][1] * strength.current))
+      bend(strength.current)
     }
     const resize = new ResizeObserver(sync),
       appearance = new MutationObserver(() => {
@@ -234,6 +271,7 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
       appearance.disconnect()
       svg.remove()
       displacement.current = null
+      fringe.current = null
       element.style.removeProperty('--refract')
       element.style.removeProperty('--rim')
       delete element.dataset.refracting

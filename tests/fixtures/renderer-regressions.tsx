@@ -746,6 +746,7 @@ function Case() {
   const [value, setValue] = useState('original message')
   const [preferences, setPreferences] = useState(defaultPreferences)
   const [calls, setCalls] = useState(0)
+  const [palette, setPalette] = useState(true)
   const [conversationSettings, setConversationSettings] = useState(false)
   const [category, setCategory] = useState<SettingsCategory>(
     parameters.get('category') === 'computer' ? 'computer' : 'general',
@@ -1005,14 +1006,16 @@ function Case() {
     return (
       <>
         <output data-testid="calls">{calls}</output>
-        <CommandPalette
-          character="role"
-          commands={[
-            { id: 'command', title: 'Open current work', run: () => setCalls((n) => n + 1) },
-          ]}
-          pick={async () => {}}
-          close={() => {}}
-        />
+        {palette && (
+          <CommandPalette
+            character="role"
+            commands={[
+              { id: 'command', title: 'Open current work', run: () => setCalls((n) => n + 1) },
+            ]}
+            pick={async () => {}}
+            close={() => setPalette(false)}
+          />
+        )}
       </>
     )
   return (

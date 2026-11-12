@@ -248,7 +248,9 @@ test('a dialog grows out of its button and shrinks back into it while focus retu
   await expect(dialog).toHaveCount(0)
 })
 
-test('a palette opened by shortcut swells from its own centre', async ({ page }) => {
+test('a palette opened by shortcut swells from its own centre and settles back into it', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1100, height: 760 })
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await holdMotion(page)
@@ -264,7 +266,16 @@ test('a palette opened by shortcut swells from its own centre', async ({ page })
   expect(first.scale).toBeLessThan(1)
   expect(Math.abs(first.centerX - (rest.x + rest.width / 2))).toBeLessThanOrEqual(2)
   expect(Math.abs(first.centerY - (rest.y + rest.height / 2))).toBeLessThanOrEqual(2)
-  evidence.palette = frames
+  // Closing unmounts the palette at once; its glass still settles back into its centre.
+  await arm(page)
+  await page.keyboard.press('Escape')
+  await expect(page.locator('dialog[data-glass="sheet"]')).toHaveCount(0)
+  const closing = await film(page, '[data-withdrawing]')
+  expect(closing[0]!.width).toBeCloseTo(rest.width, 0)
+  expect(closing.at(-1)!.scale).toBeLessThan(0.97)
+  await release(page)
+  await expect(page.locator('[data-withdrawing]')).toHaveCount(0)
+  evidence.palette = { opening: frames, closing }
 })
 
 test('the Yuki switcher menu is glass that grows out of the switcher and back', async ({
