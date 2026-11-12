@@ -34,7 +34,8 @@ test('a sent message shows at once while the original request is confirmed in th
             .blocked,
       )
       .toBe(true)
-    await expect(bubble(held).getByText('送出中', { exact: true })).toBeVisible()
+    // Sending passes silently: no state line and nothing to check yet.
+    await expect(bubble(held).getByText('送出中', { exact: true })).toHaveCount(0)
     await expect(bubble(held).getByRole('button', { name: '查詢', exact: true })).toHaveCount(0)
     const outbox = async () =>
       page.evaluate(async (id) => {

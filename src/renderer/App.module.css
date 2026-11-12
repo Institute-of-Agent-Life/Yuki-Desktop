@@ -253,7 +253,8 @@
   border-radius: 17px;
   background: var(--mat-chrome);
   box-shadow: var(--shadow-glass);
-  backdrop-filter: blur(6px) saturate(180%) var(--glass-calm) var(--refract,);
+  /* Bent (and dispersed) first, so the colour fringe softens with the blur like light in glass. */
+  backdrop-filter: var(--refract,) blur(6px) saturate(180%) var(--glass-calm);
   -webkit-app-region: no-drag;
 }
 .toolbar {
@@ -333,7 +334,7 @@
     inset 0 1px 0 var(--composer-rim);
   padding: 8px;
   background: color-mix(in srgb, var(--bg-elevated) var(--composer-tint), transparent);
-  backdrop-filter: blur(2px) saturate(116%) var(--glass-calm) var(--refract,);
+  backdrop-filter: var(--refract,) blur(2px) saturate(116%) var(--glass-calm);
 }
 :global([data-theme='dark']) .composer {
   --composer-tint: 36%;

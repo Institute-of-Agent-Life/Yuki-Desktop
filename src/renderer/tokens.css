@@ -93,7 +93,8 @@
     0 0 0 0.5px rgba(20, 30, 50, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04),
     0 8px 24px rgba(16, 24, 40, 0.05);
   --shadow-glass:
-    0 0 0 0.5px var(--edge), 0 1px 2px rgba(16, 24, 40, 0.06), 0 6px 18px rgba(16, 24, 40, 0.08);
+    0 0 0 0.5px var(--glass-hairline, transparent), 0 1px 2px rgba(16, 24, 40, 0.06),
+    0 6px 18px rgba(16, 24, 40, 0.08);
   --scrim: rgba(24, 30, 44, 0.16);
   --hl: rgba(255, 255, 255, 0.28);
   --track: rgba(20, 34, 64, 0.14);
@@ -152,7 +153,8 @@
     0 0 0 0.5px rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.3),
     0 8px 24px rgba(0, 0, 0, 0.28);
   --shadow-glass:
-    0 0 0 0.5px var(--edge), 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.32);
+    0 0 0 0.5px var(--glass-hairline, transparent), 0 1px 2px rgba(0, 0, 0, 0.3),
+    0 6px 18px rgba(0, 0, 0, 0.32);
   --scrim: rgba(0, 0, 0, 0.34);
   --hl: rgba(255, 255, 255, 0.16);
   --track: rgba(255, 255, 255, 0.16);
@@ -161,6 +163,8 @@
 }
 :root[data-contrast='true'] {
   --focus-ring: var(--accent);
+  /* Glass is shaped by its lit rim; increased contrast adds back a drawn outline. */
+  --glass-hairline: var(--edge);
   --mat-pane: var(--mat-sheet);
   --edge: var(--separator-strong);
   --separator: rgba(20, 30, 50, 0.27);

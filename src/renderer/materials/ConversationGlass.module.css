@@ -11,23 +11,35 @@
 }
 .surface {
   position: absolute;
-  inset: 0 calc(-1 * var(--glass-bleed-inline, 0px)) calc(-1 * var(--glass-bleed-tail, 0px));
-  padding: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
-  border-radius: inherit;
-  clip-path: inset(
-    0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px) round var(--glass-radius, 14px)
-  );
+  inset: 0;
+  /*
+   * At rest the radius alone shapes the glass: a clip-path inside the scrolling list leaves the
+   * backdrop filter square at the corners in the compositor, a visible square shadow.
+   */
+  border-radius: var(--glass-radius, 14px);
   pointer-events: none;
   background: var(--glass-tint, var(--glass-neutral-tint));
 }
+/* Only an entering drop reaches past its bubble, for the tail it stretches into. */
+.surface:global([data-liquid]) {
+  inset: 0 calc(-1 * var(--glass-bleed-inline, 0px)) calc(-1 * var(--glass-bleed-tail, 0px));
+  padding: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
+  clip-path: inset(
+    0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px) round var(--glass-radius, 14px)
+  );
+}
 .surface::before {
-  inset: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
+  inset: 0;
+  border-radius: var(--glass-radius, 14px);
   background: linear-gradient(
     154deg,
     var(--glass-edge) 4%,
     var(--glass-edge-shadow) 54%,
     color-mix(in srgb, var(--glass-edge) 45%, transparent) 100%
   );
+}
+.surface:global([data-liquid])::before {
+  inset: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
 }
 .surface:global([data-refracting])::before {
   display: block;

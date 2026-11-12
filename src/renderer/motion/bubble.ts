@@ -73,6 +73,8 @@ export function animateBubble(row: Element, outgoing: boolean, origin?: DOMRect)
   const copy = row.querySelector<HTMLElement>('[data-bubble-copy]')
   const bubble = surface?.parentElement
   if (!surface || !copy || !bubble) return
+  // The drop reaches past its bubble only while it enters; measure it so.
+  surface.dataset.liquid = ''
 
   const box = surface.getBoundingClientRect()
   const copyBox = copy.getBoundingClientRect()
@@ -146,7 +148,6 @@ export function animateBubble(row: Element, outgoing: boolean, origin?: DOMRect)
   edge.setAttribute('stroke-width', '1.1')
   outline.append(edge)
   surface.after(outline)
-  surface.dataset.liquid = ''
 
   const timing: KeyframeAnimationOptions = {
     duration: (last * 1000) / 60,

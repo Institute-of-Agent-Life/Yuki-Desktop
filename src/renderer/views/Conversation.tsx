@@ -1539,6 +1539,11 @@ function MessageStage({
   )
 }
 
+// A sent message shows its request's state only when the person may need to act on it: kept
+// offline, unconfirmed, or stopped by a problem. Sending, accepted and finished pass silently.
+const needsAttention = (item: Receipt) =>
+  !!item.problem || item.state === 'submitted' || (item.state === 'draft' && !item.sending)
+
 function Pending({ item, verify }: { item: Receipt; verify(): Promise<void> }) {
   const [error, setError] = useState(''),
     [busy, setBusy] = useState(false)
@@ -1555,10 +1560,7 @@ function Pending({ item, verify }: { item: Receipt; verify(): Promise<void> }) {
           : '已取得原回執'
   return (
     <div className={styles.pending}>
-      {/* A new state arrives as a new label, so it fades in rather than overwriting the old. */}
-      <span key={label} className={styles.pendingLabel}>
-        {label}
-      </span>
+      <span>{label}</span>
       {item.state !== 'result' && !item.sending && (
         <Button
           variant="plain"
@@ -1675,7 +1677,9 @@ export function Message({
             onProblem={setError}
           />
           {error && <Banner status="failed">{error}</Banner>}
-          {own && receipt && <Pending item={receipt} verify={() => verify(receipt.requestId)} />}
+          {own && receipt && needsAttention(receipt) && (
+            <Pending item={receipt} verify={() => verify(receipt.requestId)} />
+          )}
           {event?.attachments.map((attachment) => (
             <MessageAttachment
               key={attachment.attachment_index}
