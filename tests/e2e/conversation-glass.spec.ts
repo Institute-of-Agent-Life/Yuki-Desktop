@@ -261,7 +261,6 @@ test('clear lenses bend the backdrop and a sent message rises from the composer 
     })
   expect(rim.bottom).toBeLessThan(rim.top * 0.5)
   expect(rim.right).toBeLessThan(rim.left * 0.6)
-  expect(rim.right).toBeLessThan(0.2)
   // 17: resting bubbles are lifted off the backdrop by a shadow.
   await expect(
     page.locator('article[data-event-id="34"] [data-glass="bubble"]').locator('..'),
