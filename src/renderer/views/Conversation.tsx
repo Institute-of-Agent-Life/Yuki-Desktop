@@ -3,6 +3,8 @@ import { ConversationGlass } from '../materials/ConversationGlass'
 import glassStyles from '../materials/ConversationGlass.module.css'
 import { reducedMotion } from '../motion/hooks'
 import { animateBubble, releaseDraft } from '../motion/bubble'
+import { glide, gliding, movedByApp, movedByOther, place } from '../motion/glide'
+import { sampleSpring, springs } from '../motion/spring'
 import { useGlass } from '../materials/glass'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -50,6 +52,13 @@ import { Computer, ComputerInspector } from './Computer'
 import { About } from './About'
 import type { SettingsCategory } from './Settings'
 import { LocalComputer } from './LocalComputer'
+
+// Keeps the end of the conversation in view. Something arriving glides there on the bubbles'
+// spring; anything else, like opening the conversation or content settling, stays there at once.
+const followEnd = (log: HTMLElement, arriving: boolean) => {
+  if (arriving && !reducedMotion()) glide(log, 'end')
+  else if (!gliding(log)) place(log, log.scrollHeight - log.clientHeight)
+}
 
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
   window.yuki.client.read<T>(id, route).then(unwrap)
@@ -139,6 +148,11 @@ export function Conversation({
     scrollTop = useRef(0),
     bottom = useRef(true),
     [newMessages, setNewMessages] = useState(false)
+  // At the end as last seen, unless something else moved the list since and its scroll event is
+  // still on its way: then where the list stands now decides.
+  const following = (log: HTMLElement) =>
+    bottom.current &&
+    (!movedByOther(log) || log.scrollHeight - log.scrollTop - log.clientHeight < 64)
   const [scrolled, setScrolled] = useState(false)
   const [anchor, setAnchor] = useState<number | null>(null)
   const attachList = useCallback(
@@ -468,9 +482,10 @@ export function Conversation({
       const row = log.querySelector(`[data-message-request="${CSS.escape(requestId)}"]`)
       if (!row) continue
       sentMessages.current.delete(requestId)
-      // Measure where the message rests once the list shows its end.
-      log.scrollTop = log.scrollHeight
+      // The bubble is measured where it is now; the list glides to its end on the same spring,
+      // so together the bubble travels from the composer to its resting place.
       animateBubble(row, true, origin)
+      glide(log, 'end')
     }
     const hint = liveMessage.current
     if (!hint || !eventData || eventData.latest_event_id < hint.latest_event_id) return
@@ -487,16 +502,107 @@ export function Conversation({
     const arrival = eventData.items.find((event) => event.event_id === hint.latest_event_id)
     if (arrival?.author_kind === 'yuki') {
       const row = log.querySelector(`[data-event-id="${arrival.event_id}"]`)
-      if (row) animateBubble(row, false)
+      if (row) {
+        animateBubble(row, false)
+        glide(log, 'end')
+      }
     }
   })
+  // Rows settling into their size, the room kept for the composer or a narrower window move the
+  // end as well: a person at the end stays there.
+  useEffect(() => {
+    const log = list.current
+    if (!log) return
+    const sizes = new ResizeObserver(() => {
+      if (following(log) && anchor === null) followEnd(log, false)
+    })
+    sizes.observe(log)
+    for (const row of log.children) sizes.observe(row)
+    const rows = new MutationObserver((records) => {
+      for (const record of records)
+        for (const row of record.addedNodes) if (row instanceof Element) sizes.observe(row)
+    })
+    rows.observe(log, { childList: true })
+    return () => {
+      sizes.disconnect()
+      rows.disconnect()
+    }
+  }, [anchor])
+  // Rows pushed down by something inserted above them slide there on the bubbles' spring;
+  // the offsets add up, so a row pushed twice in a row still lands exactly.
+  const rowTops = useRef(new WeakMap<Element, number>())
+  useLayoutEffect(() => {
+    const log = list.current
+    if (!log) return
+    const follow = following(log) && anchor === null && !reducedMotion()
+    for (const row of [...log.children].slice(-8) as HTMLElement[]) {
+      const before = rowTops.current.get(row),
+        now = row.offsetTop
+      rowTops.current.set(row, now)
+      if (!follow || before === undefined || before === now || Math.abs(now - before) > 400)
+        continue
+      const samples = sampleSpring(springs.bubble),
+        last = samples.length - 1
+      row.animate(
+        samples.map(({ value }, index) => ({
+          offset: index / last,
+          translate: `0 ${((before - now) * (1 - value)).toFixed(2)}px`,
+        })),
+        { duration: (last * 1000) / 60, easing: 'linear', composite: 'add' },
+      )
+    }
+  })
+  // The processing note grows in like a reply and, once Yuki has finished, folds away before it
+  // leaves, so the list never jumps by its height.
+  const [noteShown, setNoteShown] = useState(processing)
+  const note = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (processing) setNoteShown(true)
+  }, [processing])
+  useLayoutEffect(() => {
+    const row = note.current
+    if (!row) return
+    if (processing) {
+      for (const animation of row.getAnimations()) if (animation.id === 'fold') animation.cancel()
+      const log = list.current
+      if (!row.dataset.grown && log && following(log) && !reducedMotion()) {
+        animateBubble(row, false)
+        glide(log, 'end')
+      }
+      row.dataset.grown = 'true'
+      return
+    }
+    if (reducedMotion()) return setNoteShown(false)
+    const style = getComputedStyle(row),
+      samples = sampleSpring(springs.withdraw),
+      last = samples.length - 1
+    row.style.overflow = 'hidden'
+    const fold = row.animate(
+      samples.map(({ value }, index) => ({
+        offset: index / last,
+        height: `${row.offsetHeight * (1 - value)}px`,
+        marginBottom: `${parseFloat(style.marginBottom) * (1 - value)}px`,
+        opacity: 1 - value,
+      })),
+      { duration: (last * 1000) / 60, easing: 'linear', id: 'fold' },
+    )
+    void fold.finished.then(
+      () => setNoteShown(false),
+      () => {},
+    )
+  }, [processing, noteShown])
   useEffect(() => {
     const range = `${conversation}/${anchor}`
     const last = events.data?.items.at(-1)?.event_id ?? 0
     const previous = latestSeen.current
     latestSeen.current = { range, event: last, generation: events.data?.generation }
-    if (bottom.current && anchor === null) {
-      requestAnimationFrame(() => list.current?.scrollTo({ top: list.current.scrollHeight }))
+    if ((list.current ? following(list.current) : bottom.current) && anchor === null) {
+      // A later message in the same conversation arrives; opening one only lands at its end.
+      const arriving = previous.range === range && previous.event > 0 && last > previous.event
+      requestAnimationFrame(() => {
+        const log = list.current
+        if (log) followEnd(log, arriving)
+      })
       setNewMessages(false)
     } else if (previous.range === range && previous.event > 0 && last > previous.event) {
       setNewMessages(true)
@@ -1178,12 +1284,14 @@ export function Conversation({
               aria-live="polite"
               ref={attachList}
               onLoadCapture={(event) => {
-                const node = event.currentTarget
-                if (bottom.current && anchor === null) node.scrollTo({ top: node.scrollHeight })
+                if (following(event.currentTarget) && anchor === null)
+                  followEnd(event.currentTarget, false)
               }}
               onScroll={(event) => {
                 const node = event.currentTarget
                 setScrolled(node.scrollTop > 0)
+                // The app keeping the end in view is not the person leaving it.
+                if (movedByApp(node)) return
                 bottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 64
                 needsEarlier.current = node.scrollTop < 48 && !bottom.current
                 if (needsEarlier.current) void more()
@@ -1264,8 +1372,8 @@ export function Conversation({
                   </Fragment>
                 )
               })}
-              {processing && (
-                <div className={`${styles.message} ${styles.processing}`} role="status">
+              {noteShown && (
+                <div ref={note} className={`${styles.message} ${styles.processing}`} role="status">
                   <CharacterAvatar size={28} />
                   <MessageBubble>
                     <span className={styles.waitDots} aria-hidden="true">
@@ -1434,20 +1542,22 @@ function MessageStage({
 function Pending({ item, verify }: { item: Receipt; verify(): Promise<void> }) {
   const [error, setError] = useState(''),
     [busy, setBusy] = useState(false)
+  const label = item.problem
+    ? problemText(item.problem)
+    : item.state === 'draft'
+      ? item.sending
+        ? '送出中'
+        : '連線後送出'
+      : item.state === 'submitted'
+        ? '狀態未確認'
+        : item.state === 'accepted'
+          ? '已接收'
+          : '已取得原回執'
   return (
     <div className={styles.pending}>
-      <span>
-        {item.problem
-          ? problemText(item.problem)
-          : item.state === 'draft'
-            ? item.sending
-              ? '送出中'
-              : '連線後送出'
-            : item.state === 'submitted'
-              ? '狀態未確認'
-              : item.state === 'accepted'
-                ? '已接收'
-                : '已取得原回執'}
+      {/* A new state arrives as a new label, so it fades in rather than overwriting the old. */}
+      <span key={label} className={styles.pendingLabel}>
+        {label}
       </span>
       {item.state !== 'result' && !item.sending && (
         <Button
