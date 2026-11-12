@@ -25,7 +25,7 @@ import { AgentConnector } from './AgentConnector'
 import { ModelSettings, type ModelPage } from './ModelSettings'
 import { LogoutFlow } from './LogoutFlow'
 import { Row, SettingsSection } from './SettingsRow'
-import type { BootInfo, Preferences } from '../../shared/desktop'
+import { backdrops, type Backdrop, type BootInfo, type Preferences } from '../../shared/desktop'
 import {
   Avatar,
   Banner,
@@ -366,6 +366,15 @@ export function Settings({
                   onChange={(theme) => void change({ theme }, 'look')}
                 />
               </Row>
+              <Row
+                title="對話背景"
+                description="玻璃之下的背景；換一換，看看玻璃在不同底色上的樣子。"
+              >
+                <BackdropPicker
+                  value={preferences.backdrop}
+                  onChange={(backdrop) => void change({ backdrop }, 'look')}
+                />
+              </Row>
               <Row title="永遠不透明" description="側邊欄與工具列使用不透明背景。">
                 <Toggle
                   label="永遠不透明"
@@ -546,5 +555,51 @@ export function Settings({
         </div>
       </div>
     </section>
+  )
+}
+
+const backdropNames: Record<Backdrop, string> = {
+  lens: '光線',
+  plain: '純色',
+  aurora: '極光',
+  sunset: '晚霞',
+  grid: '格線',
+}
+
+// Each choice previews the backdrop itself, in the current theme.
+function BackdropPicker({ value, onChange }: { value: Backdrop; onChange(value: Backdrop): void }) {
+  return (
+    <div role="radiogroup" aria-label="對話背景" className={styles.backdrops}>
+      {backdrops.map((backdrop, index) => (
+        <button
+          key={backdrop}
+          type="button"
+          role="radio"
+          aria-checked={value === backdrop}
+          tabIndex={value === backdrop ? 0 : -1}
+          className={styles.backdrop}
+          onClick={() => onChange(backdrop)}
+          onKeyDown={(event) => {
+            if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return
+            event.preventDefault()
+            const next =
+              backdrops[
+                (index + (event.key === 'ArrowRight' ? 1 : backdrops.length - 1)) % backdrops.length
+              ]!
+            onChange(next)
+            const group = event.currentTarget.parentElement!
+            requestAnimationFrame(() =>
+              group.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus(),
+            )
+          }}
+        >
+          <span
+            className={styles.backdropSwatch}
+            style={{ background: `var(--backdrop-${backdrop})` }}
+          />
+          <span>{backdropNames[backdrop]}</span>
+        </button>
+      ))}
+    </div>
   )
 }

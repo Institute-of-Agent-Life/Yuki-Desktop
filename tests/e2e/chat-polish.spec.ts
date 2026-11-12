@@ -21,3 +21,31 @@ test('selecting a message frames its bubble, not the avatar beside it', async ({
   })
   expect(frame).toEqual({ article: 'none', bubble: 'solid', offset: 2, clear: true })
 })
+
+test('each conversation backdrop sits behind the glass, and solid material replaces it', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 820 })
+  await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=conversation-glass')
+  await expect(page.getByText('幫我整理一下這週的訪談筆記。', { exact: true })).toBeVisible()
+  const backdrop = (choice: string) =>
+    page.evaluate((choice) => {
+      document.documentElement.dataset.backdrop = choice
+      const chat = document.querySelector('[role="log"]')!.parentElement!
+      const image = getComputedStyle(chat).backgroundImage
+      return {
+        radial: (image.match(/radial-gradient/g) ?? []).length,
+        repeating: (image.match(/repeating-linear-gradient/g) ?? []).length,
+        linear: (image.match(/(^|[^-])linear-gradient/g) ?? []).length,
+      }
+    }, choice)
+  expect(await backdrop('lens')).toEqual({ radial: 2, repeating: 0, linear: 1 })
+  expect(await backdrop('plain')).toEqual({ radial: 0, repeating: 0, linear: 0 })
+  expect(await backdrop('aurora')).toEqual({ radial: 4, repeating: 0, linear: 0 })
+  expect(await backdrop('sunset')).toEqual({ radial: 3, repeating: 0, linear: 0 })
+  expect(await backdrop('grid')).toEqual({ radial: 0, repeating: 2, linear: 0 })
+  await page.screenshot({ path: test.info().outputPath('backdrop-grid.png') })
+  // With transparency off the glass is solid, and so is what lies behind it.
+  await page.evaluate(() => (document.documentElement.dataset.opaque = 'true'))
+  expect(await backdrop('aurora')).toEqual({ radial: 0, repeating: 0, linear: 0 })
+})

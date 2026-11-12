@@ -278,3 +278,37 @@
 :global([data-contrast='true']) .categories button[role='tab'][aria-selected='true'] {
   color: var(--accent-on);
 }
+.backdrops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.backdrop,
+.backdrop:hover,
+.backdrop:active {
+  background: none;
+}
+.backdrop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.backdropSwatch {
+  width: 56px;
+  height: 38px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 var(--line) var(--separator-strong);
+}
+.backdrop[aria-checked='true'] {
+  color: var(--text-primary);
+}
+.backdrop[aria-checked='true'] .backdropSwatch {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

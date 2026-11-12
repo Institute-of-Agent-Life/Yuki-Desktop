@@ -5,27 +5,19 @@
   min-height: 0;
   position: relative;
   padding-top: 52px;
-  --lens-line: color-mix(in srgb, var(--accent) 16%, transparent);
-  background:
-    linear-gradient(
-      132deg,
-      transparent 31%,
-      var(--lens-line) 31% calc(31% + 1px),
-      transparent calc(31% + 1px) 66%,
-      var(--lens-line) 66% calc(66% + 1px),
-      transparent calc(66% + 1px)
-    ),
-    radial-gradient(
-      ellipse at 106% 120%,
-      color-mix(in srgb, var(--accent) 16%, transparent) 48%,
-      transparent 48.2%
-    ),
-    radial-gradient(
-      ellipse at -16% 70%,
-      color-mix(in srgb, var(--accent) 9%, transparent) 49%,
-      transparent 49.25%
-    ),
-    var(--bg-content);
+  background: var(--backdrop-lens);
+}
+:global([data-backdrop='plain']) .chat {
+  background: var(--backdrop-plain);
+}
+:global([data-backdrop='aurora']) .chat {
+  background: var(--backdrop-aurora);
+}
+:global([data-backdrop='sunset']) .chat {
+  background: var(--backdrop-sunset);
+}
+:global([data-backdrop='grid']) .chat {
+  background: var(--backdrop-grid);
 }
 .messages {
   overflow: auto;

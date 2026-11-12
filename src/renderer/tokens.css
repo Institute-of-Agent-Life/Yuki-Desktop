@@ -82,6 +82,44 @@
   --mat-sheet: rgba(255, 255, 255, 0.97);
   /* A floating glass pane, and how much of the backdrop's contrast it lets through. */
   --mat-pane: rgba(255, 255, 255, 0.6);
+  /* Conversation backdrops behind the glass, chosen in Appearance. */
+  --lens-line: color-mix(in srgb, var(--accent) 16%, transparent);
+  --backdrop-lens:
+    linear-gradient(
+      132deg,
+      transparent 31%,
+      var(--lens-line) 31% calc(31% + 1px),
+      transparent calc(31% + 1px) 66%,
+      var(--lens-line) 66% calc(66% + 1px),
+      transparent calc(66% + 1px)
+    ),
+    radial-gradient(
+      ellipse at 106% 120%,
+      color-mix(in srgb, var(--accent) 16%, transparent) 48%,
+      transparent 48.2%
+    ),
+    radial-gradient(
+      ellipse at -16% 70%,
+      color-mix(in srgb, var(--accent) 9%, transparent) 49%,
+      transparent 49.25%
+    ),
+    var(--bg-content);
+  --backdrop-plain: var(--bg-content);
+  --backdrop-aurora:
+    radial-gradient(60% 55% at 12% 18%, rgb(122 167 255 / 0.55), transparent 70%),
+    radial-gradient(50% 50% at 88% 22%, rgb(197 139 255 / 0.45), transparent 70%),
+    radial-gradient(55% 55% at 72% 88%, rgb(95 211 198 / 0.45), transparent 70%),
+    radial-gradient(45% 45% at 18% 86%, rgb(255 158 196 / 0.42), transparent 70%), var(--bg-content);
+  --backdrop-sunset:
+    radial-gradient(70% 60% at 85% 10%, rgb(255 183 120 / 0.55), transparent 70%),
+    radial-gradient(60% 55% at 10% 30%, rgb(255 133 150 / 0.4), transparent 70%),
+    radial-gradient(70% 60% at 50% 100%, rgb(150 110 220 / 0.38), transparent 70%),
+    var(--bg-content);
+  --backdrop-grid:
+    repeating-linear-gradient(0deg, var(--grid-line) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px 24px),
+    var(--bg-content);
+  --grid-line: rgb(20 30 50 / 0.14);
   --glass-calm: contrast(0.84) brightness(1.06);
   --stroke-hi: rgba(255, 255, 255, 0.95);
   --stroke-lo: rgba(255, 255, 255, 0.28);
@@ -145,6 +183,16 @@
   --mat-hud: rgba(22, 24, 28, 0.7);
   --mat-sheet: rgba(38, 40, 46, 0.97);
   --mat-pane: rgba(38, 40, 46, 0.64);
+  --backdrop-aurora:
+    radial-gradient(60% 55% at 12% 18%, rgb(70 110 230 / 0.42), transparent 70%),
+    radial-gradient(50% 50% at 88% 22%, rgb(150 90 230 / 0.36), transparent 70%),
+    radial-gradient(55% 55% at 72% 88%, rgb(30 160 150 / 0.34), transparent 70%),
+    radial-gradient(45% 45% at 18% 86%, rgb(220 90 150 / 0.3), transparent 70%), var(--bg-content);
+  --backdrop-sunset:
+    radial-gradient(70% 60% at 85% 10%, rgb(230 130 70 / 0.38), transparent 70%),
+    radial-gradient(60% 55% at 10% 30%, rgb(220 80 110 / 0.3), transparent 70%),
+    radial-gradient(70% 60% at 50% 100%, rgb(110 70 200 / 0.34), transparent 70%), var(--bg-content);
+  --grid-line: rgb(255 255 255 / 0.1);
   --glass-calm: contrast(0.84) brightness(0.88);
   --stroke-hi: rgba(255, 255, 255, 0.18);
   --stroke-lo: rgba(255, 255, 255, 0.04);
