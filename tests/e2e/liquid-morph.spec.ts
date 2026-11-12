@@ -309,3 +309,73 @@ test('the Yuki switcher menu is glass that grows out of the switcher and back', 
   await expect(page.locator('[data-withdrawing]')).toHaveCount(0)
   evidence.menu = { opening, closing }
 })
+
+test('a busy button opens room for its spinner on a liquid spring and keeps even spacing', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await holdMotion(page)
+  await page.addInitScript(() => ((window as unknown as MorphWindow).motionHold.armed = true))
+  await page.goto(gallery)
+  // The spinner's status names the button too, so find it by its label text.
+  const busy = page.locator('button[aria-busy="true"]', { hasText: '載入' })
+  // 17: the spinner's place opens on a spring that overshoots, so the button swells and settles.
+  const peak = await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const opening = (window as unknown as MorphWindow).motionHold.held.find(
+          (animation) =>
+            animation.effect instanceof KeyframeEffect &&
+            animation.effect.getKeyframes().some((frame) => '--busy' in frame),
+        )
+        return opening
+          ? Math.max(
+              ...(opening.effect as KeyframeEffect)
+                .getKeyframes()
+                .map((frame) => Number(frame['--busy'])),
+            )
+          : 0
+      }),
+    )
+    .toBeGreaterThan(1.02)
+    .then(() => 'overshoots')
+  await release(page)
+  await arm(page, false)
+  // 18: at rest the spinner sits beside the label with a gap, centred, and padding is even.
+  const spinner = busy.getByRole('status', { name: '載入中' })
+  await expect(spinner).toBeVisible()
+  const layout = await busy.evaluate((button) => {
+    const box = button.getBoundingClientRect()
+    const spin = button.querySelector('[role="status"]')!.getBoundingClientRect()
+    const range = document.createRange()
+    range.selectNodeContents(button.lastChild!)
+    const text = range.getBoundingClientRect()
+    return {
+      leftPad: spin.left - box.left,
+      gap: text.left - spin.right,
+      rightPad: box.right - text.right,
+      spinMiddle: spin.top + spin.height / 2,
+      textMiddle: text.top + text.height / 2,
+    }
+  })
+  evidence.busy = { peak, layout }
+  expect(layout.gap).toBeGreaterThanOrEqual(5)
+  expect(Math.abs(layout.leftPad - layout.rightPad)).toBeLessThanOrEqual(2)
+  expect(Math.abs(layout.spinMiddle - layout.textMiddle)).toBeLessThanOrEqual(1.5)
+  // 19: two-character labels keep a button's width, a little air between Han characters,
+  // and a disabled button keeps its outline.
+  const metrics = await page.getByRole('button', { name: '停用', exact: true }).evaluate((node) => {
+    const style = getComputedStyle(node)
+    return {
+      width: node.getBoundingClientRect().width,
+      letterSpacing: style.letterSpacing,
+      lineHeight: style.lineHeight,
+      outline: style.boxShadow,
+    }
+  })
+  evidence.buttonMetrics = metrics
+  expect(metrics.width).toBeGreaterThanOrEqual(64)
+  expect(parseFloat(metrics.letterSpacing)).toBeGreaterThan(0)
+  expect(metrics.lineHeight).toBe('18px')
+  expect(metrics.outline).not.toBe('none')
+})

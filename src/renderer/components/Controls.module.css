@@ -8,6 +8,9 @@
   padding: 0 14px;
   border-radius: 999px;
   font-weight: 500;
+  /* Han characters in a 13px label read as one blot without a little air between them. */
+  letter-spacing: 0.03em;
+  line-height: 18px;
   white-space: nowrap;
   transition: background var(--motion-fast);
 }
@@ -20,6 +23,11 @@
 }
 .primary:active {
   background: var(--press-background);
+}
+.primary,
+.secondary {
+  /* A two-character label still reads as a button, not a chip. */
+  min-width: 64px;
 }
 .secondary {
   background: var(--fill-control);
@@ -36,6 +44,8 @@
   height: 36px;
   padding: 0 20px;
   font-size: 14px;
+  line-height: 20px;
+  min-width: 80px;
 }
 .icon {
   position: relative;
@@ -306,6 +316,10 @@
 .icon:disabled {
   box-shadow: none;
 }
+/* A disabled or busy button keeps its outline, so it still looks like the button it was. */
+.secondary:disabled {
+  box-shadow: inset 0 0 0 var(--line) var(--separator);
+}
 .button:disabled::before,
 .icon:disabled::before {
   display: none;
@@ -316,9 +330,34 @@
     display: none;
   }
 }
-.button > .spinner {
-  position: absolute;
-  left: 4px;
-  width: 10px;
-  height: 10px;
+/*
+ * The busy slot opens a place for the spinner beside the label: --busy runs from 0 to 1 on a
+ * spring, widening the button from both edges and cancelling the flex gap while closed.
+ */
+@property --busy {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+.busy {
+  --busy: 0;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  overflow: visible;
+  width: calc(var(--busy) * 12px);
+  margin-inline-end: calc(var(--busy) * 6px - 6px);
+  opacity: clamp(0, var(--busy), 1);
+  scale: clamp(0, var(--busy), 1.2);
+}
+.busy[data-shown='true'] {
+  --busy: 1;
+}
+.busy > .spinner {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+}
+.busy:not([data-shown='true']) > .spinner {
+  animation-play-state: paused;
 }

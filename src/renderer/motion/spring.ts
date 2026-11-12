@@ -9,6 +9,7 @@ export const springs = {
   bubble: { k: 190, damping: 0.72 },
   emerge: { k: 300, damping: 0.76 },
   withdraw: { k: 520, damping: 1 },
+  busy: { k: 420, damping: 0.62 },
 } as const
 export type SpringConfig = { k: number; damping: number }
 
