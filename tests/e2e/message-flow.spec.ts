@@ -159,3 +159,20 @@ test('with reduced motion the list reaches the end at once and nothing glides', 
   ).toBeLessThan(2)
   expect(await page.locator('[role="log"] [data-liquid]').count()).toBe(0)
 })
+
+test('a scroll made by anything else, like a jump to a message, also stops a glide', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const log = await openConversation(page)
+  await page
+    .getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
+    .fill('程式捲動中途接手')
+  await page.getByRole('button', { name: '送出', exact: true }).click()
+  // 8: a programmatic scroll during the glide, as a jump to an earlier message makes.
+  await log.evaluate((node) => (node.scrollTop = 0))
+  await page.waitForTimeout(1200)
+  expect(await log.evaluate((node) => node.scrollTop)).toBeLessThan(2)
+  await page.evaluate(() => (window as unknown as FlowWindow).regression.confirmGlassSend())
+  await expect(page.getByRole('button', { name: /新訊息/ })).toBeVisible()
+})

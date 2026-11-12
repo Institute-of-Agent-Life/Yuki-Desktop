@@ -18,17 +18,16 @@ export function place(list: HTMLElement, top: number) {
   placed.set(list, list.scrollTop)
 }
 
-/** Whether the list's current position is one the app placed or is gliding through. */
-export const movedByApp = (list: HTMLElement) =>
-  gliding(list) || placed.get(list) === list.scrollTop
+/** Whether the list stands exactly where the app last put it, rather than where someone moved it. */
+export const movedByApp = (list: HTMLElement) => placed.get(list) === list.scrollTop
 
 const end = (list: HTMLElement) => list.scrollHeight - list.clientHeight
 
 /**
  * Moves a scroll list to `top` on the same spring as the message bubbles, so the transcript and
  * a rising bubble travel together. `'end'` follows the end as the content keeps growing. A second
- * call only retargets, keeping the speed it has. Any wheel, touch, key or press on the list hands
- * it straight back to the person.
+ * call only retargets, keeping the speed it has. Any wheel, touch, key or press on the list, or
+ * any other scroll (a jump to a message, find in page), hands it straight back.
  */
 export function glide(list: HTMLElement, top: number | 'end') {
   const running = glides.get(list)
@@ -55,11 +54,16 @@ export function glide(list: HTMLElement, top: number | 'end') {
   glides.set(list, glide)
   let time = performance.now()
   const step = (now: number) => {
+    // Someone else scrolled since the last frame: they have the list now.
+    if (placed.get(list) !== undefined && Math.abs(list.scrollTop - placed.get(list)!) > 1)
+      return glide.stop()
     if (glide.target === 'end') spring.aim(end(list), springs.bubble)
     spring.step((now - time) / 1000)
     time = now
-    place(list, spring.value)
-    if (spring.settled) glide.stop()
+    // Settled to the pixel: a list end that wavers by a pixel must not keep the glide alive.
+    const rest = Math.abs(spring.value - spring.target) < 0.5 && Math.abs(spring.velocity) < 20
+    place(list, rest ? spring.target : spring.value)
+    if (rest) glide.stop()
     else glide.frame = requestAnimationFrame(step)
   }
   glide.frame = requestAnimationFrame(step)
