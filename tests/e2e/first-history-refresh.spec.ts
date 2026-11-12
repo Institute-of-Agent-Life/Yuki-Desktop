@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
-import { currentConnection, pairUI, waitForMainEnded, yukiFixture } from '../fixtures/backend'
+import {
+  currentConnection,
+  pairUI,
+  waitForMainEnded,
+  yukiFixture,
+  waitForAcceptedMessage,
+} from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
 import type { EventsPage } from '../../src/shared/api'
 
@@ -40,16 +46,7 @@ test('a committed first message replaces an older initial history response after
     await composer.fill(text)
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(composer).toHaveValue('')
-    const sent = await page.evaluate(
-      async ({ id, text }) => {
-        const result = await window.yuki.client.outbox(id)
-        if (!result.ok) throw Error(result.code)
-        const item = result.value.find((item) => item.body.text === text)
-        if (!item?.eventId) throw Error('Original accepted request is missing')
-        return { requestId: item.requestId, eventId: item.eventId }
-      },
-      { id: original.characterId, text },
-    )
+    const sent = await waitForAcceptedMessage(page, original.characterId, text)
     requestId = sent.requestId
     eventId = sent.eventId
     const ended = await waitForMainEnded(page, original.characterId, requestId)

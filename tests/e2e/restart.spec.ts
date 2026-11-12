@@ -6,6 +6,7 @@ import {
   pairUI,
   waitForMainEnded,
   yukiFixture,
+  waitForAcceptedMessage,
 } from '../fixtures/backend'
 
 test('the open desktop reconnects after a real backend process crash and keeps original events and receipts', async () => {
@@ -29,13 +30,7 @@ test('the open desktop reconnects after a real backend process crash and keeps o
     await composer.fill('伺服器重啟前的原訊息')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(composer).toHaveValue('')
-    const sent = await page.evaluate(async (id) => {
-      const result = await window.yuki.client.outbox(id)
-      if (!result.ok) throw Error(result.code)
-      const item = result.value.find((item) => item.body.text === '伺服器重啟前的原訊息')
-      if (!item?.eventId) throw Error('Original accepted request is missing')
-      return { requestId: item.requestId, eventId: item.eventId }
-    }, connection.characterId)
+    const sent = await waitForAcceptedMessage(page, connection.characterId, '伺服器重啟前的原訊息')
     const receipt = () =>
       page.evaluate(
         async ({ id, requestId }) => {

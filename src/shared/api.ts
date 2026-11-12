@@ -309,7 +309,7 @@ export interface ConversationBridge {
   revealArtifact(characterId: string, source: ArtifactSource): Promise<ApiReply<void>>
   openArtifact(characterId: string, source: ArtifactSource): Promise<ApiReply<void>>
   dragArtifact(characterId: string, source: ArtifactSource): Promise<ApiReply<void>>
-  outbox(characterId: string): Promise<ApiReply<OutboxItem[]>>
+  outbox(characterId: string): Promise<ApiReply<(OutboxItem & { sending: boolean })[]>>
   verify(characterId: string, requestId: string): Promise<ApiReply<OutboxItem>>
   workCommand(
     characterId: string,

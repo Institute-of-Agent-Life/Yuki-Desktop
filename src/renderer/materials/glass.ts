@@ -78,12 +78,15 @@ function lens(
       pixels.data[k + 2] = 128
       pixels.data[k + 3] = 255
       if (distance <= 0) {
-        const facing = Math.abs(nx * -0.42 + ny * -0.91)
+        // Light from the upper left catches that edge; the far edge shows only its
+        // weaker bounce, and the sides between stay nearly clear.
+        const toward = nx * -0.42 + ny * -0.91,
+          facing = Math.max(0, toward) + 0.38 * Math.max(0, -toward)
         const bright = Math.max(0, 1 - inset / 1.5),
           glow = Math.max(0, 1 - inset / 4) * 0.22
         lights.data[k] = lights.data[k + 1] = lights.data[k + 2] = 255
         lights.data[k + 3] = Math.round(
-          Math.min(1, bright * (0.28 + 0.72 * facing) + glow * facing) * 255,
+          Math.min(1, bright * (0.1 + 0.9 * facing) + glow * facing) * 255,
         )
       }
     }

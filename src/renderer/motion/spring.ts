@@ -6,6 +6,7 @@ export const springs = {
   highlight: { k: 300, damping: 0.6 },
   settle: { k: 380, damping: 0.74 },
   toggle: { k: 520, damping: 0.7 },
+  bubble: { k: 190, damping: 0.72 },
 } as const
 export type SpringConfig = { k: number; damping: number }
 

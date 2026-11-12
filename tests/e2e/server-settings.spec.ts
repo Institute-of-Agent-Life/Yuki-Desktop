@@ -136,14 +136,16 @@ test('new server address proves real identity before bearer and resumes the orig
     const requestId = old.calls.find(
       (call) => call.method === 'POST' && call.path.endsWith('/messages'),
     )!.requestId!
+    // The lost acknowledgement leaves the request submitted and unconfirmed; a stream-driven
+    // verification may meanwhile record that the held receipt read was unavailable.
     await expect
       .poll(() =>
         page.evaluate(async (id) => {
           const result = await window.yuki.client.outbox(id)
-          return result.ok && result.value[0]?.problem
+          return result.ok && `${result.value[0]?.state}/${result.value[0]?.problem}`
         }, original.characterId),
       )
-      .toBe('unknown')
+      .toMatch(/^submitted\/(unknown|unavailable)$/)
     old.faults.offline = true
     await settingsWithoutWaiting(page)
     await page.getByRole('button', { name: '更改…', exact: true }).click()

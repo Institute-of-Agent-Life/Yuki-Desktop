@@ -107,16 +107,7 @@ test('real Electron edits original memory, handles two-device conflicts and reco
     await composer.fill(sourceText)
     await pa.getByRole('button', { name: '送出', exact: true }).click()
     await expect(composer).toHaveValue('')
-    const sent = await pa.evaluate(
-      async ({ id, text }) => {
-        const result = await window.yuki.client.outbox(id)
-        if (!result.ok) throw Error(result.code)
-        const item = result.value.find((item) => item.body.text === text)
-        if (!item?.eventId) throw Error('Original accepted request is missing')
-        return { requestId: item.requestId, eventId: item.eventId }
-      },
-      { id: connection.characterId, text: sourceText },
-    )
+    const sent = await waitForAcceptedMessage(pa, connection.characterId, sourceText)
     const [seed] = await Promise.all([
       fetch(`${rig.base}/__test/character-data`, { method: 'POST' }),
       (async () => {

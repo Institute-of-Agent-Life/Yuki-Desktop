@@ -6,6 +6,7 @@ import {
   pairUI,
   waitForMainEnded,
   yukiFixture,
+  waitForAcceptedMessage,
 } from '../fixtures/backend'
 
 async function send(page: Page, text: string) {
@@ -23,16 +24,7 @@ async function send(page: Page, text: string) {
     .locator('[data-character-session]')
     .filter({ visible: true })
     .getAttribute('data-character-session'))!
-  const sent = await page.evaluate(
-    async ({ id, text }) => {
-      const result = await window.yuki.client.outbox(id)
-      if (!result.ok) throw Error(result.code)
-      const item = result.value.find((item) => item.body.text === text)
-      if (!item?.eventId) throw Error('Original accepted request is missing')
-      return { requestId: item.requestId, eventId: item.eventId }
-    },
-    { id, text },
-  )
+  const sent = await waitForAcceptedMessage(page, id, text)
   const replied = await waitForMainEnded(page, id, sent.requestId)
   expect(replied.event_id).toBe(sent.eventId)
   expect(replied.result_event_ids).toHaveLength(1)

@@ -63,6 +63,18 @@
   min-width: 0;
   padding: 8px 13px;
   border-radius: var(--glass-radius);
+  /* Lifts the glass off the backdrop; an entering drop gains it once it has its shape. */
+  box-shadow:
+    0 0.5px 1px rgb(29 54 102 / 0.06),
+    0 6px 16px -8px rgb(29 54 102 / 0.22);
+}
+:global([data-theme='dark']) .bubble {
+  box-shadow:
+    0 0.5px 1px rgb(0 0 0 / 0.3),
+    0 8px 18px -8px rgb(0 0 0 / 0.55);
+}
+:global([data-opaque='true']) .bubble {
+  box-shadow: none;
 }
 .bubble > :global([data-liquid-outline]) {
   position: absolute;

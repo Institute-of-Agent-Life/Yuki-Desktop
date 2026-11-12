@@ -1053,43 +1053,75 @@ export class Connections {
       throw error
     }
   }
+  // The server's identity is settled first (cached while connected), then the message is
+  // recorded and shown at once; the owner check and submission continue in the background.
+  async queue(
+    id: string,
+    text: string,
+    uploadIds: string[] = [],
+    agentTarget?: OutboxItem['body']['agent_target'],
+  ) {
+    const box = this.box(id),
+      client = this.client(id),
+      uploads = this.uploads(id),
+      draftSnapshot = agentTarget ? null : box.draft()
+    let offline = false
+    try {
+      await this.identify(id)
+    } catch (error) {
+      if (error instanceof ApiError && ['transport_unknown', 'unavailable'].includes(error.code))
+        offline = true
+      else throw error
+    }
+    const item = box.prepare(
+      text,
+      'draft',
+      draftSnapshot,
+      uploads.references(uploadIds),
+      () => uploadIds.forEach((item) => uploads.remove(item)),
+      agentTarget,
+    )
+    const key = `${id}/${item.requestId}`
+    const delivery = offline
+      ? Promise.resolve(item)
+      : box
+          .verifyOwner(client)
+          .then(
+            () => box.send(client, item.requestId),
+            (error) =>
+              error instanceof ApiError && ['transport_unknown', 'unavailable'].includes(error.code)
+                ? box.get(item.requestId)
+                : box.update(
+                    item.requestId,
+                    'draft',
+                    null,
+                    error instanceof ApiError ? error.code : 'transport_unknown',
+                  ),
+          )
+          .finally(() => this.checking.delete(key))
+          .then((result) => {
+            if (!this.closed) this.emit(id, 'outbox', {})
+            return result
+          })
+    if (!offline) this.checking.set(key, delivery)
+    this.emit(id, 'outbox', {})
+    return { item, delivery }
+  }
   async send(
     id: string,
     text: string,
     uploadIds: string[] = [],
     agentTarget?: OutboxItem['body']['agent_target'],
   ): Promise<OutboxItem> {
-    const box = this.box(id),
-      client = this.client(id),
-      draftSnapshot = agentTarget ? null : box.draft()
-    let offline = false
-    try {
-      await this.identify(id)
-      await box.verifyOwner(client)
-    } catch (error) {
-      if (error instanceof ApiError && ['transport_unknown', 'unavailable'].includes(error.code))
-        offline = true
-      else throw error
-    }
-    const uploads = this.uploads(id),
-      attachments = uploads.references(uploadIds)
-    const item = box.prepare(
-      text,
-      offline ? 'draft' : 'submitted',
-      draftSnapshot,
-      attachments,
-      () => uploadIds.forEach((item) => uploads.remove(item)),
-      agentTarget,
-    )
-    let result = item
-    if (!offline) {
-      const key = `${id}/${item.requestId}`
-      const pending = box.send(client, item.requestId).finally(() => this.checking.delete(key))
-      this.checking.set(key, pending)
-      result = await pending
-    }
-    this.emit(id, 'outbox', {})
-    return result
+    return (await this.queue(id, text, uploadIds, agentTarget)).delivery
+  }
+  outbox(id: string) {
+    return this.box(id)
+      .list()
+      .map((item) => ({
+        ...item,
+        sending: item.state === 'draft' && this.checking.has(`${id}/${item.requestId}`),
+      }))
   }
   async verify(id: string, requestId: string) {
     const key = `${id}/${uuid(requestId)}`
