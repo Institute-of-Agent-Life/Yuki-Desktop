@@ -200,6 +200,10 @@
   background: var(--bg-content);
   box-shadow: var(--shadow-panel);
 }
+/* With the desktop backdrop the panel lets the system frost through, in its own light or dark. */
+:global([data-backdrop='desktop']:is([data-material='vibrancy'], [data-material='mica'])) .main {
+  background: color-mix(in srgb, var(--bg-content) 45%, transparent);
+}
 :global([data-material='vibrancy']) .sidebar:not(.sidebarOverlay),
 :global([data-material='mica']) .sidebar:not(.sidebarOverlay) {
   background: var(--mat-sidebar);

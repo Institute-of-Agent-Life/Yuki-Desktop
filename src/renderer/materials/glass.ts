@@ -84,11 +84,9 @@ function lens(
     context.putImageData(image, 0, 0)
     return canvas.toDataURL()
   }
-  // Large panes only need their bezel resolved; a coarser bend keeps opening a sheet smooth.
-  const bendResolution =
-    kind === 'bubble'
-      ? Math.min(1, 360 / Math.max(width, height))
-      : Math.min(2, 720 / Math.max(width, height))
+  // Up to the display's own pixels, so narrow glass bends crisply on Retina screens; large panes
+  // keep a coarser bend (their bezel alone is resolved), which keeps opening a sheet smooth.
+  const bendResolution = Math.min(scale, (kind === 'bubble' ? 360 : 720) / Math.max(width, height))
   const displacement = paint(
     bendResolution,
     edgeHeight,

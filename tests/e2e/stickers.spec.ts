@@ -42,6 +42,10 @@ test('a sticker from Yuki shows as a sticker, and an ordinary picture as an atta
   // 1: no glass bubble, no attachment card and no "[表情: …]" text.
   await expect(row.locator('[data-glass="bubble"]')).toHaveCount(0)
   await expect(row.getByText('[表情: 开心]')).toHaveCount(0)
+  // The picture has loaded before its shape is read.
+  await expect
+    .poll(() => sticker.evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBeGreaterThan(0)
   const look = await sticker.evaluate((image: HTMLImageElement) => {
     const frame = image.closest('button')!
     const style = getComputedStyle(frame)

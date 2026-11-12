@@ -112,6 +112,8 @@ test('actual settings paths retain native preferences, timezone, notifications a
     // The conversation backdrop is chosen here and shown behind the glass at once.
     const backdrops = page.getByRole('radiogroup', { name: '對話背景', exact: true })
     await expect(backdrops.getByRole('radio', { name: '光線', exact: true })).toBeChecked()
+    // 4 (透明磨砂 task book): the desktop's own frost is one of the choices.
+    await expect(backdrops.getByRole('radio', { name: '桌面', exact: true })).toBeVisible()
     await backdrops.getByRole('radio', { name: '極光', exact: true }).click()
     await expect(backdrops.getByRole('radio', { name: '極光', exact: true })).toBeChecked()
     await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'aurora')

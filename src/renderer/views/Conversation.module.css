@@ -18,6 +18,13 @@
 :global([data-backdrop='grid']) .chat {
   background: var(--backdrop-grid);
 }
+/* The desktop backdrop needs a system material behind the window; without one it is the lens. */
+:global([data-backdrop='desktop']) .chat {
+  background: var(--backdrop-desktop);
+}
+:global([data-backdrop='desktop'][data-material='none']) .chat {
+  background: var(--backdrop-lens);
+}
 .messages {
   overflow: auto;
   flex: 1;

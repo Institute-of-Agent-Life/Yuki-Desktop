@@ -189,3 +189,56 @@ test('a floating pane lets the backdrop through and parts its colours at the edg
     expect(seen.fringe).toBeGreaterThanOrEqual(22)
   }
 })
+
+test('narrow glass bends at the display resolution', async ({ page }) => {
+  await openConversation(page)
+  await page.evaluate(() => (window as unknown as GlassWindow).regression.receiveGlassReply('好'))
+  const short = page.locator('article[data-event-id="35"] [data-glass="bubble"]')
+  await expect(short).toHaveAttribute('data-refracting', 'true')
+  await expect(short).not.toHaveAttribute('data-liquid', '')
+  await page.waitForTimeout(300)
+  // 5 (透明磨砂 task book): a bubble this short is mapped at the display's own pixels.
+  const map = await short.evaluate(async (surface: HTMLElement) => {
+    const id = getComputedStyle(surface).backdropFilter.match(/#([^")]+)/)![1]!
+    const image = new Image()
+    image.src = document.getElementById(id)!.querySelector('feImage')!.getAttribute('href')!
+    await image.decode()
+    return { width: image.width, expected: Math.round(surface.offsetWidth * devicePixelRatio) }
+  })
+  evidence.narrowBend = map
+  expect(map.width).toBeGreaterThanOrEqual(map.expected - 1)
+})
+
+test('dark glass does not darken what lies behind it', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await openConversation(page)
+  const read = async (x: number, y: number) => {
+    const shot = await page.screenshot({ clip: { x, y, width: 1, height: 1 } })
+    return page.evaluate(async (data) => {
+      const image = new Image()
+      image.src = `data:image/png;base64,${data}`
+      await image.decode()
+      const context = new OffscreenCanvas(1, 1).getContext('2d')!
+      context.drawImage(image, 0, 0)
+      const [r, g, b] = context.getImageData(0, 0, 1, 1).data
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+    }, shot.toString('base64'))
+  }
+  const composer = page.locator('[data-region="composer"]')
+  for (const backdrop of ['plain', 'lens', 'aurora']) {
+    await page.evaluate((backdrop) => {
+      document.documentElement.dataset.theme = 'dark'
+      document.documentElement.dataset.backdrop = backdrop
+    }, backdrop)
+    await page.mouse.move(10, 700)
+    await expect(composer).toHaveAttribute('data-refracting', 'true')
+    await page.waitForTimeout(400)
+    const box = (await composer.boundingBox())!
+    // A clear spot inside the composer, and the backdrop just outside its right end.
+    const inside = await read(box.x + box.width - 40, box.y + box.height * 0.5),
+      outside = await read(box.x + box.width + 6, box.y + box.height * 0.5)
+    evidence[`darkGlass-${backdrop}`] = { inside, outside }
+    // 7 (透明磨砂 task book)
+    expect(inside, backdrop).toBeGreaterThanOrEqual(outside - 1)
+  }
+})
