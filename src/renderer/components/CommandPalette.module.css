@@ -15,10 +15,6 @@
 }
 .palette::backdrop {
   background: var(--scrim);
-  backdrop-filter: blur(8px);
-}
-:global([data-theme='dark']) .palette::backdrop {
-  background: var(--scrim);
 }
 .body {
   display: flex;
@@ -131,8 +127,4 @@
     top: 16px;
     max-height: calc(100dvh - 32px);
   }
-}
-
-:global([data-opaque='true']) .palette::backdrop {
-  backdrop-filter: none;
 }

@@ -7,6 +7,7 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
+  useReducer,
   useRef,
   useState,
   type ButtonHTMLAttributes,
@@ -213,7 +214,21 @@ export function Sheet({
 }) {
   const active = useSessionActive()
   const titleId = useId()
-  const ref = useGlass<HTMLDialogElement>('sheet').ref
+  const ref = useRef<HTMLDialogElement>(null)
+  // Removed while open, it still withdraws: before its glass is taken down, so the copy keeps it.
+  useLayoutEffect(() => {
+    const dialog = ref.current!
+    return () => {
+      if (dialog.open) withdraw(dialog)
+    }
+  }, [])
+  const glass = useGlass<HTMLDialogElement>('sheet')
+  // A closing sheet keeps what it showed until it has withdrawn, so its glass shrinks from the
+  // size it had, not from what its owner shows once it is closed.
+  const shown = useRef({ title, children, actions })
+  if (open) shown.current = { title, children, actions }
+  const [, settle] = useReducer((count: number) => count + 1, 0)
+  const content = open || ref.current?.open ? shown.current : { title, children, actions }
   const previous = useRef<Element | null>(null)
   const requested = useRef(false)
   useEffect(() => {
@@ -224,8 +239,10 @@ export function Sheet({
       ref.current?.showModal()
       if (opening) emerge(ref.current!)
     } else {
-      if (!open && active && ref.current?.open) withdraw(ref.current)
+      const closing = ref.current?.open
+      if (!open && active && closing) withdraw(ref.current!)
       ref.current?.close()
+      if (closing) settle()
       if (!open) {
         if (requested.current && active && previous.current instanceof HTMLElement)
           previous.current.focus()
@@ -235,7 +252,10 @@ export function Sheet({
   }, [open, active])
   return (
     <dialog
-      ref={ref}
+      ref={(node) => {
+        ref.current = node
+        glass.ref.current = node
+      }}
       data-glass="sheet"
       className={styles.dialog}
       style={width ? { width: `min(${width}px, calc(100vw - 32px))` } : undefined}
@@ -251,10 +271,10 @@ export function Sheet({
     >
       <div className={styles.dialogInner}>
         <header className={styles.dialogHeader}>
-          <h2 id={titleId}>{title}</h2>
+          <h2 id={titleId}>{content.title}</h2>
         </header>
-        <div className={styles.dialogBody}>{children}</div>
-        <footer className={styles.dialogFooter}>{actions}</footer>
+        <div className={styles.dialogBody}>{content.children}</div>
+        <footer className={styles.dialogFooter}>{content.actions}</footer>
       </div>
     </dialog>
   )

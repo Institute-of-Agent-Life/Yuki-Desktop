@@ -70,6 +70,18 @@ test('reads real delivered artifacts, keeps same names separate, saves exact ver
       }
     }, saved)
     await navigate(page, '檔案與成果')
+    // 6: stretched across the list, the type filter's buttons share the width to its end.
+    const types = await page
+      .getByRole('tablist', { name: '成果類型', exact: true })
+      .evaluate((list) => {
+        const last = [...list.querySelectorAll('button')].at(-1)!
+        return {
+          list: list.getBoundingClientRect().right,
+          last: last.getBoundingClientRect().right,
+          padding: parseFloat(getComputedStyle(list).paddingRight),
+        }
+      })
+    expect(types.list - types.padding - types.last).toBeLessThanOrEqual(2)
     const stage = page.getByRole('region', { name: '成果預覽' })
     await expect(stage.getByRole('heading', { name: 'First artifact', exact: true })).toBeVisible()
     await expect(

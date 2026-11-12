@@ -13,6 +13,8 @@
 .segment button {
   position: relative;
   z-index: 1;
+  /* Stretched across a column, the buttons share the width instead of leaving it at the end. */
+  flex: 1 0 auto;
   border-radius: 13px;
   min-width: 64px;
   padding: 0 12px;

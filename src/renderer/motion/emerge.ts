@@ -19,6 +19,7 @@ const press = (event: Event) => {
 addEventListener('pointerdown', press, true)
 addEventListener('keydown', press, true)
 const origins = new WeakMap<Element, Element>()
+let withdrawals = 0
 
 const shapeOf = (element: Element): Shape => {
   const box = element.getBoundingClientRect()
@@ -122,6 +123,15 @@ export function withdraw(pane: HTMLElement) {
   glass.style.cssText = pane.style.cssText
   for (const name of ['glass', 'refracting'])
     if (pane.dataset[name] !== undefined) glass.dataset[name] = pane.dataset[name]
+  // It bends through its own copy of the pane's filter, which leaves with the pane.
+  const bend = getComputedStyle(pane).backdropFilter.match(/url\("?#([^")]+)/)?.[1]
+  const filter = bend && document.getElementById(bend)
+  if (filter) {
+    const copy = filter.closest('svg')!.cloneNode(true) as SVGSVGElement
+    copy.querySelector('filter')!.id = `${bend}-withdraw-${++withdrawals}`
+    glass.append(copy)
+    glass.style.setProperty('--refract', `url(#${bend}-withdraw-${withdrawals})`)
+  }
   glass.inert = true
   glass.setAttribute('aria-hidden', 'true')
   glass.dataset.withdrawing = ''

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import type { Connection } from '../../shared/api'
 import type { ConnectorTerminalControl } from '../../shared/connector'
-import { Banner, Button } from '../components/Controls'
+import { Banner, Button, Sheet } from '../components/Controls'
 import { hidesPrivateData, unwrap } from '../queries/client'
 import { Row } from './SettingsRow'
 import styles from './Settings.module.css'
@@ -136,81 +136,103 @@ export function ConnectorTerminals({
           更多終端任務
         </Button>
       )}
-      {detail.isError && <Banner status="unknown">原終端回執暫時無法讀取。</Banner>}
-      {selected && (
-        <>
-          <h3>原終端執行 {selected.run_id}</h3>
-          <p className={styles.notice}>
-            狀態：{selected.status}
-            {selected.pending ? '（等待後續回執）' : ''}
-            {selected.uncertain ? '（尚未確認）' : ''}
-            {selected.exit_code !== undefined && selected.exit_code !== null
-              ? ` · 退出碼 ${selected.exit_code}`
-              : ''}
-          </p>
-          {selected.error && (
-            <Banner status={selected.uncertain ? 'unknown' : 'failed'}>
-              {typeof selected.error === 'string' ? selected.error : JSON.stringify(selected.error)}
-            </Banner>
-          )}
-          {selected.output_unavailable && (
-            <Banner status="unknown">原執行狀態已保留，當前無法讀取本機輸出。</Banner>
-          )}
-          {selected.command && <p className={styles.secret}>{selected.command}</p>}
-          {selected.cwd && <p className={styles.notice}>工作位置：{selected.cwd}</p>}
-          {pages?.some((page) => page.output_lost) && (
-            <Banner status="unknown">
-              部分輸出已超出本機保留範圍；原執行狀態與完成回執仍保留。
-            </Banner>
-          )}
-          <pre className={styles.terminalOutput}>
-            {pages?.map((page) => page.output ?? '').join('')}
-          </pre>
-          {selected.completion && (
-            <pre className={styles.terminalOutput}>
-              {JSON.stringify(selected.completion, null, 2)}
-            </pre>
-          )}
-          <div className={styles.actions}>
-            {detail.hasNextPage && (
-              <Button disabled={detail.isFetching} onClick={() => void detail.fetchNextPage()}>
-                讀取後續終端輸出
-              </Button>
+      {/* The terminal's receipt opens over the list, where it was asked for. */}
+      <Sheet
+        title={`原終端執行 ${runId ?? ''}`}
+        open={!!runId}
+        width={680}
+        onClose={() => setRunId(undefined)}
+        actions={
+          <>
+            {selected && (
+              <>
+                {detail.hasNextPage && (
+                  <Button disabled={detail.isFetching} onClick={() => void detail.fetchNextPage()}>
+                    讀取後續終端輸出
+                  </Button>
+                )}
+                <Button variant="destructive" disabled={busy} onClick={() => void act(false)}>
+                  {controlUnknown ? '重送原停止請求' : '停止原終端執行'}
+                </Button>
+                {control && (
+                  <Button disabled={busy} onClick={() => void act(true)}>
+                    查證原停止請求
+                  </Button>
+                )}
+              </>
             )}
-            <Button variant="destructive" disabled={busy} onClick={() => void act(false)}>
-              {controlUnknown ? '重送原停止請求' : '停止原終端執行'}
+            <Button disabled={detail.isFetching} onClick={() => void detail.refetch()}>
+              重新整理原終端回執
             </Button>
-            {control && (
-              <Button disabled={busy} onClick={() => void act(true)}>
-                查證原停止請求
-              </Button>
+            <Button variant="primary" onClick={() => setRunId(undefined)}>
+              關閉
+            </Button>
+          </>
+        }
+      >
+        {detail.isPending && <p role="status">正在讀取原終端回執…</p>}
+        {detail.isError && <Banner status="unknown">原終端回執暫時無法讀取。</Banner>}
+        {selected && (
+          <>
+            <p className={styles.notice}>
+              狀態：{selected.status}
+              {selected.pending ? '（等待後續回執）' : ''}
+              {selected.uncertain ? '（尚未確認）' : ''}
+              {selected.exit_code !== undefined && selected.exit_code !== null
+                ? ` · 退出碼 ${selected.exit_code}`
+                : ''}
+            </p>
+            {selected.error && (
+              <Banner status={selected.uncertain ? 'unknown' : 'failed'}>
+                {typeof selected.error === 'string'
+                  ? selected.error
+                  : JSON.stringify(selected.error)}
+              </Banner>
             )}
-          </div>
-          {error && <Banner status="unknown">{error}</Banner>}
-          {control && (
-            <Banner
-              status={
-                controlUnknown
-                  ? 'unknown'
-                  : control.status === 'failed' || control.error
-                    ? 'failed'
-                    : 'done'
-              }
-            >
-              停止請求 {control.request_id}：
-              {control.uncertain || ['unknown', 'not_found'].includes(control.status ?? '')
-                ? '結果尚未確認，請查證原請求。'
-                : control.pending
-                  ? '已接納，等待原停止回執。'
-                  : `原回執 ${control.status ?? '已讀取'}`}
-              。進程是否結束以原終端狀態為準。
-            </Banner>
-          )}
-          {control?.error && (
-            <pre className={styles.terminalOutput}>{JSON.stringify(control.error, null, 2)}</pre>
-          )}
-        </>
-      )}
+            {selected.output_unavailable && (
+              <Banner status="unknown">原執行狀態已保留，當前無法讀取本機輸出。</Banner>
+            )}
+            {selected.command && <p className={styles.secret}>{selected.command}</p>}
+            {selected.cwd && <p className={styles.notice}>工作位置：{selected.cwd}</p>}
+            {pages?.some((page) => page.output_lost) && (
+              <Banner status="unknown">
+                部分輸出已超出本機保留範圍；原執行狀態與完成回執仍保留。
+              </Banner>
+            )}
+            <pre className={styles.terminalOutput}>
+              {pages?.map((page) => page.output ?? '').join('')}
+            </pre>
+            {selected.completion && (
+              <pre className={styles.terminalOutput}>
+                {JSON.stringify(selected.completion, null, 2)}
+              </pre>
+            )}
+            {error && <Banner status="unknown">{error}</Banner>}
+            {control && (
+              <Banner
+                status={
+                  controlUnknown
+                    ? 'unknown'
+                    : control.status === 'failed' || control.error
+                      ? 'failed'
+                      : 'done'
+                }
+              >
+                停止請求 {control.request_id}：
+                {control.uncertain || ['unknown', 'not_found'].includes(control.status ?? '')
+                  ? '結果尚未確認，請查證原請求。'
+                  : control.pending
+                    ? '已接納，等待原停止回執。'
+                    : `原回執 ${control.status ?? '已讀取'}`}
+                。進程是否結束以原終端狀態為準。
+              </Banner>
+            )}
+            {control?.error && (
+              <pre className={styles.terminalOutput}>{JSON.stringify(control.error, null, 2)}</pre>
+            )}
+          </>
+        )}
+      </Sheet>
     </>
   )
 }

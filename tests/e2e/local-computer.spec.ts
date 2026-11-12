@@ -131,13 +131,16 @@ test('the component fixture keeps the original request, loaded progress and draf
   await page.goto('http://127.0.0.1:4178/components.html?connector=operation-detail&view=local')
   const tabs = page.getByRole('tablist', { name: '這台電腦的活動', exact: true })
   await expect(tabs.getByRole('tab')).toHaveText(['原生 Agent 任務', '終端執行'])
-  await page.getByRole('button', { name: '查看原回執', exact: true }).click()
+  const open = page.getByRole('button', { name: '查看原回執', exact: true })
+  const receipt = page.getByRole('dialog', { name: '原操作 original-operation', exact: true })
+  await open.click()
   await expect(page.getByText('第一頁原進度', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '讀取後續進度', exact: true }).click()
   await expect(page.getByText('第二頁原進度', { exact: true })).toBeVisible()
+  // The receipt's own field and the page's are the same draft.
   const input = page.getByRole('textbox', { name: '原生任務要求', exact: true })
   const draft = '切換分頁後仍保留的原任務要求'
-  await input.fill(draft)
+  await receipt.getByRole('textbox', { name: '給原任務的要求', exact: true }).fill(draft)
   await page.evaluate(() =>
     (
       window as Window & {
@@ -161,6 +164,10 @@ test('the component fixture keeps the original request, loaded progress and draf
       nativeRequestVisible: await approval.isVisible(),
       bodyFits: await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     })
+    // The receipt is a dialog over the list: close it to change tabs, open it again to return.
+    await page.keyboard.press('Escape')
+    await expect(receipt).toHaveCount(0)
+    await expect(input).toHaveValue(draft)
     await tabs.getByRole('tab', { name: '終端執行', exact: true }).click()
     await expect(approval).toHaveCount(0)
     await expect(page.getByRole('button', { name: '重新整理', exact: true })).toHaveCount(1)
@@ -170,8 +177,11 @@ test('the component fixture keeps the original request, loaded progress and draf
     })
     layouts.push({ viewport: { width, height }, tab: '終端執行', nativeRequestVisible: false })
     await tabs.getByRole('tab', { name: '原生 Agent 任務', exact: true }).click()
+    await open.click()
     await expect(approval).toBeVisible()
-    await expect(input).toHaveValue(draft)
+    await expect(receipt.getByRole('textbox', { name: '給原任務的要求', exact: true })).toHaveValue(
+      draft,
+    )
     await expect(page.getByText('第一頁原進度', { exact: true })).toHaveCount(1)
     await expect(page.getByText('第二頁原進度', { exact: true })).toHaveCount(1)
   }
@@ -347,8 +357,12 @@ test('a changed local device does not inherit the original operation, draft or t
   const receipt = await native.getByRole('status').filter({ hasText: '要求已交給' }).innerText()
   const originalRequest = receipt.match(/請求 (fixture-request-\d+)/)![1]!
   const draft = '只屬於原裝置與原任務的待送草稿'
-  await native.getByRole('textbox', { name: '原生任務要求', exact: true }).fill(draft)
+  await native.getByRole('textbox', { name: '給原任務的要求', exact: true }).fill(draft)
   await expect(native.getByRole('button', { name: 'accept', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(native.getByRole('textbox', { name: '原生任務要求', exact: true })).toHaveValue(
+    draft,
+  )
   await tabs.getByRole('tab', { name: '終端執行', exact: true }).click()
   const terminals = page.getByRole('tabpanel', { name: '終端執行', exact: true })
   await terminals.getByRole('button', { name: '查看終端回執', exact: true }).click()
