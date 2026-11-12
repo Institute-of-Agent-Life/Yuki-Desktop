@@ -11,6 +11,7 @@ import {
   ledgerEvents,
   pairUI,
   waitForMainEnded,
+  waitForAcceptedMessage,
   yukiFixture,
 } from '../fixtures/backend'
 import { captureWorkspace, contentSize } from '../fixtures/visual'
@@ -32,14 +33,7 @@ test('real workspace handles long conversations, separate entries, work details 
     await composer.fill(longPlainText)
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(composer).toHaveValue('')
-    const plainRequest = await page.evaluate(
-      async ({ id, text }) => {
-        const result = await window.yuki.client.outbox(id)
-        if (!result.ok) throw Error(result.code)
-        return result.value.find((item) => item.body.text === text)!
-      },
-      { id: original.characterId, text: longPlainText },
-    )
+    const plainRequest = await waitForAcceptedMessage(page, original.characterId, longPlainText)
     expect(plainRequest.eventId).toBeGreaterThan(0)
     expect(
       (await ledgerEvents(rig.base))
@@ -92,14 +86,7 @@ test('real workspace handles long conversations, separate entries, work details 
     await composer.fill(longText)
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(composer).toHaveValue('')
-    const richRequest = await page.evaluate(
-      async ({ id, text }) => {
-        const result = await window.yuki.client.outbox(id)
-        if (!result.ok) throw Error(result.code)
-        return result.value.find((item) => item.body.text === text)!
-      },
-      { id: original.characterId, text: longText },
-    )
+    const richRequest = await waitForAcceptedMessage(page, original.characterId, longText)
     const replied = await waitForMainEnded(page, original.characterId, richRequest.requestId)
     expect(replied.event_id).toBe(richRequest.eventId)
     expect(replied.turn).toMatchObject({ state: 'ended', outcome: 'chat' })

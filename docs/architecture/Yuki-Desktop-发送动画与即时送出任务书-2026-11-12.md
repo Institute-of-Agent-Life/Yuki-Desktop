@@ -87,12 +87,12 @@ E2E 二：`tests/e2e/instant-send.spec.ts`（真实 Electron + 真实后端）�
 
 E2E 一另含玻璃材质（`conversation-glass.spec.ts`，数值写入 `send-motion.json` 的 `rim`）：
 
-16. 气泡边缘光照图中，下边亮度不低于上边的 0.4 倍，或右边不低于左边的 0.6 倍，或右边 ≥ 0.2。
+16. 气泡边缘光照图中，下边亮度不低于上边的 0.5 倍（原算法 0.63；各平台字体使气泡宽度与光照图分辨率不同，CI 实测 0.46、本机 0.27），或右边不低于左边的 0.6 倍，或右边 ≥ 0.2。
 17. 静止气泡没有投影；或入场水滴第一帧就带投影、最后一帧没有投影。
 
 ### 随 P4 调整的既有测试
 
-- `artifacts`、`backend`、`character-data`、`character-routing`、`first-history-refresh`、`restart`、`windows-character-data` 七个 E2E 原先以「输入框清空」为消息已被接收的时点，直接读发件箱要求有 `eventId`；改为 `waitForAcceptedMessage` 等原请求真正被接收。
+- `artifacts`、`backend`、`character-data`、`character-routing`、`first-history-refresh`、`restart`、`windows-character-data`、`workspace-acceptance` 八个 E2E 原先以「输入框清空」为消息已被接收的时点，直接读发件箱要求有 `eventId`；改为 `waitForAcceptedMessage` 等原请求真正被接收。
 - `server-settings` 遗失回应一例原先只认 `unknown`；遗失后串流触发的自动查證会因代理挡住回执读取而记为 `unavailable`，两者都是「已提交、未确认」。改为断言 `submitted` 且 problem 为两者之一。
 - 单元测试「身份或兼容性不符时不动发件箱与草稿」保持不变并通过（`identify` 仍在记录之前）。
 
