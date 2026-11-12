@@ -1,11 +1,11 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 
 const NS = 'http://www.w3.org/2000/svg'
-// [bezel width, bend, magnification, red bend relative to the rest]. Only panes floating over
-// moving content disperse: over a flat or blurred backdrop the fringe has nothing to colour.
+// [bezel width, bend, magnification, dispersion]. Only panes floating over moving content
+// disperse: over a flat or blurred backdrop the fringe has nothing to colour.
 const presets = {
-  toolbar: [10, 12, 0, 1.22],
-  composer: [16, 18, 0, 1.22],
+  toolbar: [10, 12, 0, 0.12],
+  composer: [16, 18, 0, 0.12],
   // Gentle: a stronger bend curls the backdrop's thin lines into hooks at the corners.
   bubble: [12, 8, 0, 0],
   card: [18, 14, 0, 0],
@@ -142,11 +142,12 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
   const ref = useRef<T>(null),
     strength = useRef(dynamic ? 0 : 1)
   const displacement = useRef<SVGElement | null>(null),
-    fringe = useRef<SVGElement | null>(null)
+    fringe = useRef<{ red: SVGElement; blue: SVGElement } | null>(null)
   const bend = (value: number) => {
-    const [, amount, , red] = presets[kind]
+    const [, amount, , spread] = presets[kind]
     displacement.current?.setAttribute('scale', String(2 * amount * value))
-    fringe.current?.setAttribute('scale', String(2 * amount * red * value))
+    fringe.current?.red.setAttribute('scale', String(2 * amount * (1 - spread) * value))
+    fringe.current?.blue.setAttribute('scale', String(2 * amount * (1 + spread) * value))
   }
   const setStrength = (value: number) => {
     strength.current = Math.max(0, value)
@@ -188,34 +189,44 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
     }))
       warp.setAttribute(key, value)
     filter.append(image, warp)
-    // Dispersion with one extra bend: red is bent a little further than green and blue, which
-    // share the main bend, so edges crossing the rim split into red and cyan.
+    // Dispersion as in real glass: blue bends most and red least, around the main bend that green
+    // keeps. Each channel is taken from its own bend; the three share no channel, so screen
+    // blending adds them exactly. Both bends cost one displacement each, only on floating panes.
     if (presets[kind][3]) {
-      const red = document.createElementNS(NS, 'feDisplacementMap'),
-        reds = document.createElementNS(NS, 'feColorMatrix'),
-        rest = document.createElementNS(NS, 'feColorMatrix'),
-        merge = document.createElementNS(NS, 'feBlend')
-      warp.setAttribute('result', 'bent')
-      for (const [key, value] of Object.entries({
-        in: 'SourceGraphic',
-        in2: 'map',
-        xChannelSelector: 'R',
-        yChannelSelector: 'G',
-        result: 'redder',
-      }))
-        red.setAttribute(key, value)
-      reds.setAttribute('in', 'redder')
-      // Both halves keep their alpha: filters premultiply, so a zero alpha would erase the colour.
-      reds.setAttribute('values', '1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0')
-      reds.setAttribute('result', 'red')
-      rest.setAttribute('in', 'bent')
-      rest.setAttribute('values', '0 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0')
-      rest.setAttribute('result', 'rest')
-      // The halves share no colour channel, so screen adds them exactly and keeps one alpha.
-      for (const [key, value] of Object.entries({ in: 'red', in2: 'rest', mode: 'screen' }))
-        merge.setAttribute(key, value)
-      filter.append(red, reds, rest, merge)
-      fringe.current = red
+      const element = (name: string, attributes: Record<string, string>) => {
+        const node = document.createElementNS(NS, name)
+        for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value)
+        filter.append(node)
+        return node
+      }
+      const bent = (result: string) =>
+        element('feDisplacementMap', {
+          in: 'SourceGraphic',
+          in2: 'map',
+          xChannelSelector: 'R',
+          yChannelSelector: 'G',
+          result,
+        })
+      warp.setAttribute('result', 'green-bend')
+      fringe.current = { red: bent('red-bend'), blue: bent('blue-bend') }
+      // Every channel keeps its alpha: filters premultiply, so a zero alpha would erase the colour.
+      element('feColorMatrix', {
+        in: 'red-bend',
+        values: '1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0',
+        result: 'red',
+      })
+      element('feColorMatrix', {
+        in: 'green-bend',
+        values: '0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0',
+        result: 'green',
+      })
+      element('feColorMatrix', {
+        in: 'blue-bend',
+        values: '0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0',
+        result: 'blue',
+      })
+      element('feBlend', { in: 'red', in2: 'green', mode: 'screen', result: 'red-green' })
+      element('feBlend', { in: 'red-green', in2: 'blue', mode: 'screen' })
     }
     defs.append(filter)
     svg.append(defs)

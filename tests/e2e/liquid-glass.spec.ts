@@ -239,7 +239,7 @@ test('only panes over moving content disperse, and blue buttons are tinted glass
   await page.setViewportSize({ width: 1280, height: 820 })
   await page.goto(`${regressions}?case=conversation-glass`)
   await expect(page.getByText('幫我整理一下這週的訪談筆記。', { exact: true })).toBeVisible()
-  // Dispersion costs one extra bend, spent only where an edge can cross a moving backdrop.
+  // Dispersion costs a red and a blue bend, spent only where an edge can cross a moving backdrop.
   const bends = (pane: Locator) =>
     pane.evaluate((element) => {
       const id = getComputedStyle(element).backdropFilter.match(/url\("?#([^")]+)/)![1]!
@@ -250,20 +250,21 @@ test('only panes over moving content disperse, and blue buttons are tinted glass
   const bubble = page.locator('article[data-event-id="34"] [data-glass="bubble"]')
   await expect(bubble).toHaveAttribute('data-refracting', 'true')
   evidence.bends = { composer: await bends(composer), bubble: await bends(bubble) }
-  expect(await bends(composer)).toBe(2)
+  expect(await bends(composer)).toBe(3)
   expect(await bends(bubble)).toBe(1)
 
   await page.goto(gallery)
   const primary = page.getByRole('button', { name: '開啟對話框', exact: true })
   const rim = (button: Locator) =>
     button.evaluate((node) => ({
-      sheen: getComputedStyle(node).backgroundImage,
+      fill: getComputedStyle(node).backgroundImage,
       edge: getComputedStyle(node, '::before').backgroundImage,
       shown: getComputedStyle(node, '::before').display,
     }))
   const lit = await rim(primary)
   evidence.tinted = lit
-  expect(lit.sheen).toMatch(/^linear-gradient/)
+  // One flat fill: depth comes from the rim light, never from a gradient in the colour.
+  expect(lit.fill).toBe('none')
   expect(lit.edge).toMatch(/radial-gradient.*linear-gradient\(154deg/)
   // The rim nearest the pointer catches more light, as on clear glass.
   const box = (await primary.boundingBox())!
@@ -277,4 +278,50 @@ test('only panes over moving content disperse, and blue buttons are tinted glass
   evidence.tintedPointer = { far, near }
   expect(near).toBeGreaterThan(far + 3)
   expect((await rim(page.getByRole('button', { name: '停用', exact: true }))).shown).toBe('none')
+  // Any character's accent, in either theme, leaves white text at least 4.5:1 on the fill.
+  const contrast = await page.evaluate(async () => {
+    const accents = [
+      '#3a6bd6',
+      '#7fa4ff',
+      '#2e8b57',
+      '#6fd39a',
+      '#c93c78',
+      '#ff8fbf',
+      '#b8860b',
+      '#ffd166',
+      '#0e9aa7',
+      '#5fe0e8',
+      '#7b4fd6',
+      '#b79cff',
+    ]
+    const button = [...document.querySelectorAll('button')].find(
+      (node) => node.textContent === '開啟對話框',
+    )!
+    const probe = document.createElement('span')
+    button.append(probe)
+    const canvas = document.createElement('canvas').getContext('2d')!
+    const luminance = (css: string) => {
+      canvas.fillStyle = '#000'
+      canvas.fillStyle = css
+      canvas.fillRect(0, 0, 1, 1)
+      const [r, g, b] = [...canvas.getImageData(0, 0, 1, 1).data].map((value) => {
+        const v = value / 255
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+      })
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+    }
+    const ratios: Record<string, number> = {}
+    for (const accent of accents) {
+      document.documentElement.style.setProperty('--accent', accent)
+      probe.style.color = 'var(--tinted)'
+      const fill = luminance(getComputedStyle(probe).color),
+        text = luminance(getComputedStyle(button).color)
+      ratios[accent] = (Math.max(fill, text) + 0.05) / (Math.min(fill, text) + 0.05)
+    }
+    probe.remove()
+    document.documentElement.style.removeProperty('--accent')
+    return ratios
+  })
+  evidence.tintedContrast = contrast
+  for (const ratio of Object.values(contrast)) expect(ratio).toBeGreaterThanOrEqual(4.5)
 })

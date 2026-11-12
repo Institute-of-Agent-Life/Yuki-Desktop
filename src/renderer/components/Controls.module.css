@@ -13,13 +13,13 @@
 }
 .primary,
 .primary:hover {
-  background: var(--tinted-sheen), var(--accent);
-  color: var(--accent-on);
+  background: var(--tinted);
+  color: #fff;
   font-weight: 600;
   box-shadow: var(--tinted-lift);
 }
 .primary:active {
-  background: var(--tinted-sheen), var(--accent-strong);
+  background: var(--press-background);
 }
 .secondary {
   background: var(--fill-control);
@@ -217,28 +217,28 @@
 .send {
   width: 30px;
   height: 30px;
-  background: var(--tinted-sheen), var(--accent);
-  color: var(--accent-on);
+  background: var(--tinted);
+  color: #fff;
   box-shadow: var(--tinted-lift);
 }
 .send:hover {
-  background: var(--tinted-sheen), var(--accent);
-  color: var(--accent-on);
+  background: var(--tinted);
+  color: #fff;
 }
 .send:active {
-  background: var(--tinted-sheen), var(--accent-strong);
+  background: var(--press-background);
 }
-/* Tinted glass: the same upper-left rim and pointer light as every clear pane, on solid colour. */
+/*
+ * Tinted glass, the same in both themes: one flat fill in the accent's own hue, deepened to at
+ * most 0.52 lightness and made more vivid, so white text keeps at least 4.5:1 for any character's
+ * accent. Its depth comes from light at the rim, as on every clear pane, never from the fill.
+ */
 .primary,
 .send {
-  --tinted-sheen: linear-gradient(
-    180deg,
-    rgb(255 255 255 / 0.24),
-    rgb(255 255 255 / 0.04) 50%,
-    rgb(0 0 0 / 0.06)
-  );
+  --tinted: oklch(from var(--accent) min(l, 0.52) calc(c * 1.35) h);
   --tinted-lift:
-    0 1px 2px #14285a29, 0 5px 14px -6px color-mix(in srgb, var(--accent) 70%, transparent);
+    0 1px 2px oklch(from var(--tinted) calc(l - 0.2) c h / 0.25),
+    0 5px 14px -6px oklch(from var(--tinted) l c h / 0.7);
 }
 .primary::before,
 .send::before {
@@ -287,12 +287,11 @@
 }
 .primary,
 .send {
-  --press-background: var(--accent-strong);
+  --press-background: oklch(from var(--tinted) calc(l - 0.06) c h);
   --hl: rgba(255, 255, 255, 0.08);
 }
 .primary[data-held='true'],
 .send[data-held='true'] {
-  background: var(--tinted-sheen), var(--accent-strong);
   box-shadow:
     inset 0 1px 3px rgba(12, 24, 58, 0.3),
     0 1px 1px rgba(12, 24, 58, 0.16);
