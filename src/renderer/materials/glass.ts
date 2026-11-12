@@ -116,15 +116,15 @@ function lens(
   const rim = paint(scale, 10, 1 / scale, 0, (data, k, x, y, distance) => {
     const inset = -distance,
       [nx, ny] = normal(x, y)
-    // Light from the upper left catches that edge; the far edge shows only its weaker bounce,
-    // and the sides between stay clear.
+    // As in thick glass: light from the upper left catches that edge, and the far edge glows
+    // with what passes through and reflects back, about half as bright; the sides between, which
+    // neither face nor back the light, stay dim.
     const toward = nx * -0.42 + ny * -0.91,
-      facing = Math.max(0, toward) + 0.22 * Math.max(0, -toward)
-    // A thin specular line on the outer edge, then light carried inward through the bezel, so
-    // the pane reads as thick glass rather than an outline. The outermost pixel is covered only
-    // partly, which smooths the curve instead of stepping it.
-    const bright = Math.max(0, Math.min(1, 1 - inset / 1.5)),
-      glow = Math.max(0, Math.min(1, 1 - inset / 10)) ** 2 * 0.34,
+      facing = Math.max(0, toward) ** 1.5 + 0.55 * Math.max(0, -toward) ** 1.5
+    // A specular line about a display point thick on the outer edge, then a short glow carried
+    // inward. The outermost pixel is covered only partly, which smooths the curve.
+    const bright = Math.max(0, Math.min(1, 1 - inset / 1.25)) ** 0.6,
+      glow = Math.max(0, Math.min(1, 1 - inset / 6)) ** 2 * 0.22,
       coverage = Math.max(0, Math.min(1, 0.5 - distance * scale))
     data[k] = data[k + 1] = data[k + 2] = 255
     data[k + 3] = Math.round(Math.min(1, (bright + glow) * facing) * coverage * 255)

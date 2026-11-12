@@ -60,7 +60,8 @@ test('resting bubbles are shaped by their radius, with a light map at display re
   const rest = await lightMap(page, 'article[data-event-id="34"] [data-glass="bubble"]')
   evidence.restingLightMap = rest
   expect(rest.image).toEqual(rest.expected)
-  // 10: light lands only on the edge facing it; the sides stay clear and nothing draws an outline.
+  // 10, and 1–2 of the 苹果式打光 task book: a thin light on the edge facing it and a softer one
+  // on the far edge, as in thick glass; the sides between stay dim and nothing draws an outline.
   const light = await resting.evaluate(async (surface) => {
     const image = new Image()
     image.src = getComputedStyle(surface)
@@ -73,15 +74,20 @@ test('resting bubbles are shaped by their radius, with a light map at display re
     const alpha = (x: number, y: number) => context.getImageData(x, y, 1, 1).data[3]!
     return {
       top: alpha(Math.round(image.width / 2), 1),
+      inward: alpha(Math.round(image.width / 2), 4),
       side: alpha(image.width - 2, Math.round(image.height / 2)),
+      left: alpha(1, Math.round(image.height / 2)),
       bottom: alpha(Math.round(image.width / 2), image.height - 2),
       outline: getComputedStyle(surface, '::before').backgroundImage,
     }
   })
   evidence.restingLight = light
   expect(light.top).toBeGreaterThan(128)
-  expect(light.side).toBeLessThan(light.top / 3)
-  expect(light.bottom).toBeLessThan(light.top / 3)
+  expect(light.bottom).toBeGreaterThanOrEqual(light.top * 0.35)
+  expect(light.side).toBeLessThan(light.bottom)
+  expect(light.left).toBeLessThan(light.bottom)
+  // A line about a display pixel thick: three pixels in, its light is mostly gone.
+  expect(light.inward).toBeLessThan(light.top * 0.4)
   expect(light.outline).toBe('none')
 
   // An entering reply reaches past its bubble only while it enters, then its map follows it back.

@@ -4,7 +4,6 @@
   flex: 1;
   min-height: 0;
   position: relative;
-  padding-top: 52px;
   background: var(--backdrop-lens);
 }
 :global([data-backdrop='plain']) .chat {
@@ -23,9 +22,10 @@
   overflow: auto;
   flex: 1;
   min-height: 0;
-  padding: calc(20px + var(--notice-h, 0px)) max(24px, calc((100% - 680px) / 2))
+  /* The list runs up under the toolbar, so what scrolls past the top frosts into its edge. */
+  padding: calc(72px + var(--notice-h, 0px)) max(24px, calc((100% - 680px) / 2))
     calc(var(--composer-h, 46px) + 40px);
-  scroll-padding-block: 20px calc(var(--composer-h, 46px) + 40px);
+  scroll-padding-block: 72px calc(var(--composer-h, 46px) + 40px);
   overflow-anchor: none;
 }
 .message {

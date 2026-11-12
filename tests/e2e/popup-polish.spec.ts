@@ -243,5 +243,5 @@ test('a sheet that grew out of a button is lit along its own corners once it has
   })
   evidence.grownSheet = light
   expect(light.radius).toBe('22px')
-  expect(light.edge).toBeGreaterThan(32)
+  expect(light.edge).toBeGreaterThan(16)
 })
