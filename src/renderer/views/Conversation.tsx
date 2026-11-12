@@ -3,7 +3,7 @@ import { ConversationGlass } from '../materials/ConversationGlass'
 import glassStyles from '../materials/ConversationGlass.module.css'
 import { reducedMotion } from '../motion/hooks'
 import { animateBubble, releaseDraft } from '../motion/bubble'
-import { glide, gliding, movedByApp, place } from '../motion/glide'
+import { glide, gliding, movedByApp, movedByOther, place } from '../motion/glide'
 import { sampleSpring, springs } from '../motion/spring'
 import { useGlass } from '../materials/glass'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -148,6 +148,11 @@ export function Conversation({
     scrollTop = useRef(0),
     bottom = useRef(true),
     [newMessages, setNewMessages] = useState(false)
+  // At the end as last seen, unless something else moved the list since and its scroll event is
+  // still on its way: then where the list stands now decides.
+  const following = (log: HTMLElement) =>
+    bottom.current &&
+    (!movedByOther(log) || log.scrollHeight - log.scrollTop - log.clientHeight < 64)
   const [scrolled, setScrolled] = useState(false)
   const [anchor, setAnchor] = useState<number | null>(null)
   const attachList = useCallback(
@@ -509,7 +514,7 @@ export function Conversation({
     const log = list.current
     if (!log) return
     const sizes = new ResizeObserver(() => {
-      if (bottom.current && anchor === null) followEnd(log, false)
+      if (following(log) && anchor === null) followEnd(log, false)
     })
     sizes.observe(log)
     for (const row of log.children) sizes.observe(row)
@@ -529,7 +534,7 @@ export function Conversation({
   useLayoutEffect(() => {
     const log = list.current
     if (!log) return
-    const follow = bottom.current && anchor === null && !reducedMotion()
+    const follow = following(log) && anchor === null && !reducedMotion()
     for (const row of [...log.children].slice(-8) as HTMLElement[]) {
       const before = rowTops.current.get(row),
         now = row.offsetTop
@@ -560,7 +565,7 @@ export function Conversation({
     if (processing) {
       for (const animation of row.getAnimations()) if (animation.id === 'fold') animation.cancel()
       const log = list.current
-      if (!row.dataset.grown && log && bottom.current && !reducedMotion()) {
+      if (!row.dataset.grown && log && following(log) && !reducedMotion()) {
         animateBubble(row, false)
         glide(log, 'end')
       }
@@ -591,7 +596,7 @@ export function Conversation({
     const last = events.data?.items.at(-1)?.event_id ?? 0
     const previous = latestSeen.current
     latestSeen.current = { range, event: last, generation: events.data?.generation }
-    if (bottom.current && anchor === null) {
+    if ((list.current ? following(list.current) : bottom.current) && anchor === null) {
       // A later message in the same conversation arrives; opening one only lands at its end.
       const arriving = previous.range === range && previous.event > 0 && last > previous.event
       requestAnimationFrame(() => {
@@ -1279,7 +1284,8 @@ export function Conversation({
               aria-live="polite"
               ref={attachList}
               onLoadCapture={(event) => {
-                if (bottom.current && anchor === null) followEnd(event.currentTarget, false)
+                if (following(event.currentTarget) && anchor === null)
+                  followEnd(event.currentTarget, false)
               }}
               onScroll={(event) => {
                 const node = event.currentTarget

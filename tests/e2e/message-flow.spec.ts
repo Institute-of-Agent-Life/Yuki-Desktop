@@ -186,19 +186,23 @@ test('a glide yields to any other scroll even on a list the app has not placed b
   await page.goto('http://127.0.0.1:4178/components.html')
   // 8, on a fresh list: the glide owns the place it starts from, so a scroll before its first frame
   // is someone else's.
-  const top = await page.evaluate(async (module) => {
-    const { glide } = (await import(/* @vite-ignore */ module)) as {
-      glide(list: HTMLElement, top: number | 'end'): void
-    }
-    const list = document.createElement('div')
-    list.style.cssText = 'position:fixed;inset:0 auto auto 0;width:200px;height:200px;overflow:auto'
-    list.innerHTML = '<div style="height:2000px"></div>'
-    document.body.append(list)
-    list.scrollTop = 500
-    glide(list, 'end')
-    list.scrollTop = 0
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    return list.scrollTop
-  }, `/@fs${process.cwd()}/src/renderer/motion/glide.ts`)
+  const top = await page.evaluate(
+    async (module) => {
+      const { glide } = (await import(/* @vite-ignore */ module)) as {
+        glide(list: HTMLElement, top: number | 'end'): void
+      }
+      const list = document.createElement('div')
+      list.style.cssText =
+        'position:fixed;inset:0 auto auto 0;width:200px;height:200px;overflow:auto'
+      list.innerHTML = '<div style="height:2000px"></div>'
+      document.body.append(list)
+      list.scrollTop = 500
+      glide(list, 'end')
+      list.scrollTop = 0
+      await new Promise((resolve) => setTimeout(resolve, 800))
+      return list.scrollTop
+    },
+    `/@fs/${process.cwd().replace(/\\/g, '/').replace(/^\//, '')}/src/renderer/motion/glide.ts`,
+  )
   expect(top).toBeLessThan(2)
 })

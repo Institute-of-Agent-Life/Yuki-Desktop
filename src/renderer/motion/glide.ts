@@ -21,6 +21,10 @@ export function place(list: HTMLElement, top: number) {
 /** Whether the list stands exactly where the app last put it, rather than where someone moved it. */
 export const movedByApp = (list: HTMLElement) => placed.get(list) === list.scrollTop
 
+/** Whether something other than the app has moved the list since the app last put it. */
+export const movedByOther = (list: HTMLElement) =>
+  placed.has(list) && placed.get(list) !== list.scrollTop
+
 const end = (list: HTMLElement) => list.scrollHeight - list.clientHeight
 
 /**
