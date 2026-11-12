@@ -242,3 +242,46 @@ test('dark glass does not darken what lies behind it', async ({ page }) => {
     expect(inside, backdrop).toBeGreaterThanOrEqual(outside - 1)
   }
 })
+
+for (const scale of [1, 2])
+  test.describe(`at ${scale}x`, () => {
+    test.use({ deviceScaleFactor: scale })
+    test('dispersing glass over a translucent panel is as light as the panel', async ({ page }) => {
+      await page.setViewportSize({ width: 1100, height: 640 })
+      await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=conversation-glass')
+      await expect(page.getByText('幫我整理一下這週的訪談筆記。', { exact: true })).toBeVisible()
+      // A wallpaper beneath the page itself, where the system's frost lies under the desktop backdrop.
+      await page.addStyleTag({
+        content:
+          'html { background: radial-gradient(60% 70% at 20% 30%, #f59e8b, transparent), radial-gradient(60% 70% at 85% 70%, #6aa6ff, transparent), #9a7fd6 !important } body { background: transparent !important }',
+      })
+      await page.evaluate(() => {
+        const root = document.documentElement
+        root.dataset.theme = 'light'
+        root.dataset.backdrop = 'desktop'
+        root.dataset.material = 'vibrancy'
+      })
+      await page.mouse.move(5, 5)
+      const composer = page.locator('[data-region="composer"]')
+      await expect(composer).toHaveAttribute('data-refracting', 'true')
+      await page.waitForTimeout(500)
+      const box = (await composer.boundingBox())!
+      const light = async (x: number, y: number) => {
+        const shot = await page.screenshot({ clip: { x, y, width: 1, height: 1 } })
+        return page.evaluate(async (data) => {
+          const image = new Image()
+          image.src = `data:image/png;base64,${data}`
+          await image.decode()
+          const context = new OffscreenCanvas(1, 1).getContext('2d')!
+          context.drawImage(image, 0, 0)
+          const [r, g, b] = context.getImageData(0, 0, 1, 1).data
+          return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+        }, shot.toString('base64'))
+      }
+      const inside = await light(box.x + box.width * 0.5, box.y + box.height * 0.5),
+        beside = await light(box.x + box.width * 0.5, box.y - 12)
+      evidence.translucentPanel = { inside, beside }
+      // 8 (透明磨砂 task book): no darker than the panel it lies on.
+      expect(inside).toBeGreaterThanOrEqual(beside - 6)
+    })
+  })

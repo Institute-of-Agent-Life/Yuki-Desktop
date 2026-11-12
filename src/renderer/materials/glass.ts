@@ -251,8 +251,32 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
         values: '0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0',
         result: 'blue',
       })
-      element('feBlend', { in: 'red', in2: 'green', mode: 'screen', result: 'red-green' })
-      element('feBlend', { in: 'red-green', in2: 'blue', mode: 'screen' })
+      // A third of each, added: over a half-clear backdrop the alpha stays the backdrop's own (a
+      // screen blend would unite the three alphas and darken the colour), then the colour, read
+      // unpremultiplied, is tripled back.
+      element('feComposite', {
+        in: 'red',
+        in2: 'green',
+        operator: 'arithmetic',
+        k2: String(1 / 3),
+        k3: String(1 / 3),
+        result: 'red-green',
+      })
+      element('feComposite', {
+        in: 'red-green',
+        in2: 'blue',
+        operator: 'arithmetic',
+        k2: '1',
+        k3: String(1 / 3),
+        result: 'thirds',
+      })
+      const restore = element('feComponentTransfer', { in: 'thirds' })
+      for (const channel of ['feFuncR', 'feFuncG', 'feFuncB']) {
+        const tripled = document.createElementNS(NS, channel)
+        tripled.setAttribute('type', 'linear')
+        tripled.setAttribute('slope', '3')
+        restore.append(tripled)
+      }
     }
     defs.append(filter)
     svg.append(defs)
