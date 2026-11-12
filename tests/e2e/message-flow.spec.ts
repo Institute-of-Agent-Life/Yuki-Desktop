@@ -169,7 +169,9 @@ test('a scroll made by anything else, like a jump to a message, also stops a gli
     .getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true })
     .fill('程式捲動中途接手')
   await page.getByRole('button', { name: '送出', exact: true }).click()
-  // 8: a programmatic scroll during the glide, as a jump to an earlier message makes.
+  // 8: a programmatic scroll during the glide, as a jump to an earlier message makes. The draft
+  // rising in the list means its glide has begun; a scroll before that is overtaken by the send.
+  await expect(page.locator('[role="log"] [data-liquid]')).not.toHaveCount(0)
   await log.evaluate((node) => (node.scrollTop = 0))
   await page.waitForTimeout(1200)
   expect(await log.evaluate((node) => node.scrollTop)).toBeLessThan(2)
