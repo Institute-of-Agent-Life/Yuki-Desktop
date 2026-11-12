@@ -6,6 +6,7 @@ import { ModelConnectionForm, type ConnectionDraft } from './ModelConnectionForm
 import { Banner, Button, TextField } from '../components/Controls'
 import { unwrap, problemText, ClientProblem } from '../queries/client'
 import styles from '../App.module.css'
+import { useGlass } from '../materials/glass'
 
 export function LocalBot({
   active,
@@ -16,6 +17,7 @@ export function LocalBot({
   back(): void
   done(connection: Connection, activate?: boolean): void
 }) {
+  const card = useGlass<HTMLElement>('card')
   const mounted = useRef(true)
   const activeRef = useRef(active)
   activeRef.current = active
@@ -87,7 +89,7 @@ export function LocalBot({
   }
   return (
     <div className={styles.welcome}>
-      <section data-glass="card" className={styles.welcomeInner}>
+      <section ref={card.ref} data-glass="card" className={styles.welcomeInner}>
         <h1>在本機部署 Yuki</h1>
         <p>
           需要先安裝 Docker（macOS 可用 Docker Desktop、OrbStack 或 Colima）。Yuki

@@ -6,7 +6,8 @@ const presets = {
   composer: [16, 18, 0],
   // Gentle: a stronger bend curls the backdrop's thin lines into hooks at the corners.
   bubble: [12, 8, 0],
-  toast: [10, 12, 0],
+  card: [18, 14, 0],
+  sheet: [20, 16, 0],
   slider: [7, 10, 0.32],
   toggle: [5, 7, 0.2],
   segment: [6, 8, 0.12],
@@ -35,7 +36,11 @@ function lens(
   const [edgeHeight, amount, zoom] = presets[kind]
   const canvas = document.createElement('canvas'),
     rim = document.createElement('canvas')
-  const resolution = kind === 'bubble' ? Math.min(1, 360 / Math.max(width, height)) : 2
+  // Large panes only need their bezel resolved; a coarser map keeps opening a sheet smooth.
+  const resolution =
+    kind === 'bubble'
+      ? Math.min(1, 360 / Math.max(width, height))
+      : Math.min(2, 720 / Math.max(width, height))
   canvas.width = rim.width = Math.max(1, Math.round(width * resolution))
   canvas.height = rim.height = Math.max(1, Math.round(height * resolution))
   const context = canvas.getContext('2d')!,
@@ -82,8 +87,10 @@ function lens(
         // weaker bounce, and the sides between stay nearly clear.
         const toward = nx * -0.42 + ny * -0.91,
           facing = Math.max(0, toward) + 0.38 * Math.max(0, -toward)
+        // A thin specular line on the outer edge, then light carried inward through the
+        // bezel, so the pane reads as thick glass rather than an outline.
         const bright = Math.max(0, 1 - inset / 1.5),
-          glow = Math.max(0, 1 - inset / 4) * 0.22
+          glow = Math.max(0, 1 - inset / 10) ** 2 * 0.34
         lights.data[k] = lights.data[k + 1] = lights.data[k + 2] = 255
         lights.data[k + 3] = Math.round(
           Math.min(1, bright * (0.1 + 0.9 * facing) + glow * facing) * 255,
@@ -97,6 +104,35 @@ function lens(
   if (maps.size >= 16) maps.delete(maps.keys().next().value!)
   maps.set(key, result)
   return result
+}
+
+// One listener moves the light source for every pane: rims are lit by a fixed-position
+// gradient centred on the pointer, masked by each pane's own light map.
+let pointerLight = false
+function followPointer() {
+  if (pointerLight) return
+  pointerLight = true
+  const root = document.documentElement
+  let frame = 0,
+    x = 0,
+    y = 0
+  addEventListener(
+    'pointermove',
+    (event) => {
+      x = event.clientX
+      y = event.clientY
+      frame ||= requestAnimationFrame(() => {
+        frame = 0
+        root.style.setProperty('--pointer-x', `${x}px`)
+        root.style.setProperty('--pointer-y', `${y}px`)
+      })
+    },
+    { passive: true },
+  )
+  root.addEventListener('pointerleave', () => {
+    root.style.removeProperty('--pointer-x')
+    root.style.removeProperty('--pointer-y')
+  })
 }
 
 /** Samples only the backdrop; foreground text remains on the original surface. */
@@ -116,6 +152,7 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
     attachment.current?.dispose()
     attachment.current = undefined
     if (!element || !CSS.supports('backdrop-filter', 'url(#glass)')) return
+    followPointer()
     const svg = document.createElementNS(NS, 'svg'),
       defs = document.createElementNS(NS, 'defs')
     const filter = document.createElementNS(NS, 'filter'),

@@ -137,7 +137,8 @@
   border-radius: 22px;
   padding: 0;
   color: var(--text-primary);
-  background: var(--mat-sheet);
+  background: var(--mat-pane);
+  backdrop-filter: blur(24px) saturate(160%) var(--glass-calm) var(--refract,);
   box-shadow: var(--shadow-sheet);
 }
 .dialog::backdrop {
@@ -176,7 +177,6 @@
   gap: 8px;
   margin-top: 20px;
   padding: 16px 24px;
-  background: var(--bg-elevated);
   border-top: var(--line) solid var(--separator);
 }
 .empty {

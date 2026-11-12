@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ApiReply, Connection, ConversationBridge, Meta } from '../../src/shared/api'
 import { Pairing } from '../../src/renderer/views/Pairing'
 import '../../src/renderer/tokens.css'
+import '../../src/renderer/materials/materials.css'
 
 const ids = {
   a: '00000000-0000-4000-8000-000000000001',

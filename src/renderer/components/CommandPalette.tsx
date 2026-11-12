@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { File, MessageCircle, BriefcaseBusiness, Command } from 'lucide-react'
 import { loadedItems, type LoadedItem } from '../state/loaded'
 import styles from './CommandPalette.module.css'
+import { useGlass } from '../materials/glass'
 
 export interface PaletteCommand {
   id: string
@@ -50,7 +51,7 @@ export function CommandPalette({
     )
   const [selected, setSelected] = useState<string | null>(() => grouped[0]?.id ?? null)
   const active = grouped.findIndex((item) => item.id === selected),
-    ref = useRef<HTMLDialogElement>(null),
+    ref = useGlass<HTMLDialogElement>('sheet').ref,
     input = useRef<HTMLInputElement>(null),
     prefix = useId(),
     live = useRef(true)
@@ -100,6 +101,7 @@ export function CommandPalette({
   return (
     <dialog
       ref={ref}
+      data-glass="sheet"
       className={styles.palette}
       aria-label="指令面板"
       onCancel={(event) => {

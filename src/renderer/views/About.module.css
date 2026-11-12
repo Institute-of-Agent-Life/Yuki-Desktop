@@ -51,21 +51,6 @@
 .avatarEdit:focus-visible span {
   opacity: 1;
 }
-.toast {
-  position: fixed;
-  bottom: 28px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--mat-thick);
-  backdrop-filter: blur(28px) saturate(170%) var(--refract,);
-  color: var(--text-primary);
-  min-height: 38px;
-  padding: 10px 16px;
-  border-radius: 999px;
-  box-shadow: var(--shadow-popover);
-  z-index: 10;
-  font-size: 13px;
-}
 .portrait > span {
   border-radius: 28px;
 }

@@ -38,6 +38,10 @@ test(
       ).toBeVisible()
       const fit = pa.getByRole('button', { name: '縮放：適合', exact: true })
       await expect(fit).toHaveAttribute('aria-pressed', 'false')
+      // The controls over the remote screen are the same refracting glass as the composer.
+      const floating = pa.getByLabel('電腦畫面控制列', { exact: true })
+      await expect(floating).toHaveAttribute('data-refracting', 'true')
+      await expect(floating).toHaveCSS('backdrop-filter', /url\(/)
       const beforeZoom = (await facts()).control
       await fit.click()
       const originalSize = pa.getByRole('button', { name: '縮放：100%', exact: true })
