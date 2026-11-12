@@ -9,6 +9,8 @@
   box-shadow: inset 0 0 0 var(--line) var(--separator);
   flex-shrink: 0;
   user-select: none;
+  /* One control: in a title bar, the gaps between its buttons press it rather than drag the window. */
+  -webkit-app-region: no-drag;
 }
 .segment button {
   position: relative;

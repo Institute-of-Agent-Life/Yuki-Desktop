@@ -12,7 +12,15 @@ import type {
   Connection,
   WorkPage,
 } from '../../shared/api'
-import { Banner, Button, EmptyState, IconButton, Sheet, Spinner } from '../components/Controls'
+import {
+  Banner,
+  Button,
+  EmptyState,
+  IconButton,
+  Segmented,
+  Sheet,
+  Spinner,
+} from '../components/Controls'
 import { unwrap, problemText, ClientProblem, useMe, hidesPrivateData } from '../queries/client'
 import styles from './Computer.module.css'
 import { useGlass } from '../materials/glass'
@@ -126,17 +134,16 @@ export function Computer({
       </EmptyState>
     )
   const sources = !compact && state.snowluma_display && (
-    <label className={styles.sourcePicker}>
-      顯示器{' '}
-      <select
-        aria-label="顯示器"
-        value={screen === 'sandbox' ? 'sandbox' : 'qq-view'}
-        onChange={(event) => setScreen(event.target.value === 'sandbox' ? 'sandbox' : 'qq-view')}
-      >
-        <option value="sandbox">{name} 的沙箱</option>
-        <option value="qq-view">QQ 登入</option>
-      </select>
-    </label>
+    <Segmented
+      kind="radio"
+      label="顯示器"
+      value={screen === 'sandbox' ? 'sandbox' : 'qq-view'}
+      onChange={setScreen}
+      items={[
+        { value: 'sandbox', label: `${name} 的沙箱` },
+        { value: 'qq-view', label: 'QQ 登入' },
+      ]}
+    />
   )
   const showQQ = sources && screen !== 'sandbox'
   const help = state.help_requests.filter((item) => item.kind === 'help')

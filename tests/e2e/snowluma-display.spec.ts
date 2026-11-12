@@ -44,7 +44,13 @@ test(
         return result.value.display_name
       }, characterId)
       await navigate(page, name + ' 的電腦')
-      const picker = page.getByRole('combobox', { name: '顯示器' })
+      // 10: the two displays are a segmented choice, each one a press away.
+      const picker = page.getByRole('radiogroup', { name: '顯示器', exact: true })
+      const option = (source: 'sandbox' | 'qq-view') =>
+        picker.getByRole('radio', {
+          name: source === 'sandbox' ? `${name} 的沙箱` : 'QQ 登入',
+          exact: true,
+        })
       const display = page.getByRole('application', { name: '遠端電腦畫面' })
       const capture = page.getByRole('button', { name: '截圖存檔', exact: true })
       const keyboard = page.getByRole('button', { name: '傳送 Ctrl Alt Delete', exact: true })
@@ -53,7 +59,7 @@ test(
       const returnSandbox = page.getByRole('button', { name: `交回給 ${name}`, exact: true })
 
       const verifyDisplay = async (source: 'sandbox' | 'qq-view', controlling: boolean) => {
-        await expect(picker).toHaveValue(source)
+        await expect(option(source)).toHaveAttribute('aria-checked', 'true')
         await expect(capture).toBeEnabled()
         const frame = () =>
           display.locator('canvas').evaluate((canvas: HTMLCanvasElement) => ({
@@ -88,10 +94,10 @@ test(
       expect(control).toMatchObject({ holder: 'human', device_id: deviceId })
       evidence.push({ sandboxLease: control, mutations })
 
-      await picker.focus()
-      await page.keyboard.press('q')
-      await expect(picker).toHaveValue('qq-view', { timeout: 5000 })
-      await expect.soft(picker).toBeFocused({ timeout: 1000 })
+      await option('sandbox').focus()
+      await page.keyboard.press('ArrowRight')
+      await expect(option('qq-view')).toHaveAttribute('aria-checked', 'true', { timeout: 5000 })
+      await expect.soft(option('qq-view')).toBeFocused({ timeout: 1000 })
       await verifyDisplay('qq-view', false)
       await display.click()
       await page.keyboard.press('v')
@@ -109,9 +115,8 @@ test(
         ])
       await page.screenshot({ path: info.outputPath('qq-control.png') })
 
-      await picker.focus()
-      await picker.selectOption('sandbox')
-      await expect.soft(picker).toBeFocused({ timeout: 1000 })
+      await option('sandbox').click()
+      await expect.soft(option('sandbox')).toBeFocused({ timeout: 1000 })
       await verifyDisplay('sandbox', true)
       await expect
         .poll(async () =>
@@ -132,9 +137,9 @@ test(
         .toBe(true)
       await page.screenshot({ path: info.outputPath('sandbox-control.png') })
 
-      await picker.selectOption('qq-view')
-      await picker.selectOption('sandbox')
-      await picker.selectOption('qq-view')
+      await option('qq-view').click()
+      await option('sandbox').click()
+      await option('qq-view').click()
       await verifyDisplay('qq-view', false)
       await expect(takeQQ).toBeVisible()
       await expect(endQQ).toHaveCount(0)
@@ -142,7 +147,7 @@ test(
       await verifyDisplay('qq-view', true)
       await endQQ.click()
       await verifyDisplay('qq-view', false)
-      await picker.selectOption('sandbox')
+      await option('sandbox').click()
       await verifyDisplay('sandbox', true)
       const resumedSandbox = await sandbox()
       expect(resumedSandbox).toMatchObject({ control, mutations })
@@ -192,10 +197,10 @@ test('switch between a real sandbox and SnowLuma login without taking the sandbo
       return result.value.display_name
     }, connection.characterId)
     await navigate(page, profile + ' 的電腦')
-    const selector = page.getByRole('combobox', { name: '顯示器' })
+    const selector = page.getByRole('radiogroup', { name: '顯示器', exact: true })
     const capture = page.getByRole('button', { name: '截圖存檔', exact: true })
     await expect(capture).toBeEnabled()
-    await selector.selectOption('qq-view')
+    await selector.getByRole('radio', { name: 'QQ 登入', exact: true }).click()
     await expect(capture).toBeEnabled()
     await page.getByRole('button', { name: '接手 QQ', exact: true }).click()
     await expect(capture).toBeEnabled()
@@ -209,7 +214,7 @@ test('switch between a real sandbox and SnowLuma login without taking the sandbo
     await page.screenshot({ path: test.info().outputPath('local-qq-login.png') })
     await page.getByRole('button', { name: '結束 QQ 控制', exact: true }).click()
     await expect(capture).toBeEnabled()
-    await selector.selectOption('sandbox')
+    await selector.getByRole('radio', { name: `${profile} 的沙箱`, exact: true }).click()
     await expect(capture).toBeEnabled()
     await expect(page.getByRole('button', { name: '接手', exact: true })).toBeEnabled()
     expect((await getSandbox()).control?.holder).toBe('none')
