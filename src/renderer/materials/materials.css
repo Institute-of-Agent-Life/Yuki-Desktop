@@ -5,7 +5,12 @@
   border-radius: inherit;
   padding: 0.75px;
   pointer-events: none;
-  background: linear-gradient(var(--stroke-hi), var(--stroke-lo));
+  background: linear-gradient(
+    154deg,
+    var(--stroke-hi),
+    var(--stroke-lo) 55%,
+    color-mix(in srgb, var(--stroke-hi) 40%, transparent)
+  );
   mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -17,12 +22,20 @@
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background-image: var(--rim, none);
-  background-size: 100% 100%;
-  opacity: 0.8;
+  --rim-rest: rgb(255 255 255 / 0.78);
+  --rim-lit: #fff;
+  /* The light source sits at the pointer; each pane's light map decides where it lands. */
+  background: radial-gradient(
+      circle 13rem at var(--pointer-x, -100vw) var(--pointer-y, -100vh),
+      var(--rim-lit),
+      var(--rim-rest)
+    )
+    fixed;
+  mask: var(--rim, linear-gradient(transparent 0 0)) 0 0 / 100% 100%;
 }
 [data-theme='dark'] [data-glass]::after {
-  opacity: 0.5;
+  --rim-rest: rgb(255 255 255 / 0.48);
+  --rim-lit: rgb(255 255 255 / 0.92);
 }
 [data-opaque='true'] {
   --mat-ground: var(--bg-window);
@@ -30,6 +43,7 @@
   --mat-chrome: var(--bg-elevated);
   --mat-thick: var(--bg-elevated);
   --mat-sheet: var(--bg-elevated);
+  --mat-pane: var(--bg-elevated);
   --stroke-hi: transparent;
   --stroke-lo: transparent;
   --scrim: rgba(24, 30, 44, 0.3);

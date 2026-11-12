@@ -11,7 +11,7 @@ import { ComputerInspector } from '../../src/renderer/views/Computer'
 import { Settings, type SettingsCategory } from '../../src/renderer/views/Settings'
 import { Workspace } from '../../src/renderer/components/Workspace'
 import { useCommands } from '../../src/renderer/state/commands'
-import { WorkspaceSession } from '../../src/renderer/state/workspace'
+import { WorkspaceSession, workspaceFor } from '../../src/renderer/state/workspace'
 import { defaultPreferences } from '../../src/shared/desktop'
 import appStyles from '../../src/renderer/App.module.css'
 import messageStyles from '../../src/renderer/views/Conversation.module.css'
@@ -245,6 +245,17 @@ const showcaseSteps = [
 }))
 const glassConversation = '22222222-2222-4222-8222-222222222222'
 const glassEntry = { ...home.main, conversation_id: glassConversation }
+// `readonly=1` opens a QQ conversation of the same Yuki, which only the desktop one can continue.
+const readonlyEntry = {
+  ...home.main,
+  conversation_id: '33333333-3333-4333-8333-333333333333',
+  platform: 'qq',
+  display_name: 'QQ 私聊',
+}
+if (new URLSearchParams(location.search).get('readonly'))
+  workspaceFor('conversation-fixture')
+    .getState()
+    .patch({ conversationId: readonlyEntry.conversation_id })
 const glassItems = [
   '幫我整理一下這週的訪談筆記。',
   '我先按主題分組，原始筆記和摘要會一起留著。',
@@ -490,7 +501,15 @@ Object.assign(window, {
           if (route.kind === 'home')
             return {
               ok: true,
-              value: { ...home, main: mode === glassCase ? glassEntry : home.main, works: [] },
+              value: {
+                ...home,
+                main: mode === glassCase ? glassEntry : home.main,
+                entries:
+                  mode === glassCase && new URLSearchParams(location.search).get('readonly')
+                    ? [readonlyEntry]
+                    : home.entries,
+                works: [],
+              },
             }
           if (mode === glassCase && route.kind === 'events') {
             const latest = glassItems.at(-1)!.event_id

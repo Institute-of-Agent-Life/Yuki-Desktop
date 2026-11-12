@@ -418,8 +418,8 @@
   margin: 0 auto;
   width: min(712px, calc(100% - 40px));
   border-radius: 20px;
-  background: var(--mat-thick);
-  backdrop-filter: blur(28px) saturate(170%);
+  background: var(--mat-pane);
+  backdrop-filter: blur(2px) saturate(116%) var(--glass-calm) var(--refract,);
   box-shadow: var(--shadow-glass);
 }
 :global([data-opaque='true']) .chat {

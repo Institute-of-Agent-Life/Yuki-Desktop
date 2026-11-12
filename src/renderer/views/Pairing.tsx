@@ -7,6 +7,7 @@ import { PairingAvatar } from '../components/CharacterAvatar'
 import { ClientProblem, problemText, unwrap } from '../queries/client'
 import { TailscaleGuide } from './TailscaleGuide'
 import styles from '../App.module.css'
+import { useGlass } from '../materials/glass'
 
 export function Pairing({
   label,
@@ -39,6 +40,7 @@ export function Pairing({
   onDone(connection: Connection, activate?: boolean): void
   onResumeLogout(characterId: string): Promise<void>
 }) {
+  const card = useGlass<HTMLDivElement>('card')
   const [step, setStep] = useState<'welcome' | 'connect' | 'confirm'>(
     initialServer || startAtServer ? 'connect' : 'welcome',
   )
@@ -170,7 +172,7 @@ export function Pairing({
   }
   return (
     <div className={styles.welcome}>
-      <div data-glass="card" className={styles.welcomeInner}>
+      <div ref={card.ref} data-glass="card" className={styles.welcomeInner}>
         {step === 'welcome' ? (
           <Snowflake className={styles.welcomeMark} size={96} strokeWidth={1} />
         ) : (

@@ -15,6 +15,7 @@ import type {
 import { Banner, Button, EmptyState, IconButton, Sheet, Spinner } from '../components/Controls'
 import { unwrap, problemText, ClientProblem, useMe, hidesPrivateData } from '../queries/client'
 import styles from './Computer.module.css'
+import { useGlass } from '../materials/glass'
 
 function useComputer(id: string) {
   const client = useQueryClient()
@@ -427,6 +428,7 @@ function RemoteScreen({
   held: boolean
   preview?: boolean
 }) {
+  const controls = useGlass<HTMLDivElement>('toolbar')
   const target = useRef<HTMLDivElement>(null),
     rfb = useRef<RFB>(null),
     holder = useRef(held)
@@ -571,7 +573,12 @@ function RemoteScreen({
         </div>
       )}
       {!preview && (
-        <div className={styles.floating} aria-label="電腦畫面控制列">
+        <div
+          ref={controls.ref}
+          data-glass="toolbar"
+          className={styles.floating}
+          aria-label="電腦畫面控制列"
+        >
           <Button variant="plain" aria-pressed={!fit} onClick={() => setFit((value) => !value)}>
             {fit ? '縮放：適合' : '縮放：100%'}
           </Button>

@@ -27,7 +27,8 @@
   width: min(640px, 100%);
   padding: 32px;
   border-radius: 28px;
-  background: var(--mat-thick);
+  background: var(--mat-pane);
+  backdrop-filter: blur(var(--blur-thick)) saturate(160%) var(--glass-calm) var(--refract,);
   box-shadow: var(--shadow-glass);
   display: flex;
   align-items: center;
@@ -252,7 +253,7 @@
   border-radius: 17px;
   background: var(--mat-chrome);
   box-shadow: var(--shadow-glass);
-  backdrop-filter: blur(6px) saturate(180%) var(--refract,);
+  backdrop-filter: blur(6px) saturate(180%) var(--glass-calm) var(--refract,);
   -webkit-app-region: no-drag;
 }
 .toolbar {
@@ -332,7 +333,7 @@
     inset 0 1px 0 var(--composer-rim);
   padding: 8px;
   background: color-mix(in srgb, var(--bg-elevated) var(--composer-tint), transparent);
-  backdrop-filter: blur(2px) saturate(116%) var(--refract,);
+  backdrop-filter: blur(2px) saturate(116%) var(--glass-calm) var(--refract,);
 }
 :global([data-theme='dark']) .composer {
   --composer-tint: 36%;

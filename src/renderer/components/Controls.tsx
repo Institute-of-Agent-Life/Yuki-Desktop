@@ -1,4 +1,5 @@
 import { usePress } from '../motion/hooks'
+import { useGlass } from '../materials/glass'
 import { useSessionActive } from '../state/workspace'
 import {
   useEffect,
@@ -185,7 +186,7 @@ export function Sheet({
 }) {
   const active = useSessionActive()
   const titleId = useId()
-  const ref = useRef<HTMLDialogElement>(null)
+  const ref = useGlass<HTMLDialogElement>('sheet').ref
   const previous = useRef<Element | null>(null)
   const requested = useRef(false)
   useEffect(() => {
@@ -205,6 +206,7 @@ export function Sheet({
   return (
     <dialog
       ref={ref}
+      data-glass="sheet"
       className={styles.dialog}
       style={width ? { width: `min(${width}px, calc(100vw - 32px))` } : undefined}
       aria-labelledby={titleId}

@@ -3,6 +3,7 @@ import { ConversationGlass } from '../materials/ConversationGlass'
 import glassStyles from '../materials/ConversationGlass.module.css'
 import { reducedMotion } from '../motion/hooks'
 import { animateBubble, releaseDraft } from '../motion/bubble'
+import { useGlass } from '../materials/glass'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
@@ -166,6 +167,7 @@ export function Conversation({
   })
   // Each sent request remembers where its words were typed, the start of its bubble.
   const sentMessages = useRef(new Map<string, DOMRect | undefined>())
+  const readonlyGlass = useGlass<HTMLDivElement>('composer')
   const liveMessage = useRef<Home['main']>(undefined)
   const home = useQuery({ queryKey: [id, 'home'], queryFn: () => read<Home>(id, { kind: 'home' }) })
   const me = useMe(id)
@@ -1354,7 +1356,12 @@ export function Conversation({
                 ))}
               </Composer>
             ) : (
-              <div className={styles.readonly} data-floating-footer>
+              <div
+                ref={readonlyGlass.ref}
+                data-glass="composer"
+                className={styles.readonly}
+                data-floating-footer
+              >
                 <p>
                   這是你在 {entry?.platform.toUpperCase()} 與 {name}{' '}
                   的對話。要在這裡繼續，請到桌面對話。

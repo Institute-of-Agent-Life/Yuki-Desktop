@@ -80,6 +80,9 @@
   --mat-thick: rgba(255, 255, 255, 0.86);
   --mat-hud: rgba(26, 28, 33, 0.64);
   --mat-sheet: rgba(255, 255, 255, 0.97);
+  /* A floating glass pane, and how much of the backdrop's contrast it lets through. */
+  --mat-pane: rgba(255, 255, 255, 0.6);
+  --glass-calm: contrast(0.84) brightness(1.06);
   --stroke-hi: rgba(255, 255, 255, 0.95);
   --stroke-lo: rgba(255, 255, 255, 0.28);
   --edge: rgba(20, 30, 50, 0.1);
@@ -140,6 +143,8 @@
   --mat-thick: rgba(36, 38, 44, 0.86);
   --mat-hud: rgba(22, 24, 28, 0.7);
   --mat-sheet: rgba(38, 40, 46, 0.97);
+  --mat-pane: rgba(38, 40, 46, 0.64);
+  --glass-calm: contrast(0.84) brightness(0.88);
   --stroke-hi: rgba(255, 255, 255, 0.18);
   --stroke-lo: rgba(255, 255, 255, 0.04);
   --edge: rgba(0, 0, 0, 0.45);
@@ -156,6 +161,7 @@
 }
 :root[data-contrast='true'] {
   --focus-ring: var(--accent);
+  --mat-pane: var(--mat-sheet);
   --edge: var(--separator-strong);
   --separator: rgba(20, 30, 50, 0.27);
   --separator-strong: rgba(20, 30, 50, 0.42);
