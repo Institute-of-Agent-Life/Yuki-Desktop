@@ -5,16 +5,22 @@
   border-radius: inherit;
   padding: 0.75px;
   pointer-events: none;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+/*
+ * Glass without a light map of its own (native materials, or before refraction starts) draws its
+ * rim as a thin gradient; refracting glass is lit by its map alone, never outlined on top.
+ */
+[data-glass]:where(:not([data-refracting]))::before {
   background: linear-gradient(
     154deg,
     var(--stroke-hi),
     var(--stroke-lo) 55%,
     color-mix(in srgb, var(--stroke-hi) 40%, transparent)
   );
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
 }
 [data-glass]::after {
   content: '';
@@ -34,8 +40,8 @@
   mask: var(--rim, linear-gradient(transparent 0 0)) 0 0 / 100% 100%;
 }
 [data-theme='dark'] [data-glass]::after {
-  --rim-rest: rgb(255 255 255 / 0.48);
-  --rim-lit: rgb(255 255 255 / 0.92);
+  --rim-rest: rgb(255 255 255 / 0.3);
+  --rim-lit: rgb(255 255 255 / 0.7);
 }
 [data-opaque='true'] {
   --mat-ground: var(--bg-window);

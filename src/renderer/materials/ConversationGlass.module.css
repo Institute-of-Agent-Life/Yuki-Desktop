@@ -28,21 +28,8 @@
     0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px) round var(--glass-radius, 14px)
   );
 }
-.surface::before {
-  inset: 0;
-  border-radius: var(--glass-radius, 14px);
-  background: linear-gradient(
-    154deg,
-    var(--glass-edge) 4%,
-    var(--glass-edge-shadow) 54%,
-    color-mix(in srgb, var(--glass-edge) 45%, transparent) 100%
-  );
-}
 .surface:global([data-liquid])::before {
   inset: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
-}
-.surface:global([data-refracting])::before {
-  display: block;
 }
 .surface:global([data-refracting]) {
   /* A slight blur first, so thin backdrop lines bend smoothly instead of fraying. */

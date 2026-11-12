@@ -117,9 +117,9 @@ function lens(
     const inset = -distance,
       [nx, ny] = normal(x, y)
     // Light from the upper left catches that edge; the far edge shows only its weaker bounce,
-    // and the sides between stay nearly clear.
+    // and the sides between stay clear.
     const toward = nx * -0.42 + ny * -0.91,
-      facing = Math.max(0, toward) + 0.38 * Math.max(0, -toward)
+      facing = Math.max(0, toward) + 0.22 * Math.max(0, -toward)
     // A thin specular line on the outer edge, then light carried inward through the bezel, so
     // the pane reads as thick glass rather than an outline. The outermost pixel is covered only
     // partly, which smooths the curve instead of stepping it.
@@ -127,9 +127,7 @@ function lens(
       glow = Math.max(0, Math.min(1, 1 - inset / 10)) ** 2 * 0.34,
       coverage = Math.max(0, Math.min(1, 0.5 - distance * scale))
     data[k] = data[k + 1] = data[k + 2] = 255
-    data[k + 3] = Math.round(
-      Math.min(1, bright * (0.1 + 0.9 * facing) + glow * facing) * coverage * 255,
-    )
+    data[k + 3] = Math.round(Math.min(1, (bright + glow) * facing) * coverage * 255)
   })
   const result = { displacement, rim }
   // Resizing a window must not retain every historical size in memory.

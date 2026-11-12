@@ -227,7 +227,8 @@ test('the sidebar keeps its native material with a rim lit from the upper left',
   await page.goto(`${regressions}?case=settings-transition`)
   const sidebar = page.locator('[data-glass="sidebar"]')
   await expect(sidebar).toBeVisible()
-  // 9: the same light direction as every refracting pane.
+  // 9: the same light direction as every refracting pane; with no light map of its own the
+  // native sidebar draws that rim, which refracting glass never does.
   expect(
     await sidebar.evaluate((element) => getComputedStyle(element, '::before').backgroundImage),
   ).toMatch(/^linear-gradient\(154deg/)

@@ -120,7 +120,7 @@
     repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px 24px),
     var(--bg-content);
   --grid-line: rgb(20 30 50 / 0.14);
-  --glass-calm: contrast(0.84) brightness(1.06);
+  --glass-calm: contrast(0.9) brightness(1.03);
   --stroke-hi: rgba(255, 255, 255, 0.95);
   --stroke-lo: rgba(255, 255, 255, 0.28);
   --edge: rgba(20, 30, 50, 0.1);
@@ -193,7 +193,7 @@
     radial-gradient(60% 55% at 10% 30%, rgb(220 80 110 / 0.3), transparent 70%),
     radial-gradient(70% 60% at 50% 100%, rgb(110 70 200 / 0.34), transparent 70%), var(--bg-content);
   --grid-line: rgb(255 255 255 / 0.1);
-  --glass-calm: contrast(0.84) brightness(0.88);
+  --glass-calm: contrast(0.9) brightness(0.9);
   --stroke-hi: rgba(255, 255, 255, 0.18);
   --stroke-lo: rgba(255, 255, 255, 0.04);
   --edge: rgba(0, 0, 0, 0.45);
