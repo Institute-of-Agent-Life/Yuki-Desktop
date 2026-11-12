@@ -126,3 +126,84 @@ test('the command palette scrim only dims', async ({ page }) => {
     await palette.evaluate((dialog) => getComputedStyle(dialog, '::backdrop').backdropFilter),
   ).toBe('none')
 })
+
+// A drawn ring: any box-shadow spread around the pane in a colour that is not transparent.
+const rings = (shadow: string) =>
+  [...shadow.matchAll(/(rgba?\([^)]*\)|color\([^)]*\)) 0px 0px 0px (\d+(?:\.\d+)?)px/g)].filter(
+    ([, colour]) => !/,\s*0\)$|\/ 0\)$/.test(colour!),
+  ).length
+
+test('glass panes draw no frame of their own around or across their edge', async ({ page }) => {
+  await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=palette')
+  const palette = page.locator('dialog[data-glass="sheet"]')
+  const search = palette.locator('input').first()
+  await expect(search).toBeFocused()
+  const look = () =>
+    page.evaluate(() => {
+      const pane = document.querySelector<HTMLElement>('dialog[data-glass="sheet"]')!
+      const input = pane.querySelector('input')!
+      return {
+        pane: getComputedStyle(pane).boxShadow,
+        outline: getComputedStyle(input).outlineStyle,
+        inset: getComputedStyle(input).boxShadow,
+        line: getComputedStyle(input).borderBottomColor,
+        accent: getComputedStyle(document.documentElement).getPropertyValue('--accent'),
+      }
+    })
+  // 11: the palette and its focused search draw no frame; the glass is its own edge.
+  const normal = await look()
+  evidence.palette = normal
+  expect(rings(normal.pane)).toBe(0)
+  expect(normal.outline).toBe('none')
+  expect(normal.inset).toBe('none')
+  // With increased contrast the search shows focus on its own lower edge, inside the pane.
+  await page.evaluate(() => (document.documentElement.dataset.contrast = 'true'))
+  const contrast = await look()
+  expect(contrast.inset).toBe('none')
+  expect(contrast.line).toBe(
+    await page.evaluate(() => {
+      const probe = document.createElement('i')
+      probe.style.color = 'var(--accent)'
+      document.body.append(probe)
+      const colour = getComputedStyle(probe).color
+      probe.remove()
+      return colour
+    }),
+  )
+})
+
+test('the menu and sheets draw no frame, and a focused composer stays its own shape', async ({
+  page,
+}) => {
+  await page.goto('http://127.0.0.1:4178/role-switcher.html')
+  await page.getByRole('button', { name: '切換 Yuki', exact: true }).click()
+  const menu = page.getByRole('menu', { name: 'Yuki', exact: true })
+  // 11
+  expect(rings(await menu.evaluate((element) => getComputedStyle(element).boxShadow))).toBe(0)
+
+  await page.goto('http://127.0.0.1:4178/about-profile.html?collections=full')
+  await page.getByRole('button', { name: /原有的個人記憶/ }).click()
+  await page.getByRole('button', { name: '更正', exact: true }).first().click()
+  const sheet = page.getByRole('dialog', { name: '更正記憶', exact: true })
+  await expect(sheet).toBeVisible()
+  expect(rings(await sheet.evaluate((element) => getComputedStyle(element).boxShadow))).toBe(0)
+
+  await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=conversation-glass')
+  const composer = page.locator('[data-region="composer"]')
+  await page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true }).click()
+  const focused = () =>
+    composer.evaluate((element) => ({
+      outline: getComputedStyle(element).outlineStyle,
+      shadow: getComputedStyle(element).boxShadow,
+    }))
+  const normal = await focused()
+  evidence.composer = normal
+  expect(normal.outline).toBe('none')
+  expect(rings(normal.shadow)).toBe(0)
+  expect(normal.shadow).not.toContain('inset')
+  // Increased contrast marks focus with a line on the glass edge itself, not one outside it.
+  await page.evaluate(() => (document.documentElement.dataset.contrast = 'true'))
+  const contrast = await focused()
+  expect(contrast.outline).toBe('none')
+  expect(rings(contrast.shadow)).toBeGreaterThan(0)
+})

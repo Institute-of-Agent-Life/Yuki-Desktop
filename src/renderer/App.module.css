@@ -317,7 +317,6 @@
 .composer {
   /* Light enough for the backdrop and the colour fringe to read through, as clear glass. */
   --composer-tint: 16%;
-  --composer-rim: rgb(255 255 255 / 0.56);
   position: absolute;
   z-index: 6;
   bottom: 14px;
@@ -330,19 +329,15 @@
   flex-direction: column;
   overflow: hidden;
   border-radius: 22px;
-  box-shadow:
-    var(--shadow-glass),
-    inset 0 1px 0 var(--composer-rim);
+  box-shadow: var(--shadow-glass);
   padding: 8px;
   background: color-mix(in srgb, var(--bg-elevated) var(--composer-tint), transparent);
   backdrop-filter: var(--refract,) blur(1px) saturate(116%) var(--glass-calm);
 }
 :global([data-theme='dark']) .composer {
   --composer-tint: 24%;
-  --composer-rim: rgb(221 236 255 / 0.28);
 }
 :global([data-opaque='true']) .composer {
-  --composer-rim: transparent;
   background: var(--bg-elevated);
 }
 @media (forced-colors: active) {
@@ -355,9 +350,14 @@
     display: none;
   }
 }
-.composer:focus-within {
-  outline: 3px solid var(--focus-ring, color-mix(in srgb, var(--accent) 45%, transparent));
-  outline-offset: 1px;
+/*
+ * The caret shows where typing goes; a frame outside the glass would not follow its edge.
+ * Increased contrast marks focus on the edge itself.
+ */
+:global([data-contrast='true']) .composer:focus-within {
+  box-shadow:
+    var(--shadow-glass),
+    0 0 0 2px var(--accent);
 }
 .composer textarea {
   flex: 1;

@@ -147,7 +147,7 @@
   color: var(--text-primary);
   background: var(--mat-pane);
   backdrop-filter: blur(24px) saturate(160%) var(--glass-calm) var(--refract,);
-  box-shadow: var(--shadow-sheet);
+  box-shadow: var(--shadow-pane);
 }
 /* The scrim only dims: a blurred window under the sheet's own glass is recomputed every frame. */
 .dialog::backdrop {
