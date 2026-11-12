@@ -24,8 +24,8 @@
   flex: 1;
   min-height: 0;
   padding: calc(20px + var(--notice-h, 0px)) max(24px, calc((100% - 680px) / 2))
-    calc(var(--composer-h, 46px) + 32px);
-  scroll-padding-block: 20px calc(var(--composer-h, 46px) + 32px);
+    calc(var(--composer-h, 46px) + 40px);
+  scroll-padding-block: 20px calc(var(--composer-h, 46px) + 40px);
   overflow-anchor: none;
 }
 .message {
@@ -47,6 +47,15 @@
 .messageBody {
   position: relative;
   min-width: 0;
+}
+.sticker {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-top: 2px;
+}
+.ownMessage .sticker {
+  align-items: flex-end;
 }
 .bubble {
   --glass-radius: 18px;
@@ -214,13 +223,23 @@
   color: var(--text-secondary);
   flex-wrap: wrap;
 }
+/* The note's place takes no room of its own: it lies in the space kept above the composer,
+   a little closer to the last message than a message would be. */
+.noteSlot {
+  height: 0;
+  margin-top: -6px;
+}
+.processing .bubble {
+  padding: 4px 11px;
+}
 .processing {
+  margin: 0;
   align-items: center;
   color: var(--text-secondary);
   font-size: 11px;
 }
 .processing > [role='img'] {
-  margin-top: 0;
+  margin: 0 3px;
 }
 .processing .bubbleCopy {
   display: flex;

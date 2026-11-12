@@ -20,12 +20,15 @@ export function MessageAttachment({
   attachment,
   open,
   artifact,
+  sticker,
 }: {
   id: string
   event: PublicEvent
   attachment: Attachment
   open(source: AttachmentSource): void
   artifact?(source: ArtifactSource): void
+  /** The sticker's name: shown as a sticker, with no card around it. */
+  sticker?: string
 }) {
   const source = {
       conversationId: event.conversation_id,
@@ -54,7 +57,7 @@ export function MessageAttachment({
   return (
     <button
       ref={element}
-      className={`${styles.attachment} ${image ? styles.image : ''}`}
+      className={sticker ? styles.sticker : `${styles.attachment} ${image ? styles.image : ''}`}
       disabled={attachment.artifact_id ? !attachment.version || !artifact : false}
       onClick={() =>
         attachment.artifact_id && attachment.version
@@ -82,7 +85,9 @@ export function MessageAttachment({
       }}
     >
       {image && url ? (
-        <img src={url} loading="lazy" alt={attachment.filename ?? '圖片附件'} />
+        <img src={url} loading="lazy" alt={sticker ?? attachment.filename ?? '圖片附件'} />
+      ) : sticker ? (
+        <span className={styles.stickerWaiting} role="img" aria-label={sticker} />
       ) : (
         <div className={styles.file}>
           <span>
@@ -99,7 +104,7 @@ export function MessageAttachment({
       )}
       {image && status && <small>{status}</small>}
       {menuError && <small role="alert">{menuError}</small>}
-      {attachment.artifact_id && <small>成果檔案</small>}
+      {attachment.artifact_id && !sticker && <small>成果檔案</small>}
     </button>
   )
 }

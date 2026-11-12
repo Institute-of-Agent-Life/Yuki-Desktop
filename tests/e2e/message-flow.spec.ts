@@ -15,7 +15,7 @@ interface Frame {
   end: number
   earlier: number
   noteTop: number | null
-  noteHeight: number | null
+  noteOpacity: number | null
 }
 
 async function openConversation(page: Page) {
@@ -40,14 +40,14 @@ const record = (page: Page) =>
     let live = true
     const start = performance.now()
     const tick = () => {
-      const note = log.querySelector<HTMLElement>(':scope > [role="status"]')
+      const note = log.querySelector<HTMLElement>('[data-processing]')
       frames.push({
         t: performance.now() - start,
         scroll: log.scrollTop,
         end: log.scrollHeight - log.clientHeight,
         earlier: earlier.getBoundingClientRect().top,
         noteTop: note ? note.getBoundingClientRect().top : null,
-        noteHeight: note ? note.getBoundingClientRect().height : null,
+        noteOpacity: note ? parseFloat(getComputedStyle(note).opacity) : null,
       })
       if (live) requestAnimationFrame(tick)
     }
@@ -74,13 +74,10 @@ test('a message and its reply move the conversation on one spring, without a sin
   await page.getByRole('button', { name: '送出', exact: true }).click()
   await page.waitForTimeout(400)
   await page.evaluate(() => (window as unknown as FlowWindow).regression.confirmGlassSend())
-  const note = page.locator('[role="log"] > [role="status"]')
+  const note = page.locator('[role="log"] [data-processing]')
   await expect(note).toBeVisible()
-  // 4: the processing note grows in like a reply.
-  expect(await note.evaluate((row) => row.getAnimations({ subtree: true }).length)).toBeGreaterThan(
-    0,
-  )
   await page.waitForTimeout(900)
+  const replied = await page.evaluate(() => performance.now())
   await page.evaluate(() =>
     (window as unknown as FlowWindow).regression.receiveGlassReply(
       '已把問題放在摘要最後，並附上原始訪談的來源。',
@@ -100,12 +97,28 @@ test('a message and its reply move the conversation on one spring, without a sin
   expect(Math.max(...steps(scrolls))).toBeLessThanOrEqual(Math.min(40, total * 0.4))
   // 2: earlier messages glide too.
   expect(Math.max(...steps(frames.map((frame) => frame.earlier)))).toBeLessThanOrEqual(40)
-  // 4 and 5: the note moves only smoothly, whether growing in or pushed by the reply.
+  // 5: the note moves only smoothly, pushed down by the reply.
   const noted = frames.filter((frame) => frame.noteTop !== null)
   expect(Math.max(...steps(noted.map((frame) => frame.noteTop!)))).toBeLessThanOrEqual(40)
-  // 6: it folds away over several frames before it leaves.
-  const folding = steps(noted.map((frame) => frame.noteHeight!)).filter((step) => step > 0.5)
-  expect(folding.length).toBeGreaterThanOrEqual(5)
+  // 6 and 7 (表情与处理提示任务书): from the note appearing to the reply, nothing moves, so a send
+  // scrolls once; and from send to reply the list only goes on and only grows, never back.
+  const start = frames[0]!.t + (await page.evaluate(() => performance.now())) - replied,
+    waiting = frames.filter((frame) => frame.noteTop !== null && frame.t < frames.at(-1)!.t - start)
+  const quiet = waiting.slice(Math.ceil(waiting.length / 3))
+  expect(new Set(quiet.map((frame) => Math.round(frame.scroll))).size).toBe(1)
+  expect(new Set(quiet.map((frame) => frame.end)).size).toBe(1)
+  expect(new Set(quiet.map((frame) => Math.round(frame.earlier))).size).toBe(1)
+  expect(
+    Math.min(...frames.slice(1).map((frame, index) => frame.scroll - frames[index]!.scroll)),
+  ).toBeGreaterThan(-1)
+  expect(
+    Math.min(...frames.slice(1).map((frame, index) => frame.end - frames[index]!.end)),
+  ).toBeGreaterThanOrEqual(0)
+  // 8: it fades in and out over several frames instead of appearing or vanishing at once.
+  const opacities = noted.map((frame) => frame.noteOpacity!)
+  const peak = opacities.indexOf(Math.max(...opacities))
+  expect(opacities.slice(0, peak).filter((value) => value < 0.99).length).toBeGreaterThanOrEqual(5)
+  expect(opacities.slice(peak).filter((value) => value < 0.99).length).toBeGreaterThanOrEqual(5)
   // 3: the sent bubble ends where it rests, at the end of the list.
   const last = frames.at(-1)!
   expect(Math.abs(last.end - last.scroll)).toBeLessThan(2)
@@ -170,6 +183,9 @@ test('a scroll made by anything else, like a jump to a message, also stops a gli
   // 8: a programmatic scroll during the glide, as a jump to an earlier message makes. The draft
   // rising in the list means its glide has begun; a scroll before that is overtaken by the send.
   await expect(page.locator('[role="log"] [data-liquid]')).not.toHaveCount(0)
+  // A scroll to where the glide has not yet left would move nothing; wait until it has moved.
+  const from = await log.evaluate((node) => node.scrollTop)
+  await expect.poll(() => log.evaluate((node) => node.scrollTop)).toBeGreaterThan(from + 2)
   await log.evaluate((node) => (node.scrollTop = 0))
   await page.waitForTimeout(1200)
   expect(await log.evaluate((node) => node.scrollTop)).toBeLessThan(2)
