@@ -38,6 +38,8 @@ export function glide(list: HTMLElement, top: number | 'end') {
   }
   const spring = new Spring(list.scrollTop)
   spring.aim(top === 'end' ? end(list) : top, springs.bubble)
+  // The glide owns the place it starts from, so any scroll before its first frame is someone else's.
+  placed.set(list, list.scrollTop)
   const yieldToPerson = () => glide.stop()
   const events = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const
   const glide: Glide = {
@@ -55,8 +57,7 @@ export function glide(list: HTMLElement, top: number | 'end') {
   let time = performance.now()
   const step = (now: number) => {
     // Someone else scrolled since the last frame: they have the list now.
-    if (placed.get(list) !== undefined && Math.abs(list.scrollTop - placed.get(list)!) > 1)
-      return glide.stop()
+    if (Math.abs(list.scrollTop - placed.get(list)!) > 1) return glide.stop()
     if (glide.target === 'end') spring.aim(end(list), springs.bubble)
     spring.step((now - time) / 1000)
     time = now
