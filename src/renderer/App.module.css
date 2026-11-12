@@ -315,7 +315,8 @@
   flex-direction: column;
 }
 .composer {
-  --composer-tint: 28%;
+  /* Light enough for the backdrop and the colour fringe to read through, as clear glass. */
+  --composer-tint: 16%;
   --composer-rim: rgb(255 255 255 / 0.56);
   position: absolute;
   z-index: 6;
@@ -334,10 +335,10 @@
     inset 0 1px 0 var(--composer-rim);
   padding: 8px;
   background: color-mix(in srgb, var(--bg-elevated) var(--composer-tint), transparent);
-  backdrop-filter: var(--refract,) blur(2px) saturate(116%) var(--glass-calm);
+  backdrop-filter: var(--refract,) blur(1px) saturate(116%) var(--glass-calm);
 }
 :global([data-theme='dark']) .composer {
-  --composer-tint: 36%;
+  --composer-tint: 24%;
   --composer-rim: rgb(221 236 255 / 0.28);
 }
 :global([data-opaque='true']) .composer {

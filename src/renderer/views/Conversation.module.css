@@ -412,9 +412,15 @@
   margin: 0 auto;
   width: min(712px, calc(100% - 40px));
   border-radius: 20px;
-  background: var(--mat-pane);
-  backdrop-filter: var(--refract,) blur(2px) saturate(116%) var(--glass-calm);
+  background: color-mix(in srgb, var(--bg-elevated) var(--readonly-tint, 16%), transparent);
+  backdrop-filter: var(--refract,) blur(1px) saturate(116%) var(--glass-calm);
   box-shadow: var(--shadow-glass);
+}
+:global([data-theme='dark']) .readonly {
+  --readonly-tint: 24%;
+}
+:global([data-opaque='true']) .readonly {
+  background: var(--bg-elevated);
 }
 :global([data-opaque='true']) .chat {
   background: var(--bg-content);

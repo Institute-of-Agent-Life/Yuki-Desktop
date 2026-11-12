@@ -126,3 +126,60 @@ test('floating panes bend before they blur, disperse visibly and need no drawn o
   await page.evaluate(() => (document.documentElement.dataset.contrast = 'true'))
   expect(await outline()).not.toMatch(/^rgba\(0, 0, 0, 0\) 0px 0px 0px 0\.5px/)
 })
+
+// What shows through a pane, read from the screen: the grid's contrast in its clear middle and
+// how far red and blue part in its top bezel.
+async function through(page: Page, selector: string) {
+  const box = (await page.locator(selector).boundingBox())!
+  const shot = await page.screenshot({ clip: box })
+  return page.evaluate(async (data) => {
+    const image = new Image()
+    image.src = `data:image/png;base64,${data}`
+    await image.decode()
+    const canvas = new OffscreenCanvas(image.width, image.height),
+      context = canvas.getContext('2d')!
+    context.drawImage(image, 0, 0)
+    const pixel = (x: number, y: number) => context.getImageData(x, y, 1, 1).data
+    const middle = Math.round(image.height / 2),
+      light: number[] = []
+    for (let x = Math.round(image.width * 0.38); x < image.width * 0.62; x++) {
+      const [r, g, b] = pixel(x, middle)
+      light.push(0.2126 * r! + 0.7152 * g! + 0.0722 * b!)
+    }
+    let fringe = 0
+    for (let x = Math.round(image.width * 0.3); x < image.width * 0.9; x += 2)
+      for (let y = 2; y < 20; y++) {
+        const [r, , b] = pixel(x, y)
+        fringe = Math.max(fringe, Math.abs(r! - b!))
+      }
+    return { contrast: Math.max(...light) - Math.min(...light), fringe }
+  }, shot.toString('base64'))
+}
+
+test('a floating pane lets the backdrop through and parts its colours at the edge', async ({
+  page,
+}) => {
+  for (const [theme, least] of [
+    ['light', 6],
+    ['dark', 4],
+  ] as const) {
+    await page.emulateMedia({ colorScheme: theme })
+    await openConversation(page)
+    await page.evaluate((theme) => {
+      document.documentElement.dataset.theme = theme
+      document.documentElement.dataset.backdrop = 'grid'
+    }, theme)
+    await page.mouse.move(10, 700)
+    await expect(page.locator('[data-region="composer"]')).toHaveAttribute(
+      'data-refracting',
+      'true',
+    )
+    await page.waitForTimeout(500)
+    const seen = await through(page, '[data-region="composer"]')
+    evidence[`composer-${theme}`] = seen
+    // 8: the grid behind still shows through the clear middle.
+    expect(seen.contrast).toBeGreaterThanOrEqual(least)
+    // 9: the bezel parts red from blue enough to be seen.
+    expect(seen.fringe).toBeGreaterThanOrEqual(22)
+  }
+})
