@@ -93,7 +93,8 @@ for (const position of ['tail', 'reader', 'quoted-history'] as const) {
     } else await expect(page.locator('article[data-event-id="1025"]')).toHaveCount(1)
     await renderedFrames(page)
     if (position === 'tail') {
-      expect((await conversationPosition(log)).gap).toBe(0)
+      // The message carrying the image arrives on the bubbles' spring and settles at the end.
+      await expect.poll(async () => (await conversationPosition(log)).gap).toBe(0)
       await expect(page.getByRole('button', { name: '↓ 新訊息', exact: true })).toHaveCount(0)
     } else expect((await conversationPosition(log)).top).toBe(before.top)
   })

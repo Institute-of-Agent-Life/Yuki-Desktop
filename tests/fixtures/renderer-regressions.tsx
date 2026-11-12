@@ -736,6 +736,9 @@ Object.assign(window, {
     receiveGlassReply: (text: string) => {
       glassExecuting = false
       appendGlassMessage(text, true)
+      // The finished turn is the original request's result.
+      if (glassOutbox) glassOutbox = { ...glassOutbox, state: 'result' }
+      for (const listener of hintListeners) listener('role', 'outbox', {})
     },
   },
 })

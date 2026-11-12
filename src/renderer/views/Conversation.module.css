@@ -211,6 +211,15 @@
   color: var(--accent);
   text-decoration: underline;
 }
+.pendingLabel {
+  animation: label-arrive 220ms var(--ease-standard);
+}
+@keyframes label-arrive {
+  from {
+    opacity: 0;
+    translate: 0 3px;
+  }
+}
 .pending {
   min-height: 28px;
   display: flex;

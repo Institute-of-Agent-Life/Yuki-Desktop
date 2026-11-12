@@ -90,12 +90,11 @@ export function animateBubble(row: Element, outgoing: boolean, origin?: DOMRect)
   const room = log
     ? log.getBoundingClientRect().top - log.scrollTop + log.scrollHeight - box.bottom
     : 0
-  const rise = Math.max(
-    0,
-    Math.min(
-      room,
-      origin ? origin.top + origin.height / 2 - (box.top + height - startHeight / 2) : 10,
-    ),
+  // While the list is still gliding to its end the bubble may sit below the composer, so the
+  // rise can be upward or downward.
+  const rise = Math.min(
+    room,
+    origin ? origin.top + origin.height / 2 - (box.top + height - startHeight / 2) : 10,
   )
 
   // The text scales from the drop's growing corner to whatever the glass can hold.
