@@ -5,6 +5,7 @@ import type { Connection, Profile } from '../../src/shared/api'
 import { RoleSwitcher } from '../../src/renderer/components/RoleSwitcher'
 import { PresenceCard } from '../../src/renderer/components/PresenceCard'
 import '../../src/renderer/tokens.css'
+import '../../src/renderer/materials/materials.css'
 
 // Isolated component data only; this fixture never changes a real connection.
 const connections: Connection[] = [

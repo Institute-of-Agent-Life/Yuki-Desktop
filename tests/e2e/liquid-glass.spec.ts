@@ -24,7 +24,8 @@ function rimLight(pane: Locator) {
     canvas.height = image.height
     const context = canvas.getContext('2d')!
     context.drawImage(image, 0, 0)
-    const scale = image.width / element.getBoundingClientRect().width
+    // Layout size, so a pane still growing in is measured at its own scale.
+    const scale = image.width / (element as HTMLElement).offsetWidth
     // Conversation glass bleeds past its bubble; other panes fill their own box.
     const bleed = ['bubble', 'work-card'].includes(element.dataset.glass ?? '')
     const inline = bleed ? parseFloat(style.paddingInlineStart) * scale : 0

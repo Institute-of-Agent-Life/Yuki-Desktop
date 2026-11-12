@@ -19,7 +19,7 @@ test('press feedback never delays the action and clears after rapid clicks, leav
   await expect(button).toHaveAttribute('data-held', 'true')
   await expect
     .poll(() => button.evaluate((node) => Number.parseFloat(getComputedStyle(node).scale) || 1))
-    .toBeCloseTo(0.985, 2)
+    .toBeCloseTo(1.03, 2)
   await expect
     .poll(() => button.evaluate((node) => Number(node.style.getPropertyValue('--hp'))))
     .toBeGreaterThan(0.5)

@@ -125,11 +125,21 @@ export function swallowDragClick() {
 export function usePress<T extends HTMLElement>(role: 'command' | 'compact' = 'command') {
   const ref = useRef<T>(null),
     held = useRef(false)
-  const { values, wake } = useSprings({ scale: 1, light: 0 }, (s, reduced) => {
+  const { values, wake } = useSprings({ scale: 1, light: 0, x: 0, y: 0 }, (s, reduced) => {
     const node = ref.current
     if (!node) return
     const rest = Object.values(s).every((value) => value.settled) && !held.current
-    node.style.scale = rest || reduced ? '' : String(s.scale.value)
+    // A held button bulges and is drawn toward the pointer, stretching along the pull.
+    const x = s.x.value,
+      y = s.y.value,
+      along = Math.abs(x) / (Math.abs(x) + Math.abs(y) || 1),
+      stretch = Math.min(0.04, Math.hypot(x, y) * 0.012),
+      scale = s.scale.value
+    node.style.scale =
+      rest || reduced
+        ? ''
+        : `${scale * (1 + stretch * along - stretch * 0.5 * (1 - along))} ${scale * (1 + stretch * (1 - along) - stretch * 0.5 * along)}`
+    node.style.translate = rest || reduced ? '' : `${x}px ${y}px`
     node.style.setProperty('--hp', rest ? '0' : String(Math.max(0, s.light.value)))
   })
   useLayoutEffect(() => {
@@ -145,6 +155,8 @@ export function usePress<T extends HTMLElement>(role: 'command' | 'compact' = 'c
       held.current = false
       node.removeAttribute('data-held')
       values.scale.aim(1, springs.pressUp)
+      values.x.aim(0, springs.pressUp)
+      values.y.aim(0, springs.pressUp)
       values.light.aim(0, springs.highlight)
       wake()
     }
@@ -165,7 +177,7 @@ export function usePress<T extends HTMLElement>(role: 'command' | 'compact' = 'c
       node.dataset.held = 'true'
       node.style.setProperty('--hx', `${x}%`)
       node.style.setProperty('--hy', `${y}%`)
-      const target = role === 'compact' ? (touch ? 0.94 : 0.965) : touch ? 0.97 : 0.985
+      const target = role === 'compact' ? (touch ? 1.1 : 1.08) : touch ? 1.05 : 1.03
       values.scale.aim(reducedMotion() ? 1 : target, springs.pressDown)
       values.light.aim(1, springs.highlight)
       wake()
@@ -192,7 +204,17 @@ export function usePress<T extends HTMLElement>(role: 'command' | 'compact' = 'c
             pointer.clientY < rect.top ||
             pointer.clientY > rect.bottom
           )
-            finish(pointer)
+            return finish(pointer)
+          if (reducedMotion()) return
+          values.x.aim(
+            (3 * (pointer.clientX - rect.left - rect.width / 2)) / (rect.width / 2),
+            springs.thumb,
+          )
+          values.y.aim(
+            (2 * (pointer.clientY - rect.top - rect.height / 2)) / (rect.height / 2),
+            springs.thumb,
+          )
+          wake()
         },
         options,
       )

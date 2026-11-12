@@ -1,5 +1,6 @@
 import { usePress } from '../motion/hooks'
 import { useGlass } from '../materials/glass'
+import { emerge, withdraw } from '../motion/emerge'
 import { useSessionActive } from '../state/workspace'
 import {
   useEffect,
@@ -193,8 +194,11 @@ export function Sheet({
     if (open && active) {
       if (!requested.current) previous.current = document.activeElement
       requested.current = true
+      const opening = ref.current?.open === false
       ref.current?.showModal()
+      if (opening) emerge(ref.current!)
     } else {
+      if (!open && active && ref.current?.open) withdraw(ref.current)
       ref.current?.close()
       if (!open) {
         if (requested.current && active && previous.current instanceof HTMLElement)
