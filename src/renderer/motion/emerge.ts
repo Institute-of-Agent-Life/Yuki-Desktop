@@ -109,17 +109,21 @@ export function emerge(pane: HTMLElement) {
 
 /**
  * Shrinks a closing pane back into the button it came from. The pane itself closes at once,
- * so focus and the next action never wait; an empty, inert copy of its glass does the shrinking.
+ * so focus and the next action never wait; an empty, inert piece of the same glass shrinks.
  */
 export function withdraw(pane: HTMLElement) {
   if (reducedMotion() || !pane.isConnected) return
   const start = shapeOf(pane)
   if (!start.width || !start.height) return
   const origin = origins.get(pane)
-  const glass = pane.cloneNode(false) as HTMLElement
+  // Only the look is copied: no role, name or content that could be found or read twice.
+  const glass = document.createElement('div')
+  glass.className = pane.className
+  glass.style.cssText = pane.style.cssText
+  for (const name of ['glass', 'refracting'])
+    if (pane.dataset[name] !== undefined) glass.dataset[name] = pane.dataset[name]
   glass.inert = true
   glass.setAttribute('aria-hidden', 'true')
-  glass.removeAttribute('id')
   glass.dataset.withdrawing = ''
   Object.assign(glass.style, {
     position: 'fixed',
