@@ -227,7 +227,8 @@ test('clear lenses bend the backdrop and a sent message rises from the composer 
     await expect(glass).toHaveAttribute('data-refracting', 'true', { timeout: 2500 })
     await expect(glass).toHaveCSS('backdrop-filter', /url\(/)
   }
-  // 16: the rim catches light from the upper left; the far edge keeps only a faint bounce.
+  // 16, as revised by the 苹果式打光 task book: the rim catches light from the upper left and the
+  // far edge glows softer, as in thick glass; the sides between stay dim.
   const rim = await page
     .locator('article[data-event-id="34"] [data-glass="bubble"]')
     .evaluate(async (surface) => {
@@ -259,7 +260,8 @@ test('clear lenses bend the backdrop and a sent message rises from the composer 
         right: alpha(image.width - inline - 2, bottom / 2),
       }
     })
-  expect(rim.bottom).toBeLessThan(rim.top * 0.5)
+  expect(rim.bottom).toBeLessThan(rim.top)
+  expect(rim.bottom).toBeGreaterThanOrEqual(rim.top * 0.35)
   expect(rim.right).toBeLessThan(rim.left * 0.6)
   // 17: resting bubbles are lifted off the backdrop by a shadow.
   await expect(

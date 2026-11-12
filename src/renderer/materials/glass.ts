@@ -84,11 +84,9 @@ function lens(
     context.putImageData(image, 0, 0)
     return canvas.toDataURL()
   }
-  // Large panes only need their bezel resolved; a coarser bend keeps opening a sheet smooth.
-  const bendResolution =
-    kind === 'bubble'
-      ? Math.min(1, 360 / Math.max(width, height))
-      : Math.min(2, 720 / Math.max(width, height))
+  // Up to the display's own pixels, so narrow glass bends crisply on Retina screens; large panes
+  // keep a coarser bend (their bezel alone is resolved), which keeps opening a sheet smooth.
+  const bendResolution = Math.min(scale, (kind === 'bubble' ? 360 : 720) / Math.max(width, height))
   const displacement = paint(
     bendResolution,
     edgeHeight,
@@ -116,15 +114,15 @@ function lens(
   const rim = paint(scale, 10, 1 / scale, 0, (data, k, x, y, distance) => {
     const inset = -distance,
       [nx, ny] = normal(x, y)
-    // Light from the upper left catches that edge; the far edge shows only its weaker bounce,
-    // and the sides between stay clear.
+    // As in thick glass: light from the upper left catches that edge, and the far edge glows
+    // with what passes through and reflects back, about half as bright; the sides between, which
+    // neither face nor back the light, stay dim.
     const toward = nx * -0.42 + ny * -0.91,
-      facing = Math.max(0, toward) + 0.22 * Math.max(0, -toward)
-    // A thin specular line on the outer edge, then light carried inward through the bezel, so
-    // the pane reads as thick glass rather than an outline. The outermost pixel is covered only
-    // partly, which smooths the curve instead of stepping it.
-    const bright = Math.max(0, Math.min(1, 1 - inset / 1.5)),
-      glow = Math.max(0, Math.min(1, 1 - inset / 10)) ** 2 * 0.34,
+      facing = Math.max(0, toward) ** 1.5 + 0.55 * Math.max(0, -toward) ** 1.5
+    // A specular line about a display point thick on the outer edge, then a short glow carried
+    // inward. The outermost pixel is covered only partly, which smooths the curve.
+    const bright = Math.max(0, Math.min(1, 1 - inset / 1.25)) ** 0.6,
+      glow = Math.max(0, Math.min(1, 1 - inset / 6)) ** 2 * 0.22,
       coverage = Math.max(0, Math.min(1, 0.5 - distance * scale))
     data[k] = data[k + 1] = data[k + 2] = 255
     data[k + 3] = Math.round(Math.min(1, (bright + glow) * facing) * coverage * 255)
@@ -253,8 +251,32 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
         values: '0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0',
         result: 'blue',
       })
-      element('feBlend', { in: 'red', in2: 'green', mode: 'screen', result: 'red-green' })
-      element('feBlend', { in: 'red-green', in2: 'blue', mode: 'screen' })
+      // A third of each, added: over a half-clear backdrop the alpha stays the backdrop's own (a
+      // screen blend would unite the three alphas and darken the colour), then the colour, read
+      // unpremultiplied, is tripled back.
+      element('feComposite', {
+        in: 'red',
+        in2: 'green',
+        operator: 'arithmetic',
+        k2: String(1 / 3),
+        k3: String(1 / 3),
+        result: 'red-green',
+      })
+      element('feComposite', {
+        in: 'red-green',
+        in2: 'blue',
+        operator: 'arithmetic',
+        k2: '1',
+        k3: String(1 / 3),
+        result: 'thirds',
+      })
+      const restore = element('feComponentTransfer', { in: 'thirds' })
+      for (const channel of ['feFuncR', 'feFuncG', 'feFuncB']) {
+        const tripled = document.createElementNS(NS, channel)
+        tripled.setAttribute('type', 'linear')
+        tripled.setAttribute('slope', '3')
+        restore.append(tripled)
+      }
     }
     defs.append(filter)
     svg.append(defs)

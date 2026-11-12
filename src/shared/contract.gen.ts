@@ -1061,6 +1061,11 @@ export interface components {
             segment_index: number;
             /** Size */
             size?: number | null;
+            /**
+             * Sticker
+             * @default false
+             */
+            sticker: boolean;
             /** Version */
             version?: string | null;
         } & {

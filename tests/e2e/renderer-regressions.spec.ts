@@ -317,7 +317,7 @@ test('manual reconnect is available with cached messages and preserves the draft
   await expect(page.locator('article[data-event-id="32"]')).toHaveCount(1)
 })
 
-test('the conversation scroll area starts below the toolbar at wide and narrow content widths', async ({
+test('the conversation starts below the toolbar at wide and narrow content widths', async ({
   page,
 }) => {
   for (const width of [1440, 960, 480]) {
@@ -332,8 +332,11 @@ test('the conversation scroll area starts below the toolbar at wide and narrow c
     )
     await expect(page.getByRole('button', { name: '重新連線', exact: true })).toHaveCount(0)
     const toolbar = await page.locator('[data-region="toolbar"]:visible').boundingBox()
-    const scroll = await log.boundingBox()
-    expect(scroll!.y).toBeGreaterThanOrEqual(toolbar!.y + toolbar!.height - 1)
+    // The list runs up under the toolbar so scrolled content frosts into its edge (苹果式打光
+    // task book), but at its top nothing it shows lies under the toolbar.
+    await log.evaluate((node) => (node.scrollTop = 0))
+    const first = await log.evaluate((node) => node.firstElementChild!.getBoundingClientRect().y)
+    expect(first).toBeGreaterThanOrEqual(toolbar!.y + toolbar!.height - 1)
     expect(await log.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1)
     await page.screenshot({ path: test.info().outputPath(`scroll-area-${width}.png`) })
   }

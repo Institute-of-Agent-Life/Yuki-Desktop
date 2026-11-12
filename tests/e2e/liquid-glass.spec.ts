@@ -56,13 +56,15 @@ async function expectLiquidGlass(name: string, pane: Locator) {
   await expect(pane).toHaveAttribute('data-refracting', 'true', { timeout: 5000 })
   const filter = await pane.evaluate((element) => getComputedStyle(element).backdropFilter)
   expect(filter).toMatch(/url\(/)
-  // 3–4: lit from the upper left, with light carried into the bezel.
+  // 3–4, as revised by the 苹果式打光 task book: lit from the upper left with a softer glow on the
+  // far edge, in a thin line rather than a band.
   const rim = await rimLight(pane)
   evidence[name] = { filter, rim }
   // An evenly lit outline measures about 1 on both ratios.
-  expect(rim.bottom).toBeLessThan(rim.top * 0.6)
+  expect(rim.bottom).toBeLessThan(rim.top)
+  expect(rim.bottom).toBeGreaterThanOrEqual(rim.top * 0.35)
   expect(rim.right).toBeLessThan(rim.left * 0.75)
-  expect(rim.inside).toBeGreaterThan(0.05)
+  expect(rim.inside).toBeLessThan(rim.top * 0.4)
 }
 
 // 2: transparency off turns every pane into solid material.

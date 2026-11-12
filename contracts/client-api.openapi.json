@@ -500,6 +500,11 @@
             ],
             "title": "Size"
           },
+          "sticker": {
+            "default": false,
+            "title": "Sticker",
+            "type": "boolean"
+          },
           "version": {
             "anyOf": [
               {

@@ -60,7 +60,8 @@ test('resting bubbles are shaped by their radius, with a light map at display re
   const rest = await lightMap(page, 'article[data-event-id="34"] [data-glass="bubble"]')
   evidence.restingLightMap = rest
   expect(rest.image).toEqual(rest.expected)
-  // 10: light lands only on the edge facing it; the sides stay clear and nothing draws an outline.
+  // 10, and 1–2 of the 苹果式打光 task book: a thin light on the edge facing it and a softer one
+  // on the far edge, as in thick glass; the sides between stay dim and nothing draws an outline.
   const light = await resting.evaluate(async (surface) => {
     const image = new Image()
     image.src = getComputedStyle(surface)
@@ -73,15 +74,20 @@ test('resting bubbles are shaped by their radius, with a light map at display re
     const alpha = (x: number, y: number) => context.getImageData(x, y, 1, 1).data[3]!
     return {
       top: alpha(Math.round(image.width / 2), 1),
+      inward: alpha(Math.round(image.width / 2), 4),
       side: alpha(image.width - 2, Math.round(image.height / 2)),
+      left: alpha(1, Math.round(image.height / 2)),
       bottom: alpha(Math.round(image.width / 2), image.height - 2),
       outline: getComputedStyle(surface, '::before').backgroundImage,
     }
   })
   evidence.restingLight = light
   expect(light.top).toBeGreaterThan(128)
-  expect(light.side).toBeLessThan(light.top / 3)
-  expect(light.bottom).toBeLessThan(light.top / 3)
+  expect(light.bottom).toBeGreaterThanOrEqual(light.top * 0.35)
+  expect(light.side).toBeLessThan(light.bottom)
+  expect(light.left).toBeLessThan(light.bottom)
+  // A line about a display pixel thick: three pixels in, its light is mostly gone.
+  expect(light.inward).toBeLessThan(light.top * 0.4)
   expect(light.outline).toBe('none')
 
   // An entering reply reaches past its bubble only while it enters, then its map follows it back.
@@ -183,3 +189,99 @@ test('a floating pane lets the backdrop through and parts its colours at the edg
     expect(seen.fringe).toBeGreaterThanOrEqual(22)
   }
 })
+
+test('narrow glass bends at the display resolution', async ({ page }) => {
+  await openConversation(page)
+  await page.evaluate(() => (window as unknown as GlassWindow).regression.receiveGlassReply('好'))
+  const short = page.locator('article[data-event-id="35"] [data-glass="bubble"]')
+  await expect(short).toHaveAttribute('data-refracting', 'true')
+  await expect(short).not.toHaveAttribute('data-liquid', '')
+  await page.waitForTimeout(300)
+  // 5 (透明磨砂 task book): a bubble this short is mapped at the display's own pixels.
+  const map = await short.evaluate(async (surface: HTMLElement) => {
+    const id = getComputedStyle(surface).backdropFilter.match(/#([^")]+)/)![1]!
+    const image = new Image()
+    image.src = document.getElementById(id)!.querySelector('feImage')!.getAttribute('href')!
+    await image.decode()
+    return { width: image.width, expected: Math.round(surface.offsetWidth * devicePixelRatio) }
+  })
+  evidence.narrowBend = map
+  expect(map.width).toBeGreaterThanOrEqual(map.expected - 1)
+})
+
+test('dark glass does not darken what lies behind it', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await openConversation(page)
+  const read = async (x: number, y: number) => {
+    const shot = await page.screenshot({ clip: { x, y, width: 1, height: 1 } })
+    return page.evaluate(async (data) => {
+      const image = new Image()
+      image.src = `data:image/png;base64,${data}`
+      await image.decode()
+      const context = new OffscreenCanvas(1, 1).getContext('2d')!
+      context.drawImage(image, 0, 0)
+      const [r, g, b] = context.getImageData(0, 0, 1, 1).data
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+    }, shot.toString('base64'))
+  }
+  const composer = page.locator('[data-region="composer"]')
+  for (const backdrop of ['plain', 'lens', 'aurora']) {
+    await page.evaluate((backdrop) => {
+      document.documentElement.dataset.theme = 'dark'
+      document.documentElement.dataset.backdrop = backdrop
+    }, backdrop)
+    await page.mouse.move(10, 700)
+    await expect(composer).toHaveAttribute('data-refracting', 'true')
+    await page.waitForTimeout(400)
+    const box = (await composer.boundingBox())!
+    // A clear spot inside the composer, and the backdrop just outside its right end.
+    const inside = await read(box.x + box.width - 40, box.y + box.height * 0.5),
+      outside = await read(box.x + box.width + 6, box.y + box.height * 0.5)
+    evidence[`darkGlass-${backdrop}`] = { inside, outside }
+    // 7 (透明磨砂 task book)
+    expect(inside, backdrop).toBeGreaterThanOrEqual(outside - 1)
+  }
+})
+
+for (const scale of [1, 2])
+  test.describe(`at ${scale}x`, () => {
+    test.use({ deviceScaleFactor: scale })
+    test('dispersing glass over a translucent panel is as light as the panel', async ({ page }) => {
+      await page.setViewportSize({ width: 1100, height: 640 })
+      await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=conversation-glass')
+      await expect(page.getByText('幫我整理一下這週的訪談筆記。', { exact: true })).toBeVisible()
+      // A wallpaper beneath the page itself, where the system's frost lies under the desktop backdrop.
+      await page.addStyleTag({
+        content:
+          'html { background: radial-gradient(60% 70% at 20% 30%, #f59e8b, transparent), radial-gradient(60% 70% at 85% 70%, #6aa6ff, transparent), #9a7fd6 !important } body { background: transparent !important }',
+      })
+      await page.evaluate(() => {
+        const root = document.documentElement
+        root.dataset.theme = 'light'
+        root.dataset.backdrop = 'desktop'
+        root.dataset.material = 'vibrancy'
+      })
+      await page.mouse.move(5, 5)
+      const composer = page.locator('[data-region="composer"]')
+      await expect(composer).toHaveAttribute('data-refracting', 'true')
+      await page.waitForTimeout(500)
+      const box = (await composer.boundingBox())!
+      const light = async (x: number, y: number) => {
+        const shot = await page.screenshot({ clip: { x, y, width: 1, height: 1 } })
+        return page.evaluate(async (data) => {
+          const image = new Image()
+          image.src = `data:image/png;base64,${data}`
+          await image.decode()
+          const context = new OffscreenCanvas(1, 1).getContext('2d')!
+          context.drawImage(image, 0, 0)
+          const [r, g, b] = context.getImageData(0, 0, 1, 1).data
+          return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+        }, shot.toString('base64'))
+      }
+      const inside = await light(box.x + box.width * 0.5, box.y + box.height * 0.5),
+        beside = await light(box.x + box.width * 0.5, box.y - 12)
+      evidence.translucentPanel = { inside, beside }
+      // 8 (透明磨砂 task book): no darker than the panel it lies on.
+      expect(inside).toBeGreaterThanOrEqual(beside - 6)
+    })
+  })

@@ -360,6 +360,18 @@ export function Workspace(props: Props) {
         inert={detailPage}
         style={{ gridColumn: focusMode ? 1 : 3, gridRow: 1 }}
       >
+        {/* Content scrolled under the top frosts into the edge: a strong blur near it, then a
+            light one with a wash, each its own layer so it sees what lies beneath. */}
+        <div
+          className={`${styles.edgeFrost} ${props.scrolled ? styles.edgeShown : ''}`}
+          data-edge-fade="upper"
+          aria-hidden="true"
+        />
+        <div
+          className={`${styles.edgeWash} ${props.scrolled ? styles.edgeShown : ''}`}
+          data-edge-fade="lower"
+          aria-hidden="true"
+        />
         <header
           data-region="toolbar"
           className={`${styles.toolbar} ${props.toolbar ? styles.customToolbar : ''} ${props.scrolled ? styles.toolbarScrolled : ''}`}

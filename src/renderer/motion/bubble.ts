@@ -68,7 +68,24 @@ function liquidPath(
 const clamp = (value: number) => Math.min(1, Math.max(0, value))
 
 // Own messages rise from the composer text at `origin`; Yuki's replies grow in place.
+// A sticker has no glass to grow: it swells in from its corner on the same spring.
+function animateSticker(sticker: HTMLElement, outgoing: boolean) {
+  const samples = sampleSpring(springs.bubble),
+    last = samples.length - 1
+  sticker.animate(
+    samples.map(({ value }, index) => ({
+      offset: index / last,
+      transformOrigin: outgoing ? '100% 100%' : '0 100%',
+      transform: `scale(${0.4 + 0.6 * value})`,
+      opacity: Math.min(1, 0.2 + 1.6 * value),
+    })),
+    { duration: (last * 1000) / 60, easing: 'linear' },
+  )
+}
+
 export function animateBubble(row: Element, outgoing: boolean, origin?: DOMRect) {
+  const sticker = row.querySelector<HTMLElement>('[data-sticker]')
+  if (sticker) return animateSticker(sticker, outgoing)
   const surface = row.querySelector<HTMLElement>('[data-glass="bubble"]')
   const copy = row.querySelector<HTMLElement>('[data-bubble-copy]')
   const bubble = surface?.parentElement

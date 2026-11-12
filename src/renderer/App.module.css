@@ -200,6 +200,10 @@
   background: var(--bg-content);
   box-shadow: var(--shadow-panel);
 }
+/* With the desktop backdrop the panel lets the system frost through, in its own light or dark. */
+:global([data-backdrop='desktop']:is([data-material='vibrancy'], [data-material='mica'])) .main {
+  background: color-mix(in srgb, var(--bg-content) 45%, transparent);
+}
 :global([data-material='vibrancy']) .sidebar:not(.sidebarOverlay),
 :global([data-material='mica']) .sidebar:not(.sidebarOverlay) {
   background: var(--mat-sidebar);
@@ -213,33 +217,50 @@
   inset: 0 0 auto;
   background: transparent;
 }
-.floating .toolbar::before {
-  content: '';
+/*
+ * Content scrolled under the top frosts and fades into the edge rather than being covered: a
+ * strong blur near the edge, then a light blur with a soft wash of the page colour. They are
+ * layers of their own beneath the toolbar, so each sees the content it lies on; only this strip
+ * is filtered.
+ */
+.edgeFrost,
+.edgeWash {
+  display: none;
+}
+.floating .edgeFrost,
+.floating .edgeWash {
+  display: block;
   position: absolute;
-  inset: 0 0 -18px;
-  z-index: -1;
+  inset: 0 0 auto;
+  height: 70px;
+  z-index: 1;
   pointer-events: none;
   opacity: 0;
   transition: opacity var(--motion-base) var(--ease-standard);
+}
+.floating .edgeFrost {
+  backdrop-filter: blur(12px);
+  mask-image: linear-gradient(#000 40%, transparent 85%);
+}
+.floating .edgeWash {
   background: linear-gradient(
-    var(--bg-content),
-    color-mix(in srgb, var(--bg-content) 94%, transparent) 68%,
+    color-mix(in srgb, var(--bg-content) 72%, transparent),
+    color-mix(in srgb, var(--bg-content) 40%, transparent) 55%,
     transparent
   );
-  backdrop-filter: blur(6px);
-  mask-image: linear-gradient(#000 68%, transparent);
+  backdrop-filter: blur(3px);
+  mask-image: linear-gradient(#000 60%, transparent);
+}
+.floating .edgeShown {
+  opacity: 1;
 }
 .floating .toolbarScrolled {
   box-shadow: none;
 }
-.floating .toolbarScrolled::before {
-  opacity: 1;
+:global([data-opaque='true']) .floating :is(.edgeFrost, .edgeWash) {
+  display: none;
 }
-:global([data-opaque='true']) .floating .toolbar::before {
-  backdrop-filter: none;
-  mask-image: none;
-  inset: 0;
-  background: var(--bg-content);
+:global([data-opaque='true']) .floating .toolbarScrolled {
   box-shadow: 0 var(--line) 0 var(--separator);
 }
 .toolbarGroup {

@@ -560,6 +560,7 @@ export function Settings({
 
 const backdropNames: Record<Backdrop, string> = {
   lens: '光線',
+  desktop: '桌面',
   plain: '純色',
   aurora: '極光',
   sunset: '晚霞',

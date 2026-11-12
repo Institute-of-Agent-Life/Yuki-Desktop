@@ -120,7 +120,13 @@ const event: PublicEvent = {
   event_id: 31,
   asr: [],
   attachments: [
-    { attachment_index: 0, segment_index: 4, kind: 'record', filename: 'original.wav' },
+    {
+      attachment_index: 0,
+      segment_index: 4,
+      kind: 'record',
+      filename: 'original.wav',
+      sticker: false,
+    },
   ],
   author_kind: 'person',
   author_person_id: 'person',
@@ -272,7 +278,11 @@ const glassItems = [
 }))
 let glassOutbox: OutboxItem | undefined
 let glassExecuting = false
-function appendGlassMessage(content: string, incoming: boolean) {
+function appendGlassMessage(
+  content: string,
+  incoming: boolean,
+  picture?: { sticker: boolean; filename: string },
+) {
   const eventId = glassItems.at(-1)!.event_id + 1
   glassItems.push({
     ...historicalEvents.items[incoming ? 1 : 0]!,
@@ -280,8 +290,20 @@ function appendGlassMessage(content: string, incoming: boolean) {
     event_id: eventId,
     conversation_id: glassConversation,
     content,
-    text: content,
+    // A sticker carries no text of its own; its content names it.
+    text: picture?.sticker ? '' : content,
     work_ids: [],
+    attachments: picture
+      ? [
+          {
+            attachment_index: 0,
+            segment_index: 0,
+            kind: 'image',
+            mime_type: 'image/svg+xml',
+            ...picture,
+          },
+        ]
+      : [],
   })
   for (const listener of hintListeners)
     listener('role', 'conversation', { ...glassEntry, latest_event_id: eventId })
@@ -313,6 +335,7 @@ function imageEvents(last = imageAppended ? 1025 : 1024, only = false): EventsPa
               segment_index: 0,
               kind: 'image' as const,
               filename: 'controlled.svg',
+              sticker: false,
             },
           ]
         : [],
@@ -676,6 +699,19 @@ Object.assign(window, {
                 }),
             }
           })
+        // The glass conversation's pictures: a tall sticker and a wide ordinary picture.
+        const picture = glassItems.find((item) => item.event_id === value.eventId)?.attachments[0]
+        if (picture)
+          return {
+            ok: true,
+            value: {
+              bytes: null,
+              filename: picture.filename!,
+              mime: 'image/svg+xml',
+              sha256: '0'.repeat(64),
+              preview: { id: `glass-${value.eventId}`, url: `/${picture.filename}` },
+            } satisfies CachedContent,
+          }
         return { ok: false, code: 'media_unavailable' }
       },
       releasePreview: async () => ({ ok: true, value: undefined }),
@@ -733,6 +769,11 @@ Object.assign(window, {
       glassExecuting = true
       appendGlassMessage(glassOutbox!.body.text, false)
     },
+    receiveGlassPicture: (content: string, sticker: boolean) =>
+      appendGlassMessage(content, true, {
+        sticker,
+        filename: sticker ? 'sticker.svg' : 'picture.svg',
+      }),
     receiveGlassReply: (text: string) => {
       glassExecuting = false
       appendGlassMessage(text, true)

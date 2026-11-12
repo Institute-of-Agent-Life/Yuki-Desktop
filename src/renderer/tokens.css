@@ -86,7 +86,8 @@
   --mat-pane: rgba(255, 255, 255, 0.6);
   /* Conversation backdrops behind the glass, chosen in Appearance. */
   --lens-line: color-mix(in srgb, var(--accent) 16%, transparent);
-  --backdrop-lens:
+  /* The lens' light: two fine lines and two arcs, laid on the page colour or on the desktop. */
+  --lens-light:
     linear-gradient(
       132deg,
       transparent 31%,
@@ -104,8 +105,10 @@
       ellipse at -16% 70%,
       color-mix(in srgb, var(--accent) 9%, transparent) 49%,
       transparent 49.25%
-    ),
-    var(--bg-content);
+    );
+  --backdrop-lens: var(--lens-light), var(--bg-content);
+  /* The desktop's own frost shows through; the lens' light stays for the glass to bend. */
+  --backdrop-desktop: var(--lens-light);
   --backdrop-plain: var(--bg-content);
   --backdrop-aurora:
     radial-gradient(60% 55% at 12% 18%, rgb(122 167 255 / 0.55), transparent 70%),

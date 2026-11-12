@@ -49,3 +49,49 @@ test('each conversation backdrop sits behind the glass, and solid material repla
   await page.evaluate(() => (document.documentElement.dataset.opaque = 'true'))
   expect(await backdrop('aurora')).toEqual({ radial: 0, repeating: 0, linear: 0 })
 })
+
+test('the desktop backdrop lets the system frost through, keeps something for the glass to bend, and falls back when it cannot', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 820 })
+  await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=conversation-glass')
+  await expect(page.getByText('幫我整理一下這週的訪談筆記。', { exact: true })).toBeVisible()
+  const look = (material: string, theme: string) =>
+    page.evaluate(
+      ([material, theme]) => {
+        const root = document.documentElement
+        root.dataset.backdrop = 'desktop'
+        root.dataset.material = material
+        root.dataset.theme = theme
+        const chat = document.querySelector('[role="log"]')!.parentElement!
+        const main = chat.closest('section')!
+        const alpha = (colour: string) => {
+          const context = new OffscreenCanvas(1, 1).getContext('2d')!
+          context.fillStyle = colour
+          context.fillRect(0, 0, 1, 1)
+          return context.getImageData(0, 0, 1, 1).data[3]! / 255
+        }
+        const image = getComputedStyle(chat).backgroundImage
+        return {
+          panel: alpha(getComputedStyle(main).backgroundColor),
+          chatBase: alpha(getComputedStyle(chat).backgroundColor),
+          texture: (image.match(/gradient/g) ?? []).length,
+        }
+      },
+      [material, theme],
+    )
+  for (const theme of ['light', 'dark']) {
+    // 1 and 2: the panel is its own colour, half clear; the chat lays no solid sheet over it,
+    // only a faint texture for the glass to bend.
+    const frosted = await look('vibrancy', theme)
+    expect(frosted.panel).toBeGreaterThan(0.2)
+    expect(frosted.panel).toBeLessThan(0.9)
+    expect(frosted.chatBase).toBeLessThan(0.05)
+    expect(frosted.texture).toBeGreaterThan(0)
+  }
+  await page.screenshot({ path: test.info().outputPath('backdrop-desktop.png') })
+  // 3: with no system material behind it, it is a solid backdrop again.
+  const solid = await look('none', 'light')
+  expect(solid.panel).toBe(1)
+  expect(solid.chatBase).toBe(1)
+})

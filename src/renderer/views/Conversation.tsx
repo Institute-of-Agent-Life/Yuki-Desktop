@@ -552,8 +552,9 @@ export function Conversation({
       )
     }
   })
-  // The processing note grows in like a reply and, once Yuki has finished, folds away before it
-  // leaves, so the list never jumps by its height.
+  // The processing note has its own place below the last message, in the room kept above the
+  // composer: it fades in and out there, so it never moves the list or anything in it, and a
+  // send scrolls once.
   const [noteShown, setNoteShown] = useState(processing)
   const note = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -562,34 +563,27 @@ export function Conversation({
   useLayoutEffect(() => {
     const row = note.current
     if (!row) return
-    if (processing) {
-      for (const animation of row.getAnimations()) if (animation.id === 'fold') animation.cancel()
-      const log = list.current
-      if (!row.dataset.grown && log && following(log) && !reducedMotion()) {
-        animateBubble(row, false)
-        glide(log, 'end')
-      }
-      row.dataset.grown = 'true'
-      return
-    }
-    if (reducedMotion()) return setNoteShown(false)
-    const style = getComputedStyle(row),
-      samples = sampleSpring(springs.withdraw),
+    if (reducedMotion()) return processing ? undefined : setNoteShown(false)
+    // A new note fades in from nothing; starting again mid-fade carries on from where it is.
+    const from = row.dataset.shown === undefined ? 0 : parseFloat(getComputedStyle(row).opacity),
+      to = processing ? 1 : 0
+    row.dataset.shown = ''
+    for (const animation of row.getAnimations()) animation.cancel()
+    if (from === to && processing) return
+    const samples = sampleSpring(processing ? springs.emerge : springs.withdraw),
       last = samples.length - 1
-    row.style.overflow = 'hidden'
-    const fold = row.animate(
-      samples.map(({ value }, index) => ({
-        offset: index / last,
-        height: `${row.offsetHeight * (1 - value)}px`,
-        marginBottom: `${parseFloat(style.marginBottom) * (1 - value)}px`,
-        opacity: 1 - value,
-      })),
-      { duration: (last * 1000) / 60, easing: 'linear', id: 'fold' },
+    const fade = row.animate(
+      samples.map(({ value }, index) => {
+        const opacity = Math.min(1, Math.max(0, from + (to - from) * value))
+        return { offset: index / last, opacity, transform: `translateY(${(1 - opacity) * 6}px)` }
+      }),
+      { duration: (last * 1000) / 60, easing: 'linear', fill: 'forwards' },
     )
-    void fold.finished.then(
-      () => setNoteShown(false),
-      () => {},
-    )
+    if (!processing)
+      void fade.finished.then(
+        () => setNoteShown(false),
+        () => {},
+      )
   }, [processing, noteShown])
   useEffect(() => {
     const range = `${conversation}/${anchor}`
@@ -607,7 +601,7 @@ export function Conversation({
     } else if (previous.range === range && previous.event > 0 && last > previous.event) {
       setNewMessages(true)
     }
-  }, [events.data, outbox.data, conversation, anchor, processing])
+  }, [events.data, outbox.data, conversation, anchor])
   useEffect(() => {
     if (!jump || jump.conversationId !== conversation || !events.data) return
     const original = events.data.items.find((item) => item.event_id === jump.eventId)
@@ -1372,19 +1366,26 @@ export function Conversation({
                   </Fragment>
                 )
               })}
-              {noteShown && (
-                <div ref={note} className={`${styles.message} ${styles.processing}`} role="status">
-                  <CharacterAvatar size={28} />
-                  <MessageBubble>
-                    <span className={styles.waitDots} aria-hidden="true">
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                    <span>{name} 正在處理</span>
-                  </MessageBubble>
-                </div>
-              )}
+              <div className={styles.noteSlot}>
+                {noteShown && (
+                  <div
+                    ref={note}
+                    data-processing=""
+                    className={`${styles.message} ${styles.processing}`}
+                    role="status"
+                  >
+                    <CharacterAvatar size={22} />
+                    <MessageBubble>
+                      <span className={styles.waitDots} aria-hidden="true">
+                        <i />
+                        <i />
+                        <i />
+                      </span>
+                      <span>{name} 正在處理</span>
+                    </MessageBubble>
+                  </div>
+                )}
+              </div>
             </div>
             {(newMessages || anchor !== null) && (
               <button
@@ -1580,6 +1581,14 @@ function Pending({ item, verify }: { item: Receipt; verify(): Promise<void> }) {
   )
 }
 
+// A message of stickers alone shows them as stickers; its content ("[表情: 开心]") names them.
+const stickerName = (event: PublicEvent | undefined) => {
+  if (!event || event.text.trim() || !event.attachments.length) return undefined
+  if (!event.attachments.every((attachment) => attachment.sticker)) return undefined
+  const tags = event.content.match(/^\[表情(?::\s*(.+))?\]$/)?.[1]
+  return tags ? `表情：${tags}` : '表情'
+}
+
 function MessageBubble({ children }: { children: React.ReactNode }) {
   return (
     <div className={`${styles.bubble} ${glassStyles.root}`}>
@@ -1625,6 +1634,7 @@ export function Message({
   const time = event ? event.created_at : new Date(receipt.createdAt).toISOString()
   const { timeLabel } = useDisplayTime()
   const [error, setError] = useState('')
+  const sticker = stickerName(event)
   const action = (work: Promise<unknown>) =>
     void work.catch((error) => setError(error instanceof Error ? error.message : '操作未完成。'))
   return (
@@ -1663,39 +1673,60 @@ export function Message({
           <Avatar name={author} size={28} />
         ))}
       <div className={styles.messageBody}>
-        <MessageBubble>
-          <header>
-            <strong>{author}</strong>
-            <time dateTime={time}>{timeLabel(time)}</time>
-          </header>
-          <References characterId={characterId} text={content} onJump={onJump} />
-          <Markdown
-            id={characterId}
-            text={parseMessage(content).text}
-            hydrate={!!event}
-            className={styles.markdown}
-            onProblem={setError}
-          />
-          {error && <Banner status="failed">{error}</Banner>}
-          {own && receipt && needsAttention(receipt) && (
-            <Pending item={receipt} verify={() => verify(receipt.requestId)} />
-          )}
-          {event?.attachments.map((attachment) => (
-            <MessageAttachment
-              key={attachment.attachment_index}
+        {sticker && event ? (
+          <div className={styles.sticker} data-sticker="">
+            <header>
+              <strong>{author}</strong>
+              <time dateTime={time}>{timeLabel(time)}</time>
+            </header>
+            {event.attachments.map((attachment) => (
+              <MessageAttachment
+                key={attachment.attachment_index}
+                id={characterId}
+                event={event}
+                attachment={attachment}
+                open={onAttachment}
+                artifact={onArtifact}
+                sticker={sticker}
+              />
+            ))}
+            {error && <Banner status="failed">{error}</Banner>}
+          </div>
+        ) : (
+          <MessageBubble>
+            <header>
+              <strong>{author}</strong>
+              <time dateTime={time}>{timeLabel(time)}</time>
+            </header>
+            <References characterId={characterId} text={content} onJump={onJump} />
+            <Markdown
               id={characterId}
-              event={event}
-              attachment={attachment}
-              open={onAttachment}
-              artifact={onArtifact}
+              text={parseMessage(content).text}
+              hydrate={!!event}
+              className={styles.markdown}
+              onProblem={setError}
             />
-          ))}
-          {event?.asr.map((transcript) => (
-            <p key={transcript.segment_index} data-transcript-segment={transcript.segment_index}>
-              {transcript.text}
-            </p>
-          ))}
-        </MessageBubble>
+            {error && <Banner status="failed">{error}</Banner>}
+            {own && receipt && needsAttention(receipt) && (
+              <Pending item={receipt} verify={() => verify(receipt.requestId)} />
+            )}
+            {event?.attachments.map((attachment) => (
+              <MessageAttachment
+                key={attachment.attachment_index}
+                id={characterId}
+                event={event}
+                attachment={attachment}
+                open={onAttachment}
+                artifact={onArtifact}
+              />
+            ))}
+            {event?.asr.map((transcript) => (
+              <p key={transcript.segment_index} data-transcript-segment={transcript.segment_index}>
+                {transcript.text}
+              </p>
+            ))}
+          </MessageBubble>
+        )}
         {event && (
           <div className={styles.messageActions}>
             <IconButton
