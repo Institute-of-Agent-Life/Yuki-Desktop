@@ -136,16 +136,3 @@
 :global([data-opaque='true']) .palette::backdrop {
   backdrop-filter: none;
 }
-.palette[open] {
-  animation: palette-enter var(--motion-slow) var(--ease-pop);
-}
-@keyframes palette-enter {
-  from {
-    opacity: 0;
-    transform: scale(0.965);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}

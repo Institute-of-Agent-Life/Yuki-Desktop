@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { File, MessageCircle, BriefcaseBusiness, Command } from 'lucide-react'
 import { loadedItems, type LoadedItem } from '../state/loaded'
 import styles from './CommandPalette.module.css'
 import { useGlass } from '../materials/glass'
+import { emerge, withdraw } from '../motion/emerge'
 
 export interface PaletteCommand {
   id: string
@@ -66,13 +67,16 @@ export function CommandPalette({
       }),
     [query, character],
   )
-  useEffect(() => {
+  // A layout effect, so the closing pane is still in the document when it shrinks away.
+  useLayoutEffect(() => {
     live.current = true
     const previous = document.activeElement
     ref.current!.showModal()
+    emerge(ref.current!)
     input.current?.focus()
     return () => {
       live.current = false
+      if (ref.current) withdraw(ref.current)
       ref.current?.close()
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus()
     }

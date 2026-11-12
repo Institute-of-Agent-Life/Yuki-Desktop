@@ -7,6 +7,9 @@ export const springs = {
   settle: { k: 380, damping: 0.74 },
   toggle: { k: 520, damping: 0.7 },
   bubble: { k: 190, damping: 0.72 },
+  emerge: { k: 300, damping: 0.76 },
+  withdraw: { k: 520, damping: 1 },
+  busy: { k: 420, damping: 0.62 },
 } as const
 export type SpringConfig = { k: number; damping: number }
 
@@ -44,3 +47,14 @@ export const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value))
 export const rubber = (distance: number, limit: number, span: number) =>
   limit * Math.tanh(distance / span)
+// The spring's whole path from `from` to `to`, one sample per 60 Hz frame until it rests.
+export function sampleSpring(config: SpringConfig, from = 0, to = 1) {
+  const spring = new Spring(from)
+  spring.aim(to, config)
+  const samples = [{ value: from, velocity: 0 }]
+  while (spring.value !== to || spring.velocity !== 0) {
+    spring.step(1 / 60)
+    samples.push({ value: spring.value, velocity: spring.velocity })
+  }
+  return samples
+}

@@ -19,7 +19,7 @@ test('press feedback never delays the action and clears after rapid clicks, leav
   await expect(button).toHaveAttribute('data-held', 'true')
   await expect
     .poll(() => button.evaluate((node) => Number.parseFloat(getComputedStyle(node).scale) || 1))
-    .toBeCloseTo(0.985, 2)
+    .toBeCloseTo(1.03, 2)
   await expect
     .poll(() => button.evaluate((node) => Number(node.style.getPropertyValue('--hp'))))
     .toBeGreaterThan(0.5)
@@ -196,7 +196,8 @@ test('SVG lens really displaces backdrop pixels while foreground text stays shar
         b = await decode(off)
       let changed = 0,
         foreground = 0,
-        movedForeground = 0
+        movedForeground = 0,
+        fringe = 0
       for (let k = 0; k < a.data.length; k += 4) {
         if (
           Math.abs(a.data[k]! - b.data[k]!) +
@@ -205,16 +206,27 @@ test('SVG lens really displaces backdrop pixels while foreground text stays shar
           30
         )
           changed++
+        // The red text sits in the middle third; dispersion colours only the rounded ends.
+        const x = (k / 4) % a.width
+        if (x < a.width / 3 || x > (2 * a.width) / 3) {
+          const red = a.data[k]!,
+            green = a.data[k + 1]!,
+            blue = a.data[k + 2]!
+          if (Math.max(red, green, blue) - Math.min(red, green, blue) > 120) fringe++
+          continue
+        }
         const redA = a.data[k]! > 180 && a.data[k + 1]! < 80 && a.data[k + 2]! < 80
         const redB = b.data[k]! > 180 && b.data[k + 1]! < 80 && b.data[k + 2]! < 80
         if (redA) foreground++
         if (redA !== redB) movedForeground++
       }
-      return { changed, foreground, movedForeground }
+      return { changed, foreground, movedForeground, fringe }
     },
     { on: on.toString('base64'), off: off.toString('base64') },
   )
   expect(pixels.changed).toBeGreaterThan(100)
   expect(pixels.foreground).toBeGreaterThan(20)
   expect(pixels.movedForeground).toBe(0)
+  // The backdrop is black and white: any strong colour at the ends comes from dispersion.
+  expect(pixels.fringe).toBeGreaterThan(20)
 })

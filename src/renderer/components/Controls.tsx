@@ -1,9 +1,12 @@
-import { usePress } from '../motion/hooks'
+import { reducedMotion, usePress } from '../motion/hooks'
+import { sampleSpring, springs } from '../motion/spring'
 import { useGlass } from '../materials/glass'
+import { emerge, withdraw } from '../motion/emerge'
 import { useSessionActive } from '../state/workspace'
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type ButtonHTMLAttributes,
@@ -37,6 +40,8 @@ export function Button({
 }) {
   const press = usePress<HTMLButtonElement>()
   const [visible, setVisible] = useState(false)
+  const busy = useRef<HTMLSpanElement>(null),
+    shown = useRef(false)
   useEffect(() => {
     if (!loading) {
       setVisible(false)
@@ -45,6 +50,23 @@ export function Button({
     const timer = setTimeout(() => setVisible(true), 300)
     return () => clearTimeout(timer)
   }, [loading])
+  // The spinner's place opens and closes on a springy, slightly overshooting curve, so the
+  // button swells out from both edges like liquid and settles.
+  useLayoutEffect(() => {
+    const slot = busy.current
+    if (!slot || shown.current === visible) return
+    shown.current = visible
+    if (reducedMotion()) return
+    const samples = sampleSpring(springs.busy),
+      last = samples.length - 1
+    slot.animate(
+      samples.map(({ value }, index) => ({
+        offset: index / last,
+        '--busy': String(visible ? value : 1 - value),
+      })),
+      { duration: (last * 1000) / 60, easing: 'linear' },
+    )
+  }, [visible])
   return (
     <button
       {...props}
@@ -54,7 +76,12 @@ export function Button({
       aria-busy={loading}
       className={`${styles.button} ${styles[variant]} ${large ? styles.large : ''} ${className}`}
     >
-      {visible && <Spinner />}
+      <span ref={busy} className={styles.busy} data-shown={visible}>
+        <span
+          className={styles.spinner}
+          {...(visible ? { role: 'status', 'aria-label': '載入中' } : { 'aria-hidden': true })}
+        />
+      </span>
       {children}
     </button>
   )
@@ -193,8 +220,11 @@ export function Sheet({
     if (open && active) {
       if (!requested.current) previous.current = document.activeElement
       requested.current = true
+      const opening = ref.current?.open === false
       ref.current?.showModal()
+      if (opening) emerge(ref.current!)
     } else {
+      if (!open && active && ref.current?.open) withdraw(ref.current)
       ref.current?.close()
       if (!open) {
         if (requested.current && active && previous.current instanceof HTMLElement)

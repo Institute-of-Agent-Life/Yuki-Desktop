@@ -1,4 +1,4 @@
-import { Spring, springs } from './spring'
+import { sampleSpring, springs } from './spring'
 import './bubble.css'
 
 const svgNamespace = 'http://www.w3.org/2000/svg'
@@ -65,19 +65,6 @@ function liquidPath(
   ].join(' ')
 }
 
-// One spring carries the whole entry, sampled per frame so every property keeps
-// its velocity: no keyframe stops the drop halfway.
-function entry() {
-  const spring = new Spring(0)
-  spring.aim(1, springs.bubble)
-  const samples = [{ value: 0, velocity: 0 }]
-  while (spring.value !== 1 || spring.velocity !== 0) {
-    spring.step(1 / 60)
-    samples.push({ value: spring.value, velocity: spring.velocity })
-  }
-  return samples
-}
-
 const clamp = (value: number) => Math.min(1, Math.max(0, value))
 
 // Own messages rise from the composer text at `origin`; Yuki's replies grow in place.
@@ -117,7 +104,9 @@ export function animateBubble(row: Element, outgoing: boolean, origin?: DOMRect)
   const fit = (w: number, h: number) =>
     clamp(Math.min((w - side) / copyBox.width, (h - under) / copyBox.height))
 
-  const samples = entry()
+  // One spring carries the whole entry, sampled per frame so every property keeps
+  // its velocity: no keyframe stops the drop halfway.
+  const samples = sampleSpring(springs.bubble)
   const fastest = Math.max(...samples.map((sample) => sample.velocity))
   const last = samples.length - 1
   const frames = samples.map(({ value, velocity }, index) => {

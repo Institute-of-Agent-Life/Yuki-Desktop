@@ -37,9 +37,9 @@
   width: 100%;
   min-width: min(240px, 100%);
   padding: 6px;
-  border-radius: 10px;
-  border: 1px solid var(--separator);
-  background: var(--bg-elevated);
+  border-radius: 14px;
+  background: var(--mat-pane);
+  backdrop-filter: blur(24px) saturate(160%) var(--glass-calm) var(--refract,);
   box-shadow: var(--shadow-popover);
   max-height: min(400px, calc(100vh - 130px));
   overflow: auto;

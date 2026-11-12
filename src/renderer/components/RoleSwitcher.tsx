@@ -1,4 +1,12 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type HTMLAttributes,
+  type ReactNode,
+} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import type { CharacterStatus, Connection, Profile } from '../../shared/api'
@@ -7,7 +15,20 @@ import { unwrap } from '../queries/client'
 import { useSessionActive } from '../state/workspace'
 import { CharacterAvatar, CharacterVisuals } from './CharacterAvatar'
 import { usePress } from '../motion/hooks'
+import { emerge, withdraw } from '../motion/emerge'
+import { useGlass } from '../materials/glass'
 import styles from './RoleSwitcher.module.css'
+
+// The menu is glass that grows out of the switcher and shrinks back into it.
+function GlassMenu(props: HTMLAttributes<HTMLDivElement>) {
+  const glass = useGlass<HTMLDivElement>('card')
+  useLayoutEffect(() => {
+    const menu = glass.ref.current!
+    emerge(menu)
+    return () => withdraw(menu)
+  }, [glass.ref])
+  return <div ref={glass.ref} data-glass="card" {...props} />
+}
 
 function Role({
   connection,
@@ -122,7 +143,7 @@ export function RoleSwitcher({
         <ChevronsUpDown size={14} strokeWidth={1.5} aria-hidden="true" />
       </button>
       {open && active && (
-        <div
+        <GlassMenu
           role="menu"
           aria-label="Yuki"
           className={styles.menu}
@@ -203,7 +224,7 @@ export function RoleSwitcher({
               關於 {connection.name}
             </button>
           )}
-        </div>
+        </GlassMenu>
       )}
     </div>
   )
