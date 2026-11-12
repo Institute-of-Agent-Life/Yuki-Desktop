@@ -19,15 +19,26 @@ import { emerge, withdraw } from '../motion/emerge'
 import { useGlass } from '../materials/glass'
 import styles from './RoleSwitcher.module.css'
 
-// The menu is glass that grows out of the switcher and shrinks back into it.
+// The menu is glass that grows out of the switcher and shrinks back into it. The motion comes
+// before the glass, so closing copies the glass before the glass is taken down.
 function GlassMenu(props: HTMLAttributes<HTMLDivElement>) {
-  const glass = useGlass<HTMLDivElement>('card')
+  const pane = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
-    const menu = glass.ref.current!
+    const menu = pane.current!
     emerge(menu)
     return () => withdraw(menu)
-  }, [glass.ref])
-  return <div ref={glass.ref} data-glass="card" {...props} />
+  }, [])
+  const glass = useGlass<HTMLDivElement>('card')
+  return (
+    <div
+      ref={(node) => {
+        pane.current = node
+        glass.ref.current = node
+      }}
+      data-glass="card"
+      {...props}
+    />
+  )
 }
 
 function Role({
@@ -148,7 +159,8 @@ export function RoleSwitcher({
           aria-label="Yuki"
           className={styles.menu}
           onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+            // Focus moving to the switcher's own button is that button closing the menu.
+            if (!root.current?.contains(event.relatedTarget)) setOpen(false)
           }}
           onKeyDown={(event) => {
             const buttons = [

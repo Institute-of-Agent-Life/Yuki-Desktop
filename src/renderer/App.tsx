@@ -173,6 +173,7 @@ export function App({ boot }: { boot: BootInfo }) {
       preferences.highContrast || appearance.highContrast || cssAccessibility.contrast,
     )
     root.dataset.motion = preferences.reducedMotion ? 'reduced' : 'normal'
+    root.dataset.backdrop = preferences.backdrop
     const opaque =
       cssAccessibility.opaque ||
       cssAccessibility.contrast ||

@@ -1,6 +1,9 @@
 import type { ConversationBridge } from './api'
 
 export type Theme = 'system' | 'light' | 'dark'
+// The conversation's backdrop, behind every glass pane; chosen in Appearance and kept.
+export const backdrops = ['lens', 'plain', 'aurora', 'sunset', 'grid'] as const
+export type Backdrop = (typeof backdrops)[number]
 export type DisplayTimeZone = 'Asia/Taipei' | 'system'
 export interface LoginItemState {
   enabled: boolean
@@ -23,6 +26,7 @@ export type Command =
 
 export interface Preferences {
   theme: Theme
+  backdrop: Backdrop
   timeZone: DisplayTimeZone
   opaque: boolean
   reducedMotion: boolean
@@ -40,6 +44,7 @@ export interface Preferences {
 
 export const defaultPreferences: Preferences = {
   theme: 'system',
+  backdrop: 'lens',
   timeZone: 'Asia/Taipei',
   opaque: false,
   reducedMotion: false,

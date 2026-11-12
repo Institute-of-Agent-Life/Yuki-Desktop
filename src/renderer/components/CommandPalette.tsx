@@ -52,7 +52,7 @@ export function CommandPalette({
     )
   const [selected, setSelected] = useState<string | null>(() => grouped[0]?.id ?? null)
   const active = grouped.findIndex((item) => item.id === selected),
-    ref = useGlass<HTMLDialogElement>('sheet').ref,
+    ref = useRef<HTMLDialogElement>(null),
     input = useRef<HTMLInputElement>(null),
     prefix = useId(),
     live = useRef(true)
@@ -67,7 +67,8 @@ export function CommandPalette({
       }),
     [query, character],
   )
-  // A layout effect, so the closing pane is still in the document when it shrinks away.
+  // A layout effect, so the closing pane is still in the document when it shrinks away; declared
+  // before the glass, so it withdraws before its glass is taken down.
   useLayoutEffect(() => {
     live.current = true
     const previous = document.activeElement
@@ -81,6 +82,7 @@ export function CommandPalette({
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus()
     }
   }, [])
+  const glass = useGlass<HTMLDialogElement>('sheet')
   useEffect(() => {
     if (active >= 0)
       document.getElementById(`${prefix}-${active}`)?.scrollIntoView({ block: 'nearest' })
@@ -104,7 +106,10 @@ export function CommandPalette({
   }
   return (
     <dialog
-      ref={ref}
+      ref={(node) => {
+        ref.current = node
+        glass.ref.current = node
+      }}
       data-glass="sheet"
       className={styles.palette}
       aria-label="指令面板"

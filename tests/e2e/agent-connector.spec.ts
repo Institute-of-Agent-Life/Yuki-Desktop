@@ -702,9 +702,17 @@ test('a computer without Agent instances exposes local full access and original 
   await expect(page.getByRole('combobox', { name: '任務 Agent' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '查看原回執', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '查看原回執', exact: true }).click()
-  await expect(page.getByText('第一頁原進度', { exact: true })).toBeVisible()
+  // 7: the original receipt opens as a dialog over the list, and closing it returns to the list.
+  const operation = page.getByRole('dialog', { name: '原操作 original-operation', exact: true })
+  await expect(operation.getByText('第一頁原進度', { exact: true })).toBeVisible()
+  await operation.getByRole('button', { name: '關閉', exact: true }).click()
+  await expect(operation).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '查看原回執', exact: true })).toBeFocused()
   await page.getByRole('tab', { name: '終端執行', exact: true }).click()
   await page.getByRole('button', { name: '查看終端回執', exact: true }).click()
+  await expect(
+    page.getByRole('dialog', { name: '原終端執行 original-terminal', exact: true }),
+  ).toBeVisible()
   await expect(page.locator('pre').filter({ hasText: 'hello' })).toBeVisible()
   await page.getByRole('button', { name: '讀取後續終端輸出' }).click()
   await expect(page.locator('pre').filter({ hasText: 'hello' })).toContainText('done')
@@ -764,7 +772,7 @@ test('a computer without Agent instances exposes local full access and original 
         : result
     }
   })
-  await page.getByRole('button', { name: '重新整理', exact: true }).click()
+  await page.getByRole('button', { name: '重新整理原終端回執', exact: true }).click()
   await expect(
     page.getByText('原執行狀態已保留，當前無法讀取本機輸出。', { exact: true }),
   ).toBeVisible()
@@ -840,7 +848,7 @@ test('an opened original receipt receives a late permission and terminal result 
     (window as Window & { __connectorAdvance?: (phase: string, emit?: boolean) => void })
       .__connectorAdvance!('terminal', false),
   )
-  await page.getByRole('button', { name: '重新整理', exact: true }).click()
+  await page.getByRole('button', { name: '重新整理原回執', exact: true }).click()
   await expect(page.getByText('原任務的真終態結果', { exact: true })).toBeVisible()
   await expect(page.getByText('第一頁原進度', { exact: true })).toHaveCount(1)
   await expect(page.getByText('第二頁原進度', { exact: true })).toHaveCount(1)

@@ -5,27 +5,19 @@
   min-height: 0;
   position: relative;
   padding-top: 52px;
-  --lens-line: color-mix(in srgb, var(--accent) 16%, transparent);
-  background:
-    linear-gradient(
-      132deg,
-      transparent 31%,
-      var(--lens-line) 31% calc(31% + 1px),
-      transparent calc(31% + 1px) 66%,
-      var(--lens-line) 66% calc(66% + 1px),
-      transparent calc(66% + 1px)
-    ),
-    radial-gradient(
-      ellipse at 106% 120%,
-      color-mix(in srgb, var(--accent) 16%, transparent) 48%,
-      transparent 48.2%
-    ),
-    radial-gradient(
-      ellipse at -16% 70%,
-      color-mix(in srgb, var(--accent) 9%, transparent) 49%,
-      transparent 49.25%
-    ),
-    var(--bg-content);
+  background: var(--backdrop-lens);
+}
+:global([data-backdrop='plain']) .chat {
+  background: var(--backdrop-plain);
+}
+:global([data-backdrop='aurora']) .chat {
+  background: var(--backdrop-aurora);
+}
+:global([data-backdrop='sunset']) .chat {
+  background: var(--backdrop-sunset);
+}
+:global([data-backdrop='grid']) .chat {
+  background: var(--backdrop-grid);
 }
 .messages {
   overflow: auto;
@@ -123,8 +115,10 @@
   --glass-tint: color-mix(in srgb, var(--accent) 10%, transparent);
   --glass-solid: var(--accent-subtle);
 }
-.selected {
+/* The selection frames the bubble itself, not the avatar beside it. */
+.selected .bubble {
   outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .messageActions {
   position: absolute;
@@ -210,15 +204,6 @@
 .markdown a {
   color: var(--accent);
   text-decoration: underline;
-}
-.pendingLabel {
-  animation: label-arrive 220ms var(--ease-standard);
-}
-@keyframes label-arrive {
-  from {
-    opacity: 0;
-    translate: 0 3px;
-  }
 }
 .pending {
   min-height: 28px;
@@ -427,9 +412,15 @@
   margin: 0 auto;
   width: min(712px, calc(100% - 40px));
   border-radius: 20px;
-  background: var(--mat-pane);
-  backdrop-filter: blur(2px) saturate(116%) var(--glass-calm) var(--refract,);
+  background: color-mix(in srgb, var(--bg-elevated) var(--readonly-tint, 16%), transparent);
+  backdrop-filter: var(--refract,) blur(1px) saturate(116%) var(--glass-calm);
   box-shadow: var(--shadow-glass);
+}
+:global([data-theme='dark']) .readonly {
+  --readonly-tint: 24%;
+}
+:global([data-opaque='true']) .readonly {
+  background: var(--bg-elevated);
 }
 :global([data-opaque='true']) .chat {
   background: var(--bg-content);

@@ -8,7 +8,7 @@ import type {
   ConnectorTarget,
   ConnectorSubmission,
 } from '../../shared/connector'
-import { Banner, Button, Segmented, TextField } from '../components/Controls'
+import { Banner, Button, Segmented, Sheet, TextField } from '../components/Controls'
 import { hidesPrivateData, unwrap } from '../queries/client'
 import { Row } from './SettingsRow'
 import styles from './Settings.module.css'
@@ -194,6 +194,30 @@ export function ConnectorTasks({
       setSessions(next ? [...sessions, ...result.sessions] : result.sessions)
       setCursor(result.next_cursor)
     })
+  // What a request just made answered: shown where it was made, over the receipt or on the page.
+  const outcome = (
+    <>
+      {error && <Banner status="failed">{error}</Banner>}
+      {message && (
+        <Banner
+          status={
+            receipt?.state === 'draft' || receipt?.state === 'submitted'
+              ? 'unknown'
+              : receipt?.problem
+                ? 'failed'
+                : 'done'
+          }
+        >
+          {message}
+        </Banner>
+      )}
+      {receipt && (receipt.state === 'draft' || receipt.state === 'submitted') && (
+        <Button disabled={busy} onClick={() => void verify()}>
+          查證原請求
+        </Button>
+      )}
+    </>
+  )
   return (
     <>
       <Segmented
@@ -226,25 +250,7 @@ export function ConnectorTasks({
               ? '尚未設定原生 Agent，可在設定的「這台電腦」選配 Codex、Claude 或 ACP。這不影響已開啟完整訪問的 Shell、檔案與本機程式操作；原有操作回執仍保留在下方。'
               : '目前無法確認 Agent 目錄，原設定與所選會話保留；原有操作回執仍可查詢。'}
         </p>
-        {error && <Banner status="failed">{error}</Banner>}
-        {message && (
-          <Banner
-            status={
-              receipt?.state === 'draft' || receipt?.state === 'submitted'
-                ? 'unknown'
-                : receipt?.problem
-                  ? 'failed'
-                  : 'done'
-            }
-          >
-            {message}
-          </Banner>
-        )}
-        {receipt && (receipt.state === 'draft' || receipt.state === 'submitted') && (
-          <Button disabled={busy} onClick={() => void verify()}>
-            查證原請求
-          </Button>
-        )}
+        {!selectedId && outcome}
         {instances.length > 0 && (
           <>
             <Row title="伺服器已接納的 Agent">
@@ -345,7 +351,6 @@ export function ConnectorTasks({
           </>
         )}
         {operations.isError && <Banner status="unknown">原操作目錄暫時無法讀取。</Banner>}
-        {detail.isError && <Banner status="unknown">原回執尚未讀取完成，請重新整理。</Banner>}
         <div className={styles.group}>
           {!hidesPrivateData(operations.error) &&
             operations.data?.pages
@@ -370,71 +375,100 @@ export function ConnectorTasks({
             更多原操作
           </Button>
         )}
-        {selected && (
-          <>
-            <h3>原操作 {selected.id}</h3>
-            <p className={styles.notice}>
-              狀態：{selected.status}
-              {selected.uncertain ? '（結果尚未確認）' : ''}
-              {selected.pending ? '（等待後續回執）' : ''} · 會話 {selected.session_id ?? '未知'} ·
-              執行 {selected.execution_id ?? '未知'}
-            </p>
-            <p className={styles.notice}>
-              {typeof selected.result?.text === 'string' ? selected.result.text : ''}
-            </p>
-            {selected.result && (
-              <details>
-                <summary>原結構化回執</summary>
-                <pre className={styles.terminalOutput}>
-                  {JSON.stringify(selected.result, null, 2)}
-                </pre>
-              </details>
-            )}
-            <div className={styles.actions}>
-              <Button
-                disabled={busy || !text.trim()}
-                onClick={() => void perform(() => submit('queue', selected))}
-              >
-                排入原會話
+        {/* The original receipt opens over the list, where it was asked for. */}
+        <Sheet
+          title={`原操作 ${selectedId ?? ''}`}
+          open={!!selectedId}
+          width={640}
+          onClose={() => setSelectedId(undefined)}
+          actions={
+            <>
+              {selected && (
+                <>
+                  <Button
+                    disabled={busy || !text.trim()}
+                    onClick={() => void perform(() => submit('queue', selected))}
+                  >
+                    排入原會話
+                  </Button>
+                  <Button
+                    disabled={busy || !text.trim()}
+                    onClick={() => void perform(() => submit('steer', selected))}
+                  >
+                    調整原任務
+                  </Button>
+                  <Button
+                    disabled={busy}
+                    onClick={() => void perform(() => submit('detach', selected))}
+                  >
+                    停止觀察
+                  </Button>
+                  <Button
+                    disabled={busy}
+                    variant="destructive"
+                    onClick={() => void perform(() => submit('cancel', selected))}
+                  >
+                    請求取消原生執行
+                  </Button>
+                </>
+              )}
+              <Button disabled={detail.isFetching} onClick={() => void detail.refetch()}>
+                重新整理原回執
               </Button>
-              <Button
-                disabled={busy || !text.trim()}
-                onClick={() => void perform(() => submit('steer', selected))}
-              >
-                調整原任務
+              <Button variant="primary" onClick={() => setSelectedId(undefined)}>
+                關閉
               </Button>
-              <Button
-                disabled={busy}
-                onClick={() => void perform(() => submit('detach', selected))}
-              >
-                停止觀察
-              </Button>
-              <Button
-                disabled={busy}
-                variant="destructive"
-                onClick={() => void perform(() => submit('cancel', selected))}
-              >
-                請求取消原生執行
-              </Button>
-            </div>
-            {selected.events?.map((event) => (
-              <NativeRequest
-                key={event.cursor}
-                event={event}
-                busy={busy}
-                onRespond={(extra) => perform(() => submit('respond', selected, extra))}
-              />
-            ))}
-            {detail.hasNextPage && (
-              <Button
-                disabled={busy || detail.isFetching}
-                onClick={() => void detail.fetchNextPage()}
-              >
-                讀取後續進度
-              </Button>
-            )}
-          </>
-        )}
+            </>
+          }
+        >
+          {detail.isPending && <p role="status">正在讀取原回執…</p>}
+          {detail.isError && <Banner status="unknown">原回執尚未讀取完成，請重新整理。</Banner>}
+          {outcome}
+          {selected && (
+            <>
+              <p className={styles.notice}>
+                狀態：{selected.status}
+                {selected.uncertain ? '（結果尚未確認）' : ''}
+                {selected.pending ? '（等待後續回執）' : ''} · 會話 {selected.session_id ?? '未知'}{' '}
+                · 執行 {selected.execution_id ?? '未知'}
+              </p>
+              <p className={styles.notice}>
+                {typeof selected.result?.text === 'string' ? selected.result.text : ''}
+              </p>
+              {selected.result && (
+                <details>
+                  <summary>原結構化回執</summary>
+                  <pre className={styles.terminalOutput}>
+                    {JSON.stringify(selected.result, null, 2)}
+                  </pre>
+                </details>
+              )}
+              <Row title="給原任務的要求">
+                <TextField
+                  aria-label="給原任務的要求"
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                />
+              </Row>
+              {selected.events?.map((event) => (
+                <NativeRequest
+                  key={event.cursor}
+                  event={event}
+                  busy={busy}
+                  onRespond={(extra) => perform(() => submit('respond', selected, extra))}
+                />
+              ))}
+              {detail.hasNextPage && (
+                <Button
+                  disabled={busy || detail.isFetching}
+                  onClick={() => void detail.fetchNextPage()}
+                >
+                  讀取後續進度
+                </Button>
+              )}
+            </>
+          )}
+        </Sheet>
       </section>
       <section role="tabpanel" hidden={activity !== 'terminals'} aria-label="終端執行">
         {state.deviceId && <ConnectorTerminals connection={connection} deviceId={state.deviceId} />}

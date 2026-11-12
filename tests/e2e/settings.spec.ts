@@ -109,6 +109,12 @@ test('actual settings paths retain native preferences, timezone, notifications a
     await expect(page.getByRole('tab', { name: '外觀', exact: true })).toBeFocused()
     await expect(page.getByLabel('時間顯示', { exact: true })).toHaveCount(0)
     await page.getByRole('radio', { name: '深色', exact: true }).click()
+    // The conversation backdrop is chosen here and shown behind the glass at once.
+    const backdrops = page.getByRole('radiogroup', { name: '對話背景', exact: true })
+    await expect(backdrops.getByRole('radio', { name: '光線', exact: true })).toBeChecked()
+    await backdrops.getByRole('radio', { name: '極光', exact: true }).click()
+    await expect(backdrops.getByRole('radio', { name: '極光', exact: true })).toBeChecked()
+    await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'aurora')
     await page.getByRole('switch', { name: '永遠不透明', exact: true }).click()
     await page.getByRole('switch', { name: '減少動態', exact: true }).click()
     await page.getByRole('tab', { name: '通知', exact: true }).click()
@@ -156,6 +162,7 @@ test('actual settings paths retain native preferences, timezone, notifications a
     expect(saved).toMatchObject({
       timeZone: 'system',
       theme: 'dark',
+      backdrop: 'aurora',
       opaque: true,
       reducedMotion: true,
       notifyProactive: false,
@@ -186,6 +193,7 @@ test('actual settings paths retain native preferences, timezone, notifications a
     ).toBeVisible()
     await expect(page.getByText(modifierHint, { exact: true })).toBeVisible()
     expect(await page.evaluate(async () => (await window.yuki.boot()).preferences)).toEqual(saved)
+    await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'aurora')
     success = true
   } finally {
     await app.close().catch(() => {})

@@ -31,7 +31,12 @@ import { createWindow, setWindowMode, setKeyboardCapture } from './windows'
 import { applyWindowAppearance, platformMaterial } from './window-appearance'
 import { installMenu } from './menu'
 import { LocalStore } from './store'
-import type { BootInfo, Preferences, NavigationTarget } from '../shared/desktop'
+import {
+  backdrops,
+  type BootInfo,
+  type Preferences,
+  type NavigationTarget,
+} from '../shared/desktop'
 import type {
   ApiRead,
   ApiReply,
@@ -1074,6 +1079,7 @@ else {
         if (typeof patch[key] === 'boolean') current[key] = patch[key]
       }
       if (['system', 'light', 'dark'].includes(patch.theme ?? '')) current.theme = patch.theme!
+      if (backdrops.includes(patch.backdrop!)) current.backdrop = patch.backdrop!
       if (patch.timeZone === 'Asia/Taipei' || patch.timeZone === 'system')
         current.timeZone = patch.timeZone
       if (

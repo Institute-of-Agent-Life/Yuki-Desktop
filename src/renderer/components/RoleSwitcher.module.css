@@ -40,7 +40,7 @@
   border-radius: 14px;
   background: var(--mat-pane);
   backdrop-filter: blur(24px) saturate(160%) var(--glass-calm) var(--refract,);
-  box-shadow: var(--shadow-popover);
+  box-shadow: var(--shadow-pane);
   max-height: min(400px, calc(100vh - 130px));
   overflow: auto;
 }
@@ -106,4 +106,8 @@
 .action:hover,
 .action:focus-visible {
   background: var(--fill-hover);
+}
+/* As in a native menu, the highlighted row is the focus; increased contrast also draws the ring. */
+:root:not([data-contrast='true']) :is(.role, .action):focus-visible {
+  outline: none;
 }

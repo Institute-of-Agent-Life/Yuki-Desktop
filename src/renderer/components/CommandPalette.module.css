@@ -11,13 +11,9 @@
   background: var(--mat-pane);
   backdrop-filter: blur(24px) saturate(160%) var(--glass-calm) var(--refract,);
   color: var(--text-primary);
-  box-shadow: var(--shadow-sheet);
+  box-shadow: var(--shadow-pane);
 }
 .palette::backdrop {
-  background: var(--scrim);
-  backdrop-filter: blur(8px);
-}
-:global([data-theme='dark']) .palette::backdrop {
   background: var(--scrim);
 }
 .body {
@@ -41,12 +37,12 @@
   color: var(--text-tertiary);
   font-weight: 400;
 }
+/* The search fills the pane's top: a frame around it would cut across the glass corners. */
 .input:focus-visible {
   outline: none;
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 :global([data-contrast='true']) .input:focus-visible {
-  box-shadow: inset 0 0 0 3px var(--accent);
+  border-bottom-color: var(--accent);
 }
 .results {
   overflow-y: auto;
@@ -131,8 +127,4 @@
     top: 16px;
     max-height: calc(100dvh - 32px);
   }
-}
-
-:global([data-opaque='true']) .palette::backdrop {
-  backdrop-filter: none;
 }

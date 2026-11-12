@@ -86,13 +86,11 @@ test('a message and its reply move the conversation on one spring, without a sin
       '已把問題放在摘要最後，並附上原始訪談的來源。',
     ),
   )
-  // 7: the request's new state arrives as a new label.
-  const label = page
-    .locator('article[data-message-request]')
-    .getByText('已取得原回執', { exact: true })
-  await expect(label).toBeVisible()
-  expect(await label.evaluate((node) => node.getAnimations().length)).toBeGreaterThan(0)
+  // 7: the finished request passes silently under its message.
   await expect(note).toHaveCount(0)
+  await expect(
+    page.locator('article[data-message-request]').getByText('已取得原回執', { exact: true }),
+  ).toHaveCount(0)
   await page.waitForTimeout(900)
   const frames = await stop(page)
   const scrolls = frames.map((frame) => frame.scroll)

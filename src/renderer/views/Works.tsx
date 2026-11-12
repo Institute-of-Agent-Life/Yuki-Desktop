@@ -816,7 +816,10 @@ export function ConversationWork({
     queryFn: () => read<Work>(id, { kind: 'work', workId }),
     initialData: typeof work === 'string' ? undefined : work,
   })
-  if (hidesPrivateData(detail.error) || !detail.data) return null
+  // A Work the Host opened only to carry a private request's tools is that request itself;
+  // the conversation already shows it, so its card stays in the Works list alone.
+  if (hidesPrivateData(detail.error) || !detail.data || detail.data.admission === 'host_execution')
+    return null
   const data = detail.data,
     [status, label] = workState(data)
   return (

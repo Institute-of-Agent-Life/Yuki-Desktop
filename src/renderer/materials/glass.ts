@@ -4,8 +4,8 @@ const NS = 'http://www.w3.org/2000/svg'
 // [bezel width, bend, magnification, dispersion]. Only panes floating over moving content
 // disperse: over a flat or blurred backdrop the fringe has nothing to colour.
 const presets = {
-  toolbar: [10, 12, 0, 0.12],
-  composer: [16, 18, 0, 0.12],
+  toolbar: [10, 12, 0, 0.32],
+  composer: [16, 18, 0, 0.32],
   // Gentle: a stronger bend curls the backdrop's thin lines into hooks at the corners.
   bubble: [12, 8, 0, 0],
   card: [18, 14, 0, 0],
@@ -32,89 +32,104 @@ function lens(
   inline: number,
   bottom: number,
 ) {
-  const key = `${width}/${height}/${radius}/${kind}/${inline}/${bottom}`
+  // The light map is drawn at the display's own pixels, so rims stay crisp on Retina screens.
+  const scale = Math.min(3, Math.max(1, Math.ceil(devicePixelRatio)))
+  const key = `${width}/${height}/${radius}/${kind}/${inline}/${bottom}/${scale}`
   const cached = maps.get(key)
   if (cached) return cached
   const [edgeHeight, amount, zoom] = presets[kind]
-  const canvas = document.createElement('canvas'),
-    rim = document.createElement('canvas')
-  // Large panes only need their bezel resolved; a coarser map keeps opening a sheet smooth.
-  const resolution =
-    kind === 'bubble'
-      ? Math.min(1, 360 / Math.max(width, height))
-      : Math.min(2, 720 / Math.max(width, height))
-  canvas.width = rim.width = Math.max(1, Math.round(width * resolution))
-  canvas.height = rim.height = Math.max(1, Math.round(height * resolution))
-  const context = canvas.getContext('2d')!,
-    lightContext = rim.getContext('2d')!
-  const pixels = context.createImageData(canvas.width, canvas.height)
-  const lights = lightContext.createImageData(canvas.width, canvas.height)
   const hx = width / 2 - inline,
     hy = (height - bottom) / 2,
     normalRadius = Math.min(radius * (kind === 'bubble' ? 1 : 1.5), hx, hy)
-  // Outside the pane and deeper than its bezel and glow nothing bends or shines. Every pixel
-  // starts neutral, and rows clear of the corners only visit the bezel at either side: most of a
-  // large pane is never computed.
-  const band = Math.max(edgeHeight, 10)
-  new Uint32Array(pixels.data.buffer).fill(
-    new Uint32Array(new Uint8ClampedArray([128, 128, 128, 255]).buffer)[0]!,
-  )
-  const skipFrom = Math.floor(((width / 2 - hx + band) * canvas.width) / width),
-    skipTo = Math.ceil(((width / 2 + hx - band) * canvas.width) / width) - 1
-  for (let j = 0; j < canvas.height; j++) {
-    const y = ((j + 0.5) * height) / canvas.height - hy,
-      clear = !zoom && Math.abs(y) < hy - Math.max(band, radius)
-    for (let i = 0; i < canvas.width; i++) {
-      if (clear && i === skipFrom && skipTo > skipFrom) i = skipTo
-      const x = ((i + 0.5) * width) / canvas.width - width / 2,
-        k = (j * canvas.width + i) * 4
-      const distance = roundedDistance(x, y, hx, hy, radius),
-        inset = -distance
-      if (!zoom && (distance > 0 || inset >= band)) continue
-      let nx =
+  const normal = (x: number, y: number) => {
+    const nx =
         roundedDistance(x + 0.5, y, hx, hy, normalRadius) -
-        roundedDistance(x - 0.5, y, hx, hy, normalRadius)
-      let ny =
+        roundedDistance(x - 0.5, y, hx, hy, normalRadius),
+      ny =
         roundedDistance(x, y + 0.5, hx, hy, normalRadius) -
-        roundedDistance(x, y - 0.5, hx, hy, normalRadius)
-      const length = Math.hypot(nx, ny) || 1
-      nx /= length
-      ny /= length
+        roundedDistance(x, y - 0.5, hx, hy, normalRadius),
+      length = Math.hypot(nx, ny) || 1
+    return [nx / length, ny / length] as const
+  }
+  // Paints a map at `resolution`, visiting only pixels from `outside` beyond the edge to `band`
+  // inside it: rows clear of the corners only visit either side, so most of a large pane is
+  // never computed and keeps the map's starting value.
+  const paint = (
+    resolution: number,
+    band: number,
+    outside: number,
+    start: number,
+    draw: (data: Uint8ClampedArray, k: number, x: number, y: number, distance: number) => void,
+  ) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(width * resolution))
+    canvas.height = Math.max(1, Math.round(height * resolution))
+    const context = canvas.getContext('2d')!,
+      image = context.createImageData(canvas.width, canvas.height)
+    new Uint32Array(image.data.buffer).fill(start)
+    const skipFrom = Math.floor(((width / 2 - hx + band) * canvas.width) / width),
+      skipTo = Math.ceil(((width / 2 + hx - band) * canvas.width) / width) - 1
+    for (let j = 0; j < canvas.height; j++) {
+      const y = ((j + 0.5) * height) / canvas.height - hy,
+        clear = !zoom && Math.abs(y) < hy - Math.max(band, radius)
+      for (let i = 0; i < canvas.width; i++) {
+        if (clear && i === skipFrom && skipTo > skipFrom) i = skipTo
+        const x = ((i + 0.5) * width) / canvas.width - width / 2,
+          distance = roundedDistance(x, y, hx, hy, radius)
+        // Magnifying glass bends its whole interior, so only the outside is skipped there.
+        if (distance > outside || (!zoom && -distance >= band)) continue
+        draw(image.data, (j * canvas.width + i) * 4, x, y, distance)
+      }
+    }
+    context.putImageData(image, 0, 0)
+    return canvas.toDataURL()
+  }
+  // Large panes only need their bezel resolved; a coarser bend keeps opening a sheet smooth.
+  const bendResolution =
+    kind === 'bubble'
+      ? Math.min(1, 360 / Math.max(width, height))
+      : Math.min(2, 720 / Math.max(width, height))
+  const displacement = paint(
+    bendResolution,
+    edgeHeight,
+    0,
+    new Uint32Array(new Uint8ClampedArray([128, 128, 128, 255]).buffer)[0]!,
+    (data, k, x, y, distance) => {
+      const inset = -distance,
+        [nx, ny] = normal(x, y)
       let dx = 0,
         dy = 0
-      if (distance <= 0 && inset < edgeHeight) {
+      if (inset < edgeHeight) {
         const edge = 1 - inset / edgeHeight
         const arc = kind === 'bubble' ? edge ** 2.4 : 1 - Math.sqrt(Math.max(0, 1 - edge ** 2))
         dx = -arc * nx
         dy = -arc * ny
       }
-      if (distance <= 0 && zoom) {
+      if (zoom) {
         dx -= (zoom * x) / amount
         dy -= (zoom * y) / amount
       }
-      pixels.data[k] = Math.round(128 + Math.max(-1, Math.min(1, dx)) * 127)
-      pixels.data[k + 1] = Math.round(128 + Math.max(-1, Math.min(1, dy)) * 127)
-      pixels.data[k + 2] = 128
-      pixels.data[k + 3] = 255
-      if (distance <= 0) {
-        // Light from the upper left catches that edge; the far edge shows only its
-        // weaker bounce, and the sides between stay nearly clear.
-        const toward = nx * -0.42 + ny * -0.91,
-          facing = Math.max(0, toward) + 0.38 * Math.max(0, -toward)
-        // A thin specular line on the outer edge, then light carried inward through the
-        // bezel, so the pane reads as thick glass rather than an outline.
-        const bright = Math.max(0, 1 - inset / 1.5),
-          glow = Math.max(0, 1 - inset / 10) ** 2 * 0.34
-        lights.data[k] = lights.data[k + 1] = lights.data[k + 2] = 255
-        lights.data[k + 3] = Math.round(
-          Math.min(1, bright * (0.1 + 0.9 * facing) + glow * facing) * 255,
-        )
-      }
-    }
-  }
-  context.putImageData(pixels, 0, 0)
-  lightContext.putImageData(lights, 0, 0)
-  const result = { displacement: canvas.toDataURL(), rim: rim.toDataURL() }
+      data[k] = Math.round(128 + Math.max(-1, Math.min(1, dx)) * 127)
+      data[k + 1] = Math.round(128 + Math.max(-1, Math.min(1, dy)) * 127)
+    },
+  )
+  const rim = paint(scale, 10, 1 / scale, 0, (data, k, x, y, distance) => {
+    const inset = -distance,
+      [nx, ny] = normal(x, y)
+    // Light from the upper left catches that edge; the far edge shows only its weaker bounce,
+    // and the sides between stay clear.
+    const toward = nx * -0.42 + ny * -0.91,
+      facing = Math.max(0, toward) + 0.22 * Math.max(0, -toward)
+    // A thin specular line on the outer edge, then light carried inward through the bezel, so
+    // the pane reads as thick glass rather than an outline. The outermost pixel is covered only
+    // partly, which smooths the curve instead of stepping it.
+    const bright = Math.max(0, Math.min(1, 1 - inset / 1.5)),
+      glow = Math.max(0, Math.min(1, 1 - inset / 10)) ** 2 * 0.34,
+      coverage = Math.max(0, Math.min(1, 0.5 - distance * scale))
+    data[k] = data[k + 1] = data[k + 2] = 255
+    data[k + 3] = Math.round(Math.min(1, (bright + glow) * facing) * coverage * 255)
+  })
+  const result = { displacement, rim }
   // Resizing a window must not retain every historical size in memory.
   if (maps.size >= 16) maps.delete(maps.keys().next().value!)
   maps.set(key, result)
@@ -256,6 +271,21 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
       const w = element.offsetWidth,
         h = element.offsetHeight
       if (!w || !h) return
+      // A pane growing out of a button has a far larger corner mid-flight; its maps wait for the
+      // pane's own corner, or the light would keep that oversized arc once it has grown.
+      const morphing = element
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation.effect instanceof KeyframeEffect &&
+            animation.effect.getKeyframes().some((frame) => 'borderRadius' in frame),
+        )
+      if (morphing.length) {
+        void Promise.allSettled(morphing.map((animation) => animation.finished)).then(() => {
+          if (attachment.current?.element === element) sync()
+        })
+        return
+      }
       const style = getComputedStyle(element)
       const inline = kind === 'bubble' ? parseFloat(style.paddingInlineStart) : 0
       const bottom = kind === 'bubble' ? parseFloat(style.paddingBottom) : 0
@@ -284,7 +314,8 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
         size = ''
         sync()
       })
-    resize.observe(element)
+    // The border box: a drop entering adds padding around the same content, and its map must follow.
+    resize.observe(element, { box: 'border-box' })
     appearance.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ['data-opaque'],

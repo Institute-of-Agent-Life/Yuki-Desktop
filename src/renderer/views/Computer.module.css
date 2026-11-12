@@ -71,7 +71,7 @@
   padding: 0 8px;
   border-radius: 18px;
   background: rgb(28 28 30 / 0.5);
-  backdrop-filter: blur(12px) saturate(150%) contrast(0.84) brightness(0.88) var(--refract,);
+  backdrop-filter: var(--refract,) blur(12px) saturate(150%) contrast(0.84) brightness(0.88);
   color: white;
   white-space: nowrap;
   box-shadow: 0 4px 16px #0003;
@@ -285,11 +285,4 @@
 }
 .toolbarHeader .returnLabel {
   max-width: 180px;
-}
-
-.sourcePicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
 }
