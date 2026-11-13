@@ -9,7 +9,7 @@
   border: 0;
   border-radius: 20px;
   background: var(--mat-pane);
-  backdrop-filter: blur(24px) saturate(160%) var(--glass-calm) var(--refract,);
+  backdrop-filter: blur(24px) saturate(160%) var(--glass-calm) var(--refract,) var(--seal,);
   color: var(--text-primary);
   box-shadow: var(--shadow-pane);
 }

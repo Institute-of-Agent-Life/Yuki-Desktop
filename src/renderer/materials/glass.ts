@@ -1,6 +1,29 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 
 const NS = 'http://www.w3.org/2000/svg'
+
+/*
+ * A backdrop filter draws its result over what lies beneath rather than in its place. Over a
+ * solid page the two cannot be told apart; over the window's frost the blurred backdrop is itself
+ * half clear, and the sharp content shows through it. Every backdrop filter therefore ends in this
+ * seal (`--seal`, set only while the frost is on): whatever has any cover becomes opaque, and
+ * what is wholly clear stays clear, so the system's own frost still shows where nothing is drawn.
+ */
+{
+  const svg = document.createElementNS(NS, 'svg'),
+    filter = document.createElementNS(NS, 'filter'),
+    transfer = document.createElementNS(NS, 'feComponentTransfer'),
+    alpha = document.createElementNS(NS, 'feFuncA')
+  svg.setAttribute('aria-hidden', 'true')
+  svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none'
+  filter.id = 'yuki-backdrop-seal'
+  alpha.setAttribute('type', 'linear')
+  alpha.setAttribute('slope', '8')
+  transfer.append(alpha)
+  filter.append(transfer)
+  svg.append(filter)
+  document.body.append(svg)
+}
 // [bezel width, bend, magnification, dispersion]. Only panes floating over moving content
 // disperse: over a flat or blurred backdrop the fringe has nothing to colour.
 const presets = {
@@ -293,26 +316,21 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
       const w = element.offsetWidth,
         h = element.offsetHeight
       if (!w || !h) return
-      // A pane growing out of a button has a far larger corner mid-flight; its maps wait for the
-      // pane's own corner, or the light would keep that oversized arc once it has grown.
-      const morphing = element
+      // A pane growing out of a button has a far larger corner mid-flight; its maps take the
+      // corner it grows into, so it bends from its first frame and nothing changes once it lands.
+      const landing = element
         .getAnimations()
-        .filter(
-          (animation) =>
-            animation.effect instanceof KeyframeEffect &&
-            animation.effect.getKeyframes().some((frame) => 'borderRadius' in frame),
+        .map((animation) =>
+          animation.effect instanceof KeyframeEffect
+            ? animation.effect.getKeyframes().at(-1)
+            : undefined,
         )
-      if (morphing.length) {
-        void Promise.allSettled(morphing.map((animation) => animation.finished)).then(() => {
-          if (attachment.current?.element === element) sync()
-        })
-        return
-      }
+        .find((frame) => frame && 'borderRadius' in frame)?.borderRadius
       const style = getComputedStyle(element)
       const inline = kind === 'bubble' ? parseFloat(style.paddingInlineStart) : 0
       const bottom = kind === 'bubble' ? parseFloat(style.paddingBottom) : 0
       const r = Math.min(
-        parseFloat(style.borderTopLeftRadius) || 0,
+        parseFloat(String(landing ?? style.borderTopLeftRadius)) || 0,
         w / 2 - inline,
         (h - bottom) / 2,
       )

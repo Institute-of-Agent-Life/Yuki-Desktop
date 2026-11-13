@@ -1,0 +1,35 @@
+/*
+ * Content scrolled under the top frosts and fades into the edge rather than being covered: a
+ * strong blur near the edge, then a light blur with a soft wash of the page colour. They are
+ * layers of their own beneath the toolbar, so each sees the content it lies on; only this strip
+ * is filtered.
+ */
+.frost,
+.wash {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 70px;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--motion-base) var(--ease-standard);
+}
+.frost {
+  backdrop-filter: blur(12px) var(--seal,);
+  mask-image: linear-gradient(#000 40%, transparent 85%);
+}
+.wash {
+  background: linear-gradient(
+    color-mix(in srgb, var(--surface-page) 72%, transparent),
+    color-mix(in srgb, var(--surface-page) 40%, transparent) 55%,
+    transparent
+  );
+  backdrop-filter: blur(3px) var(--seal,);
+  mask-image: linear-gradient(#000 60%, transparent);
+}
+.shown {
+  opacity: 1;
+}
+:global([data-opaque='true']) :is(.frost, .wash) {
+  display: none;
+}

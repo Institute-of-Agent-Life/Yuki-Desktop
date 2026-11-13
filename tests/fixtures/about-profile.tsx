@@ -124,7 +124,6 @@ createRoot(document.getElementById('root')!).render(
             avatar={<CharacterAvatar />}
             status="已連接"
             platform="win32"
-            floating={false}
           >
             <About
               id={profile.id}

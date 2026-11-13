@@ -3,11 +3,17 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  background: var(--bg-content);
+  position: relative;
+  isolation: isolate;
+  background: var(--surface-page);
+  /* The panes run up under the header, as every page does under its toolbar. */
+  --toolbar-inset: 52px;
 }
 .header {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 2;
   height: 52px;
-  flex-shrink: 0;
   display: flex;
   gap: 12px;
   align-items: center;
@@ -32,9 +38,14 @@
   flex: 1;
   min-height: 0;
 }
+:global([data-opaque='true']) .headerScrolled {
+  background: var(--surface-page);
+  box-shadow: 0 var(--line) 0 var(--separator);
+}
 .categories {
   position: relative;
   padding: 8px 12px;
+  padding-top: calc(8px + var(--toolbar-inset));
   border-right: var(--line) solid var(--separator);
   overflow: visible;
 }
@@ -108,6 +119,7 @@
 }
 .pane {
   padding: 8px 32px 32px;
+  padding-top: calc(8px + var(--toolbar-inset));
   overflow: auto;
   min-width: 0;
 }

@@ -5,6 +5,7 @@
   min-height: 0;
   height: 100%;
   padding: 20px 24px 16px;
+  padding-top: calc(20px + var(--toolbar-inset, 0px));
   gap: 12px;
   position: relative;
 }
@@ -29,6 +30,12 @@
 .status {
   color: var(--text-secondary);
   font-size: 12px;
+}
+.state {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .helpText {
   flex: 1;
@@ -71,7 +78,8 @@
   padding: 0 8px;
   border-radius: 18px;
   background: rgb(28 28 30 / 0.5);
-  backdrop-filter: var(--refract,) blur(12px) saturate(150%) contrast(0.84) brightness(0.88);
+  backdrop-filter: var(--refract,) blur(12px) saturate(150%) contrast(0.84) brightness(0.88)
+    var(--seal,);
   color: white;
   white-space: nowrap;
   box-shadow: 0 4px 16px #0003;
@@ -254,7 +262,6 @@
 }
 .toolbarHeader > div:first-child {
   min-width: 0;
-  overflow: hidden;
 }
 .toolbarHeader h2 {
   font-size: 13px;

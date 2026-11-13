@@ -112,12 +112,21 @@ test('actual settings paths retain native preferences, timezone, notifications a
     // The conversation backdrop is chosen here and shown behind the glass at once.
     const backdrops = page.getByRole('radiogroup', { name: '對話背景', exact: true })
     await expect(backdrops.getByRole('radio', { name: '光線', exact: true })).toBeChecked()
-    // 4 (透明磨砂 task book): the desktop's own frost is one of the choices.
-    await expect(backdrops.getByRole('radio', { name: '桌面', exact: true })).toBeVisible()
+    // 6 (全局透明磨砂 task book): the frost is the window's own choice; the backdrop is only a
+    // pattern laid over the conversation, or none.
+    expect(await backdrops.getByRole('radio').allInnerTexts()).toEqual([
+      '無',
+      '光線',
+      '極光',
+      '晚霞',
+      '格線',
+    ])
+    const material = page.getByRole('radiogroup', { name: '視窗材質', exact: true })
+    await expect(material.getByRole('radio', { name: '透明磨砂', exact: true })).toBeChecked()
     await backdrops.getByRole('radio', { name: '極光', exact: true }).click()
     await expect(backdrops.getByRole('radio', { name: '極光', exact: true })).toBeChecked()
     await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'aurora')
-    await page.getByRole('switch', { name: '永遠不透明', exact: true }).click()
+    await material.getByRole('radio', { name: '不透明', exact: true }).click()
     await page.getByRole('switch', { name: '減少動態', exact: true }).click()
     await page.getByRole('tab', { name: '通知', exact: true }).click()
     await page.getByRole('switch', { name: 'Yuki 主動傳來的訊息', exact: true }).click()
@@ -187,6 +196,22 @@ test('actual settings paths retain native preferences, timezone, notifications a
         2,
       ),
     )
+    // 6: the 「桌面」 backdrop an earlier version kept is read as 「無」, which is what it drew.
+    await app.evaluate(({ app }) => {
+      const path = process.getBuiltinModule('node:path')
+      const require = process
+        .getBuiltinModule('node:module')
+        .createRequire(path.join(app.getAppPath(), 'package.json'))
+      const Database = require('better-sqlite3') as typeof import('better-sqlite3')
+      const db = new Database(path.join(app.getPath('userData'), 'desktop.sqlite3'))
+      const row = db.prepare("SELECT value FROM preferences WHERE key='appearance'").get() as {
+        value: string
+      }
+      db.prepare("UPDATE preferences SET value=? WHERE key='appearance'").run(
+        JSON.stringify({ ...JSON.parse(row.value), backdrop: 'desktop' }),
+      )
+      db.close()
+    })
     await app.close()
     app = await rig.launch('settings')
     page = await app.firstWindow()
@@ -194,8 +219,18 @@ test('actual settings paths retain native preferences, timezone, notifications a
       page.getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` }),
     ).toBeVisible()
     await expect(page.getByText(modifierHint, { exact: true })).toBeVisible()
-    expect(await page.evaluate(async () => (await window.yuki.boot()).preferences)).toEqual(saved)
-    await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'aurora')
+    expect(await page.evaluate(async () => (await window.yuki.boot()).preferences)).toEqual({
+      ...saved,
+      backdrop: 'plain',
+    })
+    await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'plain')
+    await page.keyboard.press('ControlOrMeta+,')
+    await page.getByRole('tab', { name: '外觀', exact: true }).click()
+    await expect(
+      page
+        .getByRole('radiogroup', { name: '對話背景', exact: true })
+        .getByRole('radio', { name: '無', exact: true }),
+    ).toBeChecked()
     success = true
   } finally {
     await app.close().catch(() => {})
@@ -218,8 +253,11 @@ test('settings categories remain keyboard reachable in all four themes and small
       await page
         .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
         .click()
+      await page
+        .getByRole('radiogroup', { name: '視窗材質', exact: true })
+        .getByRole('radio', { name: mode === 'opaque' ? '不透明' : '透明磨砂', exact: true })
+        .click()
       for (const [label, value] of [
-        ['永遠不透明', mode === 'opaque'],
         ['增加對比', mode === 'contrast'],
         ['減少動態', true],
       ] as const) {

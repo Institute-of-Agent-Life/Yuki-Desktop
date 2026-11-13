@@ -103,8 +103,11 @@ test('native work list and inspector preserve step layout, keyboard focus and or
       await page
         .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
         .click()
+      await page
+        .getByRole('radiogroup', { name: '視窗材質', exact: true })
+        .getByRole('radio', { name: mode === 'opaque' ? '不透明' : '透明磨砂', exact: true })
+        .click()
       for (const [name, checked] of [
-        ['永遠不透明', mode === 'opaque'],
         ['增加對比', mode === 'contrast'],
         ['減少動態', true],
       ] as const) {

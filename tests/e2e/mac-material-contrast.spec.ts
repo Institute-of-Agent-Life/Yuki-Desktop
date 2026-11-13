@@ -58,13 +58,13 @@ test('macOS native material keeps secondary sidebar text readable in actual wind
         .click()
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
       for (const mode of ['material', 'opaque', 'contrast'] as const) {
-        if (mode !== 'material')
+        if (mode === 'opaque')
           await page
-            .getByRole('switch', {
-              name: mode === 'opaque' ? '永遠不透明' : '增加對比',
-              exact: true,
-            })
+            .getByRole('radiogroup', { name: '視窗材質', exact: true })
+            .getByRole('radio', { name: '不透明', exact: true })
             .click()
+        if (mode === 'contrast')
+          await page.getByRole('switch', { name: '增加對比', exact: true }).click()
         const samples = []
         for (const label of ['已連線', '工作與成果']) {
           const element = page
@@ -132,13 +132,13 @@ test('macOS native material keeps secondary sidebar text readable in actual wind
         )
         for (const sample of contrast)
           expect(sample.ratio, `${theme}/${mode}/${sample.text}`).toBeGreaterThanOrEqual(4.5)
-        if (mode !== 'material')
+        if (mode === 'opaque')
           await page
-            .getByRole('switch', {
-              name: mode === 'opaque' ? '永遠不透明' : '增加對比',
-              exact: true,
-            })
+            .getByRole('radiogroup', { name: '視窗材質', exact: true })
+            .getByRole('radio', { name: '透明磨砂', exact: true })
             .click()
+        if (mode === 'contrast')
+          await page.getByRole('switch', { name: '增加對比', exact: true }).click()
       }
     }
     proof.complete = true

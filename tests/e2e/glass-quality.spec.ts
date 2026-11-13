@@ -250,7 +250,7 @@ for (const scale of [1, 2])
       await page.setViewportSize({ width: 1100, height: 640 })
       await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=conversation-glass')
       await expect(page.getByText('幫我整理一下這週的訪談筆記。', { exact: true })).toBeVisible()
-      // A wallpaper beneath the page itself, where the system's frost lies under the desktop backdrop.
+      // A wallpaper beneath the page itself, where the system's frost lies under the window.
       await page.addStyleTag({
         content:
           'html { background: radial-gradient(60% 70% at 20% 30%, #f59e8b, transparent), radial-gradient(60% 70% at 85% 70%, #6aa6ff, transparent), #9a7fd6 !important } body { background: transparent !important }',
@@ -258,7 +258,7 @@ for (const scale of [1, 2])
       await page.evaluate(() => {
         const root = document.documentElement
         root.dataset.theme = 'light'
-        root.dataset.backdrop = 'desktop'
+        root.dataset.backdrop = 'plain'
         root.dataset.material = 'vibrancy'
       })
       await page.mouse.move(5, 5)

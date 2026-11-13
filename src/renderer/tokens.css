@@ -84,10 +84,12 @@
   --mat-sheet: rgba(255, 255, 255, 0.97);
   /* A floating glass pane, and how much of the backdrop's contrast it lets through. */
   --mat-pane: rgba(255, 255, 255, 0.6);
-  /* Conversation backdrops behind the glass, chosen in Appearance. */
+  /* The surfaces pages lie on: solid here, a thin wash of their colour over the window's frost. */
+  --surface-page: var(--bg-content);
+  --surface-pane: var(--bg-inspector);
+  /* Conversation backdrops: patterns laid over the page behind the glass, chosen in Appearance. */
   --lens-line: color-mix(in srgb, var(--accent) 16%, transparent);
-  /* The lens' light: two fine lines and two arcs, laid on the page colour or on the desktop. */
-  --lens-light:
+  --backdrop-lens:
     linear-gradient(
       132deg,
       transparent 31%,
@@ -106,24 +108,19 @@
       color-mix(in srgb, var(--accent) 9%, transparent) 49%,
       transparent 49.25%
     );
-  --backdrop-lens: var(--lens-light), var(--bg-content);
-  /* The desktop's own frost shows through; the lens' light stays for the glass to bend. */
-  --backdrop-desktop: var(--lens-light);
-  --backdrop-plain: var(--bg-content);
+  --backdrop-plain: none;
   --backdrop-aurora:
     radial-gradient(60% 55% at 12% 18%, rgb(122 167 255 / 0.55), transparent 70%),
     radial-gradient(50% 50% at 88% 22%, rgb(197 139 255 / 0.45), transparent 70%),
     radial-gradient(55% 55% at 72% 88%, rgb(95 211 198 / 0.45), transparent 70%),
-    radial-gradient(45% 45% at 18% 86%, rgb(255 158 196 / 0.42), transparent 70%), var(--bg-content);
+    radial-gradient(45% 45% at 18% 86%, rgb(255 158 196 / 0.42), transparent 70%);
   --backdrop-sunset:
     radial-gradient(70% 60% at 85% 10%, rgb(255 183 120 / 0.55), transparent 70%),
     radial-gradient(60% 55% at 10% 30%, rgb(255 133 150 / 0.4), transparent 70%),
-    radial-gradient(70% 60% at 50% 100%, rgb(150 110 220 / 0.38), transparent 70%),
-    var(--bg-content);
+    radial-gradient(70% 60% at 50% 100%, rgb(150 110 220 / 0.38), transparent 70%);
   --backdrop-grid:
     repeating-linear-gradient(0deg, var(--grid-line) 0 1px, transparent 1px 24px),
-    repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px 24px),
-    var(--bg-content);
+    repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px 24px);
   --grid-line: rgb(20 30 50 / 0.14);
   --glass-calm: contrast(0.9) brightness(1.03);
   --stroke-hi: rgba(255, 255, 255, 0.95);
@@ -142,10 +139,6 @@
   --track: rgba(20, 34, 64, 0.14);
   --toggle-off: rgba(20, 34, 64, 0.16);
   --seg-thumb: #ffffff;
-}
-:root[data-material='vibrancy'],
-:root[data-material='mica'] {
-  background: transparent;
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
@@ -192,11 +185,11 @@
     radial-gradient(60% 55% at 12% 18%, rgb(70 110 230 / 0.42), transparent 70%),
     radial-gradient(50% 50% at 88% 22%, rgb(150 90 230 / 0.36), transparent 70%),
     radial-gradient(55% 55% at 72% 88%, rgb(30 160 150 / 0.34), transparent 70%),
-    radial-gradient(45% 45% at 18% 86%, rgb(220 90 150 / 0.3), transparent 70%), var(--bg-content);
+    radial-gradient(45% 45% at 18% 86%, rgb(220 90 150 / 0.3), transparent 70%);
   --backdrop-sunset:
     radial-gradient(70% 60% at 85% 10%, rgb(230 130 70 / 0.38), transparent 70%),
     radial-gradient(60% 55% at 10% 30%, rgb(220 80 110 / 0.3), transparent 70%),
-    radial-gradient(70% 60% at 50% 100%, rgb(110 70 200 / 0.34), transparent 70%), var(--bg-content);
+    radial-gradient(70% 60% at 50% 100%, rgb(110 70 200 / 0.34), transparent 70%);
   --grid-line: rgb(255 255 255 / 0.1);
   --glass-calm: contrast(0.9) brightness(0.9);
   --stroke-hi: rgba(255, 255, 255, 0.18);
@@ -213,6 +206,25 @@
   --track: rgba(255, 255, 255, 0.16);
   --toggle-off: rgba(255, 255, 255, 0.18);
   --seg-thumb: rgba(255, 255, 255, 0.16);
+}
+/*
+ * Transparent frost: the system material behind the window shows through every page, as in a
+ * Finder sidebar. The window lays nothing over it, the sidebar barely anything; pages keep a thin
+ * wash of their own colour, light or dark, and cards a little more.
+ */
+:root:is([data-material='vibrancy'], [data-material='mica']) {
+  background: transparent;
+  --seal: url(#yuki-backdrop-seal);
+  --mat-ground: transparent;
+  --mat-sidebar: color-mix(in srgb, var(--bg-sidebar) 16%, transparent);
+  --surface-page: color-mix(in srgb, var(--bg-content) 35%, transparent);
+  --surface-pane: color-mix(in srgb, var(--bg-inspector) 25%, transparent);
+  --bg-raised: rgb(255 255 255 / 0.4);
+  --bg-stage: rgb(20 30 50 / 0.03);
+}
+:root:is([data-material='vibrancy'], [data-material='mica'])[data-theme='dark'] {
+  --bg-raised: rgb(255 255 255 / 0.05);
+  --bg-stage: rgb(0 0 0 / 0.1);
 }
 :root[data-contrast='true'] {
   --focus-ring: var(--accent);

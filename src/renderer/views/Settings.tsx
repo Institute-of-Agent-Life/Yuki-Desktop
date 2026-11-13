@@ -19,6 +19,7 @@ import type { Connection } from '../../shared/api'
 import { UpdatePanel } from '../components/Updates'
 import { ApplicationMenu } from '../components/ApplicationMenu'
 import { RoleSwitcher } from '../components/RoleSwitcher'
+import { EdgeFade, useScrolledUnder } from '../components/EdgeFade'
 import { ServerSettings } from './ServerSettings'
 import { DeviceSecurity } from './DeviceSecurity'
 import { AgentConnector } from './AgentConnector'
@@ -124,6 +125,7 @@ export function Settings({
   )
   const visible = visibleGroups.flatMap((group) => group.items)
   const [error, setError] = useState<{ section: string; message: string }>()
+  const [edge, scrolled] = useScrolledUnder<HTMLElement>()
   const [notice, setNotice] = useState('')
   const panelMotion = useTabMotion<HTMLDivElement>(
     shown,
@@ -188,8 +190,9 @@ export function Settings({
     </>
   )
   return (
-    <section className={styles.settings} aria-label="設定">
-      <header className={styles.header}>
+    <section ref={edge} className={styles.settings} aria-label="設定">
+      <EdgeFade shown={scrolled} />
+      <header className={`${styles.header} ${scrolled ? styles.headerScrolled : ''}`}>
         <Button variant="plain" onClick={back} disabled={!!connection?.logout}>
           <ArrowLeft size={16} />
           返回
@@ -367,19 +370,27 @@ export function Settings({
                 />
               </Row>
               <Row
+                title="視窗材質"
+                description="透明磨砂讓桌面從所有畫面透出；不透明時一律使用實色。"
+              >
+                <Segmented
+                  label="視窗材質"
+                  kind="radio"
+                  value={preferences.opaque ? 'opaque' : 'frost'}
+                  items={[
+                    { value: 'frost', label: '透明磨砂' },
+                    { value: 'opaque', label: '不透明' },
+                  ]}
+                  onChange={(material) => void change({ opaque: material === 'opaque' }, 'look')}
+                />
+              </Row>
+              <Row
                 title="對話背景"
-                description="玻璃之下的背景；換一換，看看玻璃在不同底色上的樣子。"
+                description="疊在對話底下、玻璃之後的圖案；換一換，看看玻璃在不同底色上的樣子。"
               >
                 <BackdropPicker
                   value={preferences.backdrop}
                   onChange={(backdrop) => void change({ backdrop }, 'look')}
-                />
-              </Row>
-              <Row title="永遠不透明" description="側邊欄與工具列使用不透明背景。">
-                <Toggle
-                  label="永遠不透明"
-                  checked={preferences.opaque}
-                  onChange={(opaque) => void change({ opaque }, 'look')}
                 />
               </Row>
               <Row title="減少動態" description="減少介面的位移與過場。">
@@ -559,9 +570,8 @@ export function Settings({
 }
 
 const backdropNames: Record<Backdrop, string> = {
+  plain: '無',
   lens: '光線',
-  desktop: '桌面',
-  plain: '純色',
   aurora: '極光',
   sunset: '晚霞',
   grid: '格線',
@@ -596,7 +606,7 @@ function BackdropPicker({ value, onChange }: { value: Backdrop; onChange(value: 
         >
           <span
             className={styles.backdropSwatch}
-            style={{ background: `var(--backdrop-${backdrop})` }}
+            style={{ background: `var(--backdrop-${backdrop}), var(--surface-page)` }}
           />
           <span>{backdropNames[backdrop]}</span>
         </button>

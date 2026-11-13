@@ -771,7 +771,6 @@ function Gallery() {
   document.documentElement.dataset.platform = platform
   return (
     <Workspace
-      floating={false}
       name={new URLSearchParams(window.location.search).get('name') ?? '角色'}
       status="元件驗證"
       platform={platform}

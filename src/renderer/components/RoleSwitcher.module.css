@@ -3,7 +3,7 @@
   flex-shrink: 0;
   width: 100%;
   min-width: 0;
-  z-index: 3;
+  anchor-name: var(--switcher-anchor);
   -webkit-app-region: no-drag;
 }
 .trigger {
@@ -31,15 +31,19 @@
   flex-shrink: 0;
 }
 .menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  width: 100%;
-  min-width: min(240px, 100%);
+  position: fixed;
+  position-anchor: var(--switcher-anchor);
+  inset: auto;
+  top: anchor(bottom);
+  left: anchor(left);
+  width: anchor-size(width);
+  margin: 4px 0 0;
+  border: 0;
+  color: var(--text-primary);
   padding: 6px;
   border-radius: 14px;
   background: var(--mat-pane);
-  backdrop-filter: blur(24px) saturate(160%) var(--glass-calm) var(--refract,);
+  backdrop-filter: blur(24px) saturate(160%) var(--glass-calm) var(--refract,) var(--seal,);
   box-shadow: var(--shadow-pane);
   max-height: min(400px, calc(100vh - 130px));
   overflow: auto;

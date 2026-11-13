@@ -180,29 +180,28 @@ export function Computer({
       role="group"
       aria-label="電腦狀態與控制"
     >
-      <div>
-        {sources || <h2>{name} 的電腦</h2>}
-        {!showQQ && (
-          <span>
-            {state.display === 'running'
-              ? '運作中'
-              : state.display === 'starting'
-                ? '正在啟動桌面'
-                : state.display === 'stopped'
-                  ? '休息中'
-                  : '目前無法讀取'}{' '}
-            · 控制：
-            {control?.holder === 'human'
-              ? held
-                ? '你'
-                : control.device_label
-              : control?.holder === 'agent'
-                ? name
-                : '無'}
-            {query.isFetching && !query.isPending ? ' · 正在確認最新狀態' : ''}
-          </span>
-        )}
-      </div>
+      <div>{sources || <h2>{name} 的電腦</h2>}</div>
+      {/* The state sits beside the controls, so switching displays leaves the toolbar still. */}
+      {!showQQ && (
+        <span className={styles.state}>
+          {state.display === 'running'
+            ? '運作中'
+            : state.display === 'starting'
+              ? '正在啟動桌面'
+              : state.display === 'stopped'
+                ? '休息中'
+                : '目前無法讀取'}{' '}
+          · 控制：
+          {control?.holder === 'human'
+            ? held
+              ? '你'
+              : control.device_label
+            : control?.holder === 'agent'
+              ? name
+              : '無'}
+          {query.isFetching && !query.isPending ? ' · 正在確認最新狀態' : ''}
+        </span>
+      )}
       {showQQ ? (
         <Button onClick={() => setScreen(screen === 'qq-control' ? 'qq-view' : 'qq-control')}>
           {screen === 'qq-control' ? '結束 QQ 控制' : '接手 QQ'}

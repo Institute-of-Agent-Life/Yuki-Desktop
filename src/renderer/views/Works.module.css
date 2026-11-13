@@ -2,6 +2,7 @@
   overflow: auto;
   min-height: 0;
   padding: 24px;
+  padding-top: calc(24px + var(--toolbar-inset, 0px));
   flex: 1;
 }
 .list > header {

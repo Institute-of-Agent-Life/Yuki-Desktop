@@ -19,6 +19,7 @@ export default defineConfig({
     'windows-window-controls.spec.ts',
     'native-materials.spec.ts',
     'mac-material-contrast.spec.ts',
+    'native-frost.spec.ts',
     'native-toolbar-scroll.spec.ts',
     'native-about-layout.spec.ts',
     'native-file-layout.spec.ts',

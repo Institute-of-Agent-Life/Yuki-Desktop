@@ -53,7 +53,6 @@ export function DisconnectedHome({
       status="尚未連接 Yuki"
       presence="offline"
       platform={platform}
-      floating={false}
       roleSwitcher={roleSwitcher?.(
         <PresenceCard
           name="Yuki Desktop"

@@ -83,7 +83,10 @@ test('native conversation wheel scrolling applies toolbar material and preserves
     expect(scrollBounds!.y).toBeGreaterThanOrEqual(toolbarBounds!.y + toolbarBounds!.height - 1)
     const style = () =>
       toolbar.evaluate((element) => {
-        const edge = getComputedStyle(element, '::before')
+        // The top edge's frosted layer, beneath the toolbar in the same page.
+        const edge = getComputedStyle(
+          element.parentElement!.querySelector('[data-edge-fade="upper"]')!,
+        )
         const style = getComputedStyle(element),
           rect = element.getBoundingClientRect()
         return {
@@ -94,7 +97,7 @@ test('native conversation wheel scrolling applies toolbar material and preserves
           opaque: document.documentElement.dataset.opaque,
           edgeFilter: edge.backdropFilter,
           edgeOpacity: edge.opacity,
-          edgeShadow: edge.boxShadow,
+          edgeDisplay: edge.display,
         }
       })
     for (const mode of ['light', 'dark', 'opaque', 'contrast'] as const) {
@@ -104,10 +107,11 @@ test('native conversation wheel scrolling applies toolbar material and preserves
         .getByRole('radiogroup', { name: '主題', exact: true })
         .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
         .click()
-      for (const [label, checked] of [
-        ['永遠不透明', mode === 'opaque'],
-        ['增加對比', mode === 'contrast'],
-      ] as const) {
+      await page
+        .getByRole('radiogroup', { name: '視窗材質', exact: true })
+        .getByRole('radio', { name: mode === 'opaque' ? '不透明' : '透明磨砂', exact: true })
+        .click()
+      for (const [label, checked] of [['增加對比', mode === 'contrast']] as const) {
         const control = page.getByRole('switch', { name: label, exact: true })
         if (((await control.getAttribute('aria-checked')) === 'true') !== checked)
           await control.click()
@@ -134,9 +138,14 @@ test('native conversation wheel scrolling applies toolbar material and preserves
       await expect.poll(async () => (await style()).filter).toBe('none')
       expect((await style()).opaque).toBe(String(opaque))
       expect((await style()).height).toBe(52)
-      await expect.poll(async () => (await style()).edgeOpacity).toBe('1')
-      expect((await style()).edgeFilter).toBe(opaque ? 'none' : 'blur(6px)')
-      if (opaque) expect((await style()).edgeShadow).not.toBe('none')
+      // Content under the toolbar frosts into its edge; with no frost the toolbar turns solid.
+      if (opaque) {
+        expect((await style()).edgeDisplay).toBe('none')
+        expect((await style()).shadow).not.toBe('none')
+      } else {
+        await expect.poll(async () => (await style()).edgeOpacity).toBe('1')
+        expect((await style()).edgeFilter).toMatch(/^blur\(12px\)/)
+      }
       await expect(original).toHaveAttribute('data-event-id', eventId!)
       await expect(
         page.getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` }),
@@ -154,10 +163,12 @@ test('native conversation wheel scrolling applies toolbar material and preserves
     ) {
       await page.keyboard.press('ControlOrMeta+,')
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
-      for (const label of ['永遠不透明', '增加對比']) {
-        const control = page.getByRole('switch', { name: label, exact: true })
-        if ((await control.getAttribute('aria-checked')) === 'true') await control.click()
-      }
+      await page
+        .getByRole('radiogroup', { name: '視窗材質', exact: true })
+        .getByRole('radio', { name: '透明磨砂', exact: true })
+        .click()
+      const contrast = page.getByRole('switch', { name: '增加對比', exact: true })
+      if ((await contrast.getAttribute('aria-checked')) === 'true') await contrast.click()
       await page.getByRole('button', { name: '返回', exact: true }).click()
       await log.hover({ position: { x: 8, y: 80 } })
       await page.mouse.wheel(0, 100000)
@@ -181,7 +192,7 @@ test('native conversation wheel scrolling applies toolbar material and preserves
             actualOsSettingChanged: false,
           })
           await cdp.send('Emulation.setEmulatedMedia', { features: [] })
-          await expect.poll(async () => (await style()).edgeFilter).toBe('blur(6px)')
+          await expect.poll(async () => (await style()).edgeFilter).toMatch(/^blur\(12px\)/)
         }
       } finally {
         await cdp.send('Emulation.setEmulatedMedia', { features: [] })

@@ -28,7 +28,8 @@
   padding: 32px;
   border-radius: 28px;
   background: var(--mat-pane);
-  backdrop-filter: blur(var(--blur-thick)) saturate(160%) var(--glass-calm) var(--refract,);
+  backdrop-filter: blur(var(--blur-thick)) saturate(160%) var(--glass-calm) var(--refract,)
+    var(--seal,);
   box-shadow: var(--shadow-glass);
   display: flex;
   align-items: center;
@@ -197,12 +198,10 @@
     max(0px, calc(6px - var(--workspace-left)));
   border-radius: 14px var(--right-radius) var(--right-radius) 14px;
   overflow: hidden;
-  background: var(--bg-content);
+  background: var(--surface-page);
   box-shadow: var(--shadow-panel);
-}
-/* With the desktop backdrop the panel lets the system frost through, in its own light or dark. */
-:global([data-backdrop='desktop']:is([data-material='vibrancy'], [data-material='mica'])) .main {
-  background: color-mix(in srgb, var(--bg-content) 45%, transparent);
+  /* Every page runs up under the floating toolbar; its scrolling areas start below it. */
+  --toolbar-inset: 52px;
 }
 :global([data-material='vibrancy']) .sidebar:not(.sidebarOverlay),
 :global([data-material='mica']) .sidebar:not(.sidebarOverlay) {
@@ -211,57 +210,6 @@
 .shell[data-focus-mode] .main {
   margin-right: 0;
   border-radius: 14px 0 0 14px;
-}
-.floating .toolbar {
-  position: absolute;
-  inset: 0 0 auto;
-  background: transparent;
-}
-/*
- * Content scrolled under the top frosts and fades into the edge rather than being covered: a
- * strong blur near the edge, then a light blur with a soft wash of the page colour. They are
- * layers of their own beneath the toolbar, so each sees the content it lies on; only this strip
- * is filtered.
- */
-.edgeFrost,
-.edgeWash {
-  display: none;
-}
-.floating .edgeFrost,
-.floating .edgeWash {
-  display: block;
-  position: absolute;
-  inset: 0 0 auto;
-  height: 70px;
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--motion-base) var(--ease-standard);
-}
-.floating .edgeFrost {
-  backdrop-filter: blur(12px);
-  mask-image: linear-gradient(#000 40%, transparent 85%);
-}
-.floating .edgeWash {
-  background: linear-gradient(
-    color-mix(in srgb, var(--bg-content) 72%, transparent),
-    color-mix(in srgb, var(--bg-content) 40%, transparent) 55%,
-    transparent
-  );
-  backdrop-filter: blur(3px);
-  mask-image: linear-gradient(#000 60%, transparent);
-}
-.floating .edgeShown {
-  opacity: 1;
-}
-.floating .toolbarScrolled {
-  box-shadow: none;
-}
-:global([data-opaque='true']) .floating :is(.edgeFrost, .edgeWash) {
-  display: none;
-}
-:global([data-opaque='true']) .floating .toolbarScrolled {
-  box-shadow: 0 var(--line) 0 var(--separator);
 }
 .toolbarGroup {
   position: relative;
@@ -275,33 +223,24 @@
   background: var(--mat-chrome);
   box-shadow: var(--shadow-glass);
   /* Bent (and dispersed) first, so the colour fringe softens with the blur like light in glass. */
-  backdrop-filter: var(--refract,) blur(6px) saturate(180%) var(--glass-calm);
+  backdrop-filter: var(--refract,) blur(6px) saturate(180%) var(--glass-calm) var(--seal,);
   -webkit-app-region: no-drag;
 }
 .toolbar {
+  position: absolute;
+  inset: 0 0 auto;
   height: 52px;
   padding: 0 10px 0 20px;
   display: flex;
   align-items: center;
   gap: 8px;
   -webkit-app-region: drag;
-  flex-shrink: 0;
-  position: relative;
   z-index: 2;
-  background: var(--bg-content);
 }
-.toolbarScrolled {
-  box-shadow: 0 var(--line) 0 var(--separator);
-}
+/* With no frost to fade into, the toolbar turns solid once something lies under it. */
 :global([data-opaque='true']) .toolbarScrolled {
-  background: var(--bg-content);
-  backdrop-filter: none;
-}
-@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  .toolbarScrolled {
-    background: var(--bg-content);
-    backdrop-filter: none;
-  }
+  background: var(--surface-page);
+  box-shadow: 0 var(--line) 0 var(--separator);
 }
 .toolbarTitle {
   margin-right: auto;
@@ -335,6 +274,13 @@
   display: flex;
   flex-direction: column;
 }
+/* A notice above a page lies below the toolbar; the page after it needs no inset of its own. */
+.content > [role='status']:first-child {
+  margin-top: var(--toolbar-inset);
+}
+.content > [role='status'] ~ * {
+  --toolbar-inset: 0px;
+}
 .composer {
   /* Light enough for the backdrop and the colour fringe to read through, as clear glass. */
   --composer-tint: 16%;
@@ -353,7 +299,7 @@
   box-shadow: var(--shadow-glass);
   padding: 8px;
   background: color-mix(in srgb, var(--bg-elevated) var(--composer-tint), transparent);
-  backdrop-filter: var(--refract,) blur(1px) saturate(116%) var(--glass-calm);
+  backdrop-filter: var(--refract,) blur(1px) saturate(116%) var(--glass-calm) var(--seal,);
 }
 :global([data-theme='dark']) .composer {
   --composer-tint: 24%;
@@ -435,7 +381,7 @@
   border-radius: 14px;
   overflow: hidden;
   box-shadow: var(--shadow-panel);
-  background: var(--bg-inspector);
+  background: var(--surface-pane);
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -451,7 +397,7 @@
 .splitWorkspace .inspector {
   border-left: var(--line) solid var(--separator);
   border-radius: 0 14px 14px 0;
-  background: var(--bg-content);
+  background: var(--surface-page);
   box-shadow: none;
 }
 .inspectorHeader {
@@ -494,6 +440,10 @@
 .divider button:hover {
   background: color-mix(in srgb, var(--accent) 25%, transparent);
 }
+/* The handle runs the window's full height: its ring is drawn inside it, where nothing cuts it. */
+.divider button:focus-visible {
+  outline-offset: -3px;
+}
 .behindDetail {
   visibility: hidden;
 }
@@ -502,7 +452,7 @@
 }
 .detailPage {
   z-index: 3;
-  background: var(--bg-content);
+  background: var(--surface-page);
   margin-left: max(0px, calc(6px - var(--workspace-left)));
 }
 .detailPage[inert] {

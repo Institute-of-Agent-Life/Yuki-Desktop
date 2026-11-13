@@ -33,7 +33,7 @@
 }
 .surface:global([data-refracting]) {
   /* A slight blur first, so thin backdrop lines bend smoothly instead of fraying. */
-  backdrop-filter: blur(1px) saturate(116%) var(--glass-calm) var(--refract,);
+  backdrop-filter: blur(1px) saturate(116%) var(--glass-calm) var(--refract,) var(--seal,);
 }
 :global([data-opaque='true']) .surface {
   background: var(--glass-solid, var(--bg-elevated));

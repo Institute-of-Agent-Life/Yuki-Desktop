@@ -593,6 +593,28 @@ Object.assign(window, {
             }
         }
         if (route.kind === 'home') return { ok: true, value: home }
+        if (route.kind === 'computer')
+          return {
+            ok: true,
+            value: {
+              // Another device holds the computer: this one may take it over or hand it back.
+              control: {
+                holder: 'human',
+                device_id: 'other-device',
+                device_label: '另一台電腦',
+                device_online: true,
+                lease_id: 'fixture-lease',
+              },
+              display: 'stopped',
+              environment: 'running',
+              help_requests: [],
+              resources: null,
+              revision: 1,
+              snowluma_display: true,
+              tabs: [],
+              tabs_available: false,
+            },
+          }
         if (route.kind === 'work')
           return {
             ok: true,
@@ -639,6 +661,9 @@ Object.assign(window, {
         throw Error('unexpected route')
       },
       workCommands: async () => ({ ok: true, value: [] }),
+      computerCommands: async () => ({ ok: true, value: [] }),
+      computerTicket: async () => ({ ok: false, code: 'fixture_only' }),
+      keyboardCapture: async () => ({ ok: true, value: undefined }),
       workQuestionDrafts: async () => ({ ok: true, value: [] }),
       workDraft: async () => ({ ok: true, value: '' }),
       selected: async () => ({ ok: true, value: null }),
