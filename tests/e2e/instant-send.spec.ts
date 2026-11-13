@@ -77,9 +77,10 @@ test('a sent message shows at once while the original request is confirmed in th
     })
     await expect(box).toHaveValue('')
     evidence.offline = (await outbox()).find((item) => item.body.text === offline)
-    await rig.restart()
+    // With the server back the app delivers it on its own, once; while it is on its way nothing
+    // asks the person to check it (全局透明磨砂 task book, case 10).
     const delivered = waitForAcceptedMessage(page, connection.characterId, offline)
-    await bubble(offline).getByRole('button', { name: '查詢', exact: true }).click()
+    await rig.restart()
     evidence.delivered = await delivered
     await expect(page.getByText(offline, { exact: true })).toHaveCount(1)
     success = true
