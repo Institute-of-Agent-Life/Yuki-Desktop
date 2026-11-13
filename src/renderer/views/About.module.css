@@ -161,13 +161,7 @@
 .editor textarea {
   resize: vertical;
   min-height: 84px;
-  border-radius: 6px;
-  border: 1px solid var(--separator);
-  background: var(--bg-content);
-  padding: 8px;
-  color: var(--text-primary);
   line-height: 22px;
-  font: inherit;
 }
 .colors {
   display: flex;

@@ -94,7 +94,7 @@ function UsageGroup({
   const known = group.stats.coverage.total_tokens > 0
   const share = total && known ? group.stats.total_tokens / total : null
   return (
-    <details className={styles.group}>
+    <details className={styles.group} data-disclosure="row">
       <summary className={styles.groupSummary}>
         <div className={styles.groupName}>
           <strong title={name}>{name}</strong>
@@ -323,7 +323,7 @@ export function ModelUsage({
                 <UsageGroup key={key(group)} group={group} by={by} total={summary!.total_tokens} />
               ))}
               {historical.length > 0 && (
-                <details className={styles.history}>
+                <details className={styles.history} data-disclosure="row">
                   <summary>
                     <span>歷史用途</span>
                     <span>
