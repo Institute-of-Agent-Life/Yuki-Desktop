@@ -7,6 +7,7 @@ import type { Connection } from '../shared/api'
 import { Pairing } from './views/Pairing'
 import { DisconnectedHome } from './views/DisconnectedHome'
 import { LocalBot } from './views/LocalBot'
+import { RemoteDeploy } from './views/RemoteDeploy'
 import { Conversation } from './views/Conversation'
 import { WorkspaceSession, workspaceFor, workspaceScope, forgetWorkspace } from './state/workspace'
 import { problemText, unwrap } from './queries/client'
@@ -23,7 +24,7 @@ import { useQueryClient } from '@tanstack/react-query'
 export function App({ boot }: { boot: BootInfo }) {
   const query = useQueryClient()
   const selection = useRef<string | undefined>(undefined)
-  const [step, setStep] = useState<'welcome' | 'adding' | 'local'>(
+  const [step, setStep] = useState<'welcome' | 'adding' | 'local' | 'remote'>(
     boot.pairLink ? 'adding' : 'welcome',
   )
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -201,6 +202,11 @@ export function App({ boot }: { boot: BootInfo }) {
       setSettingsOpen(false)
       setStep('local')
     })
+  const deployRemote = () =>
+    requestNavigation(() => {
+      setSettingsOpen(false)
+      setStep('remote')
+    })
   const workspace = workspaceFor(connection ? workspaceScope(connection) : 'desktop').getState()
   useCommands((command) => {
     if (command === 'settings')
@@ -282,6 +288,7 @@ export function App({ boot }: { boot: BootInfo }) {
         setSettingsOpen(false)
         setStep('welcome')
       }}
+      onDeployRemote={deployRemote}
       onLoggedOut={async () => {
         const previous = connection!
         const keys = [
@@ -328,6 +335,7 @@ export function App({ boot }: { boot: BootInfo }) {
                 item.characterId === connection?.characterId &&
                 !pairing &&
                 step !== 'local' &&
+                step !== 'remote' &&
                 !showingSettings
               const scope = workspaceScope(item)
               return (
@@ -398,13 +406,24 @@ export function App({ boot }: { boot: BootInfo }) {
               />
             </div>
           )}
-          {!pairing && !connection && step !== 'local' && (
+          {step === 'remote' && (
+            <div className={styles.roleSession} hidden={showingSettings} inert={showingSettings}>
+              <RemoteDeploy
+                active={!showingSettings}
+                label={boot.deviceLabel}
+                back={() => setStep('welcome')}
+                done={complete}
+              />
+            </div>
+          )}
+          {!pairing && !connection && step !== 'local' && step !== 'remote' && (
             <div className={styles.roleSession} hidden={showingSettings} inert={showingSettings}>
               <WorkspaceSession scope="desktop" active={!showingSettings}>
                 <DisconnectedHome
                   platform={boot.platform}
                   connect={adding}
                   deploy={deployLocal}
+                  deployRemote={deployRemote}
                   onSettings={openSettings}
                   roleSwitcher={(trigger) => (
                     <RoleSwitcher
@@ -427,12 +446,12 @@ export function App({ boot }: { boot: BootInfo }) {
           )}
           {pairing && (
             <div
-              hidden={showingSettings || step === 'local'}
-              inert={showingSettings || step === 'local'}
+              hidden={showingSettings || step === 'local' || step === 'remote'}
+              inert={showingSettings || step === 'local' || step === 'remote'}
             >
               <Pairing
                 key={pairingTarget?.characterId ?? 'new'}
-                active={!showingSettings && step !== 'local'}
+                active={!showingSettings && step !== 'local' && step !== 'remote'}
                 label={boot.deviceLabel}
                 onUpdate={() => openSettings('updates')}
                 initialLink={pairLink}
@@ -466,7 +485,7 @@ export function App({ boot }: { boot: BootInfo }) {
               />
             </div>
           )}
-          {(pairing || step === 'local') && !showingSettings && (
+          {(pairing || step === 'local' || step === 'remote') && !showingSettings && (
             <ApplicationMenu platform={boot.platform} overlay />
           )}
         </main>

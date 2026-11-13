@@ -271,6 +271,8 @@ export async function yukiFixture(
     richMedia?: boolean
     snowluma?: boolean
     modelConfiguration?: boolean
+    /** A deployment's own root ('' as install.sh serves it) instead of a reverse-proxy path. */
+    basePath?: string
   } = {},
 ) {
   const backend = process.env.YUKI_BACKEND_TEST_ROOT,
@@ -281,6 +283,7 @@ export async function yukiFixture(
     !backend || !python,
     'Requires the explicitly selected backend test checkout and Python.',
   )
+  const basePath = options.basePath ?? '/role/yuki'
   const root = await realpath(await mkdtemp(join(tmpdir(), 'yd-media-real-')))
   const port = await new Promise<number>((resolve) => {
     const socket = createServer()
@@ -307,7 +310,7 @@ export async function yukiFixture(
           '--port',
           String(port),
           '--base-path',
-          '/role/yuki',
+          basePath,
         ],
         {
           cwd: backend,
@@ -328,7 +331,7 @@ export async function yukiFixture(
           stdio: ['ignore', 'ignore', log],
         },
       ),
-    base = `http://127.0.0.1:${port}/role/yuki`
+    base = `http://127.0.0.1:${port}${basePath}`
   let server = spawnServer()
   const ready = () =>
     expect
@@ -355,6 +358,7 @@ export async function yukiFixture(
   return {
     root,
     base,
+    port,
     ...desktop,
     state: async () =>
       JSON.parse(await readFile(join(root, 'ready.json'), 'utf8')) as {

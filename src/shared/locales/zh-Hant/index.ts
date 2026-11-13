@@ -9,6 +9,8 @@ import time from './time'
 import settings from './settings'
 import errors from './errors'
 import platforms from './platforms'
+import ssh from './ssh'
+import remoteDeploy from './remoteDeploy'
 
 export default {
   common,
@@ -21,4 +23,6 @@ export default {
   settings,
   errors,
   platforms,
+  ssh,
+  remoteDeploy,
 }

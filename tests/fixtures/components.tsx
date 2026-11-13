@@ -312,6 +312,23 @@ window.yuki = {
     connect: async () => ({ ok: false, code: 'fixture_only' }),
     onProgress: () => () => {},
   },
+  ssh: {
+    probe: async () => ({ ok: false, code: 'fixture_only' }),
+    forgetHost: async () => ({ ok: false, code: 'fixture_only' }),
+    chooseKey: async () => ({ ok: true, value: null }),
+    pair: async () => ({ ok: false, code: 'fixture_only' }),
+    changeTransport: async () => ({ ok: false, code: 'fixture_only' }),
+    upgrade: async () => ({ ok: false, code: 'fixture_only' }),
+    logs: async () => ({ ok: false, code: 'fixture_only' }),
+  },
+  remoteDeploy: {
+    state: async () => ({ ok: true, value: { bundled: false } }),
+    check: async () => ({ ok: false, code: 'fixture_only' }),
+    installDocker: async () => ({ ok: false, code: 'fixture_only' }),
+    prepare: async () => ({ ok: false, code: 'fixture_only' }),
+    deploy: async () => ({ ok: false, code: 'fixture_only' }),
+    onProgress: () => () => {},
+  },
   connector: {
     state: async () => ({ ok: true, value: connectorState }),
     fullAccess: async (enabled, id) => {

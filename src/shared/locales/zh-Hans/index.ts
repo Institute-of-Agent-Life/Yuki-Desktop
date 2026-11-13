@@ -9,6 +9,8 @@ import time from './time'
 import settings from './settings'
 import errors from './errors'
 import platforms from './platforms'
+import ssh from './ssh'
+import remoteDeploy from './remoteDeploy'
 
 import type { Translation } from '../types'
 
@@ -23,4 +25,6 @@ export default {
   settings,
   errors,
   platforms,
+  ssh,
+  remoteDeploy,
 } satisfies Translation<'zh-Hans'>

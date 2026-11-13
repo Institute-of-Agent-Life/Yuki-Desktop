@@ -89,6 +89,8 @@ export interface BootInfo {
 
 export interface DesktopBridge {
   localBot: import('./local-bot').LocalBotBridge
+  ssh: import('./ssh').SshBridge
+  remoteDeploy: import('./ssh').RemoteDeployBridge
   connector: import('./connector').ConnectorBridge
   client: ConversationBridge
   updates: {

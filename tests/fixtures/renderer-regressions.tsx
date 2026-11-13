@@ -901,6 +901,7 @@ function Case() {
       onAddCharacter={() => setSelected('connect')}
       onDeployLocal={() => setSelected('deploy')}
       onQQLogin={() => {}}
+      onDeployRemote={() => setSelected('deploy')}
     />
   )
   if (mode === 'settings-transition')

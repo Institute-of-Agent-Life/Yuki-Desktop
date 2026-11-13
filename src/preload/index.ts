@@ -55,6 +55,31 @@ const bridge: DesktopBridge = {
       return () => ipcRenderer.removeListener('yuki:local-bot-progress', listener)
     },
   },
+  ssh: {
+    probe: (host, port) => ipcRenderer.invoke('yuki:ssh-probe', host, port),
+    forgetHost: (host, port) => ipcRenderer.invoke('yuki:ssh-forget-host', host, port),
+    chooseKey: () => ipcRenderer.invoke('yuki:ssh-choose-key'),
+    pair: (input) => ipcRenderer.invoke('yuki:ssh-pair', input),
+    changeTransport: (id, change) => ipcRenderer.invoke('yuki:ssh-change-transport', id, change),
+    upgrade: (id) => ipcRenderer.invoke('yuki:ssh-upgrade', id),
+    logs: (id) => ipcRenderer.invoke('yuki:ssh-logs', id),
+  },
+  remoteDeploy: {
+    state: () => ipcRenderer.invoke('yuki:remote-deploy-state'),
+    check: (access) => ipcRenderer.invoke('yuki:remote-deploy-check', access),
+    installDocker: (access, mirror) =>
+      ipcRenderer.invoke('yuki:remote-deploy-install-docker', access, mirror),
+    prepare: (access) => ipcRenderer.invoke('yuki:remote-deploy-prepare', access),
+    deploy: (input) => ipcRenderer.invoke('yuki:remote-deploy', input),
+    onProgress(callback) {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        step: import('../shared/ssh').RemoteDeployStep,
+      ) => callback(step)
+      ipcRenderer.on('yuki:remote-deploy-progress', listener)
+      return () => ipcRenderer.removeListener('yuki:remote-deploy-progress', listener)
+    },
+  },
   client: {
     models: {
       read: (id) => ipcRenderer.invoke('yuki:models-read', id),

@@ -80,6 +80,8 @@ import type {
 } from '../shared/connector'
 import type { components } from '../shared/contract.gen'
 import { LocalBot } from './local-bot'
+import { RemoteYuki } from './remote'
+import type { RemoteDeployInput, SshAccess, TransportChange } from '../shared/ssh'
 import type { LocalBotConfiguration } from '../shared/local-bot'
 import type { PlatformApplyInput } from '../shared/platforms'
 
@@ -628,6 +630,28 @@ else {
     action('local-bot-stop', () => localBot.stop())
     action('local-bot-connect', () => localBot.connect())
     action('local-bot-snowluma', (image: string) => localBot.enableSnowLuma(image))
+    const remote = new RemoteYuki({
+      resources: join(resourceRoot, 'local-bot'),
+      store,
+      connections,
+      connector,
+      progress: (step) => win?.webContents.send('yuki:remote-deploy-progress', step),
+    })
+    action('ssh-probe', (host: string, port: number) => remote.probe(host, port))
+    action('ssh-forget-host', (host: string, port: number) => remote.forgetHost(host, port))
+    action('ssh-choose-key', () => choosePath(false))
+    action('ssh-pair', (input: { access: SshAccess; directory: string; label: string }) =>
+      remote.pair(input),
+    )
+    action('ssh-upgrade', (id: string) => remote.upgrade(id))
+    action('ssh-logs', (id: string) => remote.logs(id))
+    action('remote-deploy-state', () => remote.state())
+    action('remote-deploy-check', (access: SshAccess) => remote.check(access))
+    action('remote-deploy-install-docker', (access: SshAccess, mirror: boolean) =>
+      remote.installDocker(access, mirror),
+    )
+    action('remote-deploy-prepare', (access: SshAccess) => remote.prepare(access))
+    action('remote-deploy', (input: RemoteDeployInput) => remote.deploy(input))
     action('update-check', () => updates.check())
     action('update-download', () => updates.download())
     action('update-cancel', () => updates.cancel())
@@ -683,6 +707,9 @@ else {
     clientAction('server-info', (id: string) => connections.serverInfo(id))
     clientAction('change-address', (id: string, server: string) =>
       connections.changeAddress(id, server),
+    )
+    clientAction('ssh-change-transport', (id: string, change: TransportChange) =>
+      remote.changeTransport(id, change),
     )
     action('export-diagnostics', async () => {
       const result = await dialog.showSaveDialog(win!, {

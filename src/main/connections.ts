@@ -54,6 +54,9 @@ import { ContentCache } from './media/content'
 import { Previews } from './media/previews'
 import { previewMime } from '../shared/media'
 import type { components } from '../shared/contract.gen'
+import type { Transport } from '../shared/ssh'
+import { Tunnels } from './tunnels'
+import { hostKey, open, secretKey } from './ssh'
 
 const uuid = (value: string) => {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value))
@@ -86,6 +89,7 @@ export class Connections {
   onProfile?: (id: string, profile: Profile) => void
   onIdentity?: (id: string, name: string) => void
   readonly credentials: Credentials
+  readonly tunnels: Tunnels
   private readonly outboxes = new Map<string, Outbox>()
   private readonly streams = new Map<string, AbortController>()
   private readonly heard = new Map<string, number>()
@@ -116,6 +120,23 @@ export class Connections {
     readonly hint: (id: string, kind: string, data: unknown) => void,
   ) {
     this.credentials = new Credentials(store)
+    this.tunnels = new Tunnels((transport) =>
+      open(
+        transport,
+        this.knownHost(transport.host, transport.port),
+        this.credentials.get(secretKey(transport)),
+      ),
+    )
+  }
+  /** The host key this desktop trusts for an SSH server, after the person confirmed it once. */
+  knownHost(host: string, port: number) {
+    return this.store.get<Record<string, string>>('ssh-known-hosts')?.[hostKey(host, port)]
+  }
+  trustHost(host: string, port: number, fingerprint: string | undefined) {
+    const known = { ...this.store.get<Record<string, string>>('ssh-known-hosts') }
+    if (fingerprint) known[hostKey(host, port)] = fingerprint
+    else delete known[hostKey(host, port)]
+    this.store.set('ssh-known-hosts', known)
   }
   private emit(id: string, kind: string, data: unknown) {
     if (kind === 'connection') this.states.set(id, data)
@@ -305,6 +326,8 @@ export class Connections {
         await rm(file + suffix, { force: true })
     }
     this.credentials.remove(`device/${id}/${connection.personId}`)
+    if (connection.transport?.kind === 'ssh')
+      await this.tunnels.close(connection.transport.localPort)
     this.activities.delete(id)
     this.identified.delete(id)
     this.states.delete(id)
@@ -344,17 +367,32 @@ export class Connections {
     if (value.character.id !== id) throw new ApiError('different_character')
     return value
   }
-  async changeAddress(id: string, server: string) {
+  /** Reach the same Yuki another way: the Person, binding, conversation and device stay. */
+  async changeAddress(id: string, server: string, transport: Transport = { kind: 'direct' }) {
     const baseUrl = normalizeServer(server),
       attempt = Symbol()
     this.addressChanges.set(id, attempt)
-    const client = await this.verifyAddress(id, baseUrl)
-    if (this.addressChanges.get(id) !== attempt) throw new ApiError('precondition_failed')
-    const updated = { ...this.connection(id), baseUrl: client.base }
+    let client: ApiClient
+    try {
+      if (transport.kind === 'ssh') await this.tunnels.ensure(transport)
+      client = await this.verifyAddress(id, baseUrl)
+      if (this.addressChanges.get(id) !== attempt) throw new ApiError('precondition_failed')
+    } catch (error) {
+      // The new path was never adopted; its listener goes with it.
+      if (transport.kind === 'ssh') await this.tunnels.close(transport.localPort)
+      throw error
+    }
+    const previous = this.connection(id).transport,
+      updated = { ...this.connection(id), baseUrl: client.base, transport }
     this.store.set(
       'connections',
       this.list().map((item) => (item.characterId === id ? updated : item)),
     )
+    if (
+      previous?.kind === 'ssh' &&
+      (transport.kind !== 'ssh' || transport.localPort !== previous.localPort)
+    )
+      await this.tunnels.close(previous.localPort)
     this.start(id)
     this.emit(id, 'address', { baseUrl: client.base })
     return updated
@@ -945,10 +983,16 @@ export class Connections {
     }
     return pending
   }
-  async pair(server: string, code: string, label: string) {
+  async pair(
+    server: string,
+    code: string,
+    label: string,
+    transport: Transport = { kind: 'direct' },
+  ) {
     const epochs = new Map(this.epochs),
-      baseUrl = normalizeServer(server),
-      meta = await this.meta(baseUrl)
+      baseUrl = normalizeServer(server)
+    if (transport.kind === 'ssh') await this.tunnels.ensure(transport)
+    const meta = await this.meta(baseUrl)
     if (
       (epochs.get(meta.character.id) ?? 0) !== (this.epochs.get(meta.character.id) ?? 0) ||
       this.frozen.has(meta.character.id) ||
@@ -956,7 +1000,7 @@ export class Connections {
     )
       throw new ApiError('logout_pending')
     return this.trackActivity(meta.character.id, () =>
-      this.pairVerified(baseUrl, meta, code, label, epochs.get(meta.character.id) ?? 0),
+      this.pairVerified(baseUrl, meta, code, label, epochs.get(meta.character.id) ?? 0, transport),
     )
   }
   private async pairVerified(
@@ -965,6 +1009,7 @@ export class Connections {
     code: string,
     label: string,
     epoch: number,
+    transport: Transport,
   ) {
     await this.credentials.preparePersistence()
     const paired = await new ApiClient(baseUrl, undefined, undefined, this.version).post<{
@@ -980,6 +1025,7 @@ export class Connections {
         `pending-device/${meta.character.id}/${paired.device_id}`,
         paired.token,
       ),
+      transport,
     }
     this.store.set('pending-pairings', [...this.pendingPairings(), pending])
     return this.completePairing(pending, meta, epoch)
@@ -1165,6 +1211,8 @@ export class Connections {
       this.emit(id, 'connection', { state: 'offline', code: 'credentials_unavailable' })
       return
     }
+    const transport = this.connection(id).transport
+    if (transport?.kind === 'ssh') void this.tunnels.ensure(transport).catch(() => {})
     this.streams.get(id)?.abort()
     const controller = new AbortController()
     this.streams.set(id, controller)
@@ -1224,6 +1272,8 @@ export class Connections {
     let delay = 1000
     while (!controller.signal.aborted) {
       try {
+        const transport = this.connection(id).transport
+        if (transport?.kind === 'ssh') await this.tunnels.ensure(transport)
         await this.identify(id)
         const client = this.client(id)
         await readStream(
@@ -1270,7 +1320,15 @@ export class Connections {
       } catch (error) {
         this.identified.delete(id)
         if (controller.signal.aborted) break
-        const code = error instanceof ApiError ? error.code : 'transport_unknown'
+        const transport = this.connection(id).transport
+        // Behind an SSH tunnel a lost request is explained by the tunnel's own last problem.
+        const code =
+          transport?.kind === 'ssh' &&
+          (!(error instanceof ApiError) || error.code === 'transport_unknown')
+            ? (this.tunnels.problem(transport.localPort) ?? 'transport_unknown')
+            : error instanceof ApiError
+              ? error.code
+              : 'transport_unknown'
         if (code === 'unauthenticated') {
           await this.previews.close(id)
           this.box(id).clearCache()
@@ -1334,11 +1392,12 @@ export class Connections {
       ...[...this.characterStores.values()].map((commands) => commands.settle()),
       ...[...this.soulStores.values()].map((soul) => soul.settled()),
       ...[...this.linkCodeStores.values()].map((codes) => codes.settled()),
-    ]).then(() =>
+    ]).then(async () => {
       this.outboxes.forEach((box) => {
         if (box.db.open) box.db.close()
-      }),
-    )
+      })
+      await this.tunnels.closeAll()
+    })
   }
 
   async connectorAdmission(id: string, deviceId: string) {
@@ -1456,6 +1515,7 @@ export class Connections {
       bindingId: uuid(me.binding_id),
       conversationId: uuid(me.conversation_id),
       persistentCredentials,
+      transport: pending.transport ?? { kind: 'direct' },
       deviceId: pending.deviceId,
     }
     this.store.set('connections', [
@@ -1486,6 +1546,7 @@ export class Connections {
       this.list().some((item) => item.characterId === characterId && item.logout)
     )
       throw new ApiError('logout_pending')
+    if (pending.transport?.kind === 'ssh') await this.tunnels.ensure(pending.transport)
     const epoch = this.epochs.get(characterId) ?? 0,
       meta = await this.meta(pending.baseUrl)
     if (meta.character.id !== characterId) throw new ApiError('different_character')

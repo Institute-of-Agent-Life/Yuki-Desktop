@@ -32,6 +32,11 @@ files:
   - '!**/NOTICE.md'
   - '!**/._*'
   - '!**/*.log'
+  # ssh2's optional native code (its crypto binding, cpu-features, nan) is never shipped: every
+  # platform runs ssh2's pure JavaScript implementation.
+  - '!**/node_modules/cpu-features{,/**}'
+  - '!**/node_modules/nan{,/**}'
+  - '!**/node_modules/ssh2/lib/protocol/crypto/{build,src,binding.gyp}{,/**}'
 protocols:
   name: Yuki 配對連結
   schemes: [yuki]

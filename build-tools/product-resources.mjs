@@ -65,6 +65,13 @@ export function checkProductResources(resources) {
   const runtime = join(resources, 'agent-connector')
   const manifest = checkConnectorRuntime(runtime)
   const bot = join(resources, 'local-bot')
+  const source = JSON.parse(readFileSync(join(bot, 'manifest.json'), 'utf8'))
+  if (
+    !/^[0-9a-f]{40}$/.test(source.revision) ||
+    typeof source.image !== 'string' ||
+    !/^\d+\.\d+\.\d+$/.test(source.version)
+  )
+    throw new Error('Missing local Bot source/image provenance')
   const templates = [
     'manifest.json',
     '.env.example',
@@ -72,12 +79,12 @@ export function checkProductResources(resources) {
     'docker-compose.local.yml',
     'config/SOUL.md',
     'deploy/snowluma.sh',
+    // "Deploy to my server" uploads the matching release installer and package.
+    'server/install.sh',
+    `server/yuki-${source.version}-deploy.tar.gz`,
   ]
   const actualBot = entries(bot)
   if (actualBot.length !== templates.length || actualBot.some((path) => !templates.includes(path)))
     throw new Error('Unexpected local Bot resources')
-  const source = JSON.parse(readFileSync(join(bot, 'manifest.json'), 'utf8'))
-  if (!/^[0-9a-f]{40}$/.test(source.revision) || typeof source.image !== 'string')
-    throw new Error('Missing local Bot source/image provenance')
   return { runtimeFiles: manifest.files.length + 1, botFiles: actualBot.length }
 }

@@ -1,5 +1,6 @@
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { resolve, join, dirname } from 'node:path'
+import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
@@ -30,6 +31,34 @@ for (const name of [
 ]) {
   await mkdir(dirname(join(output, name)), { recursive: true })
   await copyFile(join(source, name), join(output, name))
+}
+// "Deploy to my server" uploads the same release installer and deployment package this backend
+// publishes, built by the backend's own allowlist, so the server never needs to reach GitHub.
+const built = await mkdtemp(join(tmpdir(), 'yuki-deploy-bundle-'))
+try {
+  execFileSync(
+    'uv',
+    [
+      'run',
+      '--no-project',
+      '--python',
+      '3.12',
+      'python',
+      '-m',
+      'scripts.build_release_bundle',
+      '--version',
+      version,
+      '--output-dir',
+      built,
+    ],
+    { cwd: source, stdio: 'inherit' },
+  )
+  await rm(join(output, 'server'), { recursive: true, force: true })
+  await mkdir(join(output, 'server'))
+  for (const name of ['install.sh', `yuki-${version}-deploy.tar.gz`])
+    await copyFile(join(built, name), join(output, 'server', name))
+} finally {
+  await rm(built, { recursive: true, force: true })
 }
 await writeFile(
   join(output, 'manifest.json'),

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { ApiReply, Me } from '../../shared/api'
 import { REQUIRED_API_REVISION } from '../../shared/api'
 import errors from '../../shared/locales/zh-Hant/errors'
+import sshSource from '../../shared/locales/zh-Hant/ssh'
 import { t } from '../i18n'
 
 export class ClientProblem extends Error {
@@ -97,7 +98,10 @@ const messages: Record<string, string> = {
 }
 // Codes already moved into the `errors` namespace read in the interface language.
 const translated = (code: string): code is keyof typeof errors => code in errors
+const isSshProblem = (code: string): code is keyof typeof sshSource.problem =>
+  Object.hasOwn(sshSource.problem, code)
 export function problemText(code: string): string {
   if (translated(code)) return t(`errors:${code}`)
+  if (isSshProblem(code)) return t(`ssh:problem.${code}`)
   return messages[code] ?? `操作未完成（${code}）。`
 }

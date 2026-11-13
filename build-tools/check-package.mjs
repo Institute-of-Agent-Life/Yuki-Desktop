@@ -53,6 +53,14 @@ export function checkPackage(root) {
     }
     if (!entries.some((entry) => /^\/out\/renderer\/assets\/diff\.worker-[^/]+\.js$/.test(entry)))
       throw new Error('Missing artifact comparison worker')
+    // SSH runs on ssh2's pure JavaScript on every platform; its optional native code stays out.
+    if (!entries.includes('/node_modules/ssh2/lib/index.js')) throw new Error('Missing ssh2')
+    const native = entries.find((entry) =>
+      /^\/node_modules\/(cpu-features|nan)(\/|$)|^\/node_modules\/ssh2\/.*(\.node|\/build)$/.test(
+        entry,
+      ),
+    )
+    if (native) throw new Error(`Optional native SSH code in package: ${native}`)
     for (const entry of entries) {
       const path = entry.replace(/^\//, '')
       const icon =
