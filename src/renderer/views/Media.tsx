@@ -40,10 +40,11 @@ export function MessageAttachment({
   const element = useRef<HTMLButtonElement>(null),
     [visible, setVisible] = useState(false)
   // Loaded as it first comes near the view, then kept: one scrolled away and back shows as it was.
+  // A slow frame can bring several crossings at once; any of them in view is enough.
   useEffect(() => {
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return
         setVisible(true)
         observer.disconnect()
       },

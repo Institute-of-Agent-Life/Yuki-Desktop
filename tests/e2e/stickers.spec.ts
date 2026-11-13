@@ -49,9 +49,10 @@ test('a sticker from Yuki shows as a sticker, and an ordinary picture as an atta
   const look = await sticker.evaluate((image: HTMLImageElement) => {
     const frame = image.closest('button')!
     const style = getComputedStyle(frame)
+    // Its laid-out size: the arrival spring still scales it for a moment after it shows.
     return {
-      width: image.getBoundingClientRect().width,
-      height: image.getBoundingClientRect().height,
+      width: image.offsetWidth,
+      height: image.offsetHeight,
       natural: image.naturalWidth / image.naturalHeight,
       border: style.borderTopWidth,
       background: style.backgroundColor,

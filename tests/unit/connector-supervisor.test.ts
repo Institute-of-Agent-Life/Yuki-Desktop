@@ -111,6 +111,10 @@ const starts = fs.existsSync(file)
 const plan = JSON.parse(fs.readFileSync(path.join(dir, 'plan.json'), 'utf8'))
 const step = plan[Math.min(starts, plan.length - 1)]
 const print = (value) => process.stdout.write(JSON.stringify(value) + '\\n')
+// Where this child starts reading, fixed before it reports connected: a line the test appends
+// after seeing it connected is never taken for one of an earlier child's.
+const emit = path.join(dir, 'emit.jsonl')
+let offset = fs.existsSync(emit) ? fs.readFileSync(emit, 'utf8').length : 0
 event({ kind: 'start', step })
 print({ type: 'state', state: 'connected' })
 if (step !== 'old')
@@ -127,8 +131,6 @@ readline
     event({ kind: 'eof' })
     process.exit(0)
   })
-const emit = path.join(dir, 'emit.jsonl')
-let offset = fs.existsSync(emit) ? fs.readFileSync(emit, 'utf8').length : 0
 setInterval(() => {
   if (!fs.existsSync(emit)) return
   const text = fs.readFileSync(emit, 'utf8')
