@@ -6,6 +6,8 @@ import { Banner, Button, TextField } from '../components/Controls'
 import { PairingAvatar } from '../components/CharacterAvatar'
 import { ClientProblem, problemText, unwrap } from '../queries/client'
 import { TailscaleGuide } from './TailscaleGuide'
+import { useSshForm } from './SshForm'
+import { useTranslation } from '../i18n'
 import styles from '../App.module.css'
 import { useGlass } from '../materials/glass'
 
@@ -41,6 +43,15 @@ export function Pairing({
   onResumeLogout(characterId: string): Promise<void>
 }) {
   const card = useGlass<HTMLDivElement>('card')
+  const { t } = useTranslation(['ssh'])
+  const [ssh, setSsh] = useState(false)
+  const sshForm = useSshForm({
+    confirmLabel: t('ssh:confirmConnect'),
+    submit: async (access, directory) => {
+      const connection = unwrap(await window.yuki.ssh.pair({ access, directory, label: device }))
+      onDone(connection, form.current.active)
+    },
+  })
   const [step, setStep] = useState<'welcome' | 'connect' | 'confirm'>(
     initialServer || startAtServer ? 'connect' : 'welcome',
   )
@@ -186,16 +197,20 @@ export function Pairing({
           )
         )}
         <h1>
-          {step === 'welcome'
-            ? 'Yuki'
-            : (confirmed?.meta.character.display_name ?? '連接已有 Yuki')}
+          {ssh
+            ? t('ssh:connectOverSsh')
+            : step === 'welcome'
+              ? 'Yuki'
+              : (confirmed?.meta.character.display_name ?? '連接已有 Yuki')}
         </h1>
         <p>
-          {step === 'welcome'
-            ? '和她聊聊，一起把事情做好。選擇你想從哪裡開始。'
-            : step === 'confirm'
-              ? '確認 Yuki 與伺服器，再允許這台裝置連接。'
-              : '貼上配對連結或收到的完整配對資訊。'}
+          {ssh
+            ? t('ssh:connectOverSshDescription')
+            : step === 'welcome'
+              ? '和她聊聊，一起把事情做好。選擇你想從哪裡開始。'
+              : step === 'confirm'
+                ? '確認 Yuki 與伺服器，再允許這台裝置連接。'
+                : '貼上配對連結或收到的完整配對資訊。'}
         </p>
         {error && <Banner status="failed">{error}</Banner>}
         {updateNeeded && <Button onClick={onUpdate}>查看 App 更新</Button>}
@@ -269,6 +284,16 @@ export function Pairing({
               )}
             </div>
           </>
+        ) : ssh ? (
+          <>
+            {sshForm.fields}
+            <div className={styles.actions}>
+              <Button variant="plain" onClick={() => setSsh(false)}>
+                {t('ssh:back')}
+              </Button>
+              {sshForm.button}
+            </div>
+          </>
         ) : (
           <form
             className={styles.server}
@@ -284,6 +309,11 @@ export function Pairing({
               連接時，請先建立網路連線。
             </small>
             <TailscaleGuide onError={setError} />
+            {step === 'connect' && !confirmed && (
+              <Button type="button" variant="plain" onClick={() => setSsh(true)}>
+                {t('ssh:connectOverSsh')}
+              </Button>
+            )}
             <label htmlFor="pair-code">配對連結、綁定碼或完整回覆</label>
             <div className={styles.codeRow}>
               <TextField

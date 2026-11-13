@@ -6,6 +6,7 @@ import { unwrap, problemText, hidesPrivateData } from '../queries/client'
 import { PendingRequest, Row, SettingsSection } from './SettingsRow'
 import { LogoutFlow } from './LogoutFlow'
 import { TailscaleGuide } from './TailscaleGuide'
+import { TransportSettings } from './TransportSettings'
 import styles from './Settings.module.css'
 
 export function ServerSettings({
@@ -170,6 +171,7 @@ export function ServerSettings({
               )}
             </Row>
           </SettingsSection>
+          <TransportSettings connection={connection} onConnection={onConnection} />
           <div className={styles.section}>
             <TailscaleGuide onError={setAddressError} />
             {address === undefined && addressError && (

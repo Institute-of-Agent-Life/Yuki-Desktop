@@ -7,6 +7,8 @@ import dialogs from './dialogs'
 import localBot from './localBot'
 import time from './time'
 import settings from './settings'
+import ssh from './ssh'
+import remoteDeploy from './remoteDeploy'
 
 import type { Translation } from '../types'
 
@@ -19,4 +21,6 @@ export default {
   localBot,
   time,
   settings,
+  ssh,
+  remoteDeploy,
 } satisfies Translation<'en'>

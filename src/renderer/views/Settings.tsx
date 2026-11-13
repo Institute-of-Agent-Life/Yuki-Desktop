@@ -102,6 +102,7 @@ export function Settings({
   onModelPage,
   onAddCharacter,
   onDeployLocal,
+  onDeployRemote,
 }: {
   boot: BootInfo
   preferences: Preferences
@@ -119,8 +120,9 @@ export function Settings({
   onModelPage(page: ModelPage): void
   onAddCharacter(): void
   onDeployLocal(): void
+  onDeployRemote(): void
 }) {
-  const { t } = useTranslation(['settings', 'common'])
+  const { t } = useTranslation(['settings', 'common', 'remoteDeploy'])
   const keepInTray = t(
     boot.platform === 'darwin' ? 'settings:keepInMenuBar' : 'settings:keepInTray',
   )
@@ -536,6 +538,12 @@ export function Settings({
                   description={t('settings:deployLocalDescription')}
                 >
                   <Button onClick={onDeployLocal}>{t('settings:deployManage')}</Button>
+                </Row>
+                <Row
+                  title={t('remoteDeploy:deploy')}
+                  description={t('remoteDeploy:deployDescription')}
+                >
+                  <Button onClick={onDeployRemote}>{t('remoteDeploy:deploy')}</Button>
                 </Row>
               </SettingsSection>
             </>

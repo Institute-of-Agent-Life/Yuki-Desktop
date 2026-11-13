@@ -4,12 +4,14 @@ import { Button } from '../components/Controls'
 import { Workspace } from '../components/Workspace'
 import { PresenceCard } from '../components/PresenceCard'
 import { useWorkspace } from '../state/workspace'
+import { useTranslation } from '../i18n'
 import styles from './DisconnectedHome.module.css'
 
 export function DisconnectedHome({
   platform,
   connect,
   deploy,
+  deployRemote,
   onSettings,
   help,
   roleSwitcher,
@@ -17,11 +19,13 @@ export function DisconnectedHome({
   platform: string
   connect(): void
   deploy(): void
+  deployRemote(): void
   onSettings(): void
   help(): void
   roleSwitcher?: (trigger: ReactNode) => ReactNode
 }) {
   const view = useWorkspace((state) => state.view)
+  const { t } = useTranslation(['remoteDeploy'])
   const title =
     view === 'works'
       ? '工作'
@@ -102,6 +106,9 @@ export function DisconnectedHome({
           </Button>
           <Button large onClick={deploy}>
             在本機部署 Yuki
+          </Button>
+          <Button large onClick={deployRemote}>
+            {t('remoteDeploy:deploy')}
           </Button>
         </div>
         <p className={styles.hint}>隨時可以從設定中的「所有 Yuki」繼續配置連線。</p>

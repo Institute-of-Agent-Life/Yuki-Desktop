@@ -566,6 +566,7 @@ it('a verified new address preserves the same request UUID and body when its ori
   expect(connections.connection(original.characterId)).toEqual({
     ...original,
     baseUrl: 'https://new.test/role',
+    transport: { kind: 'direct' },
   })
   expect((await connections.verify(original.characterId, item.requestId)).requestId).toBe(
     item.requestId,

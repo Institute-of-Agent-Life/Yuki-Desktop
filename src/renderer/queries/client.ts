@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ApiReply, Me } from '../../shared/api'
 import { REQUIRED_API_REVISION } from '../../shared/api'
+import sshSource from '../../shared/locales/zh-Hant/ssh'
+import { t } from '../i18n'
 
 export class ClientProblem extends Error {
   constructor(
@@ -92,6 +94,9 @@ const messages: Record<string, string> = {
   open_failed: '系統無法開啟此檔案，請先存到本機並選擇開啟程式。',
   microphone_denied: '麥克風權限未開啟，請到系統設定允許 Yuki 使用麥克風。',
 }
+const isSshProblem = (code: string): code is keyof typeof sshSource.problem =>
+  Object.hasOwn(sshSource.problem, code)
 export function problemText(code: string): string {
+  if (isSshProblem(code)) return t(`ssh:problem.${code}`)
   return messages[code] ?? `操作未完成（${code}）。`
 }

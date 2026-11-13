@@ -900,6 +900,7 @@ function Case() {
       onLoggedOut={async () => {}}
       onAddCharacter={() => setSelected('connect')}
       onDeployLocal={() => setSelected('deploy')}
+      onDeployRemote={() => setSelected('deploy')}
     />
   )
   if (mode === 'settings-transition')

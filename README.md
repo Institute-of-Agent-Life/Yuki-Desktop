@@ -50,9 +50,10 @@
 
 - **連接已有的 Yuki**：在 QQ 或 Telegram 私聊對 Yuki 傳 `/ai link`，把收到的 `yuki://pair` 連結或綁定碼貼進來，確認 Yuki 和這台裝置的名稱即可。
 - **在這台電腦部署一個**：需要 Docker。選擇存放目錄，填入角色名稱、你的名字和自己的模型服務，App 會在本機啟動 Yuki 並自動配對；之後也能在這裡啟動、停止。詳見[本機部署說明](https://github.com/YuanYeYouTao/Yuki/blob/main/docs/operations/desktop-local-deployment.zh-CN.md)。
+- **部署到我的伺服器**：有一台 Linux 雲端伺服器的 IP 與 root（或免密碼 sudo）帳號即可。App 經 SSH 確認主機指紋、檢查環境、需要時代裝 Docker，再上傳與 App 配套的安裝程式和部署包執行安裝（伺服器不必連得上 GitHub），自動配對後進入對話；之後可在「設定 → 連線」升級或查看日誌。拉不到映像時請為伺服器配置 Docker 映像加速器，再從該步重試。
 - **稍後再說**：先看看工作區和設定。
 
-伺服器在遠端時，可以用 HTTPS 網址、[Tailscale](https://github.com/YuanYeYouTao/Yuki/blob/main/docs/operations/tailscale-connection.zh-CN.md) 或 SSH 隧道連線；之後換網址不需要重新配對。
+伺服器在遠端時，可以用 HTTPS 網址、[Tailscale](https://github.com/YuanYeYouTao/Yuki/blob/main/docs/operations/tailscale-connection.zh-CN.md) 或「通過 SSH 連接」：App 在伺服器上執行 `deploy/pair.sh` 取得配對碼，並把本機固定的 `http://127.0.0.1:<連接埠>` 經 SSH 轉到伺服器；密碼只存系統鑰匙圈，主機指紋第一次確認後記住、改變即拒絕。之後在「設定 → 連線 → 連線方式」切換直接連線與 SSH，不需要重新配對，已安裝的連接器會一起改址。SSH 方式下 App 沒有執行時連接器也離線（可開啟登入時開啟，或改用 Tailscale／HTTPS）；手機 App 不適用。
 
 ## 能做什麼
 

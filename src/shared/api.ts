@@ -159,6 +159,8 @@ export interface Connection {
   bindingId: string
   conversationId: string
   persistentCredentials: boolean
+  /** Connections saved before transports existed have none: they are direct. */
+  transport?: import('./ssh').Transport
   deviceId?: string
   needsPairing?: boolean
   credentialProblem?: string
@@ -359,4 +361,5 @@ export interface PendingPairing {
   name: string
   deviceId: string
   persistentCredentials: boolean
+  transport?: import('./ssh').Transport
 }
