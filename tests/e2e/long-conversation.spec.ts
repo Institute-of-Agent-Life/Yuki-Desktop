@@ -52,17 +52,22 @@ test('typing in a long conversation is as quick as in a short one', async ({ pag
 })
 
 test('pointing and scrolling cost the same however long the conversation is', async ({ page }) => {
-  await open(page, 300)
-  const cdp = await page.context().newCDPSession(page)
-  await cdp.send('Performance.enable')
-  const recalc = async () =>
-    (await cdp.send('Performance.getMetrics')).metrics.find(
-      (metric) => metric.name === 'RecalcStyleDuration',
-    )!.value
-  const before = await recalc()
-  for (let step = 0; step < 60; step++)
-    await page.mouse.move(400 + (step % 30) * 15, 300 + (step % 7) * 20)
-  const perMove = ((await recalc()) - before) * (1000 / 60)
+  // The style work of one pointer move, on this machine.
+  const pointing = async (messages: number) => {
+    await open(page, messages)
+    const cdp = await page.context().newCDPSession(page)
+    await cdp.send('Performance.enable')
+    const recalc = async () =>
+      (await cdp.send('Performance.getMetrics')).metrics.find(
+        (metric) => metric.name === 'RecalcStyleDuration',
+      )!.value
+    const before = await recalc()
+    for (let step = 0; step < 60; step++)
+      await page.mouse.move(400 + (step % 30) * 15, 300 + (step % 7) * 20)
+    return ((await recalc()) - before) * (1000 / 60)
+  }
+  const short = await pointing(25)
+  const perMove = await pointing(300)
   const frames = await page.getByRole('log', { name: '對話訊息' }).evaluate(async (log) => {
     const times: number[] = []
     let last = performance.now()
@@ -76,9 +81,10 @@ test('pointing and scrolling cost the same however long the conversation is', as
     return times
   })
   const average = frames.reduce((sum, frame) => sum + frame, 0) / frames.length
-  evidence.pointing = { perMove, average, slow: frames.filter((frame) => frame > 20).length }
-  // 21
-  expect(perMove).toBeLessThanOrEqual(0.5)
+  evidence.pointing = { short, perMove, average, slow: frames.filter((frame) => frame > 20).length }
+  // 21: what a pointer move costs does not grow with the conversation (it was four times as much
+  // at 300 messages as at 25), on any machine.
+  expect(perMove).toBeLessThanOrEqual(Math.max(short * 1.5, 0.5))
   // 22
   expect(average).toBeLessThanOrEqual(18)
   expect(frames.filter((frame) => frame > 20).length).toBeLessThanOrEqual(frames.length * 0.05)
