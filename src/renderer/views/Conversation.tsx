@@ -1622,12 +1622,14 @@ function Pending({ item, verify }: { item: Receipt; verify(): Promise<void> }) {
   )
 }
 
-// A message of stickers alone shows them as stickers; its content ("[表情: 开心]") names them.
+// A message of stickers alone shows them as stickers: its content is nothing but their name
+// ("[表情: 开心]"), which the server also sends as its text.
 const stickerName = (event: PublicEvent | undefined) => {
-  if (!event || event.text.trim() || !event.attachments.length) return undefined
+  if (!event?.attachments.length) return undefined
   if (!event.attachments.every((attachment) => attachment.sticker)) return undefined
-  const tags = event.content.match(/^\[表情(?::\s*(.+))?\]$/)?.[1]
-  return tags ? `表情：${tags}` : '表情'
+  const name = event.content.trim().match(/^\[表情(?::\s*(.+))?\]$/)
+  if (!name) return undefined
+  return name[1] ? `表情：${name[1]}` : '表情'
 }
 
 function MessageBubble({ children }: { children: React.ReactNode }) {

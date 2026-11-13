@@ -290,8 +290,8 @@ function appendGlassMessage(
     event_id: eventId,
     conversation_id: glassConversation,
     content,
-    // A sticker carries no text of its own; its content names it.
-    text: picture?.sticker ? '' : content,
+    // As the server sends every event: its text is its content, a sticker's too ("[表情: 开心]").
+    text: content,
     work_ids: [],
     attachments: picture
       ? [

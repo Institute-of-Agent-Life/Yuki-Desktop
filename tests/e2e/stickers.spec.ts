@@ -78,6 +78,23 @@ test('a sticker from Yuki shows as a sticker, and an ordinary picture as an atta
   await expect(picture.locator('[data-sticker]')).toHaveCount(0)
 })
 
+test('a sticker named by many tags, as Yuki sends it, still shows as a sticker', async ({
+  page,
+}) => {
+  await openConversation(page)
+  const tags = '卖萌、撒娇、期待、渴望、乖巧、求对方帮忙或索要物品时、等待回复'
+  await page.evaluate(
+    (content) => (window as unknown as StickerWindow).regression.receiveGlassPicture(content, true),
+    `[表情: ${tags}]`,
+  )
+  const sticker = page.getByRole('img', { name: `表情：${tags}`, exact: true })
+  await expect(sticker).toBeVisible()
+  const row = page.locator('article').filter({ has: sticker })
+  // 1: no glass bubble and no "[表情: …]" text before it.
+  await expect(row.locator('[data-glass="bubble"]')).toHaveCount(0)
+  await expect(row.getByText(tags)).toHaveCount(0)
+})
+
 test('with reduced motion a sticker simply appears', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await openConversation(page)
