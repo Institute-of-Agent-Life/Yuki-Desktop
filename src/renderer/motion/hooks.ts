@@ -1,6 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Spring, springs } from './spring'
-import { followPointer } from '../materials/glass'
 
 export const reducedMotion = () =>
   document.documentElement.dataset.motion === 'reduced' ||
@@ -146,7 +145,6 @@ export function usePress<T extends HTMLElement>(role: 'command' | 'compact' = 'c
   useLayoutEffect(() => {
     const node = ref.current
     if (!node) return
-    followPointer()
     let press: AbortController | undefined
     const disabled = () => node.matches(':disabled,[aria-disabled="true"],[aria-busy="true"]')
     const end = () => {

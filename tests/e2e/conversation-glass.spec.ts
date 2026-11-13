@@ -222,47 +222,16 @@ test('clear lenses bend the backdrop and a sent message rises from the composer 
   const send = page.getByRole('button', { name: '送出', exact: true })
   const text = '請把下次訪談要追問的問題加進摘要。'
   const reply = '已把問題放在摘要最後，並附上原始訪談的來源。'
+  // Q1 of the 液态玻璃组件统一 task book: bubbles are content, a tinted pane with a drawn rim and
+  // no lens (16, the light's direction, is kept by the panes that still bend: glass-quality).
   for (const eventId of [33, 34]) {
     const glass = page.locator(`article[data-event-id="${eventId}"] [data-glass="bubble"]`)
-    await expect(glass).toHaveAttribute('data-refracting', 'true', { timeout: 2500 })
-    await expect(glass).toHaveCSS('backdrop-filter', /url\(/)
+    await expect(glass).not.toHaveAttribute('data-refracting')
+    await expect(glass).toHaveCSS('backdrop-filter', 'none')
+    expect(
+      await glass.evaluate((surface) => getComputedStyle(surface, '::before').backgroundImage),
+    ).toContain('linear-gradient')
   }
-  // 16, as revised by the 苹果式打光 task book: the rim catches light from the upper left and the
-  // far edge glows softer, as in thick glass; the sides between stay dim.
-  const rim = await page
-    .locator('article[data-event-id="34"] [data-glass="bubble"]')
-    .evaluate(async (surface) => {
-      const style = getComputedStyle(surface)
-      const image = new Image()
-      image.src = style.getPropertyValue('--rim').match(/url\("?(.*?)"?\)$/)![1]!
-      await image.decode()
-      const canvas = document.createElement('canvas')
-      canvas.width = image.width
-      canvas.height = image.height
-      const context = canvas.getContext('2d')!
-      context.drawImage(image, 0, 0)
-      const scale = image.width / surface.getBoundingClientRect().width
-      const inline = parseFloat(style.paddingInlineStart) * scale
-      const bottom = image.height - parseFloat(style.paddingBottom) * scale
-      const alpha = (x: number, y: number) =>
-        Math.max(
-          ...[-1, 0, 1].flatMap((dx) =>
-            [-1, 0, 1].map(
-              (dy) =>
-                context.getImageData(Math.round(x + dx), Math.round(y + dy), 1, 1).data[3]! / 255,
-            ),
-          ),
-        )
-      return {
-        top: alpha(image.width / 2, 1),
-        bottom: alpha(image.width / 2, bottom - 2),
-        left: alpha(inline + 1, bottom / 2),
-        right: alpha(image.width - inline - 2, bottom / 2),
-      }
-    })
-  expect(rim.bottom).toBeLessThan(rim.top)
-  expect(rim.bottom).toBeGreaterThanOrEqual(rim.top * 0.35)
-  expect(rim.right).toBeLessThan(rim.left * 0.6)
   // 17: resting bubbles are lifted off the backdrop by a shadow.
   await expect(
     page.locator('article[data-event-id="34"] [data-glass="bubble"]').locator('..'),
@@ -351,11 +320,11 @@ test('clear lenses bend the backdrop and a sent message rises from the composer 
   })
   await writeFile(
     test.info().outputPath('send-motion.json'),
-    JSON.stringify({ rim, field, outgoing, incoming }, null, 2) + '\n',
+    JSON.stringify({ field, outgoing, incoming }, null, 2) + '\n',
   )
 })
 
-test('a receipt after the tail settles preserves the bubble size and the conversation work card refracts', async ({
+test('a receipt after the tail settles preserves the bubble size and the conversation work card is content', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
@@ -379,7 +348,7 @@ test('a receipt after the tail settles preserves the bubble size and the convers
     has: page.getByRole('heading', { name: '整理訪談筆記', exact: true }),
   })
   const glass = card.locator('[data-glass="work-card"]')
-  await expect(glass).toHaveCSS('backdrop-filter', /url\(/)
+  await expect(glass).toHaveCSS('backdrop-filter', 'none')
   await page.screenshot({ path: test.info().outputPath('clear-work-card.png') })
   await page.evaluate(() => {
     document.documentElement.dataset.opaque = 'true'

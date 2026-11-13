@@ -252,6 +252,8 @@
 .primary::before,
 .send::before {
   content: '';
+  --pointer-x: inherit;
+  --pointer-y: inherit;
   position: absolute;
   inset: 0;
   border-radius: inherit;
@@ -261,7 +263,7 @@
      on the edge facing the light and softer on the far one, as on every clear pane. */
   background:
     radial-gradient(
-        circle 6rem at var(--pointer-x, -100vw) var(--pointer-y, -100vh),
+        circle 6rem at var(--pointer-x) var(--pointer-y),
         oklch(from var(--tinted) 0.92 calc(c * 0.6) h / 0.85),
         transparent
       )

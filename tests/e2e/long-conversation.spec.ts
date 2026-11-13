@@ -1,0 +1,85 @@
+import { expect, test, type Page } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
+
+// 液态玻璃组件统一任务书 (2026-11-12), failure cases 20–22: a long conversation stays as quick to
+// type in, point at and scroll as a short one.
+const evidence: Record<string, unknown> = {}
+test.afterAll(async () => {
+  await writeFile(
+    test.info().outputPath('long-conversation.json'),
+    JSON.stringify(evidence, null, 2) + '\n',
+  )
+})
+
+async function open(page: Page, messages: number) {
+  await page.setViewportSize({ width: 1200, height: 800 })
+  await page.goto(
+    `http://127.0.0.1:4178/renderer-regressions.html?case=conversation-scroll&messages=${messages}`,
+  )
+  await expect(page.locator('article')).toHaveCount(messages)
+  await page.waitForTimeout(1000)
+}
+
+async function typing(page: Page) {
+  const composer = page.getByRole('textbox', { name: /說點什麼/ })
+  await composer.click()
+  await page.evaluate(() => {
+    const state = window as unknown as { long: number[] }
+    state.long = []
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) state.long.push(Math.round(entry.duration))
+    }).observe({ type: 'longtask' })
+  })
+  const start = Date.now()
+  await composer.pressSequentially('長對話裡打字不該比短對話慢：一二三四五六七八九十', {
+    delay: 30,
+  })
+  return {
+    elapsed: Date.now() - start,
+    long: await page.evaluate(() => (window as unknown as { long: number[] }).long),
+  }
+}
+
+test('typing in a long conversation is as quick as in a short one', async ({ page }) => {
+  await open(page, 25)
+  const short = await typing(page)
+  await open(page, 300)
+  const long = await typing(page)
+  evidence.typing = { short, long }
+  // 20
+  expect(long.long.filter((duration) => duration > 50)).toEqual([])
+  expect(long.elapsed).toBeLessThanOrEqual(short.elapsed * 1.3)
+})
+
+test('pointing and scrolling cost the same however long the conversation is', async ({ page }) => {
+  await open(page, 300)
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('Performance.enable')
+  const recalc = async () =>
+    (await cdp.send('Performance.getMetrics')).metrics.find(
+      (metric) => metric.name === 'RecalcStyleDuration',
+    )!.value
+  const before = await recalc()
+  for (let step = 0; step < 60; step++)
+    await page.mouse.move(400 + (step % 30) * 15, 300 + (step % 7) * 20)
+  const perMove = ((await recalc()) - before) * (1000 / 60)
+  const frames = await page.getByRole('log', { name: '對話訊息' }).evaluate(async (log) => {
+    const times: number[] = []
+    let last = performance.now()
+    for (let step = 0; step < 120; step++) {
+      log.scrollTop = Math.max(0, log.scrollTop - 40)
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+      const now = performance.now()
+      times.push(now - last)
+      last = now
+    }
+    return times
+  })
+  const average = frames.reduce((sum, frame) => sum + frame, 0) / frames.length
+  evidence.pointing = { perMove, average, slow: frames.filter((frame) => frame > 20).length }
+  // 21
+  expect(perMove).toBeLessThanOrEqual(0.5)
+  // 22
+  expect(average).toBeLessThanOrEqual(18)
+  expect(frames.filter((frame) => frame > 20).length).toBeLessThanOrEqual(frames.length * 0.05)
+})

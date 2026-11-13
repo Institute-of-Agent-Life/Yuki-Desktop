@@ -24,6 +24,8 @@
 }
 [data-glass]::after {
   content: '';
+  --pointer-x: inherit;
+  --pointer-y: inherit;
   position: absolute;
   inset: 0;
   border-radius: inherit;
@@ -32,7 +34,7 @@
   --rim-lit: #fff;
   /* The light source sits at the pointer; each pane's light map decides where it lands. */
   background: radial-gradient(
-      circle 13rem at var(--pointer-x, -100vw) var(--pointer-y, -100vh),
+      circle 13rem at var(--pointer-x) var(--pointer-y),
       var(--rim-lit),
       var(--rim-rest)
     )
