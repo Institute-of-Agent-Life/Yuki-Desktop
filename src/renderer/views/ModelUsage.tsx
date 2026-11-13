@@ -7,7 +7,7 @@ import type {
   ModelUsageGroup,
   ModelUsageStats,
 } from '../../shared/models'
-import { Banner, Spinner } from '../components/Controls'
+import { Banner, Segmented, Spinner } from '../components/Controls'
 import { unwrap } from '../queries/client'
 import { useDisplayTime } from '../state/time'
 import { modelTaskLabel } from './model-document'
@@ -200,18 +200,13 @@ export function ModelUsage({
           <h2>用量</h2>
           <p>看看 Yuki 這段時間用了多少。</p>
         </div>
-        <div className={styles.ranges} role="group" aria-label="統計時間範圍">
-          {ranges.map((range) => (
-            <button
-              key={range.value}
-              type="button"
-              aria-pressed={period.range === range.value}
-              onClick={() => changeRange(range.value)}
-            >
-              {range.label}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          kind="radio"
+          label="統計時間範圍"
+          items={ranges}
+          value={period.range}
+          onChange={changeRange}
+        />
       </header>
       {stats.error ? (
         <Banner status="failed">{stats.error.message}</Banner>
@@ -281,22 +276,16 @@ export function ModelUsage({
             )}
           </div>
           <div className={styles.groupBar}>
-            <div className={styles.groupTabs} role="group" aria-label="用量分組">
-              <button
-                type="button"
-                aria-pressed={by === 'model'}
-                onClick={() => changeGroup('model')}
-              >
-                模型
-              </button>
-              <button
-                type="button"
-                aria-pressed={by === 'task'}
-                onClick={() => changeGroup('task')}
-              >
-                用途
-              </button>
-            </div>
+            <Segmented
+              kind="radio"
+              label="用量分組"
+              items={[
+                { value: 'model', label: '模型' },
+                { value: 'task', label: '用途' },
+              ]}
+              value={by}
+              onChange={changeGroup}
+            />
             <label className={styles.filter}>
               <span>{by === 'model' ? '用途' : '模型'}</span>
               <select

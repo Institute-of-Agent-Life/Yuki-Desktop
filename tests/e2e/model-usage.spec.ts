@@ -328,7 +328,14 @@ test('model usage keeps original sources, ranges, same-sample cache and each Yuk
     const filteredTask = await stats(page, original.characterId, { ...query, task: 'chat_agent' })
     expect(filteredTask.summary.total_tokens).toBe(1870)
     expect(filteredTask.options).toEqual(initial.options)
-    await region(page).getByRole('button', { name: '用途', exact: true }).click()
+    // 7 (液态玻璃组件统一 task book): the range and the grouping are the shared segmented glass.
+    for (const name of ['統計時間範圍', '用量分組'])
+      await expect(
+        region(page)
+          .getByRole('radiogroup', { name, exact: true })
+          .locator('[data-glass="segment"]'),
+      ).toHaveCount(1)
+    await region(page).getByRole('radio', { name: '用途', exact: true }).click()
     await expect(total(page)).toHaveText('2.09 K')
     const modelFilter = region(page).getByRole('combobox', { name: '篩選模型', exact: true })
     await modelFilter.selectOption(JSON.stringify(['fixture-vendor', 'gemini-live']))
@@ -341,9 +348,9 @@ test('model usage keeps original sources, ranges, same-sample cache and each Yuk
     })
     expect(filteredModel.summary).toMatchObject({ total_tokens: 1320, invocations: 3 })
     expect(filteredModel.options).toEqual(initial.options)
-    await region(page).getByRole('button', { name: '近 7 天', exact: true }).click()
+    await region(page).getByRole('radio', { name: '近 7 天', exact: true }).click()
     await expect(total(page)).toHaveText('2.19 K')
-    await region(page).getByRole('button', { name: '近 24 小時', exact: true }).click()
+    await region(page).getByRole('radio', { name: '近 24 小時', exact: true }).click()
     const lastDay = await stats(page, original.characterId, { ...query, range: '24h' })
     const expectedDay = facts.first.records.filter(
       (record) =>
@@ -357,7 +364,7 @@ test('model usage keeps original sources, ranges, same-sample cache and each Yuk
       'title',
       new Intl.NumberFormat('zh-Hant-TW').format(lastDay.summary.total_tokens),
     )
-    await region(page).getByRole('button', { name: '全部留存', exact: true }).click()
+    await region(page).getByRole('radio', { name: '全部留存', exact: true }).click()
     await expect(total(page)).toHaveText('7.19 K')
     const all = await stats(page, original.characterId, {
       ...query,
@@ -428,7 +435,7 @@ test('model usage keeps original sources, ranges, same-sample cache and each Yuk
       .and(page.getByTitle(original.baseUrl, { exact: true }))
       .click()
     await page.getByRole('tab', { name: '用量', exact: true }).click()
-    await region(page).getByRole('button', { name: '今日', exact: true }).click()
+    await region(page).getByRole('radio', { name: '今日', exact: true }).click()
     await expect(total(page)).toHaveText('2.09 K')
     expect(await stats(page, original.characterId, query)).toEqual(initial)
     expect(
@@ -566,7 +573,7 @@ test('a failed usage read hides old numbers instead of presenting zero or a stal
     await usage(page)
     await expect(total(page)).toHaveText('2.09 K')
     proxy.faults.offline = true
-    await region(page).getByRole('button', { name: '全部留存', exact: true }).click()
+    await region(page).getByRole('radio', { name: '全部留存', exact: true }).click()
     await expect(
       region(page).getByText('伺服器暫時無法接收，尚未寫入。', { exact: true }),
     ).toBeVisible()
