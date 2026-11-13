@@ -76,7 +76,7 @@ export default {
   switch: 'Switch',
   add: 'Add',
   connectExisting: 'Connect an Existing Yuki',
-  connectExistingDescription: 'Connect with a pairing link or binding code.',
+  connectExistingDescription: 'Connect with a pairing link or link code.',
   connect: 'Connect…',
   deployLocal: 'Deploy Yuki on This Computer',
   deployLocalDescription: 'Run a Yuki locally with Docker.',

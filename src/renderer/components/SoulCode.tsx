@@ -28,7 +28,9 @@ import { searchKeymap, openSearchPanel, search } from '@codemirror/search'
 import { markdown } from '@codemirror/lang-markdown'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
+import type { TFunction } from 'i18next'
 import { useCommands } from '../state/commands'
+import { useTranslation } from '../i18n'
 
 const external = Annotation.define<boolean>()
 const sourceSeparator = (value: string) => /\r\n|\r|\n/.exec(value)?.[0] ?? '\n'
@@ -50,25 +52,39 @@ const markdownStyle = HighlightStyle.define([
   { tag: [tags.monospace, tags.quote], color: 'var(--text-secondary)' },
   { tag: tags.processingInstruction, color: 'var(--text-tertiary)' },
 ])
-const matcher = new MatchDecorator({
-  regexp: /\{\{name\}\}/g,
-  decoration: Decoration.mark({
-    class: 'cm-soul-name',
-    attributes: { title: '目前的名稱' },
+const placeholders = (title: string) => {
+  const matcher = new MatchDecorator({
+    regexp: /\{\{name\}\}/g,
+    decoration: Decoration.mark({ class: 'cm-soul-name', attributes: { title } }),
+  })
+  return ViewPlugin.fromClass(
+    class {
+      decorations
+      constructor(view: EditorView) {
+        this.decorations = matcher.createDeco(view)
+      }
+      update(update: import('@codemirror/view').ViewUpdate) {
+        this.decorations = matcher.updateDeco(update, this.decorations)
+      }
+    },
+    { decorations: (instance) => instance.decorations },
+  )
+}
+// Interface words inside the editor follow the current language.
+const translated = (t: TFunction<['soul', 'common']>) => [
+  placeholders(t('soul:currentName')),
+  EditorState.phrases.of({
+    Find: t('soul:search.find'),
+    Replace: t('soul:search.replace'),
+    next: t('soul:search.next'),
+    previous: t('soul:search.previous'),
+    all: t('soul:search.all'),
+    'match case': t('soul:search.matchCase'),
+    regexp: t('soul:search.regexp'),
+    'by word': t('soul:search.byWord'),
+    close: t('common:action.close'),
   }),
-})
-const placeholders = ViewPlugin.fromClass(
-  class {
-    decorations
-    constructor(view: EditorView) {
-      this.decorations = matcher.createDeco(view)
-    }
-    update(update: import('@codemirror/view').ViewUpdate) {
-      this.decorations = matcher.updateDeco(update, this.decorations)
-    }
-  },
-  { decorations: (instance) => instance.decorations },
-)
+]
 
 export function SoulCode(props: {
   content: string
@@ -85,6 +101,8 @@ export function SoulCode(props: {
   const latest = useRef(props)
   latest.current = props
   const readOnly = useRef(new Compartment())
+  const language = useRef(new Compartment())
+  const { t } = useTranslation(['soul', 'common'])
   const lastContent = useRef(props.content)
   const lastUndoable = useRef(props.undoableChange)
   useEffect(() => {
@@ -99,7 +117,7 @@ export function SoulCode(props: {
           history(),
           markdown(),
           syntaxHighlighting(markdownStyle),
-          placeholders,
+          language.current.of([]),
           separator.init(() => sourceSeparator(latest.current.content)),
           invertedEffects.of((transaction) =>
             transaction.effects.some((effect) => effect.is(setSeparator))
@@ -113,17 +131,6 @@ export function SoulCode(props: {
             'aria-multiline': 'true',
             'aria-readonly': String(view.state.readOnly),
           })),
-          EditorState.phrases.of({
-            Find: '尋找',
-            Replace: '取代',
-            next: '下一個',
-            previous: '上一個',
-            all: '全部',
-            'match case': '區分大小寫',
-            regexp: '正規表示式',
-            'by word': '全字',
-            close: '關閉',
-          }),
           search({ top: true }),
           keymap.of([
             {
@@ -182,6 +189,9 @@ export function SoulCode(props: {
       effects: readOnly.current.reconfigure(EditorState.readOnly.of(props.readOnly)),
     })
   }, [props.readOnly])
+  useEffect(() => {
+    view.current?.dispatch({ effects: language.current.reconfigure(translated(t)) })
+  }, [t])
   useEffect(() => {
     const undoable = lastUndoable.current !== props.undoableChange
     lastUndoable.current = props.undoableChange

@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from 'react'
 import { Button, TextField } from '../components/Controls'
+import { useTranslation } from '../i18n'
 import styles from './ModelSettings.module.css'
 
 export interface ConnectionDraft {
@@ -24,13 +25,14 @@ export function ModelConnectionForm({
   multiple?: boolean
   showName?: boolean
 }) {
+  const { t } = useTranslation(['models'])
   const id = useId()
   const [model, setModel] = useState('')
   return (
     <div className={styles.formFields}>
       {showName && (
         <label className={styles.formField} htmlFor={`${id}-name`}>
-          連接名稱
+          {t('models:connectionName')}
           <TextField
             id={`${id}-name`}
             value={value.name}
@@ -39,7 +41,7 @@ export function ModelConnectionForm({
         </label>
       )}
       <label className={styles.formField} htmlFor={`${id}-url`}>
-        服務位址
+        {t('models:baseUrl')}
         <TextField
           id={`${id}-url`}
           value={value.baseUrl}
@@ -47,18 +49,18 @@ export function ModelConnectionForm({
         />
       </label>
       <label className={styles.formField} htmlFor={`${id}-key`}>
-        金鑰
+        {t('models:key')}
         <TextField
           id={`${id}-key`}
           type="password"
           autoComplete="off"
           value={value.key}
           onChange={(event) => change({ ...value, key: event.target.value })}
-          placeholder="不需鑑權時留空"
+          placeholder={t('models:keyOptional')}
         />
       </label>
       <div className={styles.formField}>
-        <label htmlFor={`${id}-model`}>模型 ID</label>
+        <label htmlFor={`${id}-model`}>{t('models:modelId')}</label>
         <div className={styles.inline}>
           <TextField
             id={`${id}-model`}
@@ -77,7 +79,7 @@ export function ModelConnectionForm({
                 setModel('')
               }}
             >
-              加入模型
+              {t('models:addModel')}
             </Button>
           )}
         </div>
@@ -88,7 +90,7 @@ export function ModelConnectionForm({
           {value.models.map((model) => (
             <Button
               key={model}
-              aria-label={`移除模型 ${model}`}
+              aria-label={t('models:removeModel', { model })}
               variant="plain"
               onClick={() =>
                 change({ ...value, models: value.models.filter((id) => id !== model) })

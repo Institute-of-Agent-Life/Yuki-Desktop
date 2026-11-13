@@ -5,6 +5,7 @@ import { IconButton } from './Controls'
 import styles from '../App.module.css'
 import { normalizeMessageText } from '../../shared/message'
 import { unwrap } from '../queries/client'
+import { useTranslation } from '../i18n'
 
 /** Pasted text past either limit becomes a Markdown attachment instead of filling the field. */
 export const pastedTextLimit = { characters: 4000, lines: 80 }
@@ -40,19 +41,21 @@ export function Composer({
   blocked?: boolean
   children?: ReactNode
 }) {
+  const { t } = useTranslation(['conversation'])
   const glass = useGlass<HTMLDivElement>('composer')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const feedbackId = useId()
   const shortcutId = `${feedbackId}-shortcut`
-  const shortcut =
+  const shortcut = t(
     platform === 'darwin'
       ? commandEnter
-        ? '⌘↩ 送出'
-        : '↩ 送出 · ⇧↩ 換行'
+        ? 'conversation:composer.shortcut.macCommand'
+        : 'conversation:composer.shortcut.mac'
       : commandEnter
-        ? 'Ctrl+Enter 送出'
-        : 'Enter 送出 · Shift+Enter 換行'
+        ? 'conversation:composer.shortcut.command'
+        : 'conversation:composer.shortcut.enter',
+  )
   const submit = async () => {
     if (sending || blocked || (!normalizeMessageText(draft) && !hasContent)) return
     setSending(true)
@@ -60,7 +63,7 @@ export function Composer({
     try {
       await onSubmit()
     } catch {
-      setError('尚未送出，已保留內容。')
+      setError(t('conversation:composer.notSent'))
     } finally {
       setSending(false)
     }
@@ -69,18 +72,26 @@ export function Composer({
     <div ref={glass.ref} data-glass="composer" className={styles.composer} data-region="composer">
       <div className={styles.composerExtras}>{children}</div>
       <div className={styles.composerRow}>
-        <IconButton label="附加檔案" disabled={!onAttach} onClick={onAttach}>
+        <IconButton
+          label={t('conversation:composer.attach')}
+          disabled={!onAttach}
+          onClick={onAttach}
+        >
           <Plus size={18} strokeWidth={1.6} />
         </IconButton>
-        <IconButton label="語音輸入" disabled={!onRecord} onClick={onRecord}>
+        <IconButton
+          label={t('conversation:composer.voice')}
+          disabled={!onRecord}
+          onClick={onRecord}
+        >
           <Mic size={18} strokeWidth={1.6} />
         </IconButton>
         <textarea
           rows={1}
-          aria-label={`和 ${name} 說點什麼`}
+          aria-label={t('conversation:composer.prompt', { name })}
           aria-describedby={error ? feedbackId : shortcutId}
           aria-invalid={!!error}
-          placeholder={`和 ${name} 說點什麼…`}
+          placeholder={t('conversation:composer.placeholder', { name })}
           value={draft}
           onChange={(event) => {
             setError('')
@@ -130,7 +141,7 @@ export function Composer({
           {shortcut}
         </small>
         <IconButton
-          label="送出"
+          label={t('conversation:composer.send')}
           variant="send"
           aria-busy={sending}
           disabled={sending || blocked || (!normalizeMessageText(draft) && !hasContent)}

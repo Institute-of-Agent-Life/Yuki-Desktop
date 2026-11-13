@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Button } from '../components/Controls'
+import { useTranslation } from '../i18n'
 import styles from './Settings.module.css'
 
 export function Row({
@@ -59,10 +60,11 @@ export function PendingRequest({
   busy: boolean
   onVerify(): void
 }) {
+  const { t } = useTranslation(['connection'])
   return (
-    <Row title={text} description="結果尚未確認，會以原請求查詢，不會建立新請求。">
+    <Row title={text} description={t('connection:pending.description')}>
       <Button loading={busy} onClick={onVerify}>
-        重新確認
+        {t('connection:pending.verify')}
       </Button>
     </Row>
   )

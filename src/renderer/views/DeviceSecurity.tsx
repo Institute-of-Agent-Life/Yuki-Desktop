@@ -5,10 +5,12 @@ import type { Connection, Me, LinkCodeReply, CharacterCommandItem } from '../../
 import { Banner, Button, Sheet, Spinner } from '../components/Controls'
 import { hidesPrivateData, unwrap, problemText } from '../queries/client'
 import { useDisplayTime } from '../state/time'
+import { useTranslation } from '../i18n'
 import { Row, SettingsSection, PendingRequest } from './SettingsRow'
 import styles from './Settings.module.css'
 
 export function DeviceSecurity({ connection }: { connection: Connection }) {
+  const { t } = useTranslation(['devices', 'common'])
   const id = connection.characterId,
     query = useQueryClient(),
     { date } = useDisplayTime()
@@ -36,7 +38,7 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
   const [open, setOpen] = useState(false),
     [issued, setIssued] = useState<LinkCodeReply>(),
     [qr, setQR] = useState(''),
-    [qrError, setQRError] = useState(''),
+    [qrFailed, setQRFailed] = useState(false),
     [now, setNow] = useState(Date.now())
   const generation = useRef(0),
     lost = revoked || hidesPrivateData(me.error),
@@ -52,7 +54,7 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
     setOpen(false)
     setIssued(undefined)
     setQR('')
-    setQRError('')
+    setQRFailed(false)
   }
   useEffect(
     () => () => {
@@ -107,14 +109,14 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
   useEffect(() => {
     let active = true
     setQR('')
-    setQRError('')
+    setQRFailed(false)
     if (link && !expired)
       void QRCode.toDataURL(link, { width: 512, margin: 2, errorCorrectionLevel: 'M' })
         .then((value) => {
           if (active) setQR(value)
         })
         .catch(() => {
-          if (active) setQRError('QR 暫時無法顯示，仍可複製綁定連結。')
+          if (active) setQRFailed(true)
         })
     return () => {
       active = false
@@ -140,7 +142,7 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
       if (generation.current === attempt)
         setError({
           section: 'codes',
-          message: error instanceof Error ? error.message : '無法產生綁定碼。',
+          message: error instanceof Error ? error.message : t('devices:issueFailed'),
         })
     } finally {
       setBusy(false)
@@ -165,14 +167,15 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
         else
           setNotice({
             section,
-            message: section === 'connector' ? '電腦連接器已移除。' : '裝置已撤銷。',
+            message:
+              section === 'connector' ? t('devices:connectorRemoved') : t('devices:deviceRevoked'),
           })
       }
       await refresh()
     } catch (error) {
       setError({
         section,
-        message: error instanceof Error ? error.message : '撤銷結果尚未確認。',
+        message: error instanceof Error ? error.message : t('devices:revokeUnconfirmed'),
       })
     } finally {
       setRevoke(undefined)
@@ -182,9 +185,12 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
   const copy = async (value: string) => {
     try {
       unwrap(await window.yuki.client.copy(value))
-      setNotice({ section: 'codes', message: '已複製。' })
+      setNotice({ section: 'codes', message: t('devices:copied') })
     } catch (error) {
-      setError({ section: 'codes', message: error instanceof Error ? error.message : '無法複製。' })
+      setError({
+        section: 'codes',
+        message: error instanceof Error ? error.message : t('devices:copyFailed'),
+      })
     }
   }
   const pending =
@@ -203,12 +209,10 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
   )
   return (
     <>
-      <p className={styles.notice}>
-        這裡列出你在 {connection.name} 的登入與電腦連接器。移除電腦會撤銷該連線權限，保留歷史紀錄。
-      </p>
+      <p className={styles.notice}>{t('devices:intro', { name: connection.name })}</p>
       {[
-        { purpose: 'chat', title: '登入的裝置' },
-        { purpose: 'connector', title: '電腦連接器' },
+        { purpose: 'chat', title: t('devices:signedIn') },
+        { purpose: 'connector', title: t('devices:connectors') },
       ].map(({ purpose, title }) => {
         const devices = data?.devices.filter(
           (device) => device.purpose === purpose && (purpose !== 'connector' || !device.revoked_at),
@@ -231,11 +235,22 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
             {devices?.map((device) => (
               <Row
                 key={device.device_id}
-                title={`${device.label || '未命名裝置'}${device.device_id === connection.deviceId ? '（目前這台）' : ''}`}
-                description={`建立於 ${date(device.created_at)}${device.revoked_at ? ` · 已撤銷 ${date(device.revoked_at)}` : ''}`}
+                title={
+                  device.device_id === connection.deviceId
+                    ? t('devices:currentDevice', { name: device.label || t('devices:unnamed') })
+                    : device.label || t('devices:unnamed')
+                }
+                description={
+                  device.revoked_at
+                    ? t('devices:createdRevoked', {
+                        created: date(device.created_at),
+                        revoked: date(device.revoked_at),
+                      })
+                    : t('devices:created', { date: date(device.created_at) })
+                }
               >
                 {device.revoked_at ? (
-                  <span className={styles.notice}>已撤銷</span>
+                  <span className={styles.notice}>{t('devices:revoked')}</span>
                 ) : device.device_id !== connection.deviceId ? (
                   <Button
                     disabled={
@@ -247,12 +262,15 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
                       )
                     }
                     onClick={() => setRevoke(device)}
-                    aria-label={`${purpose === 'connector' ? '移除' : '撤銷'} ${device.label || '未命名裝置'}`}
+                    aria-label={t(
+                      purpose === 'connector' ? 'devices:removeNamed' : 'devices:revokeNamed',
+                      { name: device.label || t('devices:unnamed') },
+                    )}
                   >
-                    {purpose === 'connector' ? '移除…' : '撤銷…'}
+                    {purpose === 'connector' ? t('devices:remove') : t('devices:revoke')}
                   </Button>
                 ) : (
-                  <span className={styles.notice}>使用中</span>
+                  <span className={styles.notice}>{t('devices:inUse')}</span>
                 )}
               </Row>
             ))}
@@ -265,7 +283,7 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
           {pending.map((item) => (
             <PendingRequest
               key={item.requestId}
-              text="裝置撤銷：結果尚未確認。"
+              text={t('devices:revokePending')}
               busy={busy}
               onVerify={() => {
                 if (item.command.kind === 'device-revoke')
@@ -275,11 +293,11 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
           ))}
         </SettingsSection>
       )}
-      <SettingsSection title="連接另一台裝置">
+      <SettingsSection title={t('devices:connectAnother')}>
         {!open && feedback('codes')}
-        <Row title="產生一次性綁定碼" description="10 分鐘內可使用一次，請勿分享給他人。">
+        <Row title={t('devices:oneTimeCode')} description={t('devices:oneTimeCodeDescription')}>
           <Button disabled={busy || !data} onClick={() => void issue()}>
-            產生綁定碼
+            {t('devices:createCode')}
           </Button>
           {codes.data?.at(-1) && (
             <Button
@@ -287,7 +305,7 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
               disabled={busy || !data}
               onClick={() => void issue(codes.data!.at(-1)!.requestId)}
             >
-              查看上次結果
+              {t('devices:lastResult')}
             </Button>
           )}
         </Row>
@@ -296,14 +314,18 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
           .map((item) => (
             <PendingRequest
               key={item.requestId}
-              text="發碼結果尚未確認，原請求已保留。"
+              text={t('devices:issuePending')}
               busy={busy}
               onVerify={() => void issue(item.requestId)}
             />
           ))}
       </SettingsSection>
       <Sheet
-        title={revoke?.purpose === 'connector' ? '移除電腦？' : '撤銷裝置？'}
+        title={
+          revoke?.purpose === 'connector'
+            ? t('devices:removeComputerTitle')
+            : t('devices:revokeDeviceTitle')
+        }
         open={!!revoke}
         onClose={() => {
           if (!busy) setRevoke(undefined)
@@ -311,32 +333,34 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
         actions={
           <>
             <Button disabled={busy} onClick={() => setRevoke(undefined)}>
-              取消
+              {t('common:action.cancel')}
             </Button>
             <Button
               variant="destructive"
               loading={busy}
               onClick={() => void revokeDevice(revoke!.device_id, revoke!.purpose)}
             >
-              {revoke?.purpose === 'connector' ? '移除電腦' : '撤銷裝置'}
+              {revoke?.purpose === 'connector'
+                ? t('devices:removeComputer')
+                : t('devices:revokeDevice')}
             </Button>
           </>
         }
       >
-        <p>「{revoke?.label || '未命名裝置'}」會失去這個 Yuki 的連線權限。之後需要重新配對。</p>
-        {revoke?.purpose === 'connector' && <p>會從目前的電腦列表移除，原任務與歷史紀錄保留。</p>}
+        <p>{t('devices:revokeBody', { name: revoke?.label || t('devices:unnamed') })}</p>
+        {revoke?.purpose === 'connector' && <p>{t('devices:removeBody')}</p>}
       </Sheet>
       <Sheet
-        title="連接另一台裝置"
+        title={t('devices:connectAnother')}
         open={open}
         onClose={close}
         actions={
           <Button variant="primary" autoFocus onClick={close}>
-            完成
+            {t('common:action.done')}
           </Button>
         }
       >
-        <p>10 分鐘內、一次使用。請勿分享給他人。</p>
+        <p>{t('devices:codeHint')}</p>
         {open && notice?.section === 'codes' && (
           <p role="status" className={styles.notice}>
             {notice.message}
@@ -349,7 +373,7 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
             <Banner status="failed">
               {issued.request.state === 'result'
                 ? problemText(issued.request.problem)
-                : '發碼結果尚未確認。可關閉此視窗，稍後查證原請求。'}
+                : t('devices:issueUnconfirmed')}
             </Banner>
           ) : issued.code && !expired ? (
             <>
@@ -361,37 +385,35 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
                       src={qr}
                       width={120}
                       height={120}
-                      alt="綁定連結 QR"
+                      alt={t('devices:qrAlt')}
                     />
                   ) : (
-                    !qrError && <Spinner />
+                    !qrFailed && <Spinner />
                   )}
                 </div>
                 <div>
-                  {qrError && <p className={styles.notice}>{qrError}</p>}
-                  <p className={styles.secret} aria-label="一次性綁定碼">
+                  {qrFailed && <p className={styles.notice}>{t('devices:qrFailed')}</p>}
+                  <p className={styles.secret} aria-label={t('devices:codeLabel')}>
                     {issued.code}
                   </p>
-                  <p className={styles.link} aria-label="一次性綁定連結">
+                  <p className={styles.link} aria-label={t('devices:linkLabel')}>
                     {link}
                   </p>
-                  <p className={styles.notice}>有效至 {date(expires ?? null)}</p>
+                  <p className={styles.notice}>
+                    {t('devices:validUntil', { date: date(expires ?? null) })}
+                  </p>
                   <div className={styles.actions}>
-                    <Button onClick={() => void copy(issued.code!)}>複製綁定碼</Button>
-                    <Button onClick={() => void copy(link)}>複製綁定連結</Button>
+                    <Button onClick={() => void copy(issued.code!)}>{t('devices:copyCode')}</Button>
+                    <Button onClick={() => void copy(link)}>{t('devices:copyLink')}</Button>
                   </div>
                 </div>
               </div>
             </>
           ) : (
-            <p role="status">
-              {expired
-                ? '綁定碼已過期。可明確產生另一個碼。'
-                : '已確認原發碼請求。綁定碼明文無法重新取得；需要時可明確產生另一個碼，先前的碼仍會按原期限失效。'}
-            </p>
+            <p role="status">{expired ? t('devices:expired') : t('devices:confirmedHidden')}</p>
           ))}
         <Button variant="plain" disabled={busy || lost} onClick={() => void issue()}>
-          再產生一個
+          {t('devices:another')}
         </Button>
       </Sheet>
     </>

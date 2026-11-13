@@ -20,8 +20,10 @@ import { UpdateProvider } from './state/updates'
 import { RoleSwitcher } from './components/RoleSwitcher'
 import { ApplicationMenu } from './components/ApplicationMenu'
 import { useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from './i18n'
 
 export function App({ boot }: { boot: BootInfo }) {
+  const { t } = useTranslation(['workspace'])
   const query = useQueryClient()
   const selection = useRef<string | undefined>(undefined)
   const [step, setStep] = useState<'welcome' | 'adding' | 'local' | 'remote'>(
@@ -92,7 +94,7 @@ export function App({ boot }: { boot: BootInfo }) {
         ? result.value.find((item) => item.characterId === target.characterId)
         : (available.find((item) => item.characterId === selection.current) ?? available[0])
       if (!first && target) {
-        setNavigationError('原 Yuki 的連線已移除。')
+        setNavigationError(t('workspace:connectionRemoved'))
         return
       }
       if (first) {
@@ -473,7 +475,7 @@ export function App({ boot }: { boot: BootInfo }) {
                   const candidate = unwrap(await window.yuki.client.connections()).find(
                     (item) => item.characterId === id,
                   )
-                  if (!candidate) throw new Error('原連線已處理完成，可以重新配對。')
+                  if (!candidate) throw new Error(t('workspace:logoutResolved'))
                   setPairLink(null)
                   setPairingTarget(undefined)
                   updateConnection(candidate)

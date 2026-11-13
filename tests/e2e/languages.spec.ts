@@ -3,7 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { activeCharacterName } from '../fixtures/active-character'
 import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
-import { navigate } from '../fixtures/navigation'
+import { resources } from '../../src/shared/locales'
 
 /*
  * Desktop in three languages (task book 2026-11-13 §3.4), failure cases written before the code:
@@ -91,13 +91,22 @@ test('switching language relocalizes the running app and keeps time zone, receip
     const darwin = platform === 'darwin'
 
     // A message whose time is shown in the chosen zone, distinct from the machine's own.
-    const composer = page.getByRole('textbox', { name: `和 ${name} 說點什麼`, exact: true })
+    // The conversation itself follows the language; its controls are found in every one.
+    const composer = page.getByRole('textbox', {
+      name: new RegExp(
+        `^(${['zh-Hant', 'zh-Hans', 'en'].map((language) => resources[language as 'en'].conversation.composer.prompt.replace('{{name}}', name)).join('|')})$`,
+      ),
+    })
     await composer.fill('語言切換前的訊息')
     await composer.press('Enter')
     await expect(page.getByText('Desktop reference reply', { exact: true })).toBeVisible()
     const cdp = await app.context().newCDPSession(page)
     await cdp.send('Emulation.setTimezoneOverride', { timezoneId: 'America/Los_Angeles' })
-    const time = page.locator('article[aria-label="你的訊息"] time').first()
+    const time = page
+      .locator('article')
+      .filter({ hasText: '語言切換前的訊息' })
+      .locator('time')
+      .first()
     const timestamp = (await time.getAttribute('datetime'))!
     const taipei = (locale: string) =>
       page.evaluate(
@@ -245,9 +254,12 @@ test(
       const { characterId } = await currentConnection(page)
       await page.evaluate(() => window.yuki.preferences({ language: 'en' }))
       await expect(page.locator('html')).toHaveAttribute('lang', 'en')
-      await navigate(page, `${name} 的電腦`)
-      await page.getByRole('button', { name: '接手', exact: true }).click()
-      await expect(page.getByRole('button', { name: '貼上文字到遠端畫面' })).toBeEnabled()
+      const words = resources.en.computer
+      await page.evaluate(() =>
+        window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'computer' })),
+      )
+      await page.getByRole('button', { name: words.take, exact: true }).click()
+      await expect(page.getByRole('button', { name: words.pasteText })).toBeEnabled()
       await app.evaluate(({ dialog, app }, path) => {
         dialog.showMessageBox = (async (
           owner: Electron.BaseWindow | Electron.MessageBoxOptions,

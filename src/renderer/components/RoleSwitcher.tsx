@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n'
 import {
   useEffect,
   useId,
@@ -55,6 +56,8 @@ function Role({
   selected: boolean
   choose(): void
 }) {
+  const { t } = useTranslation(['presence'])
+  const { t: text } = useTranslation(['workspace'])
   const id = connection.characterId
   const profile = useQuery({
     queryKey: [id, 'character'],
@@ -69,6 +72,7 @@ function Role({
   })
   const name = profile.data?.display_name ?? connection.name
   const presence = characterPresence(
+    t,
     profile.isError || status.isError ? 'offline' : status.data ? 'online' : 'connecting',
     status.data,
   )
@@ -87,9 +91,9 @@ function Role({
           <strong>{name}</strong>
           <small>
             {connection.needsPairing
-              ? '需要重新配對'
+              ? text('workspace:switcher.needsPairing')
               : connection.logout
-                ? '登出尚未完成'
+                ? text('workspace:switcher.logoutPending')
                 : presence.text}
           </small>
         </span>
@@ -115,6 +119,7 @@ export function RoleSwitcher({
   onDeploy(): void
   onAbout?(): void
 }) {
+  const { t } = useTranslation(['workspace'])
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const press = usePress<HTMLButtonElement>()
@@ -155,7 +160,7 @@ export function RoleSwitcher({
         type="button"
         data-press="button"
         className={styles.trigger}
-        aria-label="切換 Yuki"
+        aria-label={t('workspace:switcher.label')}
         aria-describedby={description}
         aria-haspopup="menu"
         aria-expanded={open && active}
@@ -221,7 +226,7 @@ export function RoleSwitcher({
               onAdd()
             }}
           >
-            連接另一個 Yuki
+            {t('workspace:switcher.add')}
           </button>
           <button
             type="button"
@@ -233,7 +238,7 @@ export function RoleSwitcher({
               onDeploy()
             }}
           >
-            在這台電腦部署 Yuki
+            {t('workspace:switcher.deploy')}
           </button>
           {onAbout && connection && (
             <button
@@ -246,7 +251,7 @@ export function RoleSwitcher({
                 onAbout()
               }}
             >
-              關於 {connection.name}
+              {t('workspace:aboutOf', { name: connection.name })}
             </button>
           )}
         </GlassMenu>

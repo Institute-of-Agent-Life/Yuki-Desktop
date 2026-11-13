@@ -31,16 +31,12 @@ import { CharacterAvatar } from '../components/CharacterAvatar'
 import { AvatarEditor, AvatarPending } from './AvatarEditor'
 import { AvatarStatus } from './AvatarStatus'
 import { useDisplayTime } from '../state/time'
+import { useTranslation } from '../i18n'
 
-const kinds: Record<string, string> = { fact: '記錄', preference: '偏好', episode: '經歷' }
-const states: Record<string, string> = {
-  active: '已安排',
-  paused: '已暫停',
-  completed: '已完成',
-  cancelled: '已取消',
-  failed: '未完成',
-  blocked: '需要處理',
-}
+const kinds = ['fact', 'preference', 'episode'] as const
+const states = ['active', 'paused', 'completed', 'cancelled', 'failed', 'blocked'] as const
+const known = <K extends string>(keys: readonly K[], value: string): value is K =>
+  (keys as readonly string[]).includes(value)
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
   window.yuki.client.read<T>(id, route).then(unwrap)
 
@@ -57,6 +53,7 @@ export function About({
   jump: (source: MessageReference) => Promise<boolean>
   editSoul(): void
 }) {
+  const { t } = useTranslation(['about', 'common', 'errors'])
   const query = useQueryClient()
   const me = useMe(id)
   const administrator = me.data?.is_superuser === true && !hidesPrivateData(me.error)
@@ -97,14 +94,10 @@ export function About({
       const item = unwrap(await window.yuki.client.characterCommand(id, command))
       await refresh()
       if (item.problem || item.state !== 'result')
-        setError(
-          item.state !== 'result'
-            ? '送出結果尚未確認。請查證原請求；內容已保留在這台電腦。'
-            : problemText(item.problem!),
-        )
+        setError(item.state !== 'result' ? t('about:unconfirmed') : problemText(item.problem!))
       return item
     } catch (error) {
-      setError(error instanceof Error ? error.message : '操作未完成。')
+      setError(error instanceof Error ? error.message : t('errors:notCompleted'))
       return undefined
     } finally {
       setBusy(false)
@@ -121,14 +114,14 @@ export function About({
                 ref={avatarPress}
                 data-press="icon"
                 className={styles.avatarEdit}
-                aria-label="更換頭像"
+                aria-label={t('about:changeAvatar')}
                 onClick={() => {
                   setAvatarRestore(undefined)
                   setAvatarEditing(true)
                 }}
               >
                 <Pencil size={14} />
-                <span>更換頭像</span>
+                <span>{t('about:changeAvatar')}</span>
               </button>
             )}
           </div>
@@ -138,11 +131,11 @@ export function About({
               {!editing && administrator && (
                 <Button
                   variant="plain"
-                  aria-label="編輯名稱與簡介"
+                  aria-label={t('about:editProfile')}
                   onClick={() => setEditing(true)}
                 >
                   <Pencil size={14} />
-                  編輯
+                  {t('about:edit')}
                 </Button>
               )}
             </div>
@@ -157,16 +150,14 @@ export function About({
               />
             ) : (
               <>
-                <h2 className={styles.sectionTitle}>簡介</h2>
-                <p>{profile.bio || '尚未設定簡介。'}</p>
-                <p className={styles.description}>
-                  名稱、簡介、頭像與提示詞由連接這個 Yuki 的使用者共享。
-                </p>
+                <h2 className={styles.sectionTitle}>{t('about:bio')}</h2>
+                <p>{profile.bio || t('about:noBio')}</p>
+                <p className={styles.description}>{t('about:shared')}</p>
                 <div className={styles.heroActions}>
                   {administrator ? (
-                    <Button onClick={editSoul}>編輯提示詞</Button>
+                    <Button onClick={editSoul}>{t('about:editPrompt')}</Button>
                   ) : (
-                    <p>只有 Yuki 的管理員可以修改</p>
+                    <p>{t('about:adminOnly')}</p>
                   )}
                 </div>
               </>
@@ -202,15 +193,13 @@ export function About({
           />
         )}
         <Segmented
-          label={`${profile.display_name} 的資料`}
+          label={t('about:profileOf', { name: profile.display_name })}
           value={tab}
           onChange={setTab}
-          items={[
-            { value: 'me', label: '她記得的你' },
-            { value: 'self', label: '她自己' },
-            { value: 'arrangements', label: '安排' },
-            { value: 'capabilities', label: '能力' },
-          ]}
+          items={(['me', 'self', 'arrangements', 'capabilities'] as const).map((value) => ({
+            value,
+            label: t(`about:tab.${value}`),
+          }))}
         />
         {error && <Banner status="failed">{error}</Banner>}
         {commands.data
@@ -222,12 +211,13 @@ export function About({
           .map((item) => (
             <div key={item.requestId} className={styles.pending} role="status">
               <span>
-                {item.command.kind === 'memory'
-                  ? '記憶修正'
-                  : item.command.kind === 'automation'
-                    ? '安排變更'
-                    : '資料變更'}
-                ：結果尚未確認
+                {t(
+                  item.command.kind === 'memory'
+                    ? 'about:pending.memory'
+                    : item.command.kind === 'automation'
+                      ? 'about:pending.automation'
+                      : 'about:pending.profile',
+                )}
               </span>
               <Button
                 loading={busy}
@@ -242,32 +232,24 @@ export function About({
                         ? problemText(result.problem)
                         : result.state === 'result'
                           ? ''
-                          : '原請求仍在處理中。',
+                          : t('about:stillProcessing'),
                     )
                     await refresh()
                   } catch (error) {
-                    setError(error instanceof Error ? error.message : '無法查證原請求。')
+                    setError(error instanceof Error ? error.message : t('about:verifyFailed'))
                   } finally {
                     setBusy(false)
                   }
                 }}
               >
-                查證原請求
+                {t('about:verify')}
               </Button>
             </div>
           ))}
         <div
           ref={panelMotion}
           role="tabpanel"
-          aria-label={
-            tab === 'me'
-              ? '她記得的你'
-              : tab === 'self'
-                ? '她自己'
-                : tab === 'arrangements'
-                  ? '安排'
-                  : '能力'
-          }
+          aria-label={t(`about:tab.${tab}`)}
           className={styles.panel}
         >
           {tab === 'me' || tab === 'self' ? (
@@ -312,6 +294,7 @@ function ProfileEditor({
   const [light, setLight] = useState(base.accent.light)
   const [dark, setDark] = useState(base.accent.dark)
   const [conflict, setConflict] = useState(false)
+  const { t } = useTranslation(['about', 'common'])
   return (
     <form
       className={styles.editor}
@@ -335,28 +318,24 @@ function ProfileEditor({
       }}
     >
       <label>
-        名稱
+        {t('about:name')}
         <TextField autoFocus value={name} onChange={(event) => setName(event.target.value)} />
       </label>
       <label>
-        簡介
+        {t('about:bio')}
         <textarea value={bio} onChange={(event) => setBio(event.target.value)} />
       </label>
       <div className={styles.colors}>
         <label>
-          淺色外觀
+          {t('about:lightAccent')}
           <input type="color" value={light} onChange={(event) => setLight(event.target.value)} />
         </label>
         <label>
-          深色外觀
+          {t('about:darkAccent')}
           <input type="color" value={dark} onChange={(event) => setDark(event.target.value)} />
         </label>
       </div>
-      {conflict && (
-        <Banner status="waiting">
-          資料已在其他地方更新。你的輸入仍保留，儲存仍使用編輯前的版本。
-        </Banner>
-      )}
+      {conflict && <Banner status="waiting">{t('about:profileConflict')}</Banner>}
       <div className={styles.actions}>
         <Button
           type="button"
@@ -366,10 +345,10 @@ function ProfileEditor({
             close()
           }}
         >
-          {conflict ? '放棄並重新讀取' : '取消'}
+          {conflict ? t('about:discardAndReload') : t('common:action.cancel')}
         </Button>
         <Button type="submit" variant="primary" loading={busy}>
-          儲存
+          {t('common:action.save')}
         </Button>
       </div>
     </form>
@@ -392,6 +371,7 @@ function Memories({
   jump: (source: MessageReference) => Promise<boolean>
 }) {
   const { date } = useDisplayTime()
+  const { t } = useTranslation(['about', 'common'])
   const query = useQueryClient()
   const facts = useInfiniteQuery({
     queryKey: [id, 'memory', about],
@@ -419,7 +399,7 @@ function Memories({
       ]
   return (
     <>
-      {about === 'self' && <p className={styles.description}>這是 {name} 對自己的記錄。</p>}
+      {about === 'self' && <p className={styles.description}>{t('about:selfRecord', { name })}</p>}
       {facts.isPending && <Spinner />}
       {facts.error && <Banner status="failed">{facts.error.message}</Banner>}
       {sourceError && <Banner status="failed">{sourceError}</Banner>}
@@ -435,9 +415,11 @@ function Memories({
           >
             <span className={styles.factContent}>{fact.text}</span>
             <span className={styles.meta}>
-              <span className={styles.tag}>{kinds[fact.kind] ?? fact.kind}</span>
+              <span className={styles.tag}>
+                {known(kinds, fact.kind) ? t(`about:kind.${fact.kind}`) : fact.kind}
+              </span>
               <time dateTime={fact.updated_at}>{date(fact.updated_at)}</time>
-              <span>{fact.evidence_count} 則依據</span>
+              <span>{t('about:evidence', { count: fact.evidence_count })}</span>
               {expanded === fact.fact_id ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
             </span>
           </button>
@@ -457,17 +439,19 @@ function Memories({
                           eventId: source.event_id,
                         }))
                       )
-                        setSourceError('這則原訊息已刪除或無法讀取。')
+                        setSourceError(t('about:sourceUnavailable'))
                     }}
                   >
-                    {source.excerpt || '查看原訊息'}
+                    {source.excerpt || t('about:viewSource')}
                   </button>
                 ))}
               {!detail.error && detail.data && (
                 <small>
-                  {detail.data.evidence.length === 0 ? '目前沒有可讀的來源。' : ''}
-                  {Math.max(0, fact.evidence_count - detail.data.evidence.length) > 0
-                    ? `另有 ${Math.max(0, fact.evidence_count - detail.data.evidence.length)} 則依據未公開。`
+                  {detail.data.evidence.length === 0 ? t('about:noSources') : ''}
+                  {fact.evidence_count > detail.data.evidence.length
+                    ? t('about:hiddenEvidence', {
+                        count: fact.evidence_count - detail.data.evidence.length,
+                      })
                     : ''}
                 </small>
               )}
@@ -483,7 +467,7 @@ function Memories({
                       setReplacement(undefined)
                     }}
                   >
-                    更正
+                    {t('about:correct')}
                   </Button>
                   <Button
                     variant="destructive"
@@ -494,7 +478,7 @@ function Memories({
                       setReplacement(undefined)
                     }}
                   >
-                    請她忘記這件事
+                    {t('about:forget')}
                   </Button>
                 </div>
               )}
@@ -503,15 +487,15 @@ function Memories({
         </article>
       ))}
       {!facts.isPending && !facts.error && !rows.length && (
-        <EmptyState title="還沒有記憶">這裡會顯示已保存的記錄。</EmptyState>
+        <EmptyState title={t('about:noMemories')}>{t('about:noMemoriesDescription')}</EmptyState>
       )}
       {facts.hasNextPage && (
         <Button loading={facts.isFetchingNextPage} onClick={() => void facts.fetchNextPage()}>
-          載入更多記憶
+          {t('about:moreMemories')}
         </Button>
       )}
       <Sheet
-        title={edit?.action === 'retract' ? '請她忘記這件事' : '更正記憶'}
+        title={edit?.action === 'retract' ? t('about:forget') : t('about:correctMemory')}
         open={!!edit}
         onClose={() => {
           if (!busy) setEdit(undefined)
@@ -525,7 +509,7 @@ function Memories({
                 void query.invalidateQueries({ queryKey: [id, 'memory'] })
               }}
             >
-              {conflict ? '保留現有記憶並關閉' : '取消'}
+              {conflict ? t('about:keepAndClose') : t('common:action.cancel')}
             </Button>
             {conflict ? (
               <Button
@@ -536,7 +520,7 @@ function Memories({
                   void query.invalidateQueries({ queryKey: [id, 'memory'] })
                 }}
               >
-                重新讀取記憶
+                {t('about:reloadMemories')}
               </Button>
             ) : (
               <Button
@@ -562,7 +546,9 @@ function Memories({
                   }
                 }}
               >
-                {edit?.action === 'retract' ? '確認忘記' : '送出更正'}
+                {edit?.action === 'retract'
+                  ? t('about:confirmForget')
+                  : t('about:submitCorrection')}
               </Button>
             )}
           </>
@@ -571,22 +557,22 @@ function Memories({
         <p className={styles.original}>{edit?.fact.text}</p>
         {edit?.action === 'correct' ? (
           <label className={styles.editor}>
-            新內容
+            {t('about:newContent')}
             <textarea
-              aria-label="更正後的記憶"
+              aria-label={t('about:correctedMemory')}
               autoFocus
               value={text}
               onChange={(event) => setText(event.target.value)}
             />
-            <small>這會成為 {name} 記憶的修正依據。</small>
+            <small>{t('about:correctionNote', { name })}</small>
           </label>
         ) : (
-          <p>確認後，這件事將從目前的記憶中撤回。</p>
+          <p>{t('about:forgetNote')}</p>
         )}
         {conflict && (
           <Banner status="waiting">
-            這則記憶已變更{replacement ? '，並被新的記憶取代' : ''}
-            。請重新讀取，再選擇要修正的記錄。{edit?.action === 'correct' && <>你的輸入：{text}</>}
+            {t(replacement ? 'about:memoryReplaced' : 'about:memoryChanged')}
+            {edit?.action === 'correct' && t('about:yourInput', { text })}
           </Banner>
         )}
       </Sheet>
@@ -596,6 +582,7 @@ function Memories({
 
 function Arrangements({ id, run, busy }: { id: string; run: Run; busy: boolean }) {
   const { date } = useDisplayTime()
+  const { t } = useTranslation(['about', 'common'])
   const me = useMe(id)
   const administrator = me.data?.is_superuser === true && !hidesPrivateData(me.error)
   const [scope, setScope] = useState<'mine' | 'self'>('mine')
@@ -615,16 +602,16 @@ function Arrangements({ id, run, busy }: { id: string; run: Run; busy: boolean }
   return (
     <>
       <Segmented
-        label="安排歸屬"
+        label={t('about:scope')}
         value={scope}
         onChange={setScope}
         items={[
-          { value: 'mine', label: '你的安排' },
-          { value: 'self', label: '她的安排' },
+          { value: 'mine', label: t('about:yours') },
+          { value: 'self', label: t('about:hers') },
         ]}
       />
       {scope === 'self' && !administrator ? (
-        <Banner>只有 Yuki 的管理員可以查看她的安排</Banner>
+        <Banner>{t('about:adminOnlyArrangements')}</Banner>
       ) : items.isPending ? (
         <Spinner />
       ) : null}
@@ -640,10 +627,14 @@ function Arrangements({ id, run, busy }: { id: string; run: Run; busy: boolean }
                 <h2>{item.title}</h2>
                 <p>{item.schedule_text}</p>
                 <small>
-                  {item.next_run_at ? `下次執行 ${date(item.next_run_at)}` : '目前沒有下次執行時間'}
+                  {item.next_run_at
+                    ? t('about:nextRun', { time: date(item.next_run_at) })
+                    : t('about:noNextRun')}
                 </small>
               </div>
-              <span className={styles.tag}>{states[item.state] ?? item.state}</span>
+              <span className={styles.tag}>
+                {known(states, item.state) ? t(`about:state.${item.state}`) : item.state}
+              </span>
             </div>
             {scope === 'mine' && !['completed', 'cancelled'].includes(item.state) && (
               <div className={styles.actions}>
@@ -651,10 +642,10 @@ function Arrangements({ id, run, busy }: { id: string; run: Run; busy: boolean }
                   loading={busy}
                   onClick={() => void act(item, item.state === 'active' ? 'pause' : 'resume')}
                 >
-                  {item.state === 'active' ? '暫停' : '恢復'}
+                  {item.state === 'active' ? t('about:pause') : t('about:resume')}
                 </Button>
                 <Button variant="destructive" disabled={busy} onClick={() => setRemove(item)}>
-                  刪除安排
+                  {t('about:deleteArrangement')}
                 </Button>
               </div>
             )}
@@ -664,10 +655,12 @@ function Arrangements({ id, run, busy }: { id: string; run: Run; busy: boolean }
         !items.isPending &&
         !items.error &&
         !items.data?.items.length && (
-          <EmptyState title="還沒有安排">在對話中告訴她想安排的事情。</EmptyState>
+          <EmptyState title={t('about:noArrangements')}>
+            {t('about:noArrangementsDescription')}
+          </EmptyState>
         )}
       <Sheet
-        title="刪除安排"
+        title={t('about:deleteArrangement')}
         open={!!remove}
         onClose={() => {
           if (!busy) setRemove(undefined)
@@ -675,7 +668,7 @@ function Arrangements({ id, run, busy }: { id: string; run: Run; busy: boolean }
         actions={
           <>
             <Button disabled={busy} onClick={() => setRemove(undefined)}>
-              保留
+              {t('about:keep')}
             </Button>
             <Button
               variant="destructive"
@@ -687,18 +680,19 @@ function Arrangements({ id, run, busy }: { id: string; run: Run; busy: boolean }
                 }
               }}
             >
-              刪除安排
+              {t('about:deleteArrangement')}
             </Button>
           </>
         }
       >
-        <p>刪除「{remove?.title}」後，不會再按這個安排執行。已發生的紀錄會保留。</p>
+        <p>{t('about:deleteArrangementNote', { title: remove?.title ?? '' })}</p>
       </Sheet>
     </>
   )
 }
 
 function CapabilityList({ id }: { id: string }) {
+  const { t } = useTranslation(['about', 'common'])
   const capability = useQuery({
     queryKey: [id, 'capabilities'],
     queryFn: () => read<Capabilities>(id, { kind: 'capabilities' }),
@@ -711,13 +705,13 @@ function CapabilityList({ id }: { id: string }) {
           {capability.error.message}
           <Button variant="plain" onClick={() => void capability.refetch()}>
             <RefreshCw size={14} />
-            重試
+            {t('common:action.retry')}
           </Button>
         </Banner>
       )}
       {!hidesPrivateData(capability.error) && capability.data && (
         <>
-          <h2 className={styles.sectionTitle}>已啟用的擴充</h2>
+          <h2 className={styles.sectionTitle}>{t('about:extensions')}</h2>
           {capability.data.plugins.map((plugin) => (
             <article className={styles.row} key={plugin.id}>
               <h3>{plugin.name}</h3>
@@ -725,10 +719,14 @@ function CapabilityList({ id }: { id: string }) {
             </article>
           ))}
           {!capability.data.plugins.length && (
-            <p className={styles.description}>目前沒有已啟用的擴充。</p>
+            <p className={styles.description}>{t('about:noExtensions')}</p>
           )}
-          <h2 className={styles.sectionTitle}>執行環境</h2>
-          <p>{capability.data.environment.desktop ? '提供遠端電腦' : '環境尚未提供電腦資訊'}</p>
+          <h2 className={styles.sectionTitle}>{t('about:environment')}</h2>
+          <p>
+            {capability.data.environment.desktop
+              ? t('about:remoteComputer')
+              : t('about:noComputerInfo')}
+          </p>
           <div className={styles.tools}>
             {capability.data.environment.tools.map((tool) => (
               <span className={styles.tag} key={tool.name}>
@@ -737,7 +735,7 @@ function CapabilityList({ id }: { id: string }) {
             ))}
           </div>
           {!capability.data.environment.tools.length && (
-            <p className={styles.description}>目前沒有環境工具清單。</p>
+            <p className={styles.description}>{t('about:noTools')}</p>
           )}
         </>
       )}

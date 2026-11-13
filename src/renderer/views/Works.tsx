@@ -32,46 +32,91 @@ import { formatDateTime } from '../../shared/time'
 import type { Language } from '../../shared/locales'
 import type { DisplayTimeZone } from '../../shared/desktop'
 import { useDisplayTime } from '../state/time'
+import type { TFunction } from 'i18next'
+import { useTranslation } from '../i18n'
 
+type T = TFunction<['works', 'common']>
 const terminal = (work: Work) => ['completed', 'failed', 'cancelled'].includes(work.state)
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
   window.yuki.client.read<T>(id, route).then(unwrap)
-const states: Record<Work['state'], [Status, string]> = {
-  queued: ['running', '執行中'],
-  running: ['running', '執行中'],
-  waiting_external: ['waiting', '等待中'],
-  waiting_user: ['waiting', '等你回覆'],
-  suspended: ['waiting', '已暫停'],
-  completed: ['done', '已完成'],
-  failed: ['failed', '失敗'],
-  cancelled: ['offline', '已取消'],
+type StateKey =
+  'running' | 'waiting' | 'waitingUser' | 'paused' | 'completed' | 'failed' | 'cancelled'
+const states: Record<Work['state'], [Status, StateKey]> = {
+  queued: ['running', 'running'],
+  running: ['running', 'running'],
+  waiting_external: ['waiting', 'waiting'],
+  waiting_user: ['waiting', 'waitingUser'],
+  suspended: ['waiting', 'paused'],
+  completed: ['done', 'completed'],
+  failed: ['failed', 'failed'],
+  cancelled: ['offline', 'cancelled'],
 }
-export const workState = (work: Work): [Status, string] => states[work.state]!
+const stateLabel = (t: T, state: Work['state']) => t(`works:state.${states[state]![1]}`)
+const workState = (t: T, work: Work): [Status, string] => [
+  states[work.state]![0],
+  stateLabel(t, work.state),
+]
+// Backend step categories this app has words for; any other shows the backend's own label.
+const stepCategories = [
+  'terminal',
+  'search',
+  'web',
+  'file',
+  'agent',
+  'device',
+  'memory',
+  'message',
+  'computer',
+  'browser',
+  'other',
+] as const
+const stepLabel = (t: T, step: WorkSteps['steps'][number]) => {
+  const label = (stepCategories as readonly string[]).includes(step.category)
+    ? t(`works:step.${step.category as (typeof stepCategories)[number]}`)
+    : step.label
+  return step.status === 'recorded' ? t('works:step.recorded', { label }) : label
+}
 const time = formatDateTime
-const source = (work: Work) =>
+const source = (t: T, work: Work) =>
   work.source.platform === 'app'
-    ? '桌面對話'
-    : `${work.source.platform?.toUpperCase() ?? '原入口'} ${work.source.kind === 'group' ? '群' : '私聊'}${work.source.display_name ? ` · ${work.source.display_name}` : ''}`
-export function waitText(wait: Work['wait'], zone: DisplayTimeZone, locale: Language): string {
+    ? t('works:source.app')
+    : [
+        t(work.source.kind === 'group' ? 'works:source.group' : 'works:source.private', {
+          platform: work.source.platform?.toUpperCase() ?? t('works:originalEntry'),
+        }),
+        work.source.display_name,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+function waitText(t: T, wait: Work['wait'], zone: DisplayTimeZone, locale: Language): string {
   if (!wait) return ''
   const parts = wait.conditions.map((condition) => {
-    if (condition.kind === 'time_due') return `等到 ${time(condition.due_at, zone, locale)}`
-    if (condition.kind === 'conversation') return '等待新的訊息'
-    if (condition.kind === 'plugin_event') return '等待外掛事件'
+    if (condition.kind === 'time_due')
+      return t('works:wait.until', { time: time(condition.due_at, zone, locale) })
+    if (condition.kind === 'conversation') return t('works:wait.message')
+    if (condition.kind === 'plugin_event') return t('works:wait.pluginEvent')
     return condition.run_kind === 'terminal'
-      ? '等待終端工作完成'
+      ? t('works:wait.terminal')
       : condition.run_kind === 'acp'
-        ? '等待其他 Agent 回覆'
+        ? t('works:wait.agent')
         : ['wait_control', 'help_request'].includes(condition.run_kind)
-          ? '等待電腦交回'
-          : '等待執行結果'
+          ? t('works:wait.computer')
+          : t('works:wait.result')
   })
-  return (
-    (parts.length === 1
+  const items = parts.slice(0, 2).join(t('works:wait.separator'))
+  return [
+    parts.length === 1
       ? parts[0]!
-      : `等待${wait.mode === 'any' ? '其中一項' : '全部完成'}：${parts.slice(0, 2).join('、')}${parts.length > 2 ? ` 等 ${parts.length} 項` : ''}`) +
-    (wait.deadline_at ? ` · 最晚 ${time(wait.deadline_at, zone, locale)}` : '')
-  )
+      : parts.length > 2
+        ? t(wait.mode === 'any' ? 'works:wait.anyMore' : 'works:wait.allMore', {
+            items,
+            count: parts.length,
+          })
+        : t(wait.mode === 'any' ? 'works:wait.any' : 'works:wait.all', { items }),
+    wait.deadline_at && t('works:wait.deadline', { time: time(wait.deadline_at, zone, locale) }),
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 export function WorkList({
@@ -84,6 +129,7 @@ export function WorkList({
   open(workId: string): void
 }) {
   const workspace = useWorkspace()
+  const { t } = useTranslation(['works', 'common'])
   const { zone, locale, group: dateGroup } = useDisplayTime()
   const [origin, setOrigin] = useState<'all' | 'this_entry' | 'other'>('all')
   const query = useQueryClient()
@@ -132,7 +178,7 @@ export function WorkList({
       <button
         key={work.work_id}
         className={styles.row}
-        title="按兩下放大詳情"
+        title={t('works:doubleClick')}
         aria-current={selected === work.work_id ? 'true' : undefined}
         onClick={() => open(work.work_id)}
         onDoubleClick={() => {
@@ -141,12 +187,12 @@ export function WorkList({
         }}
       >
         <span className={styles.state}>
-          <StatusPill status={workState(work)[0]}>{workState(work)[1]}</StatusPill>
+          <StatusPill status={workState(t, work)[0]}>{workState(t, work)[1]}</StatusPill>
         </span>
         <span className={styles.goal} title={work.goal}>
           {work.goal}
         </span>
-        <small title={source(work)}>{source(work)}</small>
+        <small title={source(t, work)}>{source(t, work)}</small>
         <time>{time(work.updated_at, zone, locale)}</time>
       </button>
     ))
@@ -159,13 +205,13 @@ export function WorkList({
     <div className={styles.list} onScroll={(event) => scroll(event.currentTarget)}>
       <header>
         <Segmented
-          label="工作來源"
+          label={t('works:origin')}
           value={origin}
           onChange={setOrigin}
           items={[
-            { value: 'all', label: '全部' },
-            { value: 'this_entry', label: '桌面' },
-            { value: 'other', label: '其他入口' },
+            { value: 'all', label: t('works:originAll') },
+            { value: 'this_entry', label: t('works:originDesktop') },
+            { value: 'other', label: t('works:originOther') },
           ]}
         />
       </header>
@@ -179,25 +225,25 @@ export function WorkList({
               void ended.refetch()
             }}
           >
-            重試
+            {t('common:action.retry')}
           </Button>
         </Banner>
       )}
       {!!activeWorks.filter(needs).length && (
         <section>
-          <h3>需要你</h3>
+          <h3>{t('works:needsYou')}</h3>
           {rows(activeWorks.filter(needs))}
         </section>
       )}
       {!!activeWorks.filter((work) => !needs(work)).length && (
         <section>
-          <h3>進行中</h3>
+          <h3>{t('works:inProgress')}</h3>
           {rows(activeWorks.filter((work) => !needs(work)))}
         </section>
       )}
       {!!endedWorks.length && (
         <section>
-          <h3>已結束</h3>
+          <h3>{t('works:ended')}</h3>
           {endedWorks.map((work, index) => (
             <div key={work.work_id}>
               {(!index ||
@@ -215,7 +261,7 @@ export function WorkList({
           loading={active.isFetchingNextPage}
           onClick={() => void active.fetchNextPage()}
         >
-          載入更多進行中工作
+          {t('works:moreActive')}
         </Button>
       )}
       {ended.hasNextPage && (
@@ -224,7 +270,7 @@ export function WorkList({
           loading={ended.isFetchingNextPage}
           onClick={() => void ended.fetchNextPage()}
         >
-          載入更早工作
+          {t('works:earlier')}
         </Button>
       )}
       {!active.isPending &&
@@ -232,7 +278,7 @@ export function WorkList({
         !failed &&
         !activeWorks.length &&
         !endedWorks.length && (
-          <EmptyState title="目前沒有工作">在對話中交給 Yuki 的事會出現在這裡。</EmptyState>
+          <EmptyState title={t('works:empty')}>{t('works:emptyDescription')}</EmptyState>
         )}
     </div>
   )
@@ -258,6 +304,7 @@ export function WorkDetail({
   computer?: () => void
 }) {
   const { zone, locale } = useDisplayTime()
+  const { t } = useTranslation(['works', 'common'])
   const query = useQueryClient(),
     [cancel, setCancel] = useState<Work | null>(null),
     [linkProblem, setLinkProblem] = useState('')
@@ -331,33 +378,36 @@ export function WorkDetail({
         <Banner status="failed">
           {failure.message}
           <Button variant="plain" onClick={refresh}>
-            重試
+            {t('common:action.retry')}
           </Button>
         </Banner>
       )}
       {data && (
         <>
           <div className={styles.status}>
-            <StatusPill status={workState(data)[0]}>{workState(data)[1]}</StatusPill>
+            <StatusPill status={workState(t, data)[0]}>{workState(t, data)[1]}</StatusPill>
             {!terminal(data) && (
               <Button variant="destructive" onClick={() => setCancel(data)}>
-                取消工作
+                {t('works:cancelWork')}
               </Button>
             )}
           </div>
           <h2>{data.goal}</h2>
           <p className={styles.secondary}>
-            {source(data)} · 結果會傳到：
-            {data.result_delivery.platform === 'app'
-              ? '桌面對話'
-              : `${data.result_delivery.platform?.toUpperCase() ?? '原入口'} ${data.result_delivery.display_name}`}
+            {source(t, data)} ·{' '}
+            {t('works:resultTo', {
+              target:
+                data.result_delivery.platform === 'app'
+                  ? t('works:source.app')
+                  : `${data.result_delivery.platform?.toUpperCase() ?? t('works:originalEntry')} ${data.result_delivery.display_name}`,
+            })}
           </p>
           {data.state === 'suspended' && (
             <Banner>
-              {data.reason || '已暫停'}。補充要求會送進原工作；是否繼續由 Yuki 依目前狀況決定。
+              {t('works:suspended', { reason: data.reason || t('works:state.paused') })}
             </Banner>
           )}
-          {data.wait && <p className={styles.secondary}>{waitText(data.wait, zone, locale)}</p>}
+          {data.wait && <p className={styles.secondary}>{waitText(t, data.wait, zone, locale)}</p>}
           {data.waiting_question && !terminal(data) && (
             <QuestionBox
               key={`${data.waiting_question.conversation_id}/${data.waiting_question.event_id}`}
@@ -371,18 +421,18 @@ export function WorkDetail({
             />
           )}
           <section>
-            <h3>步驟</h3>
+            <h3>{t('works:steps')}</h3>
             {computer &&
               (data.help_requested ||
                 allSteps.some((step) => ['browser', 'computer'].includes(step.category))) && (
                 <Button variant="plain" onClick={computer}>
-                  在電腦上查看
+                  {t('works:viewOnComputer')}
                 </Button>
               )}
             {allSteps.map((step) => (
               <StepRow
                 key={step.step_id}
-                label={`${step.label}${step.status === 'recorded' ? ' · 已開始，結果尚未記錄' : ''}`}
+                label={stepLabel(t, step)}
                 status={
                   step.status === 'succeeded'
                     ? 'done'
@@ -403,26 +453,26 @@ export function WorkDetail({
                 loading={steps.isFetchingNextPage}
                 onClick={() => void steps.fetchNextPage()}
               >
-                載入更多步驟
+                {t('works:moreSteps')}
               </Button>
             )}
             {allSteps.some((step) => step.status === 'unknown') && (
-              <p className={styles.secondary}>Yuki 正在確認原操作是否已生效。</p>
+              <p className={styles.secondary}>{t('works:verifying')}</p>
             )}
           </section>
           {!!latest?.children.length && (
             <section>
-              <h3>子工作</h3>
+              <h3>{t('works:children')}</h3>
               {latest.children.map((child) => (
                 <Button key={child.work_id} variant="plain" onClick={() => open(child.work_id)}>
-                  {child.goal} · {states[child.state]![1]}
+                  {child.goal} · {stateLabel(t, child.state)}
                 </Button>
               ))}
             </section>
           )}
           {!!data.results.length && (
             <section>
-              <h3>已傳送的訊息與成果</h3>
+              <h3>{t('works:results')}</h3>
               {data.results.map((result) => (
                 <Markdown
                   key={result.event_id}
@@ -438,9 +488,9 @@ export function WorkDetail({
           )}
           {questionDrafts.error && (
             <Banner status="failed">
-              未送出的回答暫時無法讀取。
+              {t('works:draftsUnreadable')}
               <Button variant="plain" onClick={() => void questionDrafts.refetch()}>
-                重新讀取草稿
+                {t('works:reloadDrafts')}
               </Button>
             </Banner>
           )}
@@ -462,10 +512,18 @@ export function WorkDetail({
             readOnly={terminal(data)}
           />
           <details className={styles.secondary}>
-            <summary>用量</summary>
-            模型請求 {data.budget.models}／{data.budget.model_limit ?? '無上限'} · 工具呼叫{' '}
-            {data.budget.tools}
-            {data.budget.tool_limit === null ? '' : `／${data.budget.tool_limit}`}
+            <summary>{t('works:usage')}</summary>
+            {t('works:usageModels', {
+              used: data.budget.models,
+              limit: data.budget.model_limit ?? t('works:unlimited'),
+            })}{' '}
+            ·{' '}
+            {data.budget.tool_limit === null
+              ? t('works:usageTools', { used: data.budget.tools })
+              : t('works:usageToolsLimited', {
+                  used: data.budget.tools,
+                  limit: data.budget.tool_limit,
+                })}
           </details>
           {(commands.data ?? [])
             .filter(
@@ -482,14 +540,13 @@ export function WorkDetail({
 }
 
 function RetainedAnswers({ drafts }: { drafts: WorkQuestionDraft[] }) {
+  const { t } = useTranslation(['works', 'common'])
   const [problem, setProblem] = useState('')
   if (!drafts.length) return null
   return (
-    <section aria-label="未送出的回答" className={styles.retained}>
-      <h3>未送出的回答</h3>
-      <p className={styles.secondary}>
-        原問題已結束或更新。這些回答保留在這台電腦，不會送給下一個問題。
-      </p>
+    <section aria-label={t('works:unsentAnswers')} className={styles.retained}>
+      <h3>{t('works:unsentAnswers')}</h3>
+      <p className={styles.secondary}>{t('works:unsentNote')}</p>
       {drafts.map(({ question, text }, index) => (
         <div
           key={`${question.conversationId}/${question.eventId}`}
@@ -498,7 +555,7 @@ function RetainedAnswers({ drafts }: { drafts: WorkQuestionDraft[] }) {
           <textarea
             className={styles.inlineField}
             readOnly
-            aria-label={`未送出的回答 ${index + 1}`}
+            aria-label={t('works:unsentAnswer', { index: index + 1 })}
             value={text}
           />
           <Button
@@ -510,7 +567,7 @@ function RetainedAnswers({ drafts }: { drafts: WorkQuestionDraft[] }) {
                 .catch((error) => setProblem(error.message))
             }
           >
-            複製回答
+            {t('works:copyAnswer')}
           </Button>
         </div>
       ))}
@@ -536,6 +593,7 @@ function QuestionBox({
   replyInChat(work: Work): void
   commandEnter: boolean
 }) {
+  const { t } = useTranslation(['works', 'common'])
   const [answer, setAnswer] = useState(false),
     [problem, setProblem] = useState(''),
     root = useRef<HTMLDivElement>(null)
@@ -571,10 +629,10 @@ function QuestionBox({
       ) : (
         <>
           <Button data-answer onClick={() => setAnswer(true)}>
-            回覆
+            {t('works:reply')}
           </Button>
           <Button variant="plain" onClick={() => replyInChat(work)}>
-            在對話中回答
+            {t('works:answerInChat')}
           </Button>
         </>
       )}
@@ -605,6 +663,7 @@ export function WorkReply({
   question?: WorkDraftQuestion
   readOnly?: boolean
 }) {
+  const { t } = useTranslation(['works', 'common'])
   const query = useQueryClient()
   const [draft, setDraft] = useState(''),
     [problem, setProblem] = useState(''),
@@ -670,7 +729,7 @@ export function WorkReply({
     try {
       await submit()
     } catch {
-      setProblem('尚未送出，已保留內容。')
+      setProblem(t('works:notSent'))
     } finally {
       setSending(false)
     }
@@ -680,9 +739,9 @@ export function WorkReply({
     <div data-work-reply className={`${styles.reply} ${inline ? styles.inlineReply : ''}`}>
       {!inline && (
         <header>
-          <span>補充給：{work.goal}</span>
+          <span>{t('works:addTo', { goal: work.goal })}</span>
           {close && (
-            <IconButton label="取消回覆工作" onClick={close}>
+            <IconButton label={t('works:cancelReply')} onClick={close}>
               <X size={14} />
             </IconButton>
           )}
@@ -690,15 +749,17 @@ export function WorkReply({
       )}
       {inline ? (
         <>
-          {!question && <div className={styles.inputLabel}>補充要求</div>}
+          {!question && <div className={styles.inputLabel}>{t('works:addition')}</div>}
           <div className={styles.inputRow}>
             <textarea
               ref={input}
               className={styles.inlineField}
               rows={1}
               autoFocus={autoFocus}
-              aria-label={question ? '回答這個問題' : `補充給：${work.goal}`}
-              placeholder={question ? '回答這個問題' : '傳送給這項工作'}
+              aria-label={
+                question ? t('works:answerQuestion') : t('works:addTo', { goal: work.goal })
+              }
+              placeholder={question ? t('works:answerQuestion') : t('works:sendToWork')}
               value={draft}
               readOnly={readOnly}
               onChange={(event) => update(event.target.value)}
@@ -720,7 +781,7 @@ export function WorkReply({
             />
             {readOnly ? (
               <Button
-                aria-label="複製未送出的補充"
+                aria-label={t('works:copyUnsent')}
                 onClick={() =>
                   void window.yuki.client
                     .copy(draft)
@@ -728,28 +789,26 @@ export function WorkReply({
                     .catch((error) => setProblem(error.message))
                 }
               >
-                複製補充
+                {t('works:copyAddition')}
               </Button>
             ) : (
               <Button
                 variant={question ? 'primary' : 'secondary'}
-                aria-label={question ? '送出回答' : '傳送給這項工作'}
+                aria-label={question ? t('works:sendAnswer') : t('works:sendToWork')}
                 loading={sending}
                 disabled={readOnly || !normalizeMessageText(draft)}
                 onClick={() => void sendInline()}
               >
-                {question ? '送出' : '傳送'}
+                {question ? t('works:submit') : t('works:send')}
               </Button>
             )}
             {close && (
-              <IconButton label="收起回答" onClick={close}>
+              <IconButton label={t('works:collapse')} onClick={close}>
                 <X size={14} />
               </IconButton>
             )}
           </div>
-          {readOnly && (
-            <p className={styles.secondary}>工作已結束，未送出的補充保留在這裡，可選取複製。</p>
-          )}
+          {readOnly && <p className={styles.secondary}>{t('works:endedNote')}</p>}
         </>
       ) : (
         <Composer
@@ -766,6 +825,7 @@ export function WorkReply({
   )
 }
 function CommandStatus({ id, item }: { id: string; item: WorkCommandItem }) {
+  const { t } = useTranslation(['works', 'common'])
   const [problem, setProblem] = useState(''),
     [busy, setBusy] = useState(false)
   return (
@@ -774,8 +834,8 @@ function CommandStatus({ id, item }: { id: string; item: WorkCommandItem }) {
         {item.problem
           ? problemText(item.problem)
           : item.state === 'draft'
-            ? '連線後送出原請求'
-            : '原請求狀態未確認'}
+            ? t('works:sendWhenConnected')
+            : t('works:unconfirmed')}
       </span>
       {item.command.kind === 'input' && <p>{item.command.text}</p>}
       {item.state !== 'result' && (
@@ -791,7 +851,7 @@ function CommandStatus({ id, item }: { id: string; item: WorkCommandItem }) {
               .finally(() => setBusy(false))
           }}
         >
-          查詢
+          {t('works:check')}
         </Button>
       )}
       {problem && <span>{problem}</span>}
@@ -810,6 +870,7 @@ export function ConversationWork({
   reply(work: Work): void
 }) {
   const { zone, locale } = useDisplayTime()
+  const { t } = useTranslation(['works', 'common'])
   const [cancel, setCancel] = useState<Work | null>(null)
   const workId = typeof work === 'string' ? work : work.work_id
   const detail = useQuery({
@@ -822,14 +883,14 @@ export function ConversationWork({
   if (hidesPrivateData(detail.error) || !detail.data || detail.data.admission === 'host_execution')
     return null
   const data = detail.data,
-    [status, label] = workState(data)
+    [status, label] = workState(t, data)
   return (
     <>
       <WorkCard
         title={data.goal}
         status={status}
         statusLabel={label}
-        detail={data.wait ? waitText(data.wait, zone, locale) : undefined}
+        detail={data.wait ? waitText(t, data.wait, zone, locale) : undefined}
         question={data.waiting_question?.text}
         onOpen={() => open(data.work_id)}
         onReply={() => reply(data)}
@@ -840,6 +901,7 @@ export function ConversationWork({
   )
 }
 function CancelWorkSheet({ id, work, close }: { id: string; work: Work | null; close(): void }) {
+  const { t } = useTranslation(['works', 'common'])
   const query = useQueryClient(),
     [busy, setBusy] = useState(false),
     [problem, setProblem] = useState('')
@@ -859,11 +921,11 @@ function CancelWorkSheet({ id, work, close }: { id: string; work: Work | null; c
       )
       setProblem(
         result.problem === 'version_conflict'
-          ? '工作狀態已改變，請確認最新狀態後再取消。'
+          ? t('works:cancelConflict')
           : result.problem
             ? problemText(result.problem)
             : result.state !== 'result'
-              ? '取消狀態未確認，正在查證原請求。'
+              ? t('works:cancelUnconfirmed')
               : '',
       )
       close()
@@ -871,7 +933,7 @@ function CancelWorkSheet({ id, work, close }: { id: string; work: Work | null; c
       void query.invalidateQueries({ queryKey: [id, 'works'] })
       void query.invalidateQueries({ queryKey: [id, 'home'] })
     } catch (error) {
-      setProblem(error instanceof Error ? error.message : '取消未完成。')
+      setProblem(error instanceof Error ? error.message : t('works:cancelFailed'))
     } finally {
       setBusy(false)
     }
@@ -880,20 +942,20 @@ function CancelWorkSheet({ id, work, close }: { id: string; work: Work | null; c
     <>
       {problem && <Banner status="failed">{problem}</Banner>}
       <Sheet
-        title="取消這項工作？"
+        title={t('works:cancelTitle')}
         open={!!work}
         onClose={close}
         actions={
           <>
-            <Button onClick={close}>保持執行</Button>
+            <Button onClick={close}>{t('works:keepRunning')}</Button>
             <Button variant="destructive" loading={busy} onClick={() => void submit()}>
-              仍然取消
+              {t('works:cancelAnyway')}
             </Button>
           </>
         }
       >
         <p>{work?.goal}</p>
-        <p>這會停止原工作；已完成的步驟不會被撤銷。</p>
+        <p>{t('works:cancelNote')}</p>
       </Sheet>
     </>
   )

@@ -4,7 +4,8 @@ import { App } from './App'
 import './tokens.css'
 import './materials/materials.css'
 import { keyboardCommand } from '../shared/commands'
-import { applyLanguage } from './i18n'
+import { applyLanguage, t } from './i18n'
+import { systemLanguage } from '../shared/locales'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: true } },
@@ -38,5 +39,7 @@ window.yuki
     )
   })
   .catch(() => {
-    document.getElementById('root')!.textContent = '無法開啟本機資料，請重新啟動 Yuki。'
+    // Without boot there is no saved preference; the system language is the default one.
+    applyLanguage(systemLanguage(navigator.languages))
+    document.getElementById('root')!.textContent = t('workspace:bootFailed')
   })

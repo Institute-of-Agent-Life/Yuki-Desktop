@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import type { components } from '../../shared/admin-contract.gen'
 import type { ModelBundle, ModelDocument } from '../../shared/models'
 import { Button, Segmented, Sheet, TextField } from '../components/Controls'
+import { useTranslation } from '../i18n'
 import { Row, SettingsSection } from './SettingsRow'
 import { ModelSchemaFields, schemaDefaults, type JsonSchema } from './ModelSchemaFields'
 import { modelProfileLabel, modelTaskLabel, newKeyAlias, type ModelSave } from './model-document'
@@ -9,12 +10,7 @@ import styles from './ModelSettings.module.css'
 
 type Bundle = Extract<ModelBundle, { valid: true }>
 type Semantic = components['schemas']['SemanticConnection']
-const searchModes: Record<components['schemas']['WebMode'], string> = {
-  disabled: '停用',
-  native: '原生搜尋預設',
-  tavily: '網頁工具預設',
-  both: '原生與網頁工具',
-}
+const searchModes: components['schemas']['WebMode'][] = ['disabled', 'native', 'tavily', 'both']
 
 export function ModelPurposes({
   data,
@@ -29,6 +25,7 @@ export function ModelPurposes({
   save: ModelSave
   feedback: ReactNode
 }) {
+  const { t, i18n } = useTranslation(['models', 'common'])
   const document = data.document,
     locked = busy || pending,
     searchBackend = document.search_backend ?? data.search_backend
@@ -47,7 +44,7 @@ export function ModelPurposes({
   const presets = data.provider_presets.filter((preset) => preset.supports_embedding)
   const profiles = Object.entries(document.profiles)
   const profileName = (id: string) => {
-    const label = modelProfileLabel(data, id)
+    const label = modelProfileLabel(t, i18n.language, data, id)
     return `${label.name} · ${label.detail}`
   }
   const choices = (task: string) =>
@@ -92,23 +89,25 @@ export function ModelPurposes({
     patch({ [kind]: value } as Partial<ModelDocument>)
   }
   const keyState = (kind: 'embedding' | 'vision' | 'asr' | 'search') => {
-    if (!document[kind]) return '沿用既有設定'
+    if (!document[kind]) return t('models:keyState.inherit')
     const alias =
       kind === 'search' ? document.search?.tavily_api_key_env : document[kind]?.api_key_env
-    return data.saved_connection_keys.includes(kind)
-      ? '已儲存'
-      : alias
-        ? '來自環境變數'
-        : '無需金鑰'
+    return t(
+      data.saved_connection_keys.includes(kind)
+        ? 'models:keyState.saved'
+        : alias
+          ? 'models:keyState.env'
+          : 'models:keyState.none',
+    )
   }
   const semanticProviders = data.semantic_providers
   return (
     <>
-      <SettingsSection title="模型用途">
+      <SettingsSection title={t('models:purposes')}>
         {data.tasks.map((task) => (
-          <Row key={task} title={modelTaskLabel(task)}>
+          <Row key={task} title={modelTaskLabel(t, task)}>
             <select
-              aria-label={modelTaskLabel(task)}
+              aria-label={modelTaskLabel(t, task)}
               value={document.routes[task]}
               disabled={locked}
               onChange={(event) =>
@@ -124,10 +123,10 @@ export function ModelPurposes({
           </Row>
         ))}
       </SettingsSection>
-      <SettingsSection title="聯網搜尋">
-        <Row title="搜尋模式" description="各模型的明確搜尋方式仍按原設定執行。">
+      <SettingsSection title={t('models:webSearch')}>
+        <Row title={t('models:searchModeTitle')} description={t('models:searchModeDescription')}>
           <select
-            aria-label="搜尋模式"
+            aria-label={t('models:searchModeTitle')}
             value={document.search?.mode ?? 'legacy'}
             disabled={locked}
             onChange={(event) =>
@@ -143,21 +142,21 @@ export function ModelPurposes({
               })
             }
           >
-            <option value="legacy">沿用伺服器既有設定</option>
-            {Object.entries(searchModes).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
+            <option value="legacy">{t('models:searchModeLegacy')}</option>
+            {searchModes.map((mode) => (
+              <option key={mode} value={mode}>
+                {t(`models:searchMode.${mode}`)}
               </option>
             ))}
           </select>
         </Row>
-        <Row title="網頁工具來源">
+        <Row title={t('models:webToolSource')}>
           <Segmented
-            label="網頁工具來源"
+            label={t('models:webToolSource')}
             kind="radio"
             value={searchBackend}
             items={[
-              { value: 'model', label: '模型搜尋' },
+              { value: 'model', label: t('models:modelSearch') },
               { value: 'tavily', label: 'Tavily' },
             ]}
             onChange={(search_backend) =>
@@ -167,14 +166,14 @@ export function ModelPurposes({
           />
         </Row>
         {searchBackend === 'model' ? (
-          <Row title="搜尋連接">
+          <Row title={t('models:searchConnection')}>
             <select
-              aria-label="搜尋連接"
+              aria-label={t('models:searchConnection')}
               value={document.search_connection ?? ''}
               disabled={locked}
               onChange={(event) => patch({ search_connection: event.target.value || null })}
             >
-              <option value="">沿用模型的搜尋設定</option>
+              <option value="">{t('models:searchConnectionInherit')}</option>
               {choices('search').map(([id]) => (
                 <option key={id} value={id}>
                   {profileName(id)}
@@ -183,14 +182,14 @@ export function ModelPurposes({
             </select>
           </Row>
         ) : (
-          <Row title="Tavily 金鑰" description={keyState('search')}>
+          <Row title={t('models:tavilyKey')} description={keyState('search')}>
             <TextField
               type="password"
               autoComplete="off"
-              aria-label="Tavily 金鑰"
+              aria-label={t('models:tavilyKey')}
               value={tavilyKey}
               disabled={locked}
-              placeholder="留空保留原金鑰"
+              placeholder={t('models:keyKeep')}
               onChange={(event) => setTavilyKey(event.target.value)}
             />
             <Button
@@ -204,17 +203,17 @@ export function ModelPurposes({
                   () => setTavilyKey(''),
                 )
               }}
-              aria-label="儲存 Tavily 金鑰"
+              aria-label={t('models:saveTavilyKey')}
             >
-              儲存
+              {t('common:action.save')}
             </Button>
           </Row>
         )}
       </SettingsSection>
-      <SettingsSection title="參與判斷">
-        <Row title="判斷連接">
+      <SettingsSection title={t('models:semantic')}>
+        <Row title={t('models:semanticRoute')}>
           <select
-            aria-label="判斷連接"
+            aria-label={t('models:semanticRoute')}
             value={document.semantic_observation?.route ?? ''}
             disabled={locked}
             onChange={(event) =>
@@ -226,7 +225,7 @@ export function ModelPurposes({
               })
             }
           >
-            <option value="">未選擇</option>
+            <option value="">{t('models:notChosen')}</option>
             {Object.keys(document.semantic_observation?.connections ?? {}).map((id) => (
               <option key={id} value={id}>
                 {id}
@@ -252,7 +251,7 @@ export function ModelPurposes({
               })
             }}
           >
-            新增判斷連接
+            {t('models:addSemantic')}
           </Button>
         </Row>
         {Object.entries(document.semantic_observation?.connections ?? {}).map(
@@ -260,7 +259,7 @@ export function ModelPurposes({
             <Row
               key={id}
               title={id}
-              description={`${connection.provider} · ${connection.request_model} · ${data.saved_semantic_keys.includes(id) ? '已儲存' : '來自環境變數'}`}
+              description={`${connection.provider} · ${connection.request_model} · ${t(data.saved_semantic_keys.includes(id) ? 'models:keyState.saved' : 'models:keyState.env')}`}
             >
               <Button
                 disabled={locked}
@@ -269,25 +268,25 @@ export function ModelPurposes({
                   setSemantic({ id, originalId: id, connection: { ...connection } })
                 }}
               >
-                編輯
+                {t('models:edit')}
               </Button>
             </Row>
           ),
         )}
       </SettingsSection>
-      <SettingsSection title="其他用途">
+      <SettingsSection title={t('models:otherPurposes')}>
         <Row
-          title="記憶向量"
+          title={t('models:use.embedding')}
           description={
             document.embedding?.enabled === false
-              ? '不使用'
+              ? t('models:notUsed')
               : document.embedding
                 ? `${document.embedding.provider} · ${document.embedding.model} · ${keyState('embedding')}`
-                : '沿用既有設定'
+                : t('models:keyState.inherit')
           }
         >
           <select
-            aria-label="記憶向量"
+            aria-label={t('models:use.embedding')}
             value={document.embedding?.enabled === false ? 'none' : 'current'}
             disabled={locked}
             onChange={(event) => {
@@ -312,9 +311,13 @@ export function ModelPurposes({
             }}
           >
             <option value="current">
-              {document.embedding?.enabled === false ? '設定並啟用' : '目前設定'}
+              {t(
+                document.embedding?.enabled === false
+                  ? 'models:configureAndEnable'
+                  : 'models:currentSettings',
+              )}
             </option>
-            <option value="none">不使用</option>
+            <option value="none">{t('models:notUsed')}</option>
           </select>
           <Button
             disabled={locked}
@@ -325,25 +328,25 @@ export function ModelPurposes({
               setConfirmEmbedding(false)
             }}
           >
-            設定記憶向量
+            {t('models:configureEmbedding')}
           </Button>
         </Row>
         {(['vision', 'asr'] as const).map((kind) => (
           <Row
             key={kind}
-            title={kind === 'vision' ? '圖片理解' : '語音轉文字'}
-            description={`${document[kind]?.model ?? '沿用既有設定'} · ${keyState(kind)}`}
+            title={t(`models:use.${kind}`)}
+            description={`${document[kind]?.model ?? t('models:keyState.inherit')} · ${keyState(kind)}`}
           >
             <select
-              aria-label={kind === 'vision' ? '圖片理解' : '語音轉文字'}
+              aria-label={t(`models:use.${kind}`)}
               value={currentAux(kind)}
               disabled={locked}
               onChange={(event) => auxiliary(kind, event.target.value)}
             >
               <option value="current" disabled>
-                沿用目前設定
+                {t('models:keepCurrent')}
               </option>
-              <option value="none">不使用</option>
+              <option value="none">{t('models:notUsed')}</option>
               {profiles
                 .filter(
                   ([, profile]) =>
@@ -363,7 +366,7 @@ export function ModelPurposes({
         ))}
       </SettingsSection>
       <Sheet
-        title={confirmEmbedding ? '更換記憶向量' : '記憶向量'}
+        title={t(confirmEmbedding ? 'models:replaceEmbedding' : 'models:use.embedding')}
         open={!!embedding}
         width={600}
         onClose={() => {
@@ -378,7 +381,7 @@ export function ModelPurposes({
                 else setEmbedding(undefined)
               }}
             >
-              {confirmEmbedding ? '返回' : '取消'}
+              {t(confirmEmbedding ? 'common:action.back' : 'common:action.cancel')}
             </Button>
             <Button
               variant="primary"
@@ -410,24 +413,22 @@ export function ModelPurposes({
                 )
               }}
             >
-              {confirmEmbedding ? '確認更換' : '儲存'}
+              {t(confirmEmbedding ? 'models:confirmReplace' : 'common:action.save')}
             </Button>
           </>
         }
       >
         {feedback}
         {confirmEmbedding ? (
-          <p>
-            更換後會建立新的向量索引並重新計算所有記憶的向量，期間語義搜尋會暫時只用關鍵字。舊索引保留，不會刪除。
-          </p>
+          <p>{t('models:replaceEmbeddingWarning')}</p>
         ) : (
           embedding && (
             <fieldset className={styles.editor} disabled={locked}>
               <div className={styles.formFields}>
                 <label className={styles.formField}>
-                  向量服務預設
+                  {t('models:embeddingPreset')}
                   <select
-                    aria-label="向量服務預設"
+                    aria-label={t('models:embeddingPreset')}
                     value={embeddingPreset}
                     onChange={(event) => {
                       setEmbeddingPreset(event.target.value)
@@ -436,7 +437,9 @@ export function ModelPurposes({
                     }}
                   >
                     <option value="" disabled>
-                      {embedding.provider ? `目前：${embedding.provider}` : '選擇服務預設'}
+                      {embedding.provider
+                        ? t('models:currentProvider', { provider: String(embedding.provider) })
+                        : t('models:choosePreset')}
                     </option>
                     {presets.map((preset, index) => (
                       <option key={index} value={index}>
@@ -446,13 +449,13 @@ export function ModelPurposes({
                   </select>
                 </label>
                 <label className={styles.formField}>
-                  金鑰
+                  {t('models:key')}
                   <TextField
                     type="password"
                     autoComplete="off"
                     value={embeddingKey}
                     onChange={(event) => setEmbeddingKey(event.target.value)}
-                    placeholder="留空保留原金鑰"
+                    placeholder={t('models:keyKeep')}
                   />
                 </label>
                 <ModelSchemaFields
@@ -462,7 +465,7 @@ export function ModelPurposes({
                   fields={['base_url', 'model', 'dimensions']}
                 />
                 <details className={styles.advanced}>
-                  <summary>進階</summary>
+                  <summary>{t('models:advanced')}</summary>
                   <ModelSchemaFields
                     schema={embeddingSchema}
                     value={embedding}
@@ -486,7 +489,7 @@ export function ModelPurposes({
         )}
       </Sheet>
       <Sheet
-        title="參與判斷連接"
+        title={t('models:semanticConnection')}
         open={!!semantic}
         width={600}
         onClose={() => {
@@ -495,7 +498,7 @@ export function ModelPurposes({
         actions={
           <>
             <Button disabled={locked} onClick={() => setSemantic(undefined)}>
-              取消
+              {t('common:action.cancel')}
             </Button>
             <Button
               variant="primary"
@@ -528,7 +531,7 @@ export function ModelPurposes({
                 )
               }}
             >
-              儲存
+              {t('common:action.save')}
             </Button>
           </>
         }
@@ -538,16 +541,16 @@ export function ModelPurposes({
           <fieldset className={styles.editor} disabled={locked}>
             <div className={styles.formFields}>
               <label className={styles.formField}>
-                連接 ID
+                {t('models:connectionId')}
                 <TextField
                   value={semantic.id}
                   onChange={(event) => setSemantic({ ...semantic, id: event.target.value })}
                 />
               </label>
               <label className={styles.formField}>
-                Provider
+                {t('models:field.provider')}
                 <select
-                  aria-label="Provider"
+                  aria-label={t('models:field.provider')}
                   value={semantic.connection.provider}
                   onChange={(event) => {
                     const preset = semanticProviders.find(
@@ -585,20 +588,11 @@ export function ModelPurposes({
                 const required = semanticProviders
                     .find((preset) => preset.provider === semantic.connection.provider)!
                     .required.includes(field),
-                  label =
-                    field === 'endpoint'
-                      ? '服務位址'
-                      : field === 'api_key_env'
-                        ? '金鑰環境變數'
-                        : field === 'request_model'
-                          ? '請求模型'
-                          : field === 'response_model'
-                            ? '回應模型'
-                            : '逾時（秒）'
+                  label = t(`models:field.${field}`)
                 return (
                   <label className={styles.formField} key={field}>
                     {label}
-                    {required && <small>必填</small>}
+                    {required && <small>{t('models:required')}</small>}
                     <TextField
                       aria-label={label}
                       type={field === 'timeout_seconds' ? 'number' : 'text'}
@@ -622,13 +616,13 @@ export function ModelPurposes({
                 )
               })}
               <label className={styles.formField}>
-                金鑰
+                {t('models:key')}
                 <TextField
                   type="password"
                   autoComplete="off"
                   value={semanticKey}
                   onChange={(event) => setSemanticKey(event.target.value)}
-                  placeholder="留空保留原金鑰"
+                  placeholder={t('models:keyKeep')}
                 />
               </label>
             </div>

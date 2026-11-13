@@ -23,44 +23,17 @@ import {
 import { ClientProblem, problemText, unwrap } from '../queries/client'
 import { Row, SettingsSection } from './SettingsRow'
 import styles from './Settings.module.css'
+import type { TFunction } from 'i18next'
+import source from '../../shared/locales/zh-Hant/connector'
 import { useTranslation } from '../i18n'
+import { useDisplayTime } from '../state/time'
 
-const problems: Record<string, string> = {
-  native_daemon_start_failed: '原生服務未能啟動，請檢查所選程式及其原生設定。',
-  native_protocol_unsupported: '所選程式回報的協議版本不相容。',
-  native_session_error: '原生程式拒絕建立或載入該會話，請查看原程式的設定。',
-  connector_reload_required: '原連接器尚不支援即時套用，請在原服務重新載入設定後確認。',
-  connector_catalog_unconfirmed: '尚未確認執行中的連接器已套用設定',
-  invalid_server: '遠端位址請使用 https://；連向這台電腦時才可使用 http://。',
-  unknown: '本機連接器操作未確認，請重新開啟設定確認。',
-  connector_runtime_invalid: '隨附連接器的檔案不完整，請重新安裝完整的 Yuki Desktop 發行包。',
-  connector_owner_mismatch:
-    '這個連接器屬於其他伺服器或本人。原授權不會被覆寫；可以建立另一份獨立安裝。',
-  native_login_required: '請先在原生 Agent 完成登入，再重新檢查。',
-  native_not_installed: '原安裝位置已不存在，請重新選擇原生程式。',
-  FileNotFoundError: '原生程式或原會話的工作位置已不存在，請核對原安裝或會話。',
-  native_owner_unavailable: '無法接通原生 Agent，請開啟它並重試。',
-  native_diagnostic_failed:
-    '原生診斷命令未完成或此版本不支援，登入狀態尚未確認。請查看原生程式的診斷結果。',
-  connector_server_unreachable: '無法連到 Yuki 伺服器。請確認連線後重試。',
-  connector_runtime_unavailable: '這個版本沒有附帶執行環境，請安裝完整的 Yuki Desktop 發行包。',
-  connector_configuration_failed: '設定未保存，請重新選擇實際的原生程式。',
-  connector_authorization_failed: '電腦授權未完成，請確認目前的 Yuki 連線後重新授權。',
-  connector_server_error:
-    '伺服器未接納連接器，請確認同一個 Yuki 網址已提供 /agents/v1/ HTTPS 與 WebSocket 入口。',
-  connector_other_person: '伺服器目前未提供這份原連接。原身份與回執會保留，可以建立新連接。',
-  connector_runtime_platform: '這份連接器不適用於目前系統，請安裝對應平台的 Desktop 發行包。',
-  connector_not_installed: '連接器原位置已不存在，請重新準備隨附連接器或選用原安裝。',
-  connector_existing_runtime_unavailable:
-    '已發現原連接器資料，但無法找到它實際使用的執行環境。請在進階設定指定原安裝；原資料與服務會保留。',
-  connector_failed: '連接器操作未完成。請確認連線，再繼續處理顯示的步驟。',
-  connector_instance_missing:
-    '這份原生設定已不存在，請關閉編輯視窗，再選擇「新增 Agent」建立新設定。',
-  connector_update_required:
-    '原連接器版本尚未支援這項功能，請先更新連接器；原身份與操作記錄會保留。',
-  connector_invalid_response:
-    '無法解析連接器回傳的資料，請重新開啟設定或更新連接器。原設定會保留。',
-}
+type T = TFunction<['connector']>
+// The Connector's own error codes have a message here; anything else goes through `problemText`.
+const problemMessage = (t: T, code: string) =>
+  Object.hasOwn(source.problem, code)
+    ? t(`connector:problem.${code as keyof typeof source.problem}`)
+    : undefined
 const driverName = (driver: string) =>
   driver === 'codex'
     ? 'Codex'
@@ -69,74 +42,69 @@ const driverName = (driver: string) =>
       : driver === 'acp'
         ? 'ACP'
         : driver
-const defaultAgentName = (driver: ConnectorDriver) =>
-  driver === 'acp' ? '我的 Agent' : `本機 ${driverName(driver)}`
+const defaultAgentName = (t: T, driver: ConnectorDriver) =>
+  driver === 'acp'
+    ? t('connector:defaultAgent.acp')
+    : t('connector:defaultAgent.native', { driver: driverName(driver) })
 
-const summary = (state: ConnectorState | undefined): { text: string; status: Status } => {
-  if (!state) return { text: '讀取中', status: 'unknown' }
+const summary = (t: T, state: ConnectorState | undefined): { text: string; status: Status } => {
+  if (!state) return { text: t('connector:state.reading'), status: 'unknown' }
   const installation = state.available ? state : state.existing?.state
-  if (!installation) return { text: '尚未連接', status: 'offline' }
+  if (!installation) return { text: t('connector:state.notConnected'), status: 'offline' }
   if (installation.paired && installation.admission?.matched === false)
-    return { text: '已連接到其他 Yuki', status: 'failed' }
-  if (installation.updateAvailable) return { text: '需要更新', status: 'waiting' }
-  if (!state.available) return { text: '發現原有連接', status: 'waiting' }
-  if (!installation.paired) return { text: '尚未連接', status: 'offline' }
+    return { text: t('connector:state.otherYuki'), status: 'failed' }
+  if (installation.updateAvailable)
+    return { text: t('connector:state.updateRequired'), status: 'waiting' }
+  if (!state.available) return { text: t('connector:state.existingFound'), status: 'waiting' }
+  if (!installation.paired) return { text: t('connector:state.notConnected'), status: 'offline' }
   const supervision = installation.supervision
-  if (supervision?.link === 'authorization_lost') return { text: '授權已撤銷', status: 'failed' }
+  if (supervision?.link === 'authorization_lost')
+    return { text: t('connector:state.authorizationLost'), status: 'failed' }
   if (supervision?.link === 'protocol_unsupported')
-    return { text: '連接器協議不相容', status: 'failed' }
-  if (supervision?.restartPending) return { text: '連接器重新啟動中', status: 'waiting' }
-  if (installation.running === false) return { text: '本機連接已停止', status: 'waiting' }
+    return { text: t('connector:state.connectorProtocolUnsupported'), status: 'failed' }
+  if (supervision?.restartPending)
+    return { text: t('connector:state.restarting'), status: 'waiting' }
+  if (installation.running === false)
+    return { text: t('connector:state.stopped'), status: 'waiting' }
   if (supervision?.link === 'disconnected')
-    return { text: '連線中斷，正在重新連線', status: 'waiting' }
+    return { text: t('connector:state.reconnecting'), status: 'waiting' }
   return installation.admission?.connected
-    ? { text: '已連線', status: 'done' }
-    : { text: '尚未確認連線', status: 'unknown' }
+    ? { text: t('connector:state.connected'), status: 'done' }
+    : { text: t('connector:state.unconfirmed'), status: 'unknown' }
 }
 // The Connector's own state lines; older Connectors report none.
-const linkText = (installation: ConnectorAvailableState) => {
+const linkText = (t: T, installation: ConnectorAvailableState) => {
   const supervision = installation.supervision
-  if (supervision?.restartPending) return '等待重新啟動'
-  if (installation.running !== true) return '未執行'
+  if (supervision?.restartPending) return t('connector:state.restartPending')
+  if (installation.running !== true) return t('connector:state.notRunning')
   switch (supervision?.link) {
     case 'connected':
-      return '已連線'
+      return t('connector:state.connected')
     case 'disconnected':
-      return '連線中斷，正在重新連線'
+      return t('connector:state.reconnecting')
     case 'authorization_lost':
-      return '授權已撤銷'
+      return t('connector:state.authorizationLost')
     case 'protocol_unsupported':
-      return '協議不相容'
+      return t('connector:state.protocolUnsupported')
     default:
-      return '執行中，尚未回報連線狀態'
+      return t('connector:state.runningUnreported')
   }
 }
+const runningText = (t: T, running: boolean | null | undefined) =>
+  running === true
+    ? t('connector:state.running')
+    : running === false
+      ? t('connector:state.halted')
+      : t('connector:state.unknown')
 
 // macOS asks for both when the Connector, a child of Yuki.app, looks at or uses the screen.
-const macPermissions: { permission: ConnectorPermission; title: string; description: string }[] = [
-  { permission: 'screen', title: '螢幕錄製', description: '讓 Yuki 看到這台電腦的畫面。' },
-  { permission: 'input', title: '輔助使用', description: '讓 Yuki 操作滑鼠與鍵盤。' },
-]
+const macPermissions: ConnectorPermission[] = ['screen', 'input']
 
 type Feedback = {
   section: 'status' | 'permission' | 'agents' | 'installation' | 'server'
   text: string
 }
 
-const stages: Record<string, string> = {
-  server: '儲存連接器位址',
-  prepare: '準備執行環境',
-  authorize: '目前本人授權',
-  pair: '電腦配對',
-  configure: '保存原生設定',
-  read: '讀取連接器狀態',
-  discover: '尋找原生程式',
-  diagnose: '檢查原生狀態',
-  'service-stop': '停止本機連接',
-  'service-uninstall': '移除原自啟動服務',
-  'service-start': '啟動本機連接',
-  'full-access': '本機完整訪問',
-}
 export function AgentConnector({
   connection,
   deviceLabel,
@@ -147,7 +115,8 @@ export function AgentConnector({
   onUpdates?(): void
 }) {
   const query = useQueryClient()
-  const { i18n } = useTranslation()
+  const { t } = useTranslation(['connector', 'common'])
+  const { date } = useDisplayTime()
   const key = ['desktop', 'agent-connector', connection?.characterId]
   const state = useQuery({
     queryKey: key,
@@ -174,7 +143,7 @@ export function AgentConnector({
   const [driver, setDriver] = useState<ConnectorDriver>('codex')
   const [instanceId, setInstanceId] = useState('')
   const [create, setCreate] = useState(true)
-  const [instanceLabel, setInstanceLabel] = useState('本機 Codex')
+  const [instanceLabel, setInstanceLabel] = useState<string>(() => defaultAgentName(t, 'codex'))
   const [diagnostic, setDiagnostic] = useState<ConnectorDiagnostic>()
   const [externalPython, setExternalPython] = useState('')
   const [externalData, setExternalData] = useState('')
@@ -187,7 +156,7 @@ export function AgentConnector({
   const nativeName = driverName(original?.driver ?? driver)
   const supportsDiscovery = ['codex', 'claude'].includes(original?.driver ?? driver)
   const serverProtocol = available?.admission?.serverProtocol
-  const status = summary(state.data)
+  const status = summary(t, state.data)
   const perform = async (
     operation: () => Promise<unknown>,
     section: Feedback['section'] = 'status',
@@ -202,8 +171,13 @@ export function AgentConnector({
         section,
         text:
           failure instanceof ClientProblem
-            ? `${failure.reason && stages[failure.reason] ? stages[failure.reason] + '：' : ''}${problems[failure.code] ?? failure.message}`
-            : '操作未確認，請重新開啟設定確認。',
+            ? failure.reason && Object.hasOwn(source.stage, failure.reason)
+              ? t('connector:stageFailure', {
+                  stage: t(`connector:stage.${failure.reason as keyof typeof source.stage}`),
+                  problem: problemMessage(t, failure.code) ?? failure.message,
+                })
+              : (problemMessage(t, failure.code) ?? failure.message)
+            : t('connector:unconfirmed'),
       })
     } finally {
       await query.invalidateQueries({ queryKey: key })
@@ -233,7 +207,7 @@ export function AgentConnector({
     if (!found.length)
       setNotice({
         section: 'agents',
-        text: `沒有找到已安裝的 ${driverName(driver)}。請先安裝並登入，或在進階設定選擇實際執行檔。`,
+        text: t('connector:notFound', { driver: driverName(driver) }),
       })
     return found
   }
@@ -265,8 +239,10 @@ export function AgentConnector({
     setNotice({
       section: 'agents',
       text: result.catalogProblem
-        ? `設定已保存，尚未確認連線套用結果：${problems[result.catalogProblem] ?? result.catalogProblem}。`
-        : '設定已保存；原生狀態依實際連線結果確認。',
+        ? t('connector:savedCatalog', {
+            problem: problemMessage(t, result.catalogProblem) ?? result.catalogProblem,
+          })
+        : t('connector:saved'),
     })
   }
   const save = () =>
@@ -284,8 +260,10 @@ export function AgentConnector({
       setNotice({
         section: 'agents',
         text: result.catalogProblem
-          ? `設定已刪除，尚未確認連線同步：${problems[result.catalogProblem] ?? result.catalogProblem}。`
-          : 'Agent 設定已刪除，原生程式與歷史紀錄保留。',
+          ? t('connector:removedCatalog', {
+              problem: problemMessage(t, result.catalogProblem) ?? result.catalogProblem,
+            })
+          : t('connector:removed'),
       })
     }, 'agents')
   const feedback = (section: Feedback['section']) => (
@@ -298,7 +276,7 @@ export function AgentConnector({
     <>
       <p className={styles.nativePath}>
         {(candidateId ? candidates.find((item) => item.id === candidateId)?.command : command) ||
-          '尚未選擇'}
+          t('connector:notChosen')}
       </p>
       <Button
         type="button"
@@ -314,51 +292,54 @@ export function AgentConnector({
           }, 'agents')
         }
       >
-        選擇程式
+        {t('connector:chooseProgram')}
       </Button>
     </>
   )
   return (
     <>
-      <p className={styles.notice}>
-        讓 {connection?.name ?? 'Yuki'} 使用這台電腦的命令、檔案與已安裝程式。原生 Agent 是可選的。
-      </p>
+      <p className={styles.notice}>{t('connector:intro', { name: connection?.name ?? 'Yuki' })}</p>
       {available &&
         available.protocol !== undefined &&
         serverProtocol !== undefined &&
         available.protocol !== serverProtocol && (
           <Banner status="unknown">
-            {available.protocol < serverProtocol
-              ? `這台電腦的連接器協議 ${available.protocol}，伺服器使用 ${serverProtocol}。請更新 Yuki Desktop 與隨附連接器；原身份與回執會保留。`
-              : `這台電腦的連接器協議 ${available.protocol}，伺服器使用 ${serverProtocol}。請更新 Yuki 伺服器以支援協議 ${available.protocol}；不需要重新配對。`}
+            {t(
+              available.protocol < serverProtocol
+                ? 'connector:protocolBehind'
+                : 'connector:protocolAhead',
+              { local: available.protocol, server: serverProtocol },
+            )}
             {available.protocol < serverProtocol && onUpdates && (
-              <Button onClick={onUpdates}>前往更新</Button>
+              <Button onClick={onUpdates}>{t('connector:goUpdate')}</Button>
             )}
           </Banner>
         )}
-      <SettingsSection title="狀態">
+      <SettingsSection title={t('connector:section.status')}>
         {feedback('status')}
         {state.isError && (
           <Banner status="unknown">
             {state.error instanceof ClientProblem
-              ? (problems[state.error.code] ?? problemText(state.error.code))
-              : '無法讀取原連接器，請確認執行環境仍在原位置。'}
+              ? (problemMessage(t, state.error.code) ?? problemText(state.error.code))
+              : t('connector:readFailed')}
           </Banner>
         )}
         {available?.admission?.problem && (
           <Banner status="unknown">
-            伺服器接納尚未確認：
-            {problems[available.admission.problem] ?? problemText(available.admission.problem)}
-            請確認伺服器連線；本機連接仍可管理。
+            {t('connector:admissionUnconfirmed', {
+              problem:
+                problemMessage(t, available.admission.problem) ??
+                problemText(available.admission.problem),
+            })}
           </Banner>
         )}
         <Row
-          title={`這台電腦 · ${label}`}
+          title={t('connector:thisComputer', { label })}
           description={
             installation?.paired && installation.admission?.matched === false
-              ? '這台電腦目前連接到另一個 Yuki；一台電腦同一時間只能連接一個 Yuki。'
+              ? t('connector:otherYukiDescription')
               : installation?.admission?.matched === true && connection
-                ? `目前連接到 ${connection.name}`
+                ? t('connector:connectedTo', { name: connection.name })
                 : undefined
           }
         >
@@ -373,7 +354,7 @@ export function AgentConnector({
                 })
               }
             >
-              建立新連接
+              {t('connector:newConnection')}
             </Button>
           ) : installation &&
             (installation.updateAvailable || (available && installation.managed === false)) ? (
@@ -390,12 +371,14 @@ export function AgentConnector({
                   )
                   setNotice({
                     section: 'status',
-                    text: '連接器已更新並沿用原身份、設定與操作記錄，隨 Desktop 啟動與結束。',
+                    text: t('connector:updated'),
                   })
                 })
               }
             >
-              {installation.updateAvailable ? '更新連接器，保留原資料' : '改用隨附版本，保留原資料'}
+              {installation.updateAvailable
+                ? t('connector:updateKeepData')
+                : t('connector:adoptKeepData')}
             </Button>
           ) : existing ? (
             <Button
@@ -406,14 +389,14 @@ export function AgentConnector({
                 })
               }
             >
-              使用已有連接
+              {t('connector:useExisting')}
             </Button>
           ) : null}
         </Row>
         {connection && available?.paired && (
           <Row
-            title="連接器伺服器位址"
-            description="這份電腦連接使用的位址，與桌面聊天的伺服器位址分開保存。"
+            title={t('connector:serverAddress')}
+            description={t('connector:serverAddressDescription')}
           >
             <Button
               disabled={busy}
@@ -423,20 +406,23 @@ export function AgentConnector({
                 setServerAddress(available.server ?? '')
               }}
             >
-              修改連接器位址
+              {t('connector:changeServer')}
             </Button>
           </Row>
         )}
         {existing && (
           <Row
-            title="沿用原有連接"
-            description="沿用原安裝、授權與操作記錄，不會重新配對或啟停原服務。"
+            title={t('connector:reuseExisting')}
+            description={t('connector:reuseExistingDescription')}
           />
         )}
         {installation?.updateAvailable && (
           <Row
-            title="更新連接器"
-            description={`目前連接器 ${installation.version ?? '版本未提供'}，桌面隨附 ${installation.bundledVersion ?? '版本'}。原身份、設定與操作記錄會保留，不需要重新配對。`}
+            title={t('connector:updateConnector')}
+            description={t('connector:updateDescription', {
+              current: installation.version ?? t('connector:currentVersionMissing'),
+              bundled: installation.bundledVersion ?? t('connector:bundledVersionMissing'),
+            })}
           />
         )}
         {state.data && !existing?.state.paired && !available?.paired && (
@@ -455,14 +441,14 @@ export function AgentConnector({
                     unwrap(await window.yuki.connector.service('start'))
                   setNotice({
                     section: 'status',
-                    text: '電腦已配對。完整訪問預設關閉，可在下方開啟；原生 Agent 稍後設定。',
+                    text: t('connector:paired'),
                   })
                 })
             }}
           >
-            <Row title="這台電腦的名稱">
+            <Row title={t('connector:computerName')}>
               <TextField
-                aria-label="電腦名稱"
+                aria-label={t('connector:computerNameLabel')}
                 value={label}
                 onChange={(event) => setLabel(event.target.value)}
                 required
@@ -471,8 +457,11 @@ export function AgentConnector({
             {connection ? (
               <>
                 <Row
-                  title="連接授權"
-                  description={`允許 ${connection.name}（${connection.baseUrl}）以你目前的本人身份連接這台電腦。通用操作另由完整訪問開關管理，原生 Agent 沿原授權。`}
+                  title={t('connector:consent')}
+                  description={t('connector:consentDescription', {
+                    name: connection.name,
+                    url: connection.baseUrl,
+                  })}
                 >
                   <label>
                     <input
@@ -480,43 +469,38 @@ export function AgentConnector({
                       checked={consent}
                       onChange={(event) => setConsent(event.target.checked)}
                     />
-                    我允許這個 Yuki 連接這台電腦
+                    {t('connector:consentLabel')}
                   </label>
                 </Row>
-                <Row title="連接這台電腦">
+                <Row title={t('connector:connect')}>
                   <Button type="submit" variant="primary" loading={busy} disabled={!consent}>
-                    連接這台電腦
+                    {t('connector:connect')}
                   </Button>
                 </Row>
               </>
             ) : (
-              <Row
-                title="尚未連接 Yuki"
-                description="先連接一位 Yuki，再授權這台電腦。你可以直接離開此頁。"
-              />
+              <Row title={t('connector:noYuki')} description={t('connector:noYukiDescription')} />
             )}
           </form>
         )}
         {available?.paired && (
           <Row
-            title={available.managed === false ? '獨立連接' : '本機連接'}
+            title={
+              available.managed === false
+                ? t('connector:independentConnection')
+                : t('connector:localConnection')
+            }
             description={
               available.managed === false
-                ? '由原安裝管理，不隨 Desktop 啟停。改用隨附版本後，可交由 Desktop 管理。'
-                : '隨 Desktop 啟動與結束；關閉視窗留在托盤時保持連接。已啟動任務的結果以原回執為準。'
+                ? t('connector:independentDescription')
+                : t('connector:localDescription')
             }
           >
             {available.managed === false ? (
-              <span>
-                {available.running === true
-                  ? '執行中'
-                  : available.running === false
-                    ? '已停止'
-                    : '狀態未知'}
-              </span>
+              <span>{runningText(t, available.running)}</span>
             ) : (
               <Toggle
-                label="本機連接"
+                label={t('connector:localConnection')}
                 checked={available.running === true || !!available.supervision?.restartPending}
                 disabled={busy}
                 onChange={(enabled) =>
@@ -531,59 +515,64 @@ export function AgentConnector({
         {available?.paired && available.managed !== false && (
           <>
             {available.supervision?.link === 'authorization_lost' && (
-              <Banner status="failed">
-                授權已撤銷：伺服器拒絕了這台電腦的連接器憑據（例如已在「裝置」中移除）。連接器已停止重新連線，原操作記錄會保留。
-              </Banner>
+              <Banner status="failed">{t('connector:authorizationLostBanner')}</Banner>
             )}
             {available.supervision?.link === 'protocol_unsupported' && (
-              <Banner status="failed">
-                連接器與伺服器的協議不相容，已停止重新連線。請更新較舊的一方；原身份與回執會保留。
-              </Banner>
+              <Banner status="failed">{t('connector:protocolUnsupportedBanner')}</Banner>
             )}
             <Row
-              title="連線狀態"
+              title={t('connector:linkStatus')}
               description={
                 available.supervision?.reason
-                  ? `最近原因：${available.supervision.reason}`
+                  ? t('connector:lastReason', { reason: available.supervision.reason })
                   : undefined
               }
             >
-              <span>{linkText(available)}</span>
+              <span>{linkText(t, available)}</span>
             </Row>
             {available.supervision?.lastExit && (
               <Row
-                title="最近一次非預期結束"
-                description={new Date(available.supervision.lastExit.at).toLocaleString(
-                  i18n.language,
-                )}
+                title={t('connector:lastExit')}
+                description={date(available.supervision.lastExit.at, {
+                  year: 'numeric',
+                  month: 'numeric',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                })}
               >
                 <span>
                   {available.supervision.lastExit.code !== null
-                    ? `結束代碼 ${available.supervision.lastExit.code}`
-                    : `訊號 ${available.supervision.lastExit.signal}`}
+                    ? t('connector:exitCode', { code: available.supervision.lastExit.code })
+                    : t('connector:exitSignal', {
+                        signal: String(available.supervision.lastExit.signal),
+                      })}
                 </span>
               </Row>
             )}
             <Row
-              title="自動重新啟動"
-              description="連接器非預期結束時，Desktop 依次等待 1、2、4… 秒（最長 1 分鐘）後重新啟動；連上伺服器後重新計算。停止連接或結束 App 時不會重新啟動。"
+              title={t('connector:autoRestart')}
+              description={t('connector:autoRestartDescription')}
             >
-              <span>{available.supervision?.restarts ?? 0} 次</span>
+              <span>
+                {t('connector:restarts', { count: available.supervision?.restarts ?? 0 })}
+              </span>
             </Row>
             <Row
-              title="匯出診斷"
-              description="包含連接狀態與 connector.log、connector-stderr.log 的最後部分，可能含本機路徑；分享前請先檢查內容。"
+              title={t('connector:exportDiagnostics')}
+              description={t('connector:exportDiagnosticsDescription')}
             >
               <Button
                 disabled={busy}
                 onClick={() =>
                   void perform(async () => {
                     if (unwrap(await window.yuki.connector.exportDiagnostics()))
-                      setNotice({ section: 'status', text: '連接器診斷已匯出。' })
+                      setNotice({ section: 'status', text: t('connector:diagnosticsExported') })
                   })
                 }
               >
-                匯出診斷
+                {t('connector:exportDiagnostics')}
               </Button>
             </Row>
           </>
@@ -591,7 +580,7 @@ export function AgentConnector({
       </SettingsSection>
       {connection && (
         <Sheet
-          title="修改連接器位址"
+          title={t('connector:changeServer')}
           open={serverAddress !== undefined}
           onClose={() => {
             if (!busy) setServerAddress(undefined)
@@ -599,7 +588,7 @@ export function AgentConnector({
           actions={
             <>
               <Button disabled={busy} onClick={() => setServerAddress(undefined)}>
-                取消
+                {t('common:action.cancel')}
               </Button>
               <Button
                 type="submit"
@@ -608,7 +597,7 @@ export function AgentConnector({
                 loading={busy}
                 disabled={!serverAddress?.trim()}
               >
-                儲存
+                {t('common:action.save')}
               </Button>
             </>
           }
@@ -627,16 +616,14 @@ export function AgentConnector({
                 setServerAddress(undefined)
                 setNotice({
                   section: 'status',
-                  text: '位址已儲存，下次啟動連接時使用。',
+                  text: t('connector:serverSaved'),
                 })
               }, 'server')
             }}
           >
-            <p>
-              只儲存這份連接器的位址，不修改桌面聊天連線，也不啟停連接器。下次啟動時使用新位址。
-            </p>
+            <p>{t('connector:serverSheetBody')}</p>
             <TextField
-              aria-label="連接器伺服器位址"
+              aria-label={t('connector:serverAddress')}
               value={serverAddress ?? ''}
               onChange={(event) => setServerAddress(event.target.value)}
               placeholder="https://"
@@ -649,19 +636,19 @@ export function AgentConnector({
       )}
       {available?.paired && (
         <>
-          <SettingsSection title="權限">
+          <SettingsSection title={t('connector:section.permission')}>
             {feedback('permission')}
             <Row
-              title="允許完整訪問本機"
+              title={t('connector:fullAccess')}
               description={
                 available.fullAccess === undefined
-                  ? '所選連接器尚未提供完整訪問能力，請更新為本版隨附連接器；原授權範圍不變。'
-                  : '允許 Shell、檔案與本機程式操作；關閉後不再接納新的通用操作，原回執和停止仍可用。'
+                  ? t('connector:fullAccessUnsupported')
+                  : t('connector:fullAccessDescription')
               }
             >
               {available.fullAccess !== undefined && (
                 <Toggle
-                  label="允許完整訪問本機"
+                  label={t('connector:fullAccess')}
                   checked={available.fullAccess === true}
                   disabled={busy}
                   onChange={(enabled) =>
@@ -672,12 +659,14 @@ export function AgentConnector({
                       setNotice({
                         section: 'permission',
                         text:
-                          (enabled
-                            ? '完整訪問已開啟。使用目前 OS 帳號的權限，不逐命令或逐目錄重複確認。'
-                            : '完整訪問已關閉。已啟動任務需按原執行停止；原生 Agent 的獨立授權仍保留。') +
-                          (changed.available && changed.catalogProblem
-                            ? ` 雲端目錄同步尚未確認：${problemText(changed.catalogProblem)}`
-                            : ''),
+                          changed.available && changed.catalogProblem
+                            ? t(
+                                enabled
+                                  ? 'connector:fullAccessOnCatalog'
+                                  : 'connector:fullAccessOffCatalog',
+                                { problem: problemText(changed.catalogProblem) },
+                              )
+                            : t(enabled ? 'connector:fullAccessOn' : 'connector:fullAccessOff'),
                       })
                     }, 'permission')
                   }
@@ -686,18 +675,22 @@ export function AgentConnector({
             </Row>
             {available.computer?.platform === 'darwin' &&
               available.supervision?.permissions &&
-              macPermissions.map(({ permission, title, description }) =>
+              macPermissions.map((permission) =>
                 available.supervision!.permissions![permission] ? (
-                  <Row key={permission} title={title} description={description}>
-                    <span>已允許</span>
+                  <Row
+                    key={permission}
+                    title={t(`connector:macPermission.${permission}.title`)}
+                    description={t(`connector:macPermission.${permission}.description`)}
+                  >
+                    <span>{t('connector:allowed')}</span>
                   </Row>
                 ) : (
                   <Row
                     key={permission}
-                    title={title}
-                    description={`${description}在系統設定允許 Yuki 後，關閉再開啟「本機連接」重新檢查。`}
+                    title={t(`connector:macPermission.${permission}.title`)}
+                    description={t(`connector:macPermission.${permission}.denied`)}
                   >
-                    <span>未允許</span>
+                    <span>{t('connector:notAllowed')}</span>
                     <Button
                       onClick={() =>
                         void perform(async () => {
@@ -705,34 +698,42 @@ export function AgentConnector({
                         }, 'permission')
                       }
                     >
-                      打開系統設定
+                      {t('connector:openSystemSettings')}
                     </Button>
                   </Row>
                 ),
               )}
           </SettingsSection>
-          <SettingsSection title="本機 Agent（可選）">
+          <SettingsSection title={t('connector:section.agents')}>
             {!editorOpen && !removing && feedback('agents')}
             {available.instances.map((instance) => {
               const remote = available.admission?.instances?.find(
                 (item) => item.localId === instance.id,
               )
+              const driver = driverName(instance.driver)
               const statusText = !remote
-                ? '伺服器尚未接納此 Agent'
+                ? t('connector:agentNotAdmitted')
                 : remote.status !== 'available'
-                  ? `${driverName(instance.driver)} 尚未就緒：${problems[remote.errorType ?? ''] ?? remote.errorType ?? remote.status ?? '未提供原因'}`
+                  ? t('connector:agentNotReady', {
+                      driver,
+                      reason:
+                        problemMessage(t, remote.errorType ?? '') ??
+                        remote.errorType ??
+                        remote.status ??
+                        t('connector:noReason'),
+                    })
                   : remote.online
                     ? instance.driver === 'claude'
-                      ? 'Claude Code 程式已找到；登入與任務依原生結果確認'
-                      : `${driverName(instance.driver)} 原生連線已建立`
+                      ? t('connector:claudeFound')
+                      : t('connector:nativeConnected', { driver })
                     : instance.driver === 'claude'
-                      ? 'Claude Code 目前離線；上次已找到程式'
-                      : `${driverName(instance.driver)} 目前離線；上次已就緒`
+                      ? t('connector:claudeOffline')
+                      : t('connector:nativeOffline', { driver })
               return (
                 <Row
                   key={instance.id}
                   title={instance.label}
-                  description={`${driverName(instance.driver)} · ${statusText}`}
+                  description={t('connector:agentDescription', { driver, status: statusText })}
                 >
                   <Button
                     disabled={busy}
@@ -755,29 +756,29 @@ export function AgentConnector({
                       setEditorOpen(true)
                     }}
                   >
-                    編輯
+                    {t('connector:edit')}
                   </Button>
                   <Button
                     variant="plain"
                     disabled={busy}
-                    aria-label={`刪除 ${instance.label}`}
+                    aria-label={t('connector:deleteName', { name: instance.label })}
                     onClick={() => setRemoving(instance)}
                   >
-                    刪除…
+                    {t('connector:deleteEllipsis')}
                   </Button>
                 </Row>
               )
             })}
             <Row
-              title="新增本機 Agent"
-              description="選擇已安裝的 Codex、Claude Code 或支援 ACP 的程式。"
+              title={t('connector:addAgentTitle')}
+              description={t('connector:addAgentDescription')}
             >
               <Button
                 disabled={busy}
                 onClick={() => {
                   setInstanceId('')
                   setCreate(true)
-                  setInstanceLabel(defaultAgentName(driver))
+                  setInstanceLabel(defaultAgentName(t, driver))
                   setCommand('')
                   setCommandChanged(false)
                   setLabelChanged(false)
@@ -790,12 +791,16 @@ export function AgentConnector({
                   setEditorOpen(true)
                 }}
               >
-                新增 Agent
+                {t('connector:addAgent')}
               </Button>
             </Row>
           </SettingsSection>
           <Sheet
-            title={create ? '新增本機 Agent' : `編輯 ${original?.label ?? instanceLabel}`}
+            title={
+              create
+                ? t('connector:addAgentTitle')
+                : t('connector:editName', { name: original?.label ?? instanceLabel })
+            }
             width={560}
             open={editorOpen}
             onClose={() => {
@@ -804,7 +809,7 @@ export function AgentConnector({
             actions={
               <>
                 <Button disabled={busy} onClick={() => setEditorOpen(false)}>
-                  取消
+                  {t('common:action.cancel')}
                 </Button>
                 <Button
                   form={editorForm}
@@ -813,7 +818,7 @@ export function AgentConnector({
                   loading={busy}
                   disabled={busy || (!candidateId && !command)}
                 >
-                  儲存
+                  {t('common:action.save')}
                 </Button>
               </>
             }
@@ -824,13 +829,14 @@ export function AgentConnector({
                 {diagnostic.available
                   ? available.instances.find((item) => item.id === diagnostic.id)?.driver ===
                     'claude'
-                    ? 'Claude Code 登入檢查完成；尚未執行模型任務。'
-                    : '原生握手與帳戶檢查完成；尚未執行模型任務。'
-                  : (problems[diagnostic.problem ?? ''] ?? `尚未就緒（${diagnostic.problem}）。`)}
+                    ? t('connector:claudeDiagnosed')
+                    : t('connector:nativeDiagnosed')
+                  : (problemMessage(t, diagnostic.problem ?? '') ??
+                    t('connector:notReady', { problem: String(diagnostic.problem) }))}
               </Banner>
             )}
             {original && (
-              <Row title="程式">
+              <Row title={t('connector:program')}>
                 {supportsDiscovery && (
                   <Button
                     variant="plain"
@@ -841,7 +847,7 @@ export function AgentConnector({
                       }, 'agents')
                     }
                   >
-                    檢查就緒
+                    {t('connector:checkReady')}
                   </Button>
                 )}
                 <Button
@@ -853,7 +859,7 @@ export function AgentConnector({
                     }, 'agents')
                   }
                 >
-                  開啟程式位置
+                  {t('connector:revealProgram')}
                 </Button>
               </Row>
             )}
@@ -864,15 +870,15 @@ export function AgentConnector({
                 void save()
               }}
             >
-              <Row title="Agent 類型">
+              <Row title={t('connector:agentType')}>
                 <select
-                  aria-label="Agent 類型"
+                  aria-label={t('connector:agentType')}
                   value={original?.driver ?? driver}
                   disabled={busy || !!original}
                   onChange={(event) => {
                     const next = event.target.value as ConnectorDriver
-                    if (instanceLabel === defaultAgentName(driver))
-                      setInstanceLabel(defaultAgentName(next))
+                    if (instanceLabel === defaultAgentName(t, driver))
+                      setInstanceLabel(defaultAgentName(t, next))
                     setDriver(next)
                     setCandidates([])
                     setCandidateId('')
@@ -885,9 +891,11 @@ export function AgentConnector({
                 >
                   <option value="codex">Codex</option>
                   <option value="claude">Claude Code</option>
-                  <option value="acp">支援 ACP 的 Agent</option>
+                  <option value="acp">{t('connector:acpAgent')}</option>
                   {original && !['codex', 'claude', 'acp'].includes(original.driver) && (
-                    <option value={original.driver}>{driverName(original.driver)}（原設定）</option>
+                    <option value={original.driver}>
+                      {t('connector:originalDriver', { driver: driverName(original.driver) })}
+                    </option>
                   )}
                 </select>
               </Row>
@@ -898,18 +906,18 @@ export function AgentConnector({
                     disabled={busy}
                     onClick={() => void perform(discoverCandidates, 'agents')}
                   >
-                    尋找已安裝的 {nativeName}
+                    {t('connector:findInstalled', { name: nativeName })}
                   </Button>
                 </div>
               )}
               {candidates.length > 1 && (
-                <Row title="程式來源">
+                <Row title={t('connector:programSource')}>
                   <select
-                    aria-label="程式來源"
+                    aria-label={t('connector:programSource')}
                     value={candidateId}
                     onChange={(event) => setCandidateId(event.target.value)}
                   >
-                    <option value="">自行選擇執行檔</option>
+                    <option value="">{t('connector:chooseExecutableOption')}</option>
                     {candidates.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.label}
@@ -919,13 +927,13 @@ export function AgentConnector({
                 </Row>
               )}
               {candidates.length === 1 && candidateId && (
-                <Row title={`已找到 ${nativeName}`}>
+                <Row title={t('connector:found', { name: nativeName })}>
                   <span>{candidates[0]!.label}</span>
                 </Row>
               )}
-              <Row title="顯示名稱">
+              <Row title={t('connector:displayName')}>
                 <TextField
-                  aria-label="Agent 顯示名稱"
+                  aria-label={t('connector:displayNameLabel')}
                   value={instanceLabel}
                   onChange={(event) => {
                     setInstanceLabel(event.target.value)
@@ -935,24 +943,22 @@ export function AgentConnector({
                 />
               </Row>
               {(original?.driver ?? driver) === 'acp' ? (
-                <Row title="程式">{executableSelection}</Row>
+                <Row title={t('connector:program')}>{executableSelection}</Row>
               ) : (
                 <details>
-                  <summary>進階：手動選擇原生程式</summary>
+                  <summary>{t('connector:advancedProgram')}</summary>
                   {executableSelection}
                 </details>
               )}
               {(original?.driver ?? driver) === 'acp' && (
                 <div className={styles.nativeArguments}>
-                  <p className={styles.notice}>請選擇支援 ACP 的程式。</p>
-                  <h4>啟動參數（選填）</h4>
-                  <p className={styles.notice}>
-                    依程式說明逐欄填寫；空欄也會傳入，不需要時請移除。
-                  </p>
+                  <p className={styles.notice}>{t('connector:chooseAcp')}</p>
+                  <h4>{t('connector:argumentsHeading')}</h4>
+                  <p className={styles.notice}>{t('connector:argumentsHint')}</p>
                   {agentArgs.map((value, index) => (
-                    <Row key={index} title={`啟動參數 ${index + 1}`}>
+                    <Row key={index} title={t('connector:argument', { number: index + 1 })}>
                       <TextField
-                        aria-label={`ACP 啟動參數 ${index + 1}`}
+                        aria-label={t('connector:acpArgument', { number: index + 1 })}
                         disabled={busy}
                         value={value}
                         onChange={(event) => {
@@ -967,13 +973,13 @@ export function AgentConnector({
                       <Button
                         type="button"
                         disabled={busy}
-                        aria-label={`移除 ACP 啟動參數 ${index + 1}`}
+                        aria-label={t('connector:removeAcpArgument', { number: index + 1 })}
                         onClick={() => {
                           setAgentArgs(agentArgs.filter((_, item) => item !== index))
                           setArgsChanged(true)
                         }}
                       >
-                        移除
+                        {t('common:action.remove')}
                       </Button>
                     </Row>
                   ))}
@@ -985,14 +991,14 @@ export function AgentConnector({
                       setArgsChanged(true)
                     }}
                   >
-                    新增參數
+                    {t('connector:addArgument')}
                   </Button>
                 </div>
               )}
             </form>
           </Sheet>
           <Sheet
-            title="刪除 Agent 設定？"
+            title={t('connector:removeTitle')}
             open={!!removing}
             onClose={() => {
               if (!busy) setRemoving(undefined)
@@ -1000,67 +1006,77 @@ export function AgentConnector({
             actions={
               <>
                 <Button disabled={busy} onClick={() => setRemoving(undefined)}>
-                  取消
+                  {t('common:action.cancel')}
                 </Button>
                 <Button variant="destructive" loading={busy} onClick={() => void remove()}>
-                  刪除設定
+                  {t('connector:removeConfirm')}
                 </Button>
               </>
             }
           >
             {removing && feedback('agents')}
-            <p>刪除「{removing?.label}」的本機設定及新任務選項，保留原生程式、檔案與歷史紀錄。</p>
+            <p>{t('connector:removeBody', { label: removing?.label ?? '' })}</p>
           </Sheet>
         </>
       )}
       <details>
-        <summary>疑難排解</summary>
-        <SettingsSection title="技術資訊">
+        <summary>{t('connector:troubleshooting')}</summary>
+        <SettingsSection title={t('connector:section.technical')}>
           {feedback('installation')}
           {existing && (
             <>
-              <Row title="原連接器版本">
-                <span>{existing.state.version ?? '未提供'}</span>
+              <Row title={t('connector:existingVersion')}>
+                <span>{existing.state.version ?? t('connector:notProvided')}</span>
               </Row>
-              <Row title="原獨立連接">
+              <Row title={t('connector:existingIndependent')}>
+                <span>{runningText(t, existing.state.running)}</span>
+              </Row>
+              <Row title={t('connector:existingServerLink')}>
                 <span>
-                  {existing.state.running === true
-                    ? '執行中'
-                    : existing.state.running === false
-                      ? '已停止'
-                      : '狀態未知'}
+                  {existing.state.admission?.connected
+                    ? t('connector:state.connected')
+                    : t('connector:state.unconfirmed')}
                 </span>
-              </Row>
-              <Row title="原伺服器連線">
-                <span>{existing.state.admission?.connected ? '已連線' : '尚未確認連線'}</span>
               </Row>
             </>
           )}
           {available && (
             <>
-              <Row title="連接器版本" description={available.runtime}>
+              <Row title={t('connector:connectorVersion')} description={available.runtime}>
                 <span>
-                  {available.version} · 協議 {available.protocol ?? '未提供'}
+                  {t('connector:versionProtocol', {
+                    version: available.version ?? t('connector:notProvided'),
+                    protocol: available.protocol ?? t('connector:notProvided'),
+                  })}
                 </span>
               </Row>
-              <Row title="原安裝資料" description={available.dataDirectory}>
-                <span>{available.deviceId ?? '尚未配對'}</span>
+              <Row title={t('connector:existingData')} description={available.dataDirectory}>
+                <span>{available.deviceId ?? t('connector:notPaired')}</span>
               </Row>
-              <Row title="伺服器連接器協議">
-                <span>{serverProtocol ?? '尚未提供；可更新 Yuki 後重新開啟設定。'}</span>
+              <Row title={t('connector:serverProtocol')}>
+                <span>{serverProtocol ?? t('connector:serverProtocolMissing')}</span>
               </Row>
               {available.paired && (
-                <Row title="授權來源" description={available.server}>
-                  <span>{available.admission?.matched ? '目前本人' : '尚未確認目前本人'}</span>
+                <Row title={t('connector:authorizationSource')} description={available.server}>
+                  <span>
+                    {available.admission?.matched
+                      ? t('connector:currentOwner')
+                      : t('connector:ownerUnconfirmed')}
+                  </span>
                 </Row>
               )}
-              <Row title="伺服器接納">
-                <span>{available.admission?.connected ? '已連線' : '尚未確認連線'}</span>
+              <Row title={t('connector:serverAdmission')}>
+                <span>
+                  {available.admission?.connected
+                    ? t('connector:state.connected')
+                    : t('connector:state.unconfirmed')}
+                </span>
               </Row>
               {available.computer && (
-                <Row title="本機執行環境">
+                <Row title={t('connector:localRuntime')}>
                   <span>
-                    {available.computer.platform} · {available.computer.shell ?? '未提供預設 Shell'}
+                    {available.computer.platform} ·{' '}
+                    {available.computer.shell ?? t('connector:noShell')}
                   </span>
                 </Row>
               )}
@@ -1068,23 +1084,23 @@ export function AgentConnector({
           )}
         </SettingsSection>
         <details>
-          <summary>進階：安裝與原有連接</summary>
-          <SettingsSection description="選擇原連接器使用的 Python 和資料目錄。保留原身份、設定與 journal，不複製憑據，也不替換此安裝的 Python。">
-            <Row title="原 Python 絕對路徑">
+          <summary>{t('connector:advancedInstallation')}</summary>
+          <SettingsSection description={t('connector:advancedInstallationDescription')}>
+            <Row title={t('connector:existingPython')}>
               <TextField
-                aria-label="原 Python 絕對路徑"
+                aria-label={t('connector:existingPython')}
                 value={externalPython}
                 onChange={(event) => setExternalPython(event.target.value)}
               />
             </Row>
-            <Row title="原資料目錄">
+            <Row title={t('connector:existingDataDirectory')}>
               <TextField
-                aria-label="原資料目錄"
+                aria-label={t('connector:existingDataDirectory')}
                 value={externalData}
                 onChange={(event) => setExternalData(event.target.value)}
               />
             </Row>
-            <Row title="選用原有安裝">
+            <Row title={t('connector:useExistingInstallation')}>
               <Button
                 disabled={busy || !externalPython || !externalData}
                 onClick={() =>
@@ -1098,33 +1114,33 @@ export function AgentConnector({
                   }, 'installation')
                 }
               >
-                讀取並選用原安裝
+                {t('connector:readAndUseExisting')}
               </Button>
             </Row>
           </SettingsSection>
         </details>
         {available && !available.paired && (
           <details>
-            <summary>進階：手動專用授權碼</summary>
-            <SettingsSection description="僅接受 connector 用途的電腦授權碼；聊天配對碼不能使用。提交後立即清除輸入。">
-              <Row title="原伺服器位址">
+            <summary>{t('connector:advancedCode')}</summary>
+            <SettingsSection description={t('connector:advancedCodeDescription')}>
+              <Row title={t('connector:manualServer')}>
                 <TextField
-                  aria-label="手動 Connector 伺服器"
+                  aria-label={t('connector:manualServerLabel')}
                   type="url"
                   value={manualServer}
                   onChange={(event) => setManualServer(event.target.value)}
                 />
               </Row>
-              <Row title="電腦授權碼">
+              <Row title={t('connector:computerCode')}>
                 <TextField
-                  aria-label="手動 Connector 授權碼"
+                  aria-label={t('connector:manualCodeLabel')}
                   type="password"
                   autoComplete="off"
                   value={manualCode}
                   onChange={(event) => setManualCode(event.target.value)}
                 />
               </Row>
-              <Row title="使用專用授權碼">
+              <Row title={t('connector:useManualCode')}>
                 <Button
                   disabled={busy || !manualServer || !manualCode}
                   onClick={() => {
@@ -1137,7 +1153,7 @@ export function AgentConnector({
                     }, 'installation')
                   }}
                 >
-                  使用專用碼連接
+                  {t('connector:connectWithCode')}
                 </Button>
               </Row>
             </SettingsSection>
@@ -1145,7 +1161,7 @@ export function AgentConnector({
         )}
         {driver !== 'acp' && (
           <SettingsSection>
-            <Row title="安裝說明">
+            <Row title={t('connector:installGuide')}>
               <Button
                 disabled={busy}
                 onClick={() =>
@@ -1160,7 +1176,7 @@ export function AgentConnector({
                   }, 'installation')
                 }
               >
-                {driverName(driver)} 安裝說明
+                {t('connector:installGuideFor', { driver: driverName(driver) })}
               </Button>
             </Row>
           </SettingsSection>

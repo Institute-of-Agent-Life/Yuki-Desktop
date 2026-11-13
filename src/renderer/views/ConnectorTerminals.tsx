@@ -7,6 +7,7 @@ import { hidesPrivateData, unwrap } from '../queries/client'
 import { Row } from './SettingsRow'
 import styles from './Settings.module.css'
 import activityStyles from './LocalComputer.module.css'
+import { useTranslation } from '../i18n'
 
 export function ConnectorTerminals({
   connection,
@@ -16,6 +17,7 @@ export function ConnectorTerminals({
   deviceId: string
 }) {
   const query = useQueryClient()
+  const { t } = useTranslation(['connector', 'common'])
   const [runId, setRunId] = useState<string>()
   const [controls, setControls] = useState<Record<string, ConnectorTerminalControl>>({})
   const [busy, setBusy] = useState(false)
@@ -86,7 +88,9 @@ export function ConnectorTerminals({
       setControls((current) => ({ ...current, [runId]: result }))
       await detail.refetch()
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : '取消回執尚未確認。')
+      setError(
+        failure instanceof Error ? failure.message : t('connector:terminals.cancelUnconfirmed'),
+      )
     } finally {
       setBusy(false)
     }
@@ -94,7 +98,7 @@ export function ConnectorTerminals({
   return (
     <>
       <div className={activityStyles.toolbar}>
-        <h3>這台電腦的終端任務</h3>
+        <h3>{t('connector:terminals.heading')}</h3>
         <Button
           variant="plain"
           disabled={directory.isFetching || detail.isFetching}
@@ -103,13 +107,13 @@ export function ConnectorTerminals({
             if (runId) void detail.refetch()
           }}
         >
-          重新整理
+          {t('connector:refresh')}
         </Button>
       </div>
-      <p className={styles.notice}>
-        查看 Yuki 在這台電腦啟動的原執行、輸出與完成回執。關閉完整訪問後仍可讀取與停止原執行。
-      </p>
-      {directory.isError && <Banner status="unknown">終端目錄暫時無法讀取。</Banner>}
+      <p className={styles.notice}>{t('connector:terminals.intro')}</p>
+      {directory.isError && (
+        <Banner status="unknown">{t('connector:terminals.directoryUnavailable')}</Banner>
+      )}
       <div className={styles.group}>
         {!hidesPrivateData(directory.error) &&
           directory.data?.pages
@@ -126,19 +130,19 @@ export function ConnectorTerminals({
                     setError('')
                   }}
                 >
-                  查看終端回執
+                  {t('connector:terminals.viewReceipt')}
                 </Button>
               </Row>
             ))}
       </div>
       {!hidesPrivateData(directory.error) && directory.hasNextPage && (
         <Button disabled={directory.isFetching} onClick={() => void directory.fetchNextPage()}>
-          更多終端任務
+          {t('connector:terminals.more')}
         </Button>
       )}
       {/* The terminal's receipt opens over the list, where it was asked for. */}
       <Sheet
-        title={`原終端執行 ${runId ?? ''}`}
+        title={t('connector:terminals.run', { id: runId ?? '' })}
         open={!!runId}
         width={680}
         onClose={() => setRunId(undefined)}
@@ -148,39 +152,43 @@ export function ConnectorTerminals({
               <>
                 {detail.hasNextPage && (
                   <Button disabled={detail.isFetching} onClick={() => void detail.fetchNextPage()}>
-                    讀取後續終端輸出
+                    {t('connector:terminals.moreOutput')}
                   </Button>
                 )}
                 <Button variant="destructive" disabled={busy} onClick={() => void act(false)}>
-                  {controlUnknown ? '重送原停止請求' : '停止原終端執行'}
+                  {controlUnknown
+                    ? t('connector:terminals.resendStop')
+                    : t('connector:terminals.stop')}
                 </Button>
                 {control && (
                   <Button disabled={busy} onClick={() => void act(true)}>
-                    查證原停止請求
+                    {t('connector:terminals.verifyStop')}
                   </Button>
                 )}
               </>
             )}
             <Button disabled={detail.isFetching} onClick={() => void detail.refetch()}>
-              重新整理原終端回執
+              {t('connector:terminals.refreshReceipt')}
             </Button>
             <Button variant="primary" onClick={() => setRunId(undefined)}>
-              關閉
+              {t('common:action.close')}
             </Button>
           </>
         }
       >
-        {detail.isPending && <p role="status">正在讀取原終端回執…</p>}
-        {detail.isError && <Banner status="unknown">原終端回執暫時無法讀取。</Banner>}
+        {detail.isPending && <p role="status">{t('connector:terminals.readingReceipt')}</p>}
+        {detail.isError && (
+          <Banner status="unknown">{t('connector:terminals.receiptUnavailable')}</Banner>
+        )}
         {selected && (
           <>
             <p className={styles.notice}>
-              狀態：{selected.status}
-              {selected.pending ? '（等待後續回執）' : ''}
-              {selected.uncertain ? '（尚未確認）' : ''}
-              {selected.exit_code !== undefined && selected.exit_code !== null
-                ? ` · 退出碼 ${selected.exit_code}`
-                : ''}
+              {t('connector:statusLine', { status: selected.status })}
+              {selected.pending && t('connector:pendingFlag')}
+              {selected.uncertain && t('connector:terminals.unconfirmedFlag')}
+              {selected.exit_code !== undefined &&
+                selected.exit_code !== null &&
+                ` · ${t('connector:terminals.exitCode', { code: selected.exit_code })}`}
             </p>
             {selected.error && (
               <Banner status={selected.uncertain ? 'unknown' : 'failed'}>
@@ -190,14 +198,14 @@ export function ConnectorTerminals({
               </Banner>
             )}
             {selected.output_unavailable && (
-              <Banner status="unknown">原執行狀態已保留，當前無法讀取本機輸出。</Banner>
+              <Banner status="unknown">{t('connector:terminals.outputUnavailable')}</Banner>
             )}
             {selected.command && <p className={styles.secret}>{selected.command}</p>}
-            {selected.cwd && <p className={styles.notice}>工作位置：{selected.cwd}</p>}
+            {selected.cwd && (
+              <p className={styles.notice}>{t('connector:terminals.cwd', { cwd: selected.cwd })}</p>
+            )}
             {pages?.some((page) => page.output_lost) && (
-              <Banner status="unknown">
-                部分輸出已超出本機保留範圍；原執行狀態與完成回執仍保留。
-              </Banner>
+              <Banner status="unknown">{t('connector:terminals.outputLost')}</Banner>
             )}
             <pre className={styles.terminalOutput}>
               {pages?.map((page) => page.output ?? '').join('')}
@@ -218,13 +226,16 @@ export function ConnectorTerminals({
                       : 'done'
                 }
               >
-                停止請求 {control.request_id}：
                 {control.uncertain || ['unknown', 'not_found'].includes(control.status ?? '')
-                  ? '結果尚未確認，請查證原請求。'
+                  ? t('connector:terminals.stopUnconfirmed', { id: control.request_id })
                   : control.pending
-                    ? '已接納，等待原停止回執。'
-                    : `原回執 ${control.status ?? '已讀取'}`}
-                。進程是否結束以原終端狀態為準。
+                    ? t('connector:terminals.stopPending', { id: control.request_id })
+                    : control.status
+                      ? t('connector:terminals.stopReceipt', {
+                          id: control.request_id,
+                          status: control.status,
+                        })
+                      : t('connector:terminals.stopReceiptRead', { id: control.request_id })}
               </Banner>
             )}
             {control?.error && (

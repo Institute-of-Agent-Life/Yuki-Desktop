@@ -113,47 +113,50 @@ export function TransportSettings({
           </>
         }
       >
-        <div className={styles.sheetStack}>
-          <p className={styles.notice}>{t('ssh:changeTransportDescription')}</p>
-          <Segmented
-            label={t('ssh:transport')}
-            kind="radio"
-            value={kind}
-            items={[
-              { value: 'direct', label: t('ssh:direct') },
-              { value: 'ssh', label: t('ssh:overSsh') },
-            ]}
-            onChange={(value) => {
-              setKind(value)
-              setError(undefined)
-            }}
-          />
-          {kind === 'direct' ? (
-            <form
-              id={directForm}
-              className={appStyles.server}
-              onSubmit={(event) => {
-                event.preventDefault()
-                void direct()
+        {/* Only while open: a closed dialog keeps no folded guide or fields in the page. */}
+        {open && (
+          <div className={styles.sheetStack}>
+            <p className={styles.notice}>{t('ssh:changeTransportDescription')}</p>
+            <Segmented
+              label={t('ssh:transport')}
+              kind="radio"
+              value={kind}
+              items={[
+                { value: 'direct', label: t('ssh:direct') },
+                { value: 'ssh', label: t('ssh:overSsh') },
+              ]}
+              onChange={(value) => {
+                setKind(value)
+                setError(undefined)
               }}
-            >
-              <RemoteProblem error={error} />
-              <label htmlFor={`${id}-server`}>{t('ssh:server')}</label>
-              <TextField
-                id={`${id}-server`}
-                value={server}
-                placeholder="https://"
-                autoComplete="url"
-                spellCheck={false}
-                onChange={(event) => setServer(event.target.value)}
-                disabled={busy}
-              />
-              <TailscaleGuide onError={(message) => setError(message || undefined)} />
-            </form>
-          ) : (
-            ssh.fields
-          )}
-        </div>
+            />
+            {kind === 'direct' ? (
+              <form
+                id={directForm}
+                className={appStyles.server}
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void direct()
+                }}
+              >
+                <RemoteProblem error={error} />
+                <label htmlFor={`${id}-server`}>{t('ssh:server')}</label>
+                <TextField
+                  id={`${id}-server`}
+                  value={server}
+                  placeholder="https://"
+                  autoComplete="url"
+                  spellCheck={false}
+                  onChange={(event) => setServer(event.target.value)}
+                  disabled={busy}
+                />
+                <TailscaleGuide onError={(message) => setError(message || undefined)} />
+              </form>
+            ) : (
+              ssh.fields
+            )}
+          </div>
+        )}
       </Sheet>
     </>
   )

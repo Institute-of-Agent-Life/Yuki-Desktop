@@ -2,6 +2,7 @@ import { useId } from 'react'
 import type { Profile } from '../../shared/api'
 import { Banner, Button } from '../components/Controls'
 import styles from './AvatarStatus.module.css'
+import { useTranslation } from '../i18n'
 
 export function AvatarStatus({
   profile,
@@ -19,25 +20,26 @@ export function AvatarStatus({
   edit(): void
 }) {
   const heading = useId()
+  const { t } = useTranslation(['avatar'])
   return (
     <section className={styles.status} aria-labelledby={heading}>
-      <h2 id={heading}>頭像</h2>
-      <p>{profile.avatar ? '伺服器已設定頭像。' : '伺服器尚未提供頭像，目前使用名稱字首顯示。'}</p>
-      <p>這是 {profile.display_name} 的頭像，與你的 QQ 或其他平台帳號頭像分開。</p>
+      <h2 id={heading}>{t('avatar:heading')}</h2>
+      <p>{profile.avatar ? t('avatar:serverSet') : t('avatar:serverUnset')}</p>
+      <p>{t('avatar:separate', { name: profile.display_name })}</p>
       {status === 'pending' ? (
-        <p role="status">正在讀取頭像設定…</p>
+        <p role="status">{t('avatar:reading')}</p>
       ) : status === 'error' ? (
         <>
-          <Banner status="offline">目前無法取得頭像設定，請確認連線後重新讀取。</Banner>
-          <Button onClick={retry}>重新讀取頭像設定</Button>
+          <Banner status="offline">{t('avatar:unavailable')}</Banner>
+          <Button onClick={retry}>{t('avatar:reload')}</Button>
         </>
       ) : supported ? (
         <>
-          <p>更換後，連接這個 Yuki 的裝置會同步顯示新頭像。</p>
-          {editable && <Button onClick={edit}>更換頭像</Button>}
+          <p>{t('avatar:syncs')}</p>
+          {editable && <Button onClick={edit}>{t('avatar:change')}</Button>}
         </>
       ) : (
-        <p>這個 Yuki 目前尚未提供更換頭像的功能。</p>
+        <p>{t('avatar:unsupported')}</p>
       )}
     </section>
   )

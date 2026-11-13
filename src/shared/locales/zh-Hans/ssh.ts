@@ -47,7 +47,7 @@ export default {
   close: '关闭',
   serverOutput: '服务器输出',
   help: 'SSH 连接说明',
-  connectOverSshDescription: '用服务器的 SSH 登录取得配对码并建立加密通道，不需要公开网址。',
+  connectOverSshDescription: '用服务器的 SSH 登录获取配对码并建立加密通道，不需要公开网址。',
   fingerprintFirst: '第一次连接：请与服务器上 ssh-keygen -lf 的结果核对，之后指纹改变会拒绝连接。',
   changeTransportDescription: '仍是同一个 Yuki 与本人入口；凭据、对话与连接器地址一起保留或更新。',
   manageDescription: '经同一个 SSH 登录升级或查看日志。',

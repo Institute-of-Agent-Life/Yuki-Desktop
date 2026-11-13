@@ -1,0 +1,48 @@
+// Connecting to a Yuki: pairing and the Tailscale guide.
+export default {
+  connectExisting: '連接已有 Yuki',
+  deployLocal: '在本機部署 Yuki',
+  skip: '先逛逛，稍後設定',
+  settings: '設定',
+  help: '使用說明',
+  welcomeDescription: '和她聊聊，一起把事情做好。選擇你想從哪裡開始。',
+  confirmDescription: '確認 Yuki 與伺服器，再允許這台裝置連接。',
+  connectDescription: '貼上配對連結或收到的完整配對資訊。',
+  noServer: '這份配對資訊沒有伺服器位址，請向提供者取得，或選擇手動連接。',
+  viewUpdate: '查看 App 更新',
+  resumeLogout: '處理原連線的登出資料',
+  reconnect: '重新連接原本人入口；草稿與未確認請求仍保留。',
+  pendingCredentials:
+    '已領取 {{name}} 的裝置憑據，尚待確認本人資料。可以繼續，不必重新兌換配對碼。',
+  resume: '繼續連接 {{name}}',
+  forgetPending: '放棄本機待完成連接',
+  notPersistent: '未啟用系統憑據保存，僅能在這次 App 執行中繼續。',
+  server: '伺服器：{{server}}',
+  reachability:
+    '使用可從這台電腦存取的 Yuki 網址。伺服器沒有公開網址時，選「通過 SSH 連接」，不必另外建立通道；使用 VPN 或 Tailscale 時，請先接上該網路。',
+  codeLabel: '配對連結、綁定碼或完整回覆',
+  codeHint: '從已連接的 Yuki 取得配對資訊；綁定碼只可使用一次。沒有連結時可手動輸入地址。',
+  enterServer: '手動輸入伺服器位址',
+  serverAddress: '伺服器位址',
+  deviceName: '這台裝置的名稱',
+  confirmConnect: '確認並連接',
+  tailscale: {
+    label: 'Tailscale 連接說明',
+    summary: '透過 Tailscale 連接',
+    intro:
+      '這台電腦和執行 Yuki 的伺服器加入可互通的 Tailscale 網路後，就能使用伺服器的 HTTPS 網址。',
+    computerTitle: '準備這台電腦',
+    computer: '安裝官方 Tailscale，開啟並登入，加入伺服器所在的網路。',
+    download: '下載 Tailscale',
+    serverTitle: '在執行 Yuki 的伺服器操作',
+    server: '請部署者依指南安裝、登入並發布 Yuki。先確認實際連接埠，保留伺服器已有的發布設定。',
+    guide: '伺服器接入指南',
+    commandIntro: '以下是伺服器指令範本，請部署者先替換兩個連接埠，再到執行 Yuki 的伺服器操作。',
+    command: 'sudo tailscale serve --bg --https=<HTTPS連接埠> http://127.0.0.1:<Yuki宿主連接埠>',
+    copyCommand: '複製伺服器指令範本',
+    connectTitle: '使用原有欄位連接',
+    connect:
+      '填寫實際的 HTTPS 網址或貼上原配對連結，再依原流程確認 Yuki。已有連線可在設定「連線方式」選擇「更改…」。',
+    skip: '已有可用的伺服器位址或配對連結，可以直接繼續，不必先完成這份說明。',
+  },
+} as const

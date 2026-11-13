@@ -5,6 +5,7 @@ import type { ProviderPreset } from '../../shared/models'
 import { ModelConnectionForm, type ConnectionDraft } from './ModelConnectionForm'
 import { Banner, Button, TextField } from '../components/Controls'
 import { unwrap, problemText, ClientProblem } from '../queries/client'
+import { useTranslation } from '../i18n'
 import styles from '../App.module.css'
 import { useGlass } from '../materials/glass'
 
@@ -18,6 +19,7 @@ export function LocalBot({
   done(connection: Connection, activate?: boolean): void
 }) {
   const card = useGlass<HTMLElement>('card')
+  const { t } = useTranslation(['localBot'])
   const mounted = useRef(true)
   const activeRef = useRef(active)
   activeRef.current = active
@@ -80,7 +82,7 @@ export function LocalBot({
           ? problemText(failure.code)
           : failure instanceof Error
             ? failure.message
-            : '本機部署未完成。',
+            : t('localBot:failed'),
       )
       await refresh()
     } finally {
@@ -90,31 +92,23 @@ export function LocalBot({
   return (
     <div className={styles.welcome}>
       <section ref={card.ref} data-glass="card" className={styles.welcomeInner}>
-        <h1>在本機部署 Yuki</h1>
-        <p>
-          需要先安裝 Docker（macOS 可用 Docker Desktop、OrbStack 或 Colima）。Yuki
-          和資料保存在你選的目錄。模型可以使用遠端服務或你已有的本機服務；這裡不附帶模型，也不要求先接
-          QQ 或其他聊天平台。
-        </p>
+        <h1>{t('localBot:title')}</h1>
+        <p>{t('localBot:description')}</p>
         {error && <Banner status="failed">{error}</Banner>}
         {progress && <p role="status">{progress}</p>}
         {state && !state.docker && (
           <Banner>
-            請先安裝或啟動 Docker，並使用 Linux 容器。
+            {t('localBot:dockerMissing')}
             <Button
               onClick={() =>
                 void window.yuki.client.external('https://docs.docker.com/get-started/get-docker/')
               }
             >
-              安裝說明
+              {t('localBot:dockerHelp')}
             </Button>
           </Banner>
         )}
-        {state && !state.bundled && (
-          <Banner status="failed">
-            這份開發建置尚未準備配套的本機部署資源，請使用完整測試包。
-          </Banner>
-        )}
+        {state && !state.bundled && <Banner status="failed">{t('localBot:notBundled')}</Banner>}
         <form
           className={styles.server}
           onSubmit={(event) => {
@@ -145,7 +139,7 @@ export function LocalBot({
             })
           }}
         >
-          <label htmlFor="local-directory">資料與部署目錄</label>
+          <label htmlFor="local-directory">{t('localBot:directory')}</label>
           <div className={styles.codeRow}>
             <TextField id="local-directory" value={directory} readOnly />
             <Button
@@ -160,26 +154,26 @@ export function LocalBot({
                   })
               }
             >
-              選擇目錄
+              {t('localBot:chooseDirectory')}
             </Button>
           </div>
           {!state?.configured && (
             <>
-              <label htmlFor="local-character">Yuki 的名稱</label>
+              <label htmlFor="local-character">{t('localBot:characterName')}</label>
               <TextField
                 id="local-character"
                 value={characterName}
                 onChange={(event) => setCharacterName(event.target.value)}
                 required
               />
-              <label htmlFor="local-person">你的名稱</label>
+              <label htmlFor="local-person">{t('localBot:personName')}</label>
               <TextField
                 id="local-person"
                 value={personName}
                 onChange={(event) => setPersonName(event.target.value)}
                 required
               />
-              <label htmlFor="local-preset">服務預設</label>
+              <label htmlFor="local-preset">{t('localBot:preset')}</label>
               <select
                 id="local-preset"
                 value={presets ? preset : ''}
@@ -195,7 +189,7 @@ export function LocalBot({
                   }))
                 }}
               >
-                {!presets && <option value="">需要 Docker 讀取部署映像的預設</option>}
+                {!presets && <option value="">{t('localBot:presetNeedsDocker')}</option>}
                 {presets?.map((preset, index) => (
                   <option key={index} value={index}>
                     {preset.display_name}
@@ -210,21 +204,21 @@ export function LocalBot({
                   showName={false}
                 />
               </fieldset>
-              <small>
-                同機模型的 localhost 會轉為容器可達的 host.docker.internal；服務本身須允許這個來源。
-              </small>
-              <label htmlFor="local-sandbox">Yuki 的電腦</label>
+              <small>{t('localBot:localhost')}</small>
+              <label htmlFor="local-sandbox">{t('localBot:sandbox')}</label>
               <select
                 id="local-sandbox"
                 value={sandboxProfile}
                 disabled={busy}
                 onChange={(event) => setSandboxProfile(event.target.value as SandboxProfile)}
               >
-                <option value="desktop">完整桌面：可觀看與接管（約 3 GiB 記憶體）</option>
-                <option value="headless">無頭瀏覽器（約 1 GiB）</option>
-                <option value="lite">只有終端與檔案（約 512 MiB）</option>
+                {(['desktop', 'headless', 'lite'] as const).map((profile) => (
+                  <option key={profile} value={profile}>
+                    {t(`localBot:sandboxProfile.${profile}`)}
+                  </option>
+                ))}
               </select>
-              <label htmlFor="local-port">本機連接埠</label>
+              <label htmlFor="local-port">{t('localBot:port')}</label>
               <TextField
                 id="local-port"
                 type="number"
@@ -239,18 +233,17 @@ export function LocalBot({
           {state?.configured && (
             <>
               <p>
-                已有設定與資料，繼續使用原 Yuki 和本人入口。
-                {state.running ? '服務正在執行。' : '服務尚未啟動。'}
+                {state.running ? t('localBot:configuredRunning') : t('localBot:configuredStopped')}
               </p>
               <small>{state.installation?.address}</small>
             </>
           )}
           <div className={styles.actions}>
             <Button type="button" variant="plain" onClick={back}>
-              返回／稍後設定
+              {t('localBot:later')}
             </Button>
             <Button type="button" disabled={busy} onClick={() => void run(refresh)}>
-              重新檢測
+              {t('localBot:recheck')}
             </Button>
             <Button
               type="submit"
@@ -260,7 +253,7 @@ export function LocalBot({
                 !directory || !state?.docker || !state.bundled || (!state.configured && !presets)
               }
             >
-              {state?.configured ? '啟動並連接' : '開始部署'}
+              {state?.configured ? t('localBot:startAndConnect') : t('localBot:begin')}
             </Button>
           </div>
         </form>
@@ -277,7 +270,7 @@ export function LocalBot({
                 })
               }
             >
-              重新取得配對並連接
+              {t('localBot:repair')}
             </Button>
             <Button
               disabled={busy || !state.running}
@@ -287,11 +280,11 @@ export function LocalBot({
                 })
               }
             >
-              停止本機服務
+              {t('localBot:stop')}
             </Button>
           </div>
         )}
-        <small>關閉桌面視窗不會刪除資料。Yuki 的電腦（終端、瀏覽器與桌面）會一起安裝。</small>
+        <small>{t('localBot:footnote')}</small>
       </section>
     </div>
   )

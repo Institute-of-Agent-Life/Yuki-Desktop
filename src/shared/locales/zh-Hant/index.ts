@@ -11,6 +11,23 @@ import errors from './errors'
 import platforms from './platforms'
 import ssh from './ssh'
 import remoteDeploy from './remoteDeploy'
+import connector from './connector'
+import conversation from './conversation'
+import computer from './computer'
+import media from './media'
+import about from './about'
+import soul from './soul'
+import avatar from './avatar'
+import works from './works'
+import files from './files'
+import models from './models'
+import connection from './connection'
+import devices from './devices'
+import pairing from './pairing'
+import updates from './updates'
+import workspace from './workspace'
+import home from './home'
+import presence from './presence'
 
 export default {
   common,
@@ -25,4 +42,21 @@ export default {
   platforms,
   ssh,
   remoteDeploy,
+  connector,
+  conversation,
+  computer,
+  media,
+  about,
+  soul,
+  avatar,
+  works,
+  files,
+  models,
+  connection,
+  devices,
+  pairing,
+  updates,
+  workspace,
+  home,
+  presence,
 }

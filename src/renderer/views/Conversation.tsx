@@ -1,3 +1,5 @@
+import type { TFunction } from 'i18next'
+import { useTranslation } from '../i18n'
 import { useFloatingInsets } from '../materials/floating'
 import { ConversationGlass } from '../materials/ConversationGlass'
 import glassStyles from '../materials/ConversationGlass.module.css'
@@ -135,6 +137,7 @@ export function Conversation({
   onPairAgain(): void
   roleSwitcher?: (trigger: React.ReactNode) => React.ReactNode
 }) {
+  const { t } = useTranslation(['presence', 'conversation', 'computer', 'common'])
   const floatingRef = useFloatingInsets()
   const workspace = useWorkspace()
   const active = useSessionActive()
@@ -332,7 +335,7 @@ export function Conversation({
     <Banner status="failed">
       {problemText('client_upgrade_required')}
       <Button variant="plain" onClick={() => onSettings('updates')}>
-        查看 App 更新
+        {t('conversation:viewUpdates')}
       </Button>
     </Banner>
   )
@@ -397,7 +400,7 @@ export function Conversation({
       await work
       refresh()
     } catch (error) {
-      setMediaError(error instanceof Error ? error.message : '無法附加檔案。')
+      setMediaError(error instanceof Error ? error.message : t('conversation:attachFailed'))
     }
   }
   const openAttachment = (source: AttachmentSource) => {
@@ -415,7 +418,7 @@ export function Conversation({
       unwrap(await window.yuki.client.reconnect())
       refresh()
     } catch (error) {
-      setReconnectError(error instanceof Error ? error.message : '無法重新連線。')
+      setReconnectError(error instanceof Error ? error.message : t('conversation:reconnectFailed'))
     }
   }, [refresh])
   useEffect(() => {
@@ -674,9 +677,9 @@ export function Conversation({
           ?.scrollIntoView({ block: 'center' })
       })
       setSelection(jump.eventId)
-    } else setHistoryError('引用的訊息無法讀取')
+    } else setHistoryError(t('conversation:referenceUnreadable'))
     setJump(undefined)
-  }, [jump, conversation, events.data])
+  }, [jump, conversation, events.data, t])
   useEffect(() => {
     const accent = profileData?.accent
     if (!active || !accent) return
@@ -792,7 +795,7 @@ export function Conversation({
       if (activeRange.current === range) prepend.current = snapshot
     } catch (error) {
       if (activeRange.current === range)
-        setHistoryError(error instanceof Error ? error.message : '無法載入更早訊息。')
+        setHistoryError(error instanceof Error ? error.message : t('conversation:earlierFailed'))
     } finally {
       earlierBusy.current = false
       setLoadingEarlier(false)
@@ -849,7 +852,7 @@ export function Conversation({
             : previous,
       )
       query.setQueryData([id, 'reference', reference.conversationId, reference.eventId], null)
-      throw new Error('引用的訊息無法讀取')
+      throw new Error(t('conversation:referenceUnreadable'))
     }
     return event
   }
@@ -858,7 +861,9 @@ export function Conversation({
     try {
       return applyJump(reference, await exactMessage(reference))
     } catch (error) {
-      setHistoryError(error instanceof Error ? error.message : '引用的訊息無法讀取')
+      setHistoryError(
+        error instanceof Error ? error.message : t('conversation:referenceUnreadable'),
+      )
       return false
     }
   }
@@ -915,6 +920,7 @@ export function Conversation({
     ...pending.map((receipt) => ({ receipt })),
   ]
   const presence = characterPresence(
+    t,
     online,
     accessLost || hidesPrivateData(characterStatus.error) ? undefined : characterStatus.data,
   )
@@ -947,12 +953,7 @@ export function Conversation({
   const paletteCommands: PaletteCommand[] = [
     ...(['chat', 'works', 'files', 'about'] as const).map((view) => ({
       id: `command/${view}`,
-      title: {
-        chat: '開啟對話',
-        works: '開啟工作',
-        files: '開啟檔案與成果',
-        about: `開啟 ${name} 的資料`,
-      }[view],
+      title: t(`conversation:command.${view}`, { name }),
       run: () =>
         paletteNavigate(() =>
           view === 'chat' ? choose(connection.conversationId) : workspace.setView(view),
@@ -960,7 +961,7 @@ export function Conversation({
     })),
     {
       id: 'command/inspector',
-      title: '開合詳情面板',
+      title: t('conversation:command.inspector'),
       run: () =>
         paletteNavigate(() =>
           window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'inspector' })),
@@ -968,7 +969,7 @@ export function Conversation({
     },
     {
       id: 'command/sidebar',
-      title: '開合側邊欄',
+      title: t('conversation:command.sidebar'),
       run: () =>
         paletteNavigate(() =>
           window.dispatchEvent(new CustomEvent('yuki:command', { detail: 'sidebar' })),
@@ -976,20 +977,24 @@ export function Conversation({
     },
     {
       id: 'command/stage',
-      title: '放大或還原詳情',
+      title: t('conversation:command.stage'),
       run: () => paletteNavigate(() => workspace.toggle('focusMode')),
     },
-    { id: 'command/settings', title: '開啟設定', run: () => paletteNavigate(onSettings) },
+    {
+      id: 'command/settings',
+      title: t('conversation:command.settings'),
+      run: () => paletteNavigate(onSettings),
+    },
     {
       id: 'command/agent',
-      title: '連接這台電腦',
+      title: t('conversation:command.agent'),
       run: () => paletteNavigate(() => onSettings('computer')),
     },
     ...(!accessLost && administrator
       ? [
           {
             id: 'command/computer',
-            title: `觀看 ${name} 的電腦`,
+            title: t('conversation:command.computer', { name }),
             run: (stage: boolean) =>
               paletteNavigate(() => {
                 workspace.setView('computer')
@@ -998,7 +1003,7 @@ export function Conversation({
           },
           {
             id: 'command/wake',
-            title: `喚醒 ${name} 的電腦`,
+            title: t('conversation:command.wake', { name }),
             run: (stage: boolean) =>
               paletteNavigate(() => {
                 workspace.setView('computer')
@@ -1010,13 +1015,15 @@ export function Conversation({
                     if (alive.current && (result.problem || result.state !== 'result'))
                       setMediaError(
                         result.state !== 'result'
-                          ? '喚醒結果尚未確認，請在電腦頁查證原請求。'
+                          ? t('conversation:wakeUnconfirmed')
                           : problemText(result.problem!),
                       )
                   })
                   .catch((error) => {
                     if (alive.current)
-                      setMediaError(error instanceof Error ? error.message : '喚醒尚未確認。')
+                      setMediaError(
+                        error instanceof Error ? error.message : t('conversation:wakeNotConfirmed'),
+                      )
                   })
               }),
           },
@@ -1037,7 +1044,9 @@ export function Conversation({
         toolbarTitle={
           view === 'computer' && !focusMode && !accessLost ? (
             <div className={styles.computerToolbar} ref={setComputerToolbar}>
-              <span className={styles.computerToolbarFallback}>{name} 的電腦</span>
+              <span className={styles.computerToolbarFallback}>
+                {t('computer:computerOf', { name })}
+              </span>
             </div>
           ) : undefined
         }
@@ -1054,7 +1063,9 @@ export function Conversation({
         status={presence.text}
         presence={presence.color}
         platform={platform}
-        inspectorTitle={messageStage && view === 'chat' ? '原訊息' : undefined}
+        inspectorTitle={
+          messageStage && view === 'chat' ? t('conversation:originalMessage') : undefined
+        }
         onSettings={onSettings}
         entries={
           <>
@@ -1074,7 +1085,10 @@ export function Conversation({
                   }
                 >
                   <MessageCircle size={16} strokeWidth={1.5} />
-                  {item.platform.toUpperCase()} 私聊 · {item.display_name}
+                  {t('conversation:privateChat', {
+                    platform: item.platform.toUpperCase(),
+                    name: item.display_name,
+                  })}
                 </button>
               ))}
           </>
@@ -1164,18 +1178,18 @@ export function Conversation({
             />
           ) : inspectorTab === 'files' ? (
             <div className={styles.inspector}>
-              <h3>尚未選取檔案</h3>
-              <p>從對話附件或檔案與成果選取一項，查看原版本。</p>
+              <h3>{t('conversation:noFile')}</h3>
+              <p>{t('conversation:noFileDescription')}</p>
               <Button variant="plain" onClick={() => workspace.setView('files')}>
-                開啟檔案與成果
+                {t('conversation:openFiles')}
               </Button>
             </div>
           ) : (
             <div className={styles.inspector}>
-              <h3>尚未選取工作</h3>
-              <p>從對話中的工作卡或工作清單選取一項，查看進度與回覆。</p>
+              <h3>{t('conversation:noWork')}</h3>
+              <p>{t('conversation:noWorkDescription')}</p>
               <Button variant="plain" onClick={() => workspace.setView('works')}>
-                開啟工作清單
+                {t('conversation:openWorks')}
               </Button>
               {outbox.data
                 ?.filter((item) => item.state !== 'result' || item.problem)
@@ -1255,7 +1269,7 @@ export function Conversation({
               />
             )
           ) : (
-            <EmptyState title={name}>{profile.error?.message ?? '正在讀取…'}</EmptyState>
+            <EmptyState title={name}>{profile.error?.message ?? t('common:reading')}</EmptyState>
           )
         ) : (
           <div
@@ -1279,7 +1293,7 @@ export function Conversation({
                 )
             }}
           >
-            {dragging && <div className={mediaStyles.drop}>放開以附加</div>}
+            {dragging && <div className={mediaStyles.drop}>{t('conversation:dropToAttach')}</div>}
             <div className={styles.notices} data-floating-notices>
               {upgradeNotice}
               {mediaError && <Banner status="failed">{mediaError}</Banner>}
@@ -1301,13 +1315,13 @@ export function Conversation({
                       (events.error ?? home.error ?? profile.error)?.message ||
                       (connectionProblem
                         ? problemText(connectionProblem)
-                        : '正在連接伺服器。草稿保存在這台電腦。')}
+                        : t('conversation:connecting'))}
                     <Button variant="plain" onClick={() => void reconnect()}>
-                      重新連線
+                      {t('conversation:reconnect')}
                     </Button>
                     {(events.error || home.error || profile.error) && (
                       <Button variant="plain" onClick={onPairAgain}>
-                        重新配對
+                        {t('conversation:pairAgain')}
                       </Button>
                     )}
                   </Banner>
@@ -1316,7 +1330,7 @@ export function Conversation({
                 <div className={styles.search}>
                   <input
                     autoFocus
-                    aria-label="搜尋已載入內容"
+                    aria-label={t('conversation:search')}
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     onKeyDown={(event) => {
@@ -1324,16 +1338,16 @@ export function Conversation({
                     }}
                   />
                   <Button variant="plain" onClick={() => setSearch(null)}>
-                    完成
+                    {t('common:action.done')}
                   </Button>
-                  <small>只搜尋已載入的內容</small>
+                  <small>{t('conversation:searchScope')}</small>
                 </div>
               )}
             </div>
             <div
               className={styles.messages}
               role="log"
-              aria-label="對話訊息"
+              aria-label={t('conversation:messages')}
               aria-live="polite"
               ref={attachList}
               onScroll={(event) => {
@@ -1347,7 +1361,7 @@ export function Conversation({
             >
               {eventData?.has_more && (
                 <Button variant="plain" loading={loadingEarlier} onClick={() => void more()}>
-                  載入更早訊息
+                  {t('conversation:loadEarlier')}
                 </Button>
               )}
               {eventData && !eventData.has_more && messages.length > 0 && search === null && (
@@ -1356,7 +1370,7 @@ export function Conversation({
                   <h2>{name}</h2>
                   <p>
                     {isMain
-                      ? '桌面對話'
+                      ? t('conversation:desktopChat')
                       : `${entry?.platform.toUpperCase() ?? ''} · ${entry?.display_name ?? ''}`}
                   </p>
                 </header>
@@ -1364,8 +1378,8 @@ export function Conversation({
               {eventData && !events.isPending && !messages.length && (
                 <div className={styles.emptyConversation}>
                   <CharacterAvatar size={120} />
-                  <h2>和 {name} 聊聊</h2>
-                  <p>說一聲你好，或交給她一件事。</p>
+                  <h2>{t('conversation:emptyTitle', { name })}</h2>
+                  <p>{t('conversation:emptyDescription')}</p>
                 </div>
               )}
               {messages.map((message, index) => {
@@ -1435,7 +1449,7 @@ export function Conversation({
                         <i />
                         <i />
                       </span>
-                      <span>{name} 正在處理</span>
+                      <span>{t('conversation:processing', { name })}</span>
                     </MessageBubble>
                   </div>
                 )}
@@ -1451,7 +1465,7 @@ export function Conversation({
                   setNewMessages(false)
                 }}
               >
-                {anchor !== null ? '回到最新訊息' : '↓ 新訊息'}
+                {t(anchor !== null ? 'conversation:backToLatest' : 'conversation:newMessages')}
               </NewMessagesPill>
             )}
             {isMain && replyWork ? (
@@ -1514,7 +1528,7 @@ export function Conversation({
                           onJump={(ref) => void jumpTo(ref)}
                         />
                         <IconButton
-                          label="移除引用"
+                          label={t('conversation:removeReference')}
                           onClick={() =>
                             updateReferences(
                               currentReferences.current.filter((item) => item !== reference),
@@ -1536,8 +1550,10 @@ export function Conversation({
                 data-floating-footer
               >
                 <p>
-                  這是你在 {entry?.platform.toUpperCase()} 與 {name}{' '}
-                  的對話。要在這裡繼續，請到桌面對話。
+                  {t('conversation:readonly', {
+                    platform: entry?.platform.toUpperCase() ?? '',
+                    name,
+                  })}
                 </p>
                 <Button
                   disabled={!visible.length}
@@ -1549,7 +1565,7 @@ export function Conversation({
                     }
                   }}
                 >
-                  在桌面對話中提到這段
+                  {t('conversation:mentionInDesktop')}
                 </Button>
               </div>
             )}
@@ -1577,6 +1593,7 @@ function MessageStage({
   reference: MessageReference
   render(event: PublicEvent): React.ReactNode
 }) {
+  const { t } = useTranslation(['conversation'])
   const event = useQuery({
     queryKey: [id, 'reference', reference.conversationId, reference.eventId],
     staleTime: Infinity,
@@ -1591,12 +1608,12 @@ function MessageStage({
     },
   })
   return (
-    <section aria-label="原訊息舞台">
-      <h2 className={styles.stageTitle}>原訊息</h2>
+    <section aria-label={t('conversation:originalMessageStage')}>
+      <h2 className={styles.stageTitle}>{t('conversation:originalMessage')}</h2>
       {event.isPending ? (
-        <p>正在讀取原訊息…</p>
+        <p>{t('conversation:readingOriginal')}</p>
       ) : event.error || !event.data ? (
-        <Banner status="failed">引用的訊息無法讀取</Banner>
+        <Banner status="failed">{t('conversation:referenceUnreadable')}</Banner>
       ) : (
         render(event.data)
       )}
@@ -1610,19 +1627,22 @@ const needsAttention = (item: Receipt) =>
   !!item.problem || ((item.state === 'submitted' || item.state === 'draft') && !item.sending)
 
 function Pending({ item, verify }: { item: Receipt; verify(): Promise<void> }) {
+  const { t } = useTranslation(['conversation'])
   const [error, setError] = useState(''),
     [busy, setBusy] = useState(false)
   const label = item.problem
     ? problemText(item.problem)
-    : item.state === 'draft'
-      ? item.sending
-        ? '送出中'
-        : '連線後送出'
-      : item.state === 'submitted'
-        ? '狀態未確認'
-        : item.state === 'accepted'
-          ? '已接收'
-          : '已取得原回執'
+    : t(
+        item.state === 'draft'
+          ? item.sending
+            ? 'conversation:receipt.sending'
+            : 'conversation:receipt.whenOnline'
+          : item.state === 'submitted'
+            ? 'conversation:receipt.unconfirmed'
+            : item.state === 'accepted'
+              ? 'conversation:receipt.accepted'
+              : 'conversation:receipt.result',
+      )
   return (
     <div className={styles.pending}>
       <span>{label}</span>
@@ -1637,7 +1657,7 @@ function Pending({ item, verify }: { item: Receipt; verify(): Promise<void> }) {
               .finally(() => setBusy(false))
           }}
         >
-          查詢
+          {t('conversation:check')}
         </Button>
       )}
       {error && <span>{error}</span>}
@@ -1647,12 +1667,12 @@ function Pending({ item, verify }: { item: Receipt; verify(): Promise<void> }) {
 
 // A message of stickers alone shows them as stickers: its content is nothing but their name
 // ("[表情: 开心]"), which the server also sends as its text.
-const stickerName = (event: PublicEvent | undefined) => {
+const stickerName = (t: TFunction<['conversation']>, event: PublicEvent | undefined) => {
   if (!event?.attachments.length) return undefined
   if (!event.attachments.every((attachment) => attachment.sticker)) return undefined
   const name = event.content.trim().match(/^\[表情(?::\s*(.+))?\]$/)
   if (!name) return undefined
-  return name[1] ? `表情：${name[1]}` : '表情'
+  return name[1] ? t('conversation:stickerNamed', { name: name[1] }) : t('conversation:sticker')
 }
 
 function MessageBubble({ children }: { children: React.ReactNode }) {
@@ -1695,20 +1715,33 @@ export function Message({
 }) {
   const own = !event || (event.direction === 'inbound' && event.author_person_id === viewerPersonId)
   const yuki = event?.author_kind === 'yuki'
-  const author = own ? '你' : yuki ? name : (event?.sender_display_name ?? '參與者')
+  const { t } = useTranslation(['conversation', 'errors'])
+  const author = own
+    ? t('conversation:you')
+    : yuki
+      ? name
+      : (event?.sender_display_name ?? t('conversation:participant'))
   const content = event ? event.content : receipt.body.text
   const time = event ? event.created_at : new Date(receipt.createdAt).toISOString()
   const { timeLabel } = useDisplayTime()
   const [error, setError] = useState('')
-  const sticker = stickerName(event)
+  const sticker = stickerName(t, event)
   const action = (work: Promise<unknown>) =>
-    void work.catch((error) => setError(error instanceof Error ? error.message : '操作未完成。'))
+    void work.catch((error) =>
+      setError(error instanceof Error ? error.message : t('errors:notCompleted')),
+    )
   return (
     <article
       data-event-id={event?.event_id}
       data-message-request={own ? receipt?.requestId : undefined}
       tabIndex={event ? 0 : undefined}
-      aria-label={event ? `${author}的訊息` : '待確認訊息'}
+      aria-label={
+        !event
+          ? t('conversation:pendingMessage')
+          : own
+            ? t('conversation:yourMessage')
+            : t('conversation:messageFrom', { author })
+      }
       className={`${styles.message} ${own ? styles.ownMessage : ''} ${selected ? styles.selected : ''} ${consecutive ? styles.consecutive : ''}`}
       onClick={onSelect}
       onContextMenu={(click) => {
@@ -1796,7 +1829,7 @@ export function Message({
         {event && (
           <div className={styles.messageActions} data-message-actions>
             <IconButton
-              label="複製訊息"
+              label={t('conversation:copyMessage')}
               onClick={(click) => {
                 click.stopPropagation()
                 action(window.yuki.client.copy(event.content).then(unwrap))
@@ -1805,7 +1838,7 @@ export function Message({
               <Copy size={15} />
             </IconButton>
             <IconButton
-              label="引用回覆"
+              label={t('conversation:quoteReply')}
               onClick={(event) => {
                 event.stopPropagation()
                 onReference?.()
@@ -1851,6 +1884,7 @@ function Reference({
   eventId: number
   onJump(reference: MessageReference): void
 }) {
+  const { t } = useTranslation(['conversation'])
   const { dayLabel, timeLabel } = useDisplayTime()
   const home = useQuery({ queryKey: [id, 'home'], queryFn: () => read<Home>(id, { kind: 'home' }) })
   const event = useQuery({
@@ -1878,16 +1912,24 @@ function Reference({
     >
       {available && (
         <small>
-          {source ? `${source.platform.toUpperCase()} 私聊` : '這個對話'} ·{' '}
-          {dayLabel(event.data!.created_at)} {timeLabel(event.data!.created_at)}
+          {source
+            ? t('conversation:referencePrivate', {
+                platform: source.platform.toUpperCase(),
+                day: dayLabel(event.data!.created_at),
+                time: timeLabel(event.data!.created_at),
+              })
+            : t('conversation:referenceHere', {
+                day: dayLabel(event.data!.created_at),
+                time: timeLabel(event.data!.created_at),
+              })}
         </small>
       )}
       <span>
         {event.isPending
-          ? '正在讀取引用…'
+          ? t('conversation:readingReference')
           : !event.error && event.data
-            ? `引用：${parseMessage(event.data.content).text.slice(0, 120)}`
-            : '引用的訊息無法讀取'}
+            ? t('conversation:quote', { text: parseMessage(event.data.content).text.slice(0, 120) })
+            : t('conversation:referenceUnreadable')}
       </span>
     </button>
   )

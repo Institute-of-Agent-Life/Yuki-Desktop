@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
+import type { TFunction } from 'i18next'
 import type {
   ArtifactPage,
   ArtifactSource,
@@ -29,7 +30,11 @@ const timestamp = (value: number | string) =>
 
 // Inspect the existing cache only. Opening or typing in the palette never
 // starts a request, loads another page or creates a second search index.
-export function loadedItems(client: QueryClient, character: string): LoadedItem[] {
+export function loadedItems(
+  client: QueryClient,
+  character: string,
+  t: TFunction<['conversation']>,
+): LoadedItem[] {
   const queries = client
     .getQueryCache()
     .getAll()
@@ -103,10 +108,10 @@ export function loadedItems(client: QueryClient, character: string): LoadedItem[
     messages.set(id, {
       kind: 'message',
       id,
-      title: parseMessage(event.content).text || '附件訊息',
+      title: parseMessage(event.content).text || t('conversation:attachmentMessage'),
       detail:
         entries.get(conversationId)?.display_name ||
-        (event.platform === 'app' ? '桌面對話' : event.platform.toUpperCase()),
+        (event.platform === 'app' ? t('conversation:desktopChat') : event.platform.toUpperCase()),
       at: timestamp(event.created_at),
       conversationId,
       event,
@@ -161,8 +166,8 @@ export function loadedItems(client: QueryClient, character: string): LoadedItem[
       detail:
         work.source.display_name ||
         (work.source.platform === 'app'
-          ? '桌面對話'
-          : (work.source.platform?.toUpperCase() ?? '原入口')),
+          ? t('conversation:desktopChat')
+          : (work.source.platform?.toUpperCase() ?? t('conversation:originalEntry'))),
       at: timestamp(work.updated_at),
       work,
     })),

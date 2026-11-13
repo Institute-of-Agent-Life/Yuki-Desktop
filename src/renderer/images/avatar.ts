@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next'
 import type { AvatarInput } from '../../shared/api'
 
 type Dimensions = { width: number; height: number }
@@ -152,10 +153,15 @@ export function cropCanvas(image: AvatarImage, zoom: number, pan: Pan, size: num
   )
   return canvas
 }
-export async function croppedAvatar(image: AvatarImage, zoom: number, pan: Pan) {
+export async function croppedAvatar(
+  image: AvatarImage,
+  zoom: number,
+  pan: Pan,
+  t: TFunction<['avatar']>,
+) {
   const blob = await new Promise<Blob>((resolve, reject) =>
     cropCanvas(image, zoom, pan, 1024).toBlob(
-      (value) => (value ? resolve(value) : reject(new Error('無法產生頭像圖片。'))),
+      (value) => (value ? resolve(value) : reject(new Error(t('avatar:renderFailed')))),
       'image/png',
     ),
   )

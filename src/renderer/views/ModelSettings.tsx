@@ -4,6 +4,7 @@ import type { Connection } from '../../shared/api'
 import type { ModelApplyInput, ModelDocument } from '../../shared/models'
 import { Banner, Button, Segmented, Spinner } from '../components/Controls'
 import { ClientProblem, unwrap, useMe } from '../queries/client'
+import { useTranslation } from '../i18n'
 import { PendingRequest } from './SettingsRow'
 import { ModelConnections } from './ModelConnections'
 import { ModelPurposes } from './ModelPurposes'
@@ -11,6 +12,7 @@ import { ModelUsage } from './ModelUsage'
 import styles from './ModelSettings.module.css'
 
 export function useModelConfiguration(id: string) {
+  const { t } = useTranslation(['models'])
   const cache = useQueryClient()
   const key = ['desktop', 'models', id]
   const bundle = useQuery({
@@ -32,7 +34,7 @@ export function useModelConfiguration(id: string) {
       if (result.success) {
         request.saved?.()
         await cache.invalidateQueries({ queryKey: key })
-      } else setError('設定未能套用，請檢查目前設定。')
+      } else setError(t('models:applyFailed'))
     } catch (failure) {
       if (failure instanceof ClientProblem && failure.code === 'version_conflict') {
         setPending(undefined)
@@ -82,6 +84,7 @@ export function ModelSettings({
   page: ModelPage
   onPage(page: ModelPage): void
 }) {
+  const { t } = useTranslation(['models'])
   const model = useModelConfiguration(connection.characterId)
   const authority = useMe(connection.characterId)
   const data = model.bundle.data
@@ -89,25 +92,28 @@ export function ModelSettings({
     authority.data?.is_superuser === false ||
     (model.bundle.error instanceof ClientProblem && model.bundle.error.code === 'capability_denied')
   )
-    return <Banner>只有 Yuki 的管理員可以修改模型設定</Banner>
+    return <Banner>{t('models:adminOnly')}</Banner>
   if (authority.error) return <Banner status="failed">{authority.error.message}</Banner>
   if (authority.isPending || model.bundle.isPending) return <Spinner />
   if (model.bundle.error) return <Banner status="failed">{model.bundle.error.message}</Banner>
-  if (!data!.valid)
-    return <Banner status="failed">Yuki 上的模型設定檔無法解析，請由管理員檢查</Banner>
+  if (!data!.valid) return <Banner status="failed">{t('models:invalidDocument')}</Banner>
   const feedback = (
     <>
       {model.error && <Banner status="failed">{model.error}</Banner>}
       {model.conflict && (
         <Banner status="failed">
-          設定已在其他地方變更{' '}
+          {t('models:conflict')}{' '}
           <Button loading={model.bundle.isFetching} onClick={() => void model.reload()}>
-            重新載入
+            {t('models:reload')}
           </Button>
         </Banner>
       )}
       {model.pending && !model.busy && (
-        <PendingRequest text="模型設定等待確認" busy={model.busy} onVerify={model.verify} />
+        <PendingRequest
+          text={t('models:pendingConfirm')}
+          busy={model.busy}
+          onVerify={model.verify}
+        />
       )}
     </>
   )
@@ -115,18 +121,22 @@ export function ModelSettings({
     <div className={styles.settings}>
       <div className={styles.toolbar}>
         <Segmented
-          label="模型頁面"
+          label={t('models:pages')}
           value={tab}
           items={[
-            { value: 'connections', label: '連接' },
-            { value: 'purposes', label: '用途' },
-            { value: 'usage', label: '用量' },
+            { value: 'connections', label: t('models:page.connections') },
+            { value: 'purposes', label: t('models:page.purposes') },
+            { value: 'usage', label: t('models:page.usage') },
           ]}
           onChange={(value) => onPage(value as ModelPage)}
         />
         {tab !== 'usage' && (
           <small>
-            {data!.apply_mode === 'hot_reload' ? '儲存後立即生效' : '儲存後需重新啟動 Yuki'}
+            {t(
+              data!.apply_mode === 'hot_reload'
+                ? 'models:appliesNow'
+                : 'models:appliesAfterRestart',
+            )}
           </small>
         )}
       </div>

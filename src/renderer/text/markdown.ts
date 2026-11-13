@@ -1,8 +1,19 @@
+import type { TFunction } from 'i18next'
 import MarkdownIt from 'markdown-it'
 import { createHighlighterCore } from 'shiki/core'
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 import { useEffect, useState } from 'react'
 import type { ArtifactSource, AttachmentSource } from '../../shared/api'
+import { useTranslation } from '../i18n'
+
+/** The interface words a rendered document carries, in the language it is shown in; rendering
+ *  passes them as markdown-it's environment. */
+export type MarkdownWords = { copy: string; copyCode: string; image: string }
+const wordsIn = (t: TFunction<['media']>): MarkdownWords => ({
+  copy: t('media:copy'),
+  copyCode: t('media:copyCode'),
+  image: t('media:image'),
+})
 
 const markdown = new MarkdownIt({ html: false, linkify: true, breaks: true, typographer: false })
 markdown.linkify.set({ fuzzyLink: false }).add('ftp:', null).add('//', null).add('mailto:', null)
@@ -10,12 +21,13 @@ markdown.disable(['html_block', 'html_inline'])
 const ordinaryLink = markdown.validateLink
 markdown.validateLink = (href) =>
   href.startsWith('artifact:') || href.startsWith('attachment:') || ordinaryLink(href)
-markdown.renderer.rules.image = (tokens, index) => {
-  const token = tokens[index]!,
+markdown.renderer.rules.image = (tokens, index, _options, env) => {
+  const words = env as MarkdownWords,
+    token = tokens[index]!,
     href = String(token.attrGet('src') ?? ''),
     alt = token.content
   return internalImage(href)
-    ? `<span data-media-ref="${markdown.utils.escapeHtml(href)}" role="img" aria-label="${markdown.utils.escapeHtml(alt)}">${markdown.utils.escapeHtml(alt || '圖片')}</span>`
+    ? `<span data-media-ref="${markdown.utils.escapeHtml(href)}" role="img" aria-label="${markdown.utils.escapeHtml(alt)}">${markdown.utils.escapeHtml(alt || words.image)}</span>`
     : `<a href="${markdown.utils.escapeHtml(href)}">${markdown.utils.escapeHtml(alt || href)}</a>`
 }
 export function internalImage(href: string): ArtifactSource | AttachmentSource | undefined {
@@ -64,7 +76,6 @@ markdown.renderer.rules.math = (tokens, index) => {
         `${token.block ? '$$' : '$'}${token.content}${token.block ? '$$' : '$'}`,
       )
 }
-const copyButton = '<button type="button" data-code-copy aria-label="複製程式碼">複製</button>'
 const highlighter = createHighlighterCore({
   engine: createJavaScriptRegexEngine(),
   themes: [
@@ -87,8 +98,9 @@ const highlighter = createHighlighterCore({
     import('@shikijs/langs/markdown'),
   ],
 }).then((highlighter) => {
-  markdown.renderer.rules.fence = (tokens, index) => {
-    const token = tokens[index]!,
+  markdown.renderer.rules.fence = (tokens, index, _options, env) => {
+    const words = env as MarkdownWords,
+      token = tokens[index]!,
       language = token.info.trim().split(/\s+/)[0] ?? 'text'
     if (language === 'mermaid')
       return `<div data-mermaid><pre>${markdown.utils.escapeHtml(token.content)}</pre></div>`
@@ -102,7 +114,8 @@ const highlighter = createHighlighterCore({
       },
       defaultColor: false,
     })
-    return `<div class="code-block">${copyButton}${html}</div>`
+    const copy = `<button type="button" data-code-copy aria-label="${markdown.utils.escapeHtml(words.copyCode)}">${markdown.utils.escapeHtml(words.copy)}</button>`
+    return `<div class="code-block">${copy}${html}</div>`
   }
   return highlighter
 })
@@ -119,7 +132,7 @@ export async function renderCode(text: string, language: string) {
     defaultColor: false,
   })
 }
-export async function renderMarkdown(text: string) {
+export async function renderMarkdown(text: string, words: MarkdownWords) {
   await highlighter
   if (text.includes('$')) {
     mathEngine ??= Promise.all([import('katex'), import('katex/dist/katex.min.css')]).then(
@@ -129,14 +142,16 @@ export async function renderMarkdown(text: string) {
     )
     await mathEngine
   }
-  return markdown.render(text)
+  return markdown.render(text, words)
 }
 export function useMarkdown(text: string) {
-  const [html, setHtml] = useState(() => markdown.render(text))
+  const { t } = useTranslation(['media'])
+  const [html, setHtml] = useState(() => markdown.render(text, wordsIn(t)))
   useEffect(() => {
     let current = true
-    setHtml(markdown.render(text))
-    void renderMarkdown(text)
+    const words = wordsIn(t)
+    setHtml(markdown.render(text, words))
+    void renderMarkdown(text, words)
       .then((value) => {
         if (current) setHtml(value)
       })
@@ -146,6 +161,6 @@ export function useMarkdown(text: string) {
     return () => {
       current = false
     }
-  }, [text])
+  }, [text, t])
   return html
 }

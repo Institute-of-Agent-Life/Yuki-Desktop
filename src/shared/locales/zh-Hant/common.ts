@@ -1,5 +1,20 @@
 export default {
   followSystem: '跟隨系統',
+  action: {
+    cancel: '取消',
+    save: '儲存',
+    close: '關閉',
+    back: '返回',
+    done: '完成',
+    open: '開啟',
+    retry: '重試',
+    reload: '重新讀取',
+    change: '更改…',
+    remove: '移除',
+    continue: '繼續',
+  },
+  loading: '載入中',
+  reading: '正在讀取…',
   edit: {
     undo: '復原',
     redo: '重做',

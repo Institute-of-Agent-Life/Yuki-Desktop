@@ -14,7 +14,7 @@ src/shared/locales/
   */index.ts        匯集該語言全部命名空間
 ```
 
-命名空間按模組劃分，一個檔案一個：`common`（多處共用的字，如「跟隨系統」、編輯動作）、`menu`（應用程式選單與 Main 彈出的右鍵選單）、`tray`、`notifications`、`dialogs`（Main 的原生對話框）、`localBot`（本機部署進度）、`time`、`settings`、`errors`（後端錯誤碼，key 即錯誤碼；`problemText` 先查這裡，`queries/client.ts` 的舊表逐步遷入）。新畫面新增自己的命名空間（例如 `platforms`、`ssh`），不往別人的檔案裡塞；只有確實多處共用的字放 `common`。後端錯誤以錯誤碼為 key。
+命名空間按模組劃分，一個檔案一個：`common`（多處共用的字，如「跟隨系統」、編輯動作）、`menu`（應用程式選單與 Main 彈出的右鍵選單）、`tray`、`notifications`、`dialogs`（Main 的原生對話框）、`localBot`（本機部署進度）、`time`、`settings`、`errors`（錯誤碼，snake_case 的 key 即錯誤碼，`problemText` 先查這裡，SSH 與遠端部署的錯誤碼在 `ssh:problem`；camelCase 的 key 是它自己的字，如 `unknownCode`、`mediaReason.*`）、`presence`（Yuki 的在線狀態）。新畫面新增自己的命名空間（例如 `platforms`、`ssh`），不往別人的檔案裡塞；只有確實多處共用的字放 `common`。後端錯誤以錯誤碼為 key。後端回傳的工作步驟標籤按 `category` 翻譯（`works:step.*`），其他後端中文（自動化描述、記憶更正摘要、「本人」）照原文顯示。
 
 ## 新增文案
 
@@ -61,4 +61,4 @@ new Notification({ title: t('notifications:waiting', { name }) })
 
 ## 測試
 
-E2E 固定以 zh-TW 系統執行（`tests/fixtures/isolated-desktop.ts`），既有 spec 以繁體文案定位。三語切換見 `tests/e2e/languages.spec.ts`，其輸出目錄保留三種語言的設定頁截圖。
+E2E 固定以 zh-TW 系統執行（`tests/fixtures/isolated-desktop.ts`），既有 spec 以繁體文案定位。三語切換見 `tests/e2e/languages.spec.ts`，其輸出目錄保留三種語言的設定頁截圖。`tests/e2e/language-layout.spec.ts` 在三種語言 × 淺／深色（不透明）下逐頁截圖（對話、工作、檔案、設定各分類、連線方式對話框、在本機部署、部署到我的伺服器、通過 SSH 連接），量測按鈕、分頁、分段是否撐破自身或超出所在的設定列、對話框、側欄，並檢查簡體與英文介面沒有殘留未抽取的文案（資料除外）。

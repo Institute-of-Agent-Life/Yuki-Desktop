@@ -43,7 +43,7 @@ export function Pairing({
   onResumeLogout(characterId: string): Promise<void>
 }) {
   const card = useGlass<HTMLDivElement>('card')
-  const { t } = useTranslation(['ssh'])
+  const { t } = useTranslation(['pairing', 'ssh', 'errors', 'common'])
   const [ssh, setSsh] = useState(false)
   const sshForm = useSshForm({
     confirmLabel: t('ssh:confirmConnect'),
@@ -98,7 +98,7 @@ export function Pairing({
           ? problemText('invalid_code')
           : failure instanceof Error
             ? failure.message
-            : '操作未完成。',
+            : t('errors:notCompleted'),
       )
       setUpdateNeeded(code === 'client_upgrade_required')
       if (code === 'logout_pending' && confirmed) setPendingLogout(confirmed.meta.character.id)
@@ -112,7 +112,7 @@ export function Pairing({
       base = parsed?.server ?? address
     if (!base.trim()) {
       setManual(true)
-      setError('這份配對資訊沒有伺服器位址，請向提供者取得，或選擇手動連接。')
+      setError(t('pairing:noServer'))
       return
     }
     void run(async (owner) => {
@@ -201,28 +201,28 @@ export function Pairing({
             ? t('ssh:connectOverSsh')
             : step === 'welcome'
               ? 'Yuki'
-              : (confirmed?.meta.character.display_name ?? '連接已有 Yuki')}
+              : (confirmed?.meta.character.display_name ?? t('pairing:connectExisting'))}
         </h1>
         <p>
           {ssh
             ? t('ssh:connectOverSshDescription')
             : step === 'welcome'
-              ? '和她聊聊，一起把事情做好。選擇你想從哪裡開始。'
+              ? t('pairing:welcomeDescription')
               : step === 'confirm'
-                ? '確認 Yuki 與伺服器，再允許這台裝置連接。'
-                : '貼上配對連結或收到的完整配對資訊。'}
+                ? t('pairing:confirmDescription')
+                : t('pairing:connectDescription')}
         </p>
         {error && <Banner status="failed">{error}</Banner>}
-        {updateNeeded && <Button onClick={onUpdate}>查看 App 更新</Button>}
+        {updateNeeded && <Button onClick={onUpdate}>{t('pairing:viewUpdate')}</Button>}
         {pendingLogout && (
           <Button onClick={() => void run(async () => onResumeLogout(pendingLogout))}>
-            處理原連線的登出資料
+            {t('pairing:resumeLogout')}
           </Button>
         )}
-        {reconnect && <Banner>重新連接原本人入口；草稿與未確認請求仍保留。</Banner>}
+        {reconnect && <Banner>{t('pairing:reconnect')}</Banner>}
         {pending.map((item) => (
           <div key={item.deviceId} className={styles.server}>
-            <p>已領取 {item.name} 的裝置憑據，尚待確認本人資料。可以繼續，不必重新兌換配對碼。</p>
+            <p>{t('pairing:pendingCredentials', { name: item.name })}</p>
             <div className={styles.actions}>
               <Button
                 loading={busy}
@@ -235,7 +235,7 @@ export function Pairing({
                   )
                 }
               >
-                繼續連接 {item.name}
+                {t('pairing:resume', { name: item.name })}
               </Button>
               <Button
                 variant="plain"
@@ -246,40 +246,38 @@ export function Pairing({
                   })
                 }
               >
-                放棄本機待完成連接
+                {t('pairing:forgetPending')}
               </Button>
             </div>
-            {!item.persistentCredentials && (
-              <small>未啟用系統憑據保存，僅能在這次 App 執行中繼續。</small>
-            )}
+            {!item.persistentCredentials && <small>{t('pairing:notPersistent')}</small>}
           </div>
         ))}
         {step === 'welcome' ? (
           <>
             <div className={styles.entryChoices}>
               <Button variant="primary" large onClick={() => setStep('connect')}>
-                連接已有 Yuki
+                {t('pairing:connectExisting')}
               </Button>
               {onDeploy && (
                 <Button large onClick={onDeploy}>
-                  在本機部署 Yuki
+                  {t('pairing:deployLocal')}
                 </Button>
               )}
               {onSkip && (
                 <Button variant="plain" onClick={onSkip}>
-                  先逛逛，稍後設定
+                  {t('pairing:skip')}
                 </Button>
               )}
             </div>
             <div className={styles.actions}>
               {onSettings && (
                 <Button variant="plain" onClick={onSettings}>
-                  設定
+                  {t('pairing:settings')}
                 </Button>
               )}
               {onHelp && (
                 <Button variant="plain" onClick={onHelp}>
-                  使用說明
+                  {t('pairing:help')}
                 </Button>
               )}
             </div>
@@ -303,18 +301,15 @@ export function Pairing({
               else inspect()
             }}
           >
-            {confirmed && <small>伺服器：{confirmed.server}</small>}
-            <small>
-              使用可從這台電腦存取的 Yuki 網址。伺服器沒有公開網址時，選「通過 SSH
-              連接」，不必另外建立通道；使用 VPN 或 Tailscale 時，請先接上該網路。
-            </small>
+            {confirmed && <small>{t('pairing:server', { server: confirmed.server })}</small>}
+            <small>{t('pairing:reachability')}</small>
             <TailscaleGuide onError={setError} />
             {step === 'connect' && !confirmed && (
               <Button type="button" variant="plain" onClick={() => setSsh(true)}>
                 {t('ssh:connectOverSsh')}
               </Button>
             )}
-            <label htmlFor="pair-code">配對連結、綁定碼或完整回覆</label>
+            <label htmlFor="pair-code">{t('pairing:codeLabel')}</label>
             <div className={styles.codeRow}>
               <TextField
                 id="pair-code"
@@ -351,20 +346,18 @@ export function Pairing({
                 }
               >
                 <Clipboard size={14} aria-hidden="true" />
-                貼上
+                {t('common:edit.paste')}
               </Button>
             </div>
-            <small>
-              從已連接的 Yuki 取得配對資訊；綁定碼只可使用一次。沒有連結時可手動輸入地址。
-            </small>
+            <small>{t('pairing:codeHint')}</small>
             {!manual && !confirmed && (
               <Button variant="plain" type="button" onClick={() => setManual(true)}>
-                手動輸入伺服器位址
+                {t('pairing:enterServer')}
               </Button>
             )}
             {manual && !confirmed && (
               <>
-                <label htmlFor="server-url">伺服器位址</label>
+                <label htmlFor="server-url">{t('pairing:serverAddress')}</label>
                 <TextField
                   id="server-url"
                   autoComplete="url"
@@ -379,7 +372,7 @@ export function Pairing({
             )}
             {step === 'confirm' && (
               <>
-                <label htmlFor="device-name">這台裝置的名稱</label>
+                <label htmlFor="device-name">{t('pairing:deviceName')}</label>
                 <TextField
                   id="device-name"
                   value={device}
@@ -398,7 +391,7 @@ export function Pairing({
                   } else cancel()
                 }}
               >
-                返回
+                {t('common:action.back')}
               </Button>
               {step === 'confirm' ? (
                 <Button
@@ -407,7 +400,7 @@ export function Pairing({
                   loading={busy}
                   disabled={!parsed || !device.trim() || !!awaiting}
                 >
-                  確認並連接
+                  {t('pairing:confirmConnect')}
                 </Button>
               ) : (
                 <Button
@@ -416,7 +409,7 @@ export function Pairing({
                   loading={busy}
                   disabled={!input.trim() && !server.trim()}
                 >
-                  繼續
+                  {t('common:action.continue')}
                 </Button>
               )}
             </div>

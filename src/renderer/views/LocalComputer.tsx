@@ -6,6 +6,7 @@ import { Banner, Button, EmptyState, Spinner } from '../components/Controls'
 import { unwrap } from '../queries/client'
 import { ConnectorTasks } from './ConnectorTasks'
 import styles from './LocalComputer.module.css'
+import { useTranslation } from '../i18n'
 
 export function LocalComputer({
   connection,
@@ -15,6 +16,7 @@ export function LocalComputer({
   openSettings(): void
 }) {
   const query = useQueryClient()
+  const { t } = useTranslation(['connector', 'common'])
   const state = useQuery({
     queryKey: ['desktop', 'agent-connector', connection.characterId],
     queryFn: () => window.yuki.connector.state(connection.characterId).then(unwrap),
@@ -48,7 +50,7 @@ export function LocalComputer({
   const supervision = available?.supervision
   if (state.isPending)
     return (
-      <EmptyState title="這台電腦">
+      <EmptyState title={t('connector:local.title')}>
         <Spinner />
       </EmptyState>
     )
@@ -56,55 +58,57 @@ export function LocalComputer({
     return (
       <EmptyState
         title={
-          state.isError ? '無法確認這台電腦的連線狀態' : `這台電腦尚未連接到 ${connection.name}`
+          state.isError
+            ? t('connector:local.unknownState')
+            : t('connector:local.notConnected', { name: connection.name })
         }
         action={
           <Button variant="primary" onClick={openSettings}>
-            前往設定
+            {t('connector:local.goSettings')}
           </Button>
         }
       >
         {state.isError
           ? state.error.message
-          : `連接後，${connection.name} 可以在這台電腦執行命令、使用 Codex、Claude Code 或支援 ACP 的 Agent。`}
+          : t('connector:local.emptyDescription', { name: connection.name })}
       </EmptyState>
     )
   return (
     <div className={styles.page}>
       {state.error && <Banner status="unknown">{state.error.message}</Banner>}
       {available.admission?.matched !== true && (
-        <Banner status="unknown">目前尚未接納這份電腦連線；已保存的本人紀錄仍可查詢。</Banner>
+        <Banner status="unknown">{t('connector:local.notAdmitted')}</Banner>
       )}
       {available.supervision?.link === 'authorization_lost' && (
         <Banner status="failed">
-          授權已撤銷：伺服器拒絕了這台電腦的連接器憑據。已保存的本人紀錄仍可查詢。
-          <Button onClick={openSettings}>前往設定</Button>
+          {t('connector:local.authorizationLost')}
+          <Button onClick={openSettings}>{t('connector:local.goSettings')}</Button>
         </Banner>
       )}
       {available.supervision?.restartPending && (
         <Banner status="waiting">
-          本機連接器非預期結束，正在重新啟動（已重新啟動 {available.supervision.restarts} 次）。
-          <Button onClick={openSettings}>查看診斷</Button>
+          {t('connector:local.restarting', { count: available.supervision.restarts })}
+          <Button onClick={openSettings}>{t('connector:local.viewDiagnostics')}</Button>
         </Banner>
       )}
       {control.error && <Banner status="failed">{control.error.message}</Banner>}
       {supervision?.control?.holder === 'owner' ? (
         <Banner status="waiting">
-          已按「停止」叫停。Yuki 不會操作滑鼠、鍵盤或瀏覽器；在聊天裡請 Yuki 繼續，或按「繼續」。
+          {t('connector:local.ownerStopped')}
           <Button disabled={control.isPending} onClick={() => control.mutate('none')}>
-            繼續
+            {t('common:action.continue')}
           </Button>
         </Banner>
       ) : (
         supervision?.activity && (
           <Banner status="running">
             {supervision.activity.tool === 'browser'
-              ? 'Yuki 正在操作瀏覽器。'
+              ? t('connector:local.browser')
               : supervision.activity.background
-                ? 'Yuki 正在背景操作一個視窗，不動你的滑鼠和前台視窗；你在同一個 App 裡操作時它會暫停。'
-                : 'Yuki 正在操作電腦；你操作時它會暫停，停手後繼續。'}
+                ? t('connector:local.background')
+                : t('connector:local.computer')}
             <Button disabled={control.isPending} onClick={() => control.mutate('owner')}>
-              停止
+              {t('connector:local.stop')}
             </Button>
           </Banner>
         )

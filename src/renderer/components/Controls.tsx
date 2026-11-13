@@ -20,12 +20,14 @@ import {
 } from 'react'
 import { Snowflake } from 'lucide-react'
 import styles from './Controls.module.css'
+import { useTranslation } from '../i18n'
 
 export type Status = 'running' | 'waiting' | 'done' | 'failed' | 'unknown' | 'offline'
 const statusStyle = (status: Status) => ({ '--status': `var(--status-${status})` }) as CSSProperties
 
 export function Spinner() {
-  return <span className={styles.spinner} aria-label="載入中" role="status" />
+  const { t } = useTranslation(['common'])
+  return <span className={styles.spinner} aria-label={t('common:loading')} role="status" />
 }
 export function Button({
   variant = 'secondary',
@@ -39,6 +41,7 @@ export function Button({
   large?: boolean
   loading?: boolean
 }) {
+  const { t } = useTranslation(['common'])
   const press = usePress<HTMLButtonElement>()
   // Tinted glass glows in its own colour where the pointer's light falls.
   useEffect(
@@ -87,7 +90,9 @@ export function Button({
       <span ref={busy} className={styles.busy} data-shown={visible}>
         <span
           className={styles.spinner}
-          {...(visible ? { role: 'status', 'aria-label': '載入中' } : { 'aria-hidden': true })}
+          {...(visible
+            ? { role: 'status', 'aria-label': t('common:loading') }
+            : { 'aria-hidden': true })}
         />
       </span>
       {children}
