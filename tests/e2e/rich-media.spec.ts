@@ -187,6 +187,16 @@ test('plays and seeks both actual media sources, renders local rich text and kee
       .click()
     await expect(inspector().locator('audio')).toBeVisible()
     const expiredUrl = await inspector().locator('audio').getAttribute('src')
+    // The original goes before the preview is due, so the revalidation finds it gone.
+    // Failure case: the server removed it on its own clock 100 ms before the preview was due, and a
+    // loaded machine revalidated first, found it still there and kept playing.
+    expect(
+      (
+        await fetch(`${rig.base}/__test/expire-attachments/${recording.event_id}`, {
+          method: 'POST',
+        })
+      ).ok,
+    ).toBe(true)
     await expect(inspector().locator('audio')).toHaveCount(0, { timeout: 10000 })
     expect(await page.evaluate(async (url) => (await fetch(url!)).status, expiredUrl)).toBe(404)
     await close()
