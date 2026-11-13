@@ -56,8 +56,8 @@ test('a sent message stays still while its request is on its way, and an unconfi
       expect(shrinks).toEqual([])
       await expect(processing).toHaveCount(0, { timeout: 15000 })
     }
-    // 11: a request whose answer was lost is no longer on its way: it is not called sending, and
-    // while its problem stands the person is offered a check.
+    // 11: a request whose answer was lost is not called sending once its delivery has ended, and
+    // while a problem stands the person is offered a check.
     await fetch(`${rig.base}/__test/model-delay/0`, { method: 'POST' })
     await fetch(`${rig.base}/__test/lose-next-response`, { method: 'POST' })
     const text = '這則的回執會遺失'
@@ -78,7 +78,8 @@ test('a sent message stays still while its request is on its way, and an unconfi
         },
         { characterId, text },
       )
-    await expect.poll(async () => (await lost()).problem, { timeout: 15000 }).toBeTruthy()
+    // Its delivery ends either way: the app may already have checked it and found it accepted.
+    await expect.poll(async () => (await lost()).sending, { timeout: 15000 }).toBe(false)
     const settled = await lost()
     evidence.lost = settled
     expect(settled.sending).toBe(false)

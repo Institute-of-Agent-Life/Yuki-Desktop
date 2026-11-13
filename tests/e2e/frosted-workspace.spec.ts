@@ -7,7 +7,7 @@ import { pairUI, yukiFixture } from '../fixtures/backend'
 import { launchShell } from '../fixtures/shell-app'
 import { captureViewport, contentSize } from '../fixtures/visual'
 
-test('frosted workspace keeps opaque paper, floating controls, real receipts and drafts across appearances and sizes', async () => {
+test('frosted workspace keeps its paper, floating controls, real receipts and drafts across appearances and sizes', async () => {
   test.setTimeout(180000)
   const external = process.env.YUKI_DESKTOP_NATIVE_BACKEND_URL?.replace(/\/+$/, '')
   const rig = external ? undefined : await yukiFixture({ character: true, prompts: true })
@@ -125,11 +125,16 @@ test('frosted workspace keeps opaque paper, floating controls, real receipts and
             footerHeight: footer.height,
             logPadding: parseFloat(getComputedStyle(log).paddingBottom),
             opaque: document.documentElement.dataset.opaque,
+            material: document.documentElement.dataset.material,
             htmlWidth: document.documentElement.scrollWidth,
             viewport: innerWidth,
           }
         })
-        expect(geometry.paper).toBe(mode === 'dark' ? 'rgb(27, 29, 34)' : 'rgb(255, 255, 255)')
+        // The page is its own colour, solid without the system's frost and a thin wash over it
+        // (全局透明磨砂 task book).
+        if (geometry.material === 'none')
+          expect(geometry.paper).toBe(mode === 'dark' ? 'rgb(27, 29, 34)' : 'rgb(255, 255, 255)')
+        else expect(geometry.paper).toMatch(/\/ 0\.35\)$/)
         expect(geometry.radius).toBe('14px')
         expect(geometry.inset).toBe(6)
         expect(geometry.bottom).toBeCloseTo(14, 0)
