@@ -12,7 +12,7 @@ export function Row({
   children?: ReactNode
 }) {
   return (
-    <div className={styles.row}>
+    <div className={styles.row} data-settings-row>
       <div className={styles.label}>
         {title}
         {description && <small>{description}</small>}

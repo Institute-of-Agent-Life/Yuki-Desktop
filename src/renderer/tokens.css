@@ -23,6 +23,9 @@
   --bg-inspector: #fafbfd;
   --bg-sidebar: #e6eaf0;
   --bg-elevated: #ffffff;
+  /* Every field: its fill and its line (thinned over the window's frost). */
+  --field: var(--bg-elevated);
+  --field-line: var(--separator-strong);
   --fill-hover: rgba(20, 34, 64, 0.05);
   --fill-pressed: rgba(20, 34, 64, 0.09);
   --fill-selected: rgba(58, 107, 214, 0.14);
@@ -227,10 +230,12 @@
   --surface-pane: color-mix(in srgb, var(--bg-inspector) 25%, transparent);
   --bg-raised: rgb(255 255 255 / 0.4);
   --bg-stage: rgb(20 30 50 / 0.03);
+  --field: rgb(255 255 255 / 0.55);
 }
 :root:is([data-material='vibrancy'], [data-material='mica'])[data-theme='dark'] {
   --bg-raised: rgb(255 255 255 / 0.05);
   --bg-stage: rgb(0 0 0 / 0.1);
+  --field: rgb(255 255 255 / 0.07);
 }
 :root[data-contrast='true'] {
   --focus-ring: var(--accent);
@@ -271,6 +276,94 @@ textarea,
 select {
   font: inherit;
   color: inherit;
+}
+/*
+ * One field, one check box and one disclosure everywhere (液态玻璃组件统一 §2.1.1). They weigh
+ * nothing (:where), so a field drawn otherwise on purpose, like the composer's, keeps its look.
+ */
+:where(
+  select,
+  textarea,
+  input:not([type]),
+  input[type='text'],
+  input[type='url'],
+  input[type='password'],
+  input[type='number'],
+  input[type='search'],
+  input[type='email']
+) {
+  min-height: 28px;
+  padding: 4px 8px;
+  border: var(--line) solid var(--field-line);
+  border-radius: 8px;
+  background: var(--field);
+}
+:where(input[type='checkbox']) {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0 6px 0 0;
+  vertical-align: -3px;
+  border: var(--line) solid var(--field-line);
+  border-radius: 5px;
+  background: var(--field);
+  transition: background var(--motion-fast) var(--ease-standard);
+}
+:where(input[type='checkbox']:checked) {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+/* The tick springs in as it is checked. */
+:where(input[type='checkbox'])::before {
+  content: '';
+  width: 8px;
+  height: 4px;
+  border-left: 2px solid var(--accent-on);
+  border-bottom: 2px solid var(--accent-on);
+  rotate: -45deg;
+  translate: 0 -1px;
+  scale: 0;
+  transition: scale var(--motion-fast) var(--ease-pop);
+}
+:where(input[type='checkbox']:checked)::before {
+  scale: 1;
+}
+@media (forced-colors: active) {
+  :where(input[type='checkbox']) {
+    appearance: auto;
+  }
+}
+:where(summary) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  cursor: pointer;
+}
+:where(summary)::-webkit-details-marker {
+  display: none;
+}
+/* Opened by the same arrow, turning down as it opens. A row that opens (a usage group) keeps
+   the arrow at its end instead. */
+:where(summary)::before {
+  content: '';
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  margin: 0 2px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  rotate: -45deg;
+  transition: rotate var(--motion-fast) var(--ease-standard);
+}
+:where(details[open] > summary)::before {
+  rotate: 45deg;
+}
+:where([data-disclosure='row'] > summary)::before {
+  content: none;
 }
 button {
   cursor: pointer;

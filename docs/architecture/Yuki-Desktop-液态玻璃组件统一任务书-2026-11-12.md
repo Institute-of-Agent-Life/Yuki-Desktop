@@ -112,6 +112,19 @@
 | 档案预览头 | `Files.module.css:53` | 实底 + 分隔线 | 硬边 | 保留 | 否 |
 | 原生提示（`title`）、右键/应用菜单 | 各处 `title=`；`ApplicationMenu.tsx` | 系统绘制 | — | 不在范围 | — |
 
+### 2.1.1 补充盘点（用户：「我建议你再找找有没有漏掉的组件，比如设置里面的模型选择那些的」）
+
+以真实后端起应用、逐个设定分类与模型子页截图核对，上表漏列：
+
+| 组件 | 位置 | 现状 | 处理（第 6 步） |
+| --- | --- | --- | --- |
+| 原生下拉框 | 9 个文件约 18 处：`ModelPurposes`（模型用途 8 处）、`ModelSchemaFields`、`ServerSettings`、`AgentConnector`、`ConnectorTasks`、`LocalBot`、`NativeRequest`、`Settings`、`ModelUsage` | 设定行里是 `--bg-elevated` 实色块，透明磨砂下最突兀；用量筛选是另一种小号写法；其余无类名，取浏览器默认 | 一条全局字段样式（低优先级 `:where`），删去各模块重复的字段规则 |
+| 文本输入与多行输入 | 這台電腦名称、模型表单、伺服器位址、对话搜索、工作行内、电脑说明、关于页编辑 | 圆角 6/8px、细线 `--separator`/`--separator-strong`/`--line`、底色实白或 `--bg-content` 混用；這台電腦名称框文字被截断 | 同上 |
+| 原生复选框 | `AgentConnector`（连接授权）、`ModelProbes`、`ModelSchemaFields` | 浏览器默认方块 | 强调色、统一尺寸，保留原生语义 |
+| 折叠块 `details/summary` | `ServerSettings`、`AgentConnector`、`TailscaleGuide`、`ModelConnections`、`ModelPurposes`、`ModelSchemaFields`、`Files`、`ConnectorTasks`、`Works`、`ModelUsage` | 浏览器默认三角与各自写法共 5 种 | 全局同一旋转箭头；用量页「历史」是行末箭头的列表行，属另一交互，保留 |
+| 新增连接对话框的服务商按钮 | `ModelSettings.module.css` `.presets` | 「自訂（OpenAI 相容）· Responses」溢出按钮 | 允许换行 |
+| 「模型连接」只有一个按钮的卡片 | `ModelConnections.tsx` | 空卡片里一个按钮 | 改为设定行（标题、说明、按钮） |
+
 ### 2.2 在滚动容器里的玻璃
 
 夹具中逐个元素查最近的 `overflow: auto/scroll` 祖先（只列有 `backdrop-filter` 的）：

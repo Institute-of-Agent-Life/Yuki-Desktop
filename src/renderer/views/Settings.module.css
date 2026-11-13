@@ -185,13 +185,9 @@
 .rowValue > button {
   flex-shrink: 0;
 }
-.row select {
-  font: 13px var(--font-ui);
-  color: var(--text-primary);
-  background: var(--bg-elevated);
-  border: 1px solid var(--separator);
-  border-radius: 6px;
-  padding: 4px 8px;
+/* A text field is as wide as what it usually holds; a narrow row lets it shrink. */
+.rowValue > input {
+  width: 260px;
 }
 .notice {
   color: var(--text-secondary);

@@ -143,12 +143,6 @@
 .note textarea {
   resize: vertical;
   min-height: 80px;
-  border: 1px solid var(--separator);
-  border-radius: 8px;
-  padding: 10px;
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  font: inherit;
 }
 .screenProblem {
   position: absolute;

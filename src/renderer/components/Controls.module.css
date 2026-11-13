@@ -59,12 +59,7 @@
   color: var(--text-secondary);
 }
 .field {
-  height: 28px;
   width: 100%;
-  border: var(--line) solid var(--separator-strong);
-  border-radius: 8px;
-  padding: 0 8px;
-  background: var(--bg-elevated);
 }
 .field[aria-invalid='true'] {
   border-color: var(--status-failed);
