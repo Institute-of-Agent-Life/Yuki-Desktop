@@ -79,10 +79,19 @@ test('a sent message stays still while its request is on its way, and an unconfi
         { characterId, text },
       )
     // Its delivery ends either way: the app may already have checked it and found it accepted.
-    await expect.poll(async () => (await lost()).sending, { timeout: 15000 }).toBe(false)
-    const settled = await lost()
+    // The app may check it again, and sending it once more is sending: what counts is the moment
+    // its delivery has ended, read once.
+    let settled = await lost()
+    await expect
+      .poll(
+        async () => {
+          settled = await lost()
+          return settled.sending
+        },
+        { timeout: 15000 },
+      )
+      .toBe(false)
     evidence.lost = settled
-    expect(settled.sending).toBe(false)
     if (settled.problem && settled.state !== 'result')
       await expect(
         page
