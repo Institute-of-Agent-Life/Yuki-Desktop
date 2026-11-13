@@ -91,8 +91,6 @@
   --mat-ground: rgba(229, 234, 242, 0.84);
   --mat-sidebar: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.48));
   --mat-chrome: rgba(255, 255, 255, 0.66);
-  --mat-thick: rgba(255, 255, 255, 0.86);
-  --mat-hud: rgba(26, 28, 33, 0.64);
   --mat-sheet: rgba(255, 255, 255, 0.97);
   /* A floating glass pane, and how much of the backdrop's contrast it lets through. */
   --mat-pane: rgba(255, 255, 255, 0.6);
@@ -138,7 +136,6 @@
   --stroke-hi: rgba(255, 255, 255, 0.95);
   --stroke-lo: rgba(255, 255, 255, 0.28);
   --edge: rgba(20, 30, 50, 0.1);
-  --blur-chrome: 18px;
   --blur-thick: 28px;
   --shadow-panel:
     0 0 0 0.5px rgba(20, 30, 50, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04),
@@ -189,8 +186,6 @@
   --mat-ground: rgba(14, 15, 19, 0.88);
   --mat-sidebar: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.05));
   --mat-chrome: rgba(46, 48, 55, 0.62);
-  --mat-thick: rgba(36, 38, 44, 0.86);
-  --mat-hud: rgba(22, 24, 28, 0.7);
   --mat-sheet: rgba(38, 40, 46, 0.97);
   --mat-pane: rgba(38, 40, 46, 0.64);
   --backdrop-aurora:

@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
+import { readRim } from '../fixtures/rim'
 
 const evidence: Record<string, unknown> = {}
 test.afterAll(async () => {
@@ -230,21 +231,11 @@ test('a sheet that grew out of a button is lit along its own corners once it has
   await page.waitForTimeout(300)
   // 12: 40px from the left the top edge is straight for a 22px corner, so its light is there;
   // a map drawn from the growing frame's far larger corner leaves it dark.
-  const light = await sheet.evaluate(async (element: HTMLElement) => {
-    const image = new Image()
-    image.src = getComputedStyle(element)
-      .getPropertyValue('--rim')
-      .match(/url\("?(.*?)"?\)$/)![1]!
-    await image.decode()
-    const scale = image.width / element.offsetWidth,
-      canvas = new OffscreenCanvas(image.width, image.height),
-      context = canvas.getContext('2d')!
-    context.drawImage(image, 0, 0)
-    return {
-      radius: getComputedStyle(element).borderTopLeftRadius,
-      edge: context.getImageData(Math.round(40 * scale), 1, 1, 1).data[3]!,
-    }
-  })
+  const rim = await sheet.evaluate(readRim, [[40, 0.5]] as [number, number][])
+  const light = {
+    radius: await sheet.evaluate((element) => getComputedStyle(element).borderTopLeftRadius),
+    edge: rim.light[0]!,
+  }
   evidence.grownSheet = light
   expect(light.radius).toBe('22px')
   expect(light.edge).toBeGreaterThan(16)

@@ -36,7 +36,17 @@ const presets = {
   segment: [6, 8, 0.12, 0],
 } as const
 export type GlassKind = keyof typeof presets
-const maps = new Map<string, { displacement: string; rim: string }>()
+const painted = new Map<string, { bend: HTMLCanvasElement; rim: string }>(),
+  composed = new Map<string, Lens>()
+// A glass's maps: the bend as a whole image for its filter, and the light as a slice to lay
+// around its edge: `slice` image pixels top and bottom, then left and right, into a border of
+// as many CSS pixels; 0 along a side the slice already spans whole.
+interface Lens {
+  displacement: string
+  rim: string
+  slice: [number, number]
+  border: [number, number]
+}
 let sequence = 0
 
 export function roundedDistance(x: number, y: number, hx: number, hy: number, radius: number) {
@@ -45,25 +55,24 @@ export function roundedDistance(x: number, y: number, hx: number, hy: number, ra
   return Math.min(Math.max(qx, qy), 0) + Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - radius
 }
 
-function lens(width: number, height: number, radius: number, kind: GlassKind) {
-  // The light map is drawn at the display's own pixels, so rims stay crisp on Retina screens.
-  const scale = Math.min(3, Math.max(1, Math.ceil(devicePixelRatio)))
+// Paints the maps of a glass `width` by `height` whole, at the display's own pixels for its light.
+function paintLens(width: number, height: number, radius: number, kind: GlassKind, scale: number) {
   const key = `${width}/${height}/${radius}/${kind}/${scale}`
-  const cached = maps.get(key)
+  const cached = painted.get(key)
   if (cached) return cached
   const [edgeHeight, amount, zoom] = presets[kind]
   const hx = width / 2,
     hy = height / 2,
     normalRadius = Math.min(radius * 1.5, hx, hy)
+  // The outward direction of the nearest edge: straight off a side, or off a corner's centre.
   const normal = (x: number, y: number) => {
-    const nx =
-        roundedDistance(x + 0.5, y, hx, hy, normalRadius) -
-        roundedDistance(x - 0.5, y, hx, hy, normalRadius),
-      ny =
-        roundedDistance(x, y + 0.5, hx, hy, normalRadius) -
-        roundedDistance(x, y - 0.5, hx, hy, normalRadius),
-      length = Math.hypot(nx, ny) || 1
-    return [nx / length, ny / length] as const
+    const qx = Math.abs(x) - hx + normalRadius,
+      qy = Math.abs(y) - hy + normalRadius
+    if (qx > 0 && qy > 0) {
+      const length = Math.hypot(qx, qy)
+      return [(Math.sign(x) * qx) / length, (Math.sign(y) * qy) / length] as const
+    }
+    return qx > qy ? ([Math.sign(x), 0] as const) : ([0, Math.sign(y)] as const)
   }
   // Paints a map at `resolution`, visiting only pixels from `outside` beyond the edge to `band`
   // inside it: rows clear of the corners only visit either side, so most of a large pane is
@@ -96,13 +105,10 @@ function lens(width: number, height: number, radius: number, kind: GlassKind) {
       }
     }
     context.putImageData(image, 0, 0)
-    return canvas.toDataURL()
+    return canvas
   }
-  // Up to the display's own pixels, so narrow glass bends crisply on Retina screens; large panes
-  // keep a coarser bend (their bezel alone is resolved), which keeps opening a sheet smooth.
-  const bendResolution = Math.min(scale, 720 / Math.max(width, height))
   const displacement = paint(
-    bendResolution,
+    scale,
     edgeHeight,
     0,
     new Uint32Array(new Uint8ClampedArray([128, 128, 128, 255]).buffer)[0]!,
@@ -141,10 +147,68 @@ function lens(width: number, height: number, radius: number, kind: GlassKind) {
     data[k] = data[k + 1] = data[k + 2] = 255
     data[k + 3] = Math.round(Math.min(1, (bright + glow) * facing) * coverage * 255)
   })
-  const result = { displacement, rim }
+  const result = { bend: displacement, rim: rim.toDataURL() }
+  // Only slices and small glass are painted: a handful of sizes, kept.
+  painted.set(key, result)
+  return result
+}
+
+/*
+ * A rounded rectangle's bend and light depend only on the edge's direction and the distance to
+ * it, the same all along a straight edge. So a glass is painted once as a slice just larger than
+ * its corners, its bezel and its light band, along each side it is longer than that, and any
+ * length is made from the slice: the light is laid around the edge by the browser (a mask
+ * border), and the bend is put together from the slice's corners, edges and middle. Glass that
+ * magnifies its whole inside is painted whole.
+ */
+function lens(width: number, height: number, radius: number, kind: GlassKind): Lens {
+  const scale = Math.min(3, Math.max(1, Math.ceil(devicePixelRatio)))
+  const [edgeHeight, , zoom] = presets[kind]
+  const border = Math.ceil(Math.max(radius * 1.5, edgeHeight, 10)) + 1,
+    tile = 2 * border + 1
+  const across = !zoom && width > tile,
+    down = !zoom && height > tile
+  // Up to the display's own pixels, so narrow glass bends crisply on Retina screens; large panes
+  // keep a coarser bend, which only changes within the bezel and is smoothed between its points.
+  const resolution = Math.min(scale, 360 / Math.max(width, height))
+  const key = `${width}/${height}/${radius}/${kind}/${scale}`
+  const cached = composed.get(key)
+  if (cached) return cached
+  const slice = paintLens(across ? tile : width, down ? tile : height, radius, kind, scale)
+  let displacement: string
+  if (!across && !down) displacement = slice.bend.toDataURL()
+  else {
+    const source = slice.bend,
+      canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(width * resolution))
+    canvas.height = Math.max(1, Math.round(height * resolution))
+    const context = canvas.getContext('2d')!
+    // Each side's pieces: [from, length] in the slice and [to, length] in the whole.
+    const pieces = (sliced: boolean, from: number, to: number) => {
+      if (!sliced) return [[0, from, 0, to]] as const
+      const edge = border * scale,
+        middle = from - 2 * edge,
+        end = border * resolution
+      return [
+        [0, edge, 0, end],
+        [edge, middle, end, to - 2 * end],
+        [edge + middle, edge, to - end, end],
+      ] as const
+    }
+    for (const [sx, sw, dx, dw] of pieces(across, source.width, canvas.width))
+      for (const [sy, sh, dy, dh] of pieces(down, source.height, canvas.height))
+        context.drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh)
+    displacement = canvas.toDataURL()
+  }
+  const result: Lens = {
+    displacement,
+    rim: slice.rim,
+    slice: [down ? border * scale : 0, across ? border * scale : 0],
+    border: [down ? border : 0, across ? border : 0],
+  }
   // Resizing a window must not retain every historical size in memory.
-  if (maps.size >= 16) maps.delete(maps.keys().next().value!)
-  maps.set(key, result)
+  if (composed.size >= 16) composed.delete(composed.keys().next().value!)
+  composed.set(key, result)
   return result
 }
 
@@ -312,6 +376,8 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
       if (document.documentElement.dataset.opaque === 'true') {
         element.style.removeProperty('--refract')
         element.style.removeProperty('--rim')
+        element.style.removeProperty('--rim-slice')
+        element.style.removeProperty('--rim-border')
         delete element.dataset.refracting
         return
       }
@@ -343,6 +409,8 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
         image.setAttribute('height', String(h))
         image.setAttribute('href', map.displacement)
         element.style.setProperty('--rim', `url("${map.rim}")`)
+        element.style.setProperty('--rim-slice', map.slice.join(' '))
+        element.style.setProperty('--rim-border', map.border.map((value) => `${value}px`).join(' '))
         size = next
       }
       element.style.setProperty('--refract', `url(#${id})`)
@@ -370,6 +438,8 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
       fringe.current = null
       element.style.removeProperty('--refract')
       element.style.removeProperty('--rim')
+      element.style.removeProperty('--rim-slice')
+      element.style.removeProperty('--rim-border')
       delete element.dataset.refracting
     }
     attachment.current = { element, kind, dispose }
