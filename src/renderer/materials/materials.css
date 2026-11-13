@@ -39,7 +39,12 @@
       var(--rim-rest)
     )
     fixed;
-  mask: var(--rim, linear-gradient(transparent 0 0)) 0 0 / 100% 100%;
+  /* The pane's light map, laid around its edge from a slice (glass.ts). */
+  -webkit-mask-box-image: var(--rim) var(--rim-slice) fill / var(--rim-border);
+}
+/* Only glass with a light map of its own catches the pointer's light. */
+[data-glass]:not([data-refracting])::after {
+  display: none;
 }
 [data-theme='dark'] [data-glass]::after {
   --rim-rest: rgb(255 255 255 / 0.3);
@@ -49,7 +54,6 @@
   --mat-ground: var(--bg-window);
   --mat-sidebar: var(--bg-sidebar);
   --mat-chrome: var(--bg-elevated);
-  --mat-thick: var(--bg-elevated);
   --mat-sheet: var(--bg-elevated);
   --mat-pane: var(--bg-elevated);
   --stroke-hi: transparent;

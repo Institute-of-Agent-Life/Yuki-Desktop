@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
+import { readRim } from '../fixtures/rim'
 
 const evidence: Record<string, unknown> = {}
 test.afterAll(async () => {
@@ -21,23 +22,6 @@ async function openConversation(page: Page) {
   await page.evaluate(() => (window as unknown as GlassWindow).regression.connection('online'))
 }
 
-// The light map's pixel size, against the pane's own box at the display's pixel ratio.
-const lightMap = (page: Page, selector: string) =>
-  page.locator(selector).evaluate(async (element: HTMLElement) => {
-    const image = new Image()
-    image.src = getComputedStyle(element)
-      .getPropertyValue('--rim')
-      .match(/url\("?(.*?)"?\)$/)![1]!
-    await image.decode()
-    return {
-      image: [image.width, image.height],
-      expected: [
-        Math.round(element.offsetWidth * devicePixelRatio),
-        Math.round(element.offsetHeight * devicePixelRatio),
-      ],
-    }
-  })
-
 test('resting bubbles are shaped by their radius, and lit glass has its light at display resolution', async ({
   page,
 }) => {
@@ -57,33 +41,41 @@ test('resting bubbles are shaped by their radius, and lit glass has its light at
   expect(shape.clip).toBe('none')
   expect(shape.radius).toBe('18px')
   expect(shape.surface).toBe(shape.bubble)
-  // 2: the light map has the display's own pixels, so the rim stays smooth on Retina screens.
+  // 2, as revised by the 液态玻璃组件统一 task book: the light is a slice drawn at the display's
+  // own pixels, so the rim stays smooth on Retina screens at any size.
   const lit = page.locator('[data-region="composer"]')
   await expect(lit).toHaveAttribute('data-refracting', 'true')
-  const rest = await lightMap(page, '[data-region="composer"]')
-  evidence.restingLightMap = rest
-  expect(rest.image).toEqual(rest.expected)
+  const size = await lit.evaluate((element: HTMLElement) => ({
+    width: element.offsetWidth,
+    height: element.offsetHeight,
+    ratio: devicePixelRatio,
+  }))
+  const pixel = 1 / size.ratio
+  const rim = await lit.evaluate(readRim, [
+    [size.width / 2, pixel],
+    [size.width / 2, 4 * pixel],
+    [size.width - 2 * pixel, size.height / 2],
+    [pixel, size.height / 2],
+    [size.width / 2, size.height - 2 * pixel],
+  ] as [number, number][])
+  evidence.restingLightMap = { size, rim }
+  for (const [axis, length] of [
+    [0, size.height],
+    [1, size.width],
+  ] as const)
+    if (rim.slice[axis]) expect(rim.slice[axis]! / rim.border[axis]!).toBe(size.ratio)
+    else expect(rim.image[1 - axis]).toBe(Math.round(length * size.ratio))
   // 10, and 1–2 of the 苹果式打光 task book: a thin light on the edge facing it and a softer one
   // on the far edge, as in thick glass; the sides between stay dim and nothing draws an outline.
-  const light = await lit.evaluate(async (surface) => {
-    const image = new Image()
-    image.src = getComputedStyle(surface)
-      .getPropertyValue('--rim')
-      .match(/url\("?(.*?)"?\)$/)![1]!
-    await image.decode()
-    const canvas = new OffscreenCanvas(image.width, image.height),
-      context = canvas.getContext('2d')!
-    context.drawImage(image, 0, 0)
-    const alpha = (x: number, y: number) => context.getImageData(x, y, 1, 1).data[3]!
-    return {
-      top: alpha(Math.round(image.width / 2), 1),
-      inward: alpha(Math.round(image.width / 2), 4),
-      side: alpha(image.width - 2, Math.round(image.height / 2)),
-      left: alpha(1, Math.round(image.height / 2)),
-      bottom: alpha(Math.round(image.width / 2), image.height - 2),
-      outline: getComputedStyle(surface, '::before').backgroundImage,
-    }
-  })
+  const [top, inward, side, left, bottom] = rim.light
+  const light = {
+    top: top!,
+    inward: inward!,
+    side: side!,
+    left: left!,
+    bottom: bottom!,
+    outline: await lit.evaluate((surface) => getComputedStyle(surface, '::before').backgroundImage),
+  }
   evidence.restingLight = light
   expect(light.top).toBeGreaterThan(128)
   expect(light.bottom).toBeGreaterThanOrEqual(light.top * 0.35)
