@@ -1,17 +1,17 @@
 # Yuki Desktop
 
-在桌面上和你的 Yuki 對話：看她正在做的工作和成果，看她自己的電腦，也可以在你允許時讓她使用這台電腦。
+在桌面上和你的 Yuki 聊天：看她正在做什麼、做出了什麼，看她自己的電腦；你允許的話，她也能使用你的這台電腦。
 
 <p align="center"><img src="img/showcase/send.gif" alt="傳送訊息，Yuki 回覆" width="735"></p>
 
 <table>
   <tr>
     <td width="50%"><img src="img/showcase/work-detail.webp" alt="對話旁打開工作詳情，逐步看她做了什麼"></td>
-    <td width="50%"><img src="img/showcase/works.webp" alt="進行中與已完成的工作"></td>
+    <td width="50%"><img src="img/showcase/works.webp" alt="進行中與已結束的工作"></td>
   </tr>
   <tr>
     <td align="center">對話旁打開工作詳情，逐步看她做了什麼</td>
-    <td align="center">進行中與已完成的工作</td>
+    <td align="center">進行中與已結束的工作</td>
   </tr>
   <tr>
     <td width="50%"><img src="img/showcase/conversation-after.webp" alt="淺色"></td>
@@ -23,230 +23,104 @@
   </tr>
 </table>
 
-<p align="center"><a href="img/showcase/yuki-desktop-tour.mp4">▶ 觀看 18 秒介紹影片</a> · <a href="https://github.com/YuanYeYouTao/Yuki">Yuki 後端</a></p>
+<p align="center"><a href="img/showcase/yuki-desktop-tour.mp4">▶ 17 秒介紹影片</a> · <a href="https://github.com/YuanYeYouTao/Yuki">Yuki 後端</a> · <a href="https://github.com/Institute-of-Agent-Life/Yuki-Desktop/releases">全部版本</a></p>
 
-## 說明
+## 下載
 
-Yuki 的跨平台桌面客戶端專案。
+最新測試版：**[1.0.0-beta.9](https://github.com/Institute-of-Agent-Life/Yuki-Desktop/releases/tag/desktop-v1.0.0-beta.9)**
 
-公開下載見 [1.0.0-beta.8](https://github.com/Institute-of-Agent-Life/Yuki-Desktop/releases/tag/desktop-v1.0.0-beta.8)；目前 main 的後續變更、完整 PR 與發布阻塞見[下一版 beta 說明](docs/releases/next-beta.md)。安裝包與開發 main 的能力範圍分開記錄。
+| 平台                | 安裝檔                      |
+| ------------------- | --------------------------- |
+| macOS（Apple 晶片） | `Yuki-<版本>-mac-arm64.dmg` |
+| macOS（Intel）      | `Yuki-<版本>-mac-x64.dmg`   |
+| Windows x64         | `Yuki-<版本>-win-x64.exe`   |
+| Linux x64           | `.AppImage`、`.deb`、`.rpm` |
+| Linux arm64         | `.AppImage`、`.deb`、`.rpm` |
 
-使用 Electron、React 與 TypeScript 開發。桌面端透過版本化個人 API 連接獨立的 Yuki 後端，不包含另一套 Agent Runtime。
+測試版尚未經過平台正式簽章與公證：
 
-啟動即可進入工作區，Bot 可以稍後再設定。你可以從設定 →「Yuki 連接」選擇：
+- **macOS**：第一次開啟若被擋下，到「系統設定 → 隱私權與安全性」按「強制打開」。如果提示 App「已損毀」，在終端機執行 `xattr -dr com.apple.quarantine /Applications/Yuki.app` 後再開。
+- **Windows**：出現 SmartScreen 時選「其他資訊 → 仍要執行」。
 
-- **連接已有 Yuki**：貼上 `yuki://pair` 連結、綁定碼或完整回覆，確認 Yuki、伺服器及這台裝置的名稱後連接。QQ／Telegram 私聊的 `/ai link` 可取得配對資料；只有綁定碼時，再補上實例的完整網址。
-- **本機部署與管理**：使用 Docker 的 Linux 容器，在你選擇的目錄部署 Bot 與資料，填入角色、本人名稱和自己的模型服務設定。模型可位於本機或遠端；同機模型需允許容器來源連線。已有由桌面管理的部署可繼續啟動、停止或重新取得配對；其他已有服務可從「連接已有 Yuki」接入。
-- **稍後設定**：直接使用工作區、設定與說明。連接後才讀取該 Yuki 的真實對話、工作、檔案與資料；離開配對或本機部署頁可隨時返回工作區。
+之後可在「設定 → 一般」檢查更新，選擇跟隨正式版或測試版。更新下載完成後由你按「重新啟動以更新」，App 不會在工作途中自行重啟。
 
-共享資料、頭像、SOUL、模型設定與伺服器 Computer 管理使用當前 Person 的管理員資格，普通配對不授予資格，也不另設 owner 層。個人資料、工作和本機 Agent 操作沿原本人與執行身份處理；持久環境按後端部署配置。完整打包版本會準備配套部署資源，缺少 Docker、模型設定或配套資源時，頁面會顯示實際原因。
+## 開始使用
 
-設定 →「這台電腦」透過 `yuki-agent-connector`，讓已連接的 Yuki 操作本機 Shell、檔案與已安裝程式，以及可選的 Codex、Claude Code 與支援 ACP 的 Agent。桌面管理的連接器隨 Desktop 啟動與結束，不註冊開機自啟動服務；關閉視窗留在托盤時仍保持連接。原生帳號、會話與權限由原程式管理。
+桌面端本身不含 Agent，它連接一個 Yuki 後端。打開 App 就能進入工作區，連接可以稍後再設定，從「設定 → Yuki 連接」選擇：
 
-只驗證本機 Codex 發現、不執行模型任務時，明確設定 `YUKI_REAL_NATIVE_DISCOVERY=1` 與 `YUKI_NATIVE_DISCOVERY_EXPECT_COMMAND`（實際程式絕對路徑），再執行 `npm exec playwright test -- --config tests/live/native-agent-discovery.config.ts`。可另設 `YUKI_NATIVE_DISCOVERY_EXPECT_SOURCE` 核對來源 ID；這些值只作結果斷言，不注入候選。設定 `YUKI_DESKTOP_EXECUTABLE` 可驗收實際打包程式，未設定時使用已建置的源 App 和 `.cache/connector-runtime`。測試啟動隔離 App，經真實 main/preload IPC 發現原生安裝，不配對、註冊服務、連接 daemon 或派發模型任務；記錄留在 `.cache/native-agent-discovery`，與付費任務測試分開。
+- **連接已有的 Yuki**：在 QQ 或 Telegram 私聊對 Yuki 傳 `/ai link`，把收到的 `yuki://pair` 連結或綁定碼貼進來，確認 Yuki 和這台裝置的名稱即可。
+- **在這台電腦部署一個**：需要 Docker。選擇存放目錄，填入角色名稱、你的名字和自己的模型服務，App 會在本機啟動 Yuki 並自動配對；之後也能在這裡啟動、停止。詳見[本機部署說明](https://github.com/YuanYeYouTao/Yuki/blob/main/docs/operations/desktop-local-deployment.zh-CN.md)。
+- **稍後再說**：先看看工作區和設定。
 
-隔離 profile 只隔離 App 資料。打包程式啟動時仍沿產品行為註冊系統的 `yuki://` 協定，可能把關聯改到測試執行檔；建議使用臨時作業系統帳戶或虛擬機驗收，或在測試後恢復正式安裝的協定關聯。
+伺服器在遠端時，可以用 HTTPS 網址、[Tailscale](https://github.com/YuanYeYouTao/Yuki/blob/main/docs/operations/tailscale-connection.zh-CN.md) 或 SSH 隧道連線；之後換網址不需要重新配對。
 
-確認目前的 Yuki 與網址，勾選授權後按「連接這台電腦」。桌面準備完整安裝包隨附的執行環境，以目前本人身份完成配對並啟動背景連接，不要求先安裝或設定 Agent。不需要安裝 Python、wheel、Node、修改 PATH 或抄第二種配對碼。
+## 能做什麼
 
-「允許完整訪問本機」預設關閉；只能由這台電腦的本機設定開啟。開啟後，Yuki 使用執行 Connector 的 OS 帳號權限操作電腦，沒有額外的逐命令或逐目錄確認。需要操作瀏覽器等程式時，可經 Shell 使用本機已安裝的工具；本版不另外捆綁或管理瀏覽器 CLI。關閉開關阻止新的通用操作，原終端的讀取和停止、獨立授權的原生 Agent 仍可使用；停止連接器會斷開整台電腦。已啟動進程不因關開關自稱已中止，應查看或停止原執行。
+**對話**
 
-需要原生 Agent 時，展開原生 Agent 設定，選擇類型，尋找已有安裝或選擇實際程式，再儲存設定。Codex 的桌面應用、背景服務安裝包和 npm 是程式來源；預設連線會準備原 Codex daemon，明確設定 socket／endpoint 時只使用該目標。Claude Code 由隨附 SDK 呼叫所選 CLI，保留原生 profile。ACP 使用所選相容程式和它實際支援的參數。任務可指定工作目錄，已有會話沿原會話的目錄；工作目錄不是檔案存取白名單。
+- 傳文字、圖片、檔案、語音和表情；圖片、GIF、音訊、影片與 PDF 直接預覽，表情就顯示成表情。
+- Markdown、程式碼著色、公式和 Mermaid 圖表；網址可以點開，引用可以跳回原訊息。
+- QQ、Telegram 等其他入口的私聊也能在這裡查看，並引用到桌面對話。
+- 斷線時訊息不會丟，也不會重複送出：恢復後先核對伺服器是否已收到，再決定是否重送。
 
-編輯或刪除 Agent 設定不會重啟整台電腦的連接；隨附 Connector 0.4.4 會按原實例套用，其他 Agent、Shell 與檔案操作繼續使用原連接。刪除設定保留原生資料與歷史回執；仍獲授權的原任務控制沿原連接，不交給新設定認領。「裝置」中的電腦「移除」撤銷原授權並退出目前清單，保留歷史，不再允許遠端操作。
+**工作**
 
-Desktop 監督自己啟動的連接器：連接器非預期結束時依次等待 1、2、4… 秒（最長 1 分鐘）後重新啟動，連接器回報已連上伺服器後重新計算；明確停止連接或結束 App 時不會重新啟動。重新啟動時進行中的操作仍以原回執為準，不會重新派發。連接器的 stderr 寫入其資料目錄的 `connector-stderr.log`，與 `connector.log` 同樣按 4 MiB 輪轉兩份。「設定 → 這台電腦」顯示連接器回報的連線狀態、最近一次非預期結束與自動重新啟動次數，並可「匯出診斷」（狀態與兩份記錄的最後部分）。伺服器拒絕這台電腦的憑據時顯示「授權已撤銷」，連接器停止重新連線。
+- 列出進行中和已結束的工作，可以看步驟、子工作和用量。
+- 在原處回答她的問題、補充要求或取消；定時任務和她監督的編碼 Agent 也在這裡。
 
-支援操作電腦與瀏覽器的連接器會回報 Yuki 是否正在操作、是否已叫停，以及 macOS 的螢幕錄製與輔助使用權限。「這台電腦」頁與托盤選單在 Yuki 操作時顯示「Yuki 正在操作電腦／瀏覽器」與「停止」（從開始一個動作，到最後一個動作結束後 10 秒內；連接器結束即清除），按「停止」後顯示已叫停與「繼續」，在聊天裡請 Yuki 繼續也會恢復。本人自己使用電腦（按鍵、點擊、捲動，含螢幕共享；Windows 上移動滑鼠也算）不會叫停：Yuki 暫停當下這一步，等本人停手後重新截圖再繼續。Yuki 在背景操作某個視窗時（0.6.0 起的連接器），不動滑鼠與前台視窗，頁面與托盤顯示「背景」；只有本人正在用同一個 App 時它才暫停。叫停只保存在 Desktop 記憶體中，連接器重新啟動後由 Desktop 先行告知，不寫入檔案。macOS 權限歸屬 Yuki.app；連接器回報缺少權限時，Yuki.app 每次啟動向系統申請一次，使 Yuki 出現在系統設定的清單中；「設定 → 這台電腦 → 權限」的按鈕也會先申請再打開對應的系統設定，授權後關閉再開啟「本機連接」重新檢查。舊版連接器不回報這些狀態，頁面也不顯示。
+**檔案與成果**
 
-桌面會只讀發現預設位置的既有獨立安裝。「使用已有連接」沿用原執行環境、資料目錄、device、instance 與操作回執，不重新配對或啟停其獨立服務。「改用隨附版本，保留原資料」會將同一份安裝交由 Desktop 管理，移除它原有的自啟動服務，保留原身份與操作記錄。其他位置的安裝與專用 `connector` 授權碼保留在進階入口。
+- 她交付的檔案按來源列出，可預覽、另存、拖出，或挑另一份成果並排比較文字。
 
-Desktop 與連接器版本分別顯示。更新時保留原身份、設定與操作記錄；原本已停止的連接不會因更新啟動，執行中的連接才會重新啟動。儲存只改原設定，不暗中升級或啟停連接器；舊獨立服務或無法確認執行版本時，頁面會保留尚未同步的提示，由原服務重新載入。Codex 自己的 daemon 不由這個更新重啟。
+**Yuki 的電腦**
 
-更新 Desktop 不會替舊的 Agent-only 連接開啟完整訪問；需要更新連接器並在本機明確開啟。新能力狀態由實際選用的連接器回報。
+- 觀看她自己的 Linux 電腦，必要時接手操作，用完再交回。
 
-Codex 尋找範圍包括 Store、PATH、目前活動 npm 安裝與 daemon 包的穩定 `current` 入口。原設定若寫死已移除的版本，可從原 Agent 的編輯頁選擇尋找到的安裝，沿原 instance 儲存其來源，之後跟隨正常升級。ACP 的啟動參數逐項填寫，保留順序、空格與空參數；未編輯時保留原值，只有移除所有參數欄才是不帶參數。
+**這台電腦**
 
-一般遠端接入使用 Yuki 的完整 HTTPS 網址及 `/agents/v1/` WebSocket 入口，由伺服器部署者配置；使用者電腦只需連出。伺服器未提供入口時需先完成[配套部署](https://github.com/YuanYeYouTao/Yuki-QQbot/blob/main/docs/operations/desktop-local-deployment.zh-CN.md)，SSH 隧道保留為進階方式。
+- 在「設定 → 這台電腦」連接後，可以再選配你電腦上的 Codex、Claude Code 或其他 ACP Agent 給 Yuki 使用。
+- 再打開「允許完整訪問本機」，她就能執行命令、讀寫檔案、操作視窗。這個開關預設關閉，只能在這台電腦上打開。
+- Yuki 在操作時，頁面和選單列／系統匣都會顯示，隨時可以按「停止」。你自己動滑鼠或鍵盤時，她會先停下來等你。
 
-透過 Tailscale 接入時，電腦和伺服器分別安裝並登入[官方 Tailscale](https://tailscale.com/download)，加入獲准互通的網路。**Serve 指令只在執行 Yuki 的伺服器宿主機操作**；設定 →「連線」與原配對頁提供說明，Desktop 不執行 Serve，也不要求本機有 Tailscale CLI 才能填寫 HTTPS 網址或配對連結。可依[手動或 AI 輔助接入指南](https://github.com/YuanYeYouTao/Yuki-QQbot/blob/main/docs/operations/tailscale-connection.zh-CN.md)完成兩端設定。
+詳細的權限、更新與遠端接入說明見[這台電腦](docs/this-computer.md)。
 
-客戶端網址與電腦 Connector 網址各自保存，可以用不同地址連向同一個 Yuki；修改其中一邊不會自動改另一邊。保留原配對設定換線時，`device_id`、憑據、原生實例與操作回執不變，不需重新配對。已有 SSH 或 VPN 仍可繼續使用；遠端 Connector 使用 HTTPS/WSS，SSH 轉發至本機 loopback 可使用 HTTP/WS。
+**關於 Yuki**
 
-「這台電腦」依這台裝置顯示原終端輸出、狀態與完成回執，也可選擇原生會話、提交要求及回應原權限或問題請求。移除原生設定不會抹去該裝置的舊操作回執。停止請求沿原 run 與 request ID 查證，連線中斷時查詢原回執。伺服器接納、本機連接、原生就緒與實際執行結果分別顯示。Codex 連接原 daemon；Claude 沿原生 SDK 的會話與執行能力，不把讀取歷史說成接管任意執行中的終端。桌面不改原生登入或權限設定。
+- 角色資料、頭像和人格（`SOUL.md`）都可以在這裡編輯。
+- 可以看她記得你的事並更正或撤回，也可以暫停、恢復或取消她的安排。
+- 管理員還能設定模型和查看用量。
 
-目前 main 需要提供 **Client API revision 9** 與相應實際服務的配套 Yuki 後端，固定來源與 OpenAPI 內容雜湊見 [contracts/source.json](contracts/source.json)。桌面與後端應使用同一組配套版本；僅更新桌面不會升級後端。以下介紹產品入口及驗證安排，各平台原生操作、安裝包、簽章與部署結果以對應的實際運行記錄為準。
+**其他**
 
-開發環境需 Node.js 22.12 以上，使用已提交的 npm lockfile：
+- 可同時連接多個 Yuki，從側邊欄或 ⌘／Ctrl ⇧ [ ] 切換，各自保留草稿和版面。
+- ⌘／Ctrl K 開啟指令面板，搜尋已載入的訊息、工作和檔案。
+- 可設定通知、選單列／系統匣常駐和登入時開啟。
+- 有淺色和深色兩種外觀，介面是液態玻璃與磨砂材質。系統開啟「減少動態」時不做形變動畫；開啟「降低透明度」或高對比時改用不透明背景。
+
+## 資料與隱私
+
+- 裝置憑據由系統鑰匙圈加密保存；Linux 沒有可用的鑰匙圈時只保存在記憶體，重啟後需要重新配對。
+- 對話、草稿和待送訊息保存在本機的 App 資料目錄。登出時可以選擇保留，之後重新配對接著用；也可以全部刪除。已送到伺服器的內容不受影響。
+- 「設定 → 進階」可以匯出診斷資訊，內容不含憑據、連線地址、訊息或檔案。
+
+## 與後端的版本
+
+桌面端需要提供 Client API revision 9 以上的 Yuki 後端，[4.0.2](https://github.com/YuanYeYouTao/Yuki/releases/tag/v4.0.2) 即可使用。目前配套的後端提交記在 [contracts/source.json](contracts/source.json)；在本機部署時，用的就是這個版本。
+
+更新桌面端不會升級伺服器。以下兩項需要比 4.0.2 更新的後端，舊後端上會維持原本的顯示方式：
+
+- 表情顯示成表情，而不是附件卡片；
+- Yuki 自行接手的私聊工作只列在「工作」中，不出現在聊天裡。
+
+從舊版的雙提示詞升級時，見[升級到單一 SOUL](docs/upgrade-soul.md)。
+
+## 開發
 
 ```sh
 npm ci
 npm run dev
 ```
 
-驗證與本地打包：
+需要 Node.js 22.12 以上。測試、平台專項驗證和與後端聯調見[開發與驗證](docs/development.md)；打包與發行見 [RELEASING.md](RELEASING.md)。
 
-```sh
-npm run lint
-npm run typecheck
-npm run check:contract
-npm test
-npm exec playwright install chromium
-npm run test:e2e
-npm run package:dir
-npm run check:package
-```
-
-`npm run package` 產生目前平台的安裝檔，設定涵蓋 macOS DMG／zip、Windows NSIS、Linux AppImage／deb／rpm。打包成功、原生平台驗收及簽章發行分別驗證。建置命令預設不發布。
-
-Linux 跟隨目前的 Wayland／X11 桌面會話；需要 XWayland 時可傳入 `--ozone-platform=x11`。GNOME 自訂視窗按鈕配置由系統標題列呈現；overlay 無法建立時也會回退系統標題列，App 工具列維持 52px。
-
-視窗底與浮起的側邊欄使用系統材質，對話、工作、檔案與編輯區維持不透明。工具列群組與浮動輸入框使用背景折射玻璃；按鈕、分段控制、開關和縮放滑塊支援按壓回饋與可中斷的回彈。「減少動態」會即時取消形變，保留操作、焦點和數值更新。
-
-macOS 視窗底使用系統 vibrancy；Windows 11 22H2 以上使用 Mica，較早 Windows 與 Linux 使用實色背景。「永遠不透明」、系統降低透明度及高對比會立即改用實色，內容區保持不透明。
-
-macOS 使用全域應用程式選單；Windows／Linux 可從工具列「⋯」開啟原生選單，配對前與設定頁也能使用。按鈕支援 Enter、空白鍵與向下鍵；Ctrl／⌘+K 開啟指令面板。結束命令會沿目前的草稿與控制權確認流程處理。
-
-指定架構、產物檢查與正式簽章程序見 [RELEASING.md](RELEASING.md)。一般打包不公證；正式 macOS／Windows 設定另行要求簽章，缺少憑證時會失敗。
-
-原生殼驗證可將 `YUKI_ELECTRON_EXECUTABLE` 設為打包後執行檔的絕對路徑，再執行 `npx playwright test --config playwright.shell.config.ts`，不需開發伺服器。測試使用獨立資料目錄並保留 sandbox；Windows 專項要求已登入的互動桌面，檢查視窗按鈕區域、Alt 選單與原生加密跨程序重開。這組檢查不涵蓋安裝、簽章或更新。可用 `YUKI_NATIVE_EXPECT_ARCH` 核對實際 App 程序架構；在已安裝 Rosetta 的 Apple Silicon 測試 x64 包時，另設 `YUKI_NATIVE_EXPECT_TRANSLATION=1`，將轉譯結果與 Intel 真機驗收分開記錄。
-
-Windows 對話相關驗證需 operator 啟動全新隔離的 Yuki 參考服務（`tests.support.desktop_reference_server`，停用電腦夾具），並將其 loopback URL 設為 `YUKI_DESKTOP_NATIVE_BACKEND_URL`。使用同一原生測試設定：
-
-- `windows-onboarding.spec.ts`：720×560 初始視窗目標（保留分數縮放的原生 DIP 捨入量測）、主視覺、欄位與鍵盤配對。
-- `windows-client.spec.ts`：配對、送出回應遺失、程序強制結束後沿原 DPAPI／outbox／草稿接回，以及原事件引用刪除。
-- `windows-files.spec.ts`：透過實際原生儲存對話框匯出已有對話的診斷，核對敏感內容排除。測試只操作本次 App HWND 子樹，並以原生 PID、控制項 ID 與 owner 核對後輸入，保留真正的對話框回傳。
-
-`windows-avatar.spec.ts` 另需啟用參考服務的角色夾具，將其 `__test/avatar-inputs` 產生的旋轉 JPEG 複製到 Windows，並以 `YUKI_NATIVE_AVATAR_INPUT` 指向該本機檔案。案例走真開啟對話框、EXIF 方向與裁切儲存，核對另一裝置的 SSE 更新及冷重開；不替換選擇器回傳值。
-
-`windows-media.spec.ts` 使用同一隔離服務，走真選檔與另存對話框，注入上傳回應遺失，移除自己建立的兩份輸入後，從第二裝置預覽並核對另存內容的 SHA-256、大小與到期收斂。測試保留設定檔與輸出供查核。
-
-SOUL 測試使用本版後端的 `tests.support.soul_reference_server`，由明確指定的 checkout 與 Python 啟動隔離服務。`prompts.spec.ts` 經實際 Electron 驗證空 SOUL 儲存與強制結束主程序後的原草稿恢復；`windows-prompts.spec.ts` 檢查 Windows 鍵盤儲存。這些案例不呼叫付費模型，不代表其他平台的原生驗收。
-
-`windows-work.spec.ts` 使用全新隔離服務，驗證獨立的問題回答／補充草稿、主程序崩潰恢復、輸入已提交但回應遺失、App 關閉後原 Work 繼續完成，以及重開後從原 namespace 查回同一回執而不重送。
-
-`windows-character-data.spec.ts` 使用全新角色資料服務，經真介面更正記憶、處理兩裝置衝突及忘記，並於回應遺失後強制結束原主程序，核對原請求 ID／雜湊的接續；同時驗證安排 revision、取消後的舊恢復請求、角色名稱衝突與裝置撤銷。
-
-`windows-roles.spec.ts` 另需 `YUKI_DESKTOP_NATIVE_SECOND_BACKEND_URL` 指向第二個獨立參考服務，兩邊均啟用角色與提示詞 fixture。它經原生選圖、真 Yuki 切換、快捷鍵、強制結束及重開，驗證原對話、草稿、頭像裁切狀態、欄寬與 Yuki 切換。
-
-`windows-window-geometry.spec.ts` 從全新配對開始，實際調整原生視窗並讀取 SQLite 已保存的外框位置與尺寸，再強制結束主程序、連續冷重開兩次，核對外框、內容與邏輯視埠不逐次偏移，並驗證移出工作區後的收斂與實際尺寸保存。
-
-`windows-window-controls.spec.ts` 經設定頁切換淺／深主題，擷取本次 App 原生 HWND 的完整像素，量測系統視窗按鈕的對比與視窗尺寸；再以 UI Automation 的真正按鈕執行最大化／還原並核對外框。測試逐次核對程序、執行檔、互動會話與 HWND，不擷取整個桌面。
-
-`native-materials.spec.ts` 使用同一隔離服務與打包執行檔，經真外觀控制驗證側邊欄、內容與原生背景、材質關閉後的冷恢復及再次啟用；原生合成器觀感另行檢查。 `mac-material-contrast.spec.ts` 另以本次 App 的 CGWindowID 擷取系統合成後的視窗，檢查明暗材質、不透明及高對比下的側邊欄文字，不擷取整個螢幕；執行環境需允許視窗擷取。
-
-`native-toolbar-scroll.spec.ts` 以真對話的唯一 5,000 字訊息與原事件，經實際滑鼠滾輪驗證工具列捲動材質、回到頂端、四種外觀及設定頁隔離，再以短訊息確認 Main 回覆可接續；不直接賦值捲動狀態。
-
-`native-message-copy.spec.ts` 以隔離的源 App、macOS 原生右鍵選單及系統剪貼簿驗證選區、全文與 ⌘C。先設定 `YUKI_BACKEND_TEST_ROOT` 和 `YUKI_BACKEND_TEST_PYTHON` 指向固定版後端與其 Python，並在已授予輔助使用權限的互動桌面執行 `YUKI_NATIVE_MESSAGE_COPY=1 npm run test:e2e -- native-message-copy.spec.ts`。輸出包含 `message-copy.json` 和 Playwright trace。
-
-`native-about-layout.spec.ts` 使用啟用角色夾具的全新隔離服務，經設定控制切換外觀，在標準與矮工作區量測角色頁欄寬、記憶排版和小字對比，再從記憶依據按鈕回到同一原始事件。Windows 同時保留核對 PID／HWND 的原生視窗擷取。畫面證據供人工對照；工作區模擬、原生視窗和 OS 顯示縮放分別記錄。
-
-`native-file-layout.spec.ts` 以真服務交付的兩個同名成果驗證列表、原版本預覽與來源跳轉，檢查長檔名保留副檔名、時間／來源可讀及矮工作區的儲存入口。Mac 標準尺寸為 1440×900，Windows 原生檢查採 1360×833，另檢查 1100×760 與 960×492 工作區；後者可能使用 Electron 工作區模擬，證據會明列。Windows 圖片只擷取本次 App 的 HWND。
-
-`native-artifact-actions.spec.ts` 以真後端和實際起拖手勢核對原檔內容、儲存後冷恢復、本機副本刪除及原事件撤銷；系統儲存、顯示及拖放邊界使用記錄器，不能當作 OS 驗收。`windows-artifact-actions.spec.ts` 另走真 Windows 儲存對話框、Explorer 原檔選取及跨程序 FileDrop；接收器與滑鼠路徑都核對本輪 PID、HWND 和工作階段，只接收並複製測試原檔，不操作其他視窗。
-
-`native-work-layout.spec.ts` 從真 Main 建立工作，經外觀設定、列表 Enter、檢視器 Space／Esc 核對來源、步驟與時間的版面和焦點恢復，再回答原問題並核對同一 Work、預算根及原請求結果。Mac／Windows 的原生視窗尺寸與矮工作區模擬分開記錄，Windows 只擷取本次 App 的視窗。`work-components.spec.ts` 另經實際文字輸入驗證超長步驟標籤、狀態圖示與時間，不代替真後端流程。
-
-`native-pairing-availability.spec.ts` 驗證配對前缺少桌面介面的原始 404 提示、憑據未送出與重新嘗試真後端；不把故障注入當正式環境配對成功。
-
-Windows 專項在未提供測試服務或非 Windows 時明確跳過，不讀取部署設定。
-
-安裝包檢查也會驗證 ASAR 內每個封裝檔的 SHA-256 與 Electron 分塊摘要，避免只有目錄及壓縮檔校驗正確、內部程式已損毀的包進入待發行集合。
-
-設定沿用目前 Yuki 的側邊欄與工作區，從側邊欄可直接回到對話或工作；小視窗會收合側邊欄，工具列仍可開啟導覽。返回時恢復原本的檢視器與工作區。
-
-設定 →「一般」可選一般或測試版本並檢查更新。App 不會自行下載或在工作中途重新啟動；下載完成後可按工具列的「重新啟動以更新」。更新沿用離頁確認與電腦控制權的交回選擇，並等待已開始的本機操作收尾。安裝被拒絕時可繼續使用原連線與資料，再次檢查或前往官方下載頁。macOS、Windows 與 AppImage 使用更新安裝流程；deb／rpm 提供新版提示及手動下載。開發模式不檢查更新。
-
-Windows 首次配對會等系統加密金鑰真正寫入設定檔後才完成，避免第一次使用期間程序崩潰使已加密憑據無法解開。等待依實際寫入事件收斂，不以固定延遲宣稱保存成功。
-
-本機資料保存在作業系統的應用程式資料目錄；視窗與外觀偏好使用 SQLite。Renderer 隔離於 Node.js，透過明列的 IPC 操作本機功能。
-
-連接已有實例時，完整網址可含路徑前綴。配對連結可直接帶入位址與綁定碼；需要時亦可在同一頁編輯位址，再確認 Yuki 與裝置名稱。裝置憑據由主程序使用系統金鑰圈加密；Linux 沒有可用金鑰圈時，只保留在本次執行的記憶體，重啟後需重新配對。
-
-待確認訊息與草稿依原角色、本人及 App 入口分開保存在 SQLite。斷線後以原請求 ID 查證回執，只有確認不存在才同號重送；無法查證時保留原文。已接納的新訊息在目前歷史快照追上前保留原文及回執狀態，同步後以同一則正式訊息接續顯示。其他本人入口的歷史唯讀，可引用到桌面對話。最近讀取的內容可離線查看；伺服器確認失去讀權時清除讀快取。
-
-`contracts/` 保存固定版本的 OpenAPI 與來源提交、內容雜湊。`npm run check:contract` 核對快照及生成型別，建置不讀取其他本機倉庫。需要與後端聯調時，可明確指定隔離的測試 checkout 與 Python 環境：
-
-```sh
-YUKI_BACKEND_TEST_ROOT=/path/to/test-checkout \
-YUKI_BACKEND_TEST_PYTHON=/path/to/test-checkout/.venv/bin/python \
-npm run test:e2e -- tests/e2e/backend.spec.ts
-```
-
-預設測試依測試宿主分組：`@unix-manager` 需要 Unix socket，Windows 不選取這組；`@linux-supervisor` 另需 Linux `/proc`，macOS 也不選取。混合檔案中的其他案例仍會執行。Windows 客戶端連接 Linux 角色電腦可另跑下述真有頭桌面案例；未選取的宿主案例不算通過。
-
-該測試使用實際 Yuki 應用程式容器、帳本與 App Gateway，在臨時目錄建立測試資料，模型回覆使用固定測試 Provider，不呼叫付費服務。`tests/e2e/agent-connector.spec.ts` 覆蓋統一接入、Codex／Claude 選擇、已有安裝關聯及原實例重試；原生程式、真帳號和三平台服務另行驗收。
-
-`tests/e2e/real-computer-host.spec.ts` 使用 `YUKI_DESKTOP_REAL_BACKEND_URL` 指向操作者另行啟動的隔離測試 API，要求外部真 Manager 與角色桌面，測試不啟停 Manager。`YUKI_DESKTOP_EXECUTABLE` 指定打包程式；故障後可用 `YUKI_DESKTOP_REAL_PROFILE_ROOT` 指定該測試保留的臨時資料目錄，按原 Work ID 接續。測試在真瀏覽器確認完整輸入已到達後才交回，再核對原執行、預算、回執及實際發布的成果內容。
-
-`tests/e2e/real-headed-computer.spec.ts` 可用 `YUKI_DESKTOP_HEADED_BACKEND_URL` 指向已啟動真 Xvnc 與 Chromium 的隔離 API，檢查畫面、接手、實際鍵盤與中文剪貼簿輸入、PNG 截圖、切頁後原控制租約及交回。輸入由遠端瀏覽器的真 HTTP 回傳核對；測試使用臨時 App 設定檔，不啟停該 API，也不代表三平台安裝包或正式環境已驗收。
-
-`tests/e2e/real-computer-lifecycle.spec.ts` 另需 `YUKI_DESKTOP_REAL_MANAGER_RESTART=1`，以兩個實際桌面設定檔驗證純等待跨三個控制租約。測試在輸出目錄寫出各次重啟閘點，由操作者核對後只重啟隔離 Manager；以 Linux 核心的 Unix peer PID 確認真重啟，核對原容器、執行與等待持續，最後交回才接續原工作。測試本身不操作部署服務；已有 L1 等待時可沿保留的兩個設定檔接續，不能用已完成工作重新送出。
-
-對話可透過「附加檔案」或拖放加入附件；主程序先保存原件快照並核對上傳回執，附件可送出後才建立含附件的訊息。另一台裝置可從原事件預覽及存檔，內容會核對伺服器提供的 SHA-256。到期或原來源無法取得時會顯示原因。
-
-對話中的圖片與 GIF 可直接查看，包括 Yuki 交付的成果圖片。附件與「檔案與成果」共用圖片、音訊、影片和 PDF 預覽；音訊與影片可播放、暫停及拖動進度。大檔案由主程序從已查證的磁碟快取分段讀取，不把整份影音透過 IPC 複製到頁面。
-
-Markdown 保留原有程式碼色彩與複製，新增本機公式及 Mermaid 圖表。內部圖片可使用 `artifact:<id>@<sha256>` 或 `attachment:<conversation-id>/<event-id>/<index>`，按原來源權限讀取；外部圖片網址顯示為連結。渲染方式與本地驗證記錄見 [媒體預覽說明](docs/media-preview.md)。
-
-語音按一下開始錄製，再按一下或「結束錄音」完成；Esc 取消。語音使用 Opus／WebM，上傳到目前 Yuki 的伺服器。轉寫沿伺服器既有 ASR 設定，沒有轉寫時會如實顯示。
-
-引用膠囊可跳回精確原事件；原文無法讀取時會顯示原因。向上捲動可載入更早訊息，搜尋範圍是本機已載入內容。程式碼區塊支援語法色彩及複製。
-
-⌘／Ctrl K 開啟指令面板，搜尋目前 Yuki 已載入的訊息、工作與檔案，或開啟設定及電腦。上下鍵選取，Enter 開啟原位置，⌘／Ctrl Enter 在工作區舞台開啟，Esc 關閉並回到原焦點。面板不會載入尚未讀取的歷史；訊息在開啟前會核對原入口與事件 ID。
-
-設定可選 Enter 或 ⌘／Ctrl Enter 送出，並分別開關主動訊息、等待回覆、工作完成及電腦協助通知。通知依伺服器目前事實產生；點擊可開到所屬 Yuki 與項目。關閉視窗時可保留在選單列／系統匣；Linux 顯示圖示需要桌面支援 AppIndicator。
-
-設定中的「登入時開啟」使用系統登入項目；系統要求核准時會顯示原因，核准後可重新讀取狀態。開發版不註冊登入項目。時間可選 UTC+8 或跟隨系統，來源時間不會被修改。「進階」可匯出版本、平台、偏好與佇列計數摘要，內容不包含憑據、連線地址、訊息或檔案內容。
-
-「Yuki 連接」可更改同一個 Yuki 的網址：先核對公開身份與版本，再以原憑據確認原本人入口；確認完成才更新位址，待確認內容仍使用原請求查證。主動訊息目的地可選本人有效入口；另一台裝置變更時會重新讀取目前事實，尚未儲存的選擇會保留並提示版本變更，沒有接收連線的入口會顯示原因。
-
-「裝置與安全」列出本人的裝置與撤銷紀錄，可確認撤銷其他裝置。綁定碼與 QR 在 10 分鐘內可使用一次；明文只在當次視窗顯示，關閉或到期即移除。本機只保存發碼請求及有效期限，回應遺失可查證是否已發碼，但無法取回明文；需要另一個碼時必須明確產生。
-
-登出會先收尾進行中的本機操作並確認裝置憑據失效，再列出草稿、待確認請求與待送附件的數量。選擇保留後，同一位本人重新配對可接續；另一位本人使用獨立的本機空間。選擇刪除會移除這個入口的本機資料與快取，已送達伺服器的對話、工作、成果及另存檔案會保留。中途重啟可繼續選擇，刪除失敗可依原選擇重試。尚未完成選擇時仍可開啟配對連結；同一個 Yuki 會要求先返回處理原入口的本機資料，才接受新的配對。
-
-設定 →「進階」的「舊版操作記錄」可只讀匯出已保留的頭像及本機操作原記錄，保留原 UUID、狀態與回執；App 不重新派發它們，也不將它們改寫成本機 Agent 的新任務。
-
-「工作」可依來源篩選、查看進行中與已結束的工作、公開步驟、子工作、等待條件與原預算。補充會送進原工作；取消需要確認，並使用打開確認視窗時的 revision。這兩類命令保存在原入口的本機佇列，回應遺失時以原 UUID 查證，不會自動建立另一個請求。
-
-工作詳情可展開問題、在原位置回答，也可在底部補充要求。回答依原問題保存草稿，與補充分開。問題更新或另一台裝置已處理後，未送出的回答仍留在原工作供複製，不會套到下一個問題；工作結束後，未送出的補充也會以唯讀顯示。
-
-右側檢視器可切換「工作／電腦／檔案」，內嵌畫面僅供觀看。接手或轉移控制確認後開啟完整畫面；也可直接選「開啟完整畫面」繼續觀看，這個按鈕不會取得控制權。回應遺失時保留原操作供查證。切換分段時保留原工作補充草稿與檔案版本；分段選擇和欄寬按 Yuki 及本人入口保存。方向鍵可切換分段，展開工作區會把目前內容放到舞台；關閉舞台、Esc 或檢視器快捷鍵會收回並返回工具列焦點。小視窗使用覆蓋面板，點擊外部也可關閉；只有可見的固定欄位顯示拖曳分隔線。
-
-分隔線支援拖曳與左右方向鍵，每次按鍵調整目前可見寬度 4px。雙擊會回到預設：側邊欄 260px，檢視器在視窗寬度達 1680px 時為 440px，其餘為 380px，窄窗仍會保留中欄最小寬度。手動欄寬與既有保存值會保留，直到再次雙擊重設。關閉面板或切換工作區會結束尚未放開的拖曳。
-
-「檔案與成果」依伺服器確認的來源列出成果。同一成果的多次引用合併，同名檔案仍分開；預覽、存檔及從成果列表拖出原檔都核對指定版本的 SHA-256。已存到本機且檔案仍存在時可在檔案管理器顯示。可從目前可讀的成果明確選擇另一項，依原成果 ID 與內容版本並排比較文字；發布路徑未提供時不猜測。Markdown、程式碼及 PDF 可直接預覽，其他格式可明確選擇以系統預設程式開啟。來源失去讀權後會移除私人預覽快取，已另存的本機檔案保留。
-
-連接後可開啟角色的「電腦」觀看、接手、轉移控制及交回。電腦狀態、接手與交回控制位於頂部工具列，切換頁面時隨目前 Yuki 與頁面更新。輸入由伺服器依目前租約核驗；剪貼簿只在明確按「貼上」時傳送，並核對當前畫面已支援文字貼上；連線或控制權改變時，不會把未送出的文字轉貼到新畫面。結束 App 時可選擇交回或保持控制，意外斷線會保留控制權。工作區檔案可儲存讀取當下內容，並核對 SHA-256；它與已發布成果的固定版本不同。畫面採 noVNC 1.7.0，角色環境需部署相符後端能力；固定 OpenAPI 的來源提交與可取得狀態記在 `contracts/source.json`。
-
-「關於」顯示角色資料、本人記憶、她對自己的記錄、安排與目前能力。記憶的依據只列出本人可讀的原訊息；本人可更正或撤回自己的記憶，SELF 記憶依實際讀權展示並保持唯讀。更正會建立修正依據，撤回需確認。安排可暫停、恢復或取消，已發生的紀錄保留。可修改名稱、簡介及淺深角色色，身份與歷史不隨呈現資料改變。這些命令依原入口保存 UUID 與版本，衝突時重新讀取，回應遺失時查證原請求。
-
-可在「關於」的角色頭像入口選圖、拖入或貼上圖片，調整裁切後更換連接這個 Yuki 的各裝置共用的頭像；它與你的 QQ 或其他平台帳號頭像分開。只有裁切後的 1024×1024 PNG 會上傳，小圖會提示清晰度，仍可儲存。入口依伺服器的 `character_avatar` 能力顯示，能力讀取失敗會保留未知狀態供重新讀取。還原直接使用目前頭像版本，採用該實例的預設頭像，沒有預設時使用名稱字首。送出的裁切與原 UUID 保存在既有命令佇列，回應遺失可在重啟後查原回執；版本衝突保留裁切，待你明確選擇。macOS 使用系統解碼支援 HEIC。舊版獨立頭像佇列可從「舊版操作記錄」明確匯出原記錄，執行時不自動重派。
-
-可編輯唯一的 `SOUL.md`，使用 ⌘／Ctrl S 儲存、⌘／Ctrl F 搜尋及復原／重做。SOUL 是使用者自訂的人格原文，可為空；精確的 `{{name}}` 使用目前角色名稱，不遞迴展開。本機草稿保留開始編輯時的版本；另一台裝置更新時可比較、手動合併或明確覆蓋。儲存採原 UUID、內容雜湊與回執查證，只有受控 SOUL 檔案寫入可沿原內容恢復；檔案已寫入但尚未生效時可明確重新載入。新版在下一次新的回覆或工作恢復時採用，正在進行的激活沿用原內容。名稱更正使用角色資料的 revision，不改歷史與原請求。
-
-[開發約束](docs/architecture/development-contract.md)隨原始碼維護。任務書、調研、設計文件、互動原型與其預覽／檢查材料只在本地維護，不在此發布。安裝包以產品檔案白名單建置，並經封裝內容檢查。E2E 在原輸出目錄保留 JSON 報告、每例 trace 與既有流程產物；CI 在 macOS arm64、Windows x64 與 Linux x64 各分三片執行 E2E，獨立上傳 `Yuki-e2e-results-<platform>-<arch>-<shard>`，不加入安裝包或正式 Release；Intel Mac 與 ARM Linux 只執行單元測試與封裝。
-
-設定 →「Yuki 連接」→「連接另一個 Yuki」可接入另一個已部署的 Yuki 後端實例。這些實例可部署在同一台或不同伺服器，各自保存對話、設定與資料。桌面端管理與切換連接，不會因此建立或遷移後端資料庫。兩個以上連接會在側邊欄顯示「切換 Yuki」，也可用 ⌘／Ctrl ⇧ [、] 切換。各連接保留自己的聊天草稿、已開啟工作區、編輯器及欄寬；查詢快取、憑據與原請求依原身份分開。切換時會停止原連接的錄音，已錄內容仍留在原連接；遠端電腦的控制權仍屬原操作。提示詞有未儲存變更時，仍須先處理離頁確認。
-
-後端專案：[Yuki](https://github.com/YuanYeYouTao/Yuki)。
-
-## 從舊的雙提示詞升級
-
-先退出 App，完成後端的單一 SOUL 升級，再更新桌面。桌面執行時不讀取舊提示詞資料表，也不自動補發舊請求。
-
-需要保留尚未送出的舊草稿時，下載本版原始碼並執行 `npm ci`，對每個原角色／Person／Binding 的 outbox 執行一次明確轉換：
-
-```sh
-npm run upgrade:soul -- --database /absolute/path/to/original.sqlite3 --source persona
-```
-
-`--source` 選擇 `persona` 或 `system_prompt`，直接選用該份原始文字，不拼接兩份衝突內容；選擇 `none` 僅保存原件而不匯入草稿。資料庫位於 App 資料目錄的 `connections/<character>/outbox/<person>/<binding>.sqlite3`。轉換使用本版 Electron 的 SQLite 原生模組，不以系統 Node 直接載入。
-
-工具先在原資料庫旁寫出私有的 `.soul-upgrade.json` 原件，保留兩份草稿及舊 UUID、payload 與 hash，再移除舊資料表。選中的原始文字另存為 `.soul-draft.md`，請開啟新版 SOUL 編輯器，明確貼入並儲存。App 不讀取這兩份匯出原件，執行時沒有舊資料的轉換分支。舊 pending／unknown 可用原 UUID 經既有 `GET /client/v1/requests/{id}` 唯讀查證，不會轉換成新請求，也不阻止新的 SOUL 編輯。備份含私人人格原文，請勿提交或附於一般診斷。
-
-公開 OpenAPI 由後端實際 HTTP 路由與回應模型導出，桌面共用其生成型別。角色資料、記憶、安排、檔案、工作步驟、角色電腦與本機 Agent 連接器均沿各自真實服務接線；測試夾具、介面呈現與正式環境驗收分別記錄。
-
-授權：[AGPL-3.0-only](LICENSE)。
-
-`control-motion.spec.ts` 驗證實際拖曳、取消、鍵盤與背景像素折射；`frosted-workspace.spec.ts` 使用隔離真後端核對四種外觀、三個尺寸、原回執與草稿。兩者均不呼叫付費模型，截圖只作本地審閱。
+授權：[AGPL-3.0-only](LICENSE)

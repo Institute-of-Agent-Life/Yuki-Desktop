@@ -176,6 +176,7 @@ def media_routes(self, app: FastAPI):
 
     @app.post("/__test/media-expiry/{event_id}")
     async def expiry(event_id: int):
+        """The cached copy is due for revalidation in five seconds; the test removes the original."""
         async with self.runtime.database.immediate_session() as writer:
             rows = await writer.scalars(
                 select(ConversationMediaItemModel).where(
@@ -183,18 +184,7 @@ def media_routes(self, app: FastAPI):
                 )
             )
             for item in rows:
-                item.expires_at = datetime.now(UTC) + timedelta(seconds=3)
-        expire = next(
-            route.endpoint
-            for route in app.routes
-            if getattr(route, "path", "") == "/__test/expire-attachments/{event_id}"
-        )
-
-        async def remove_original():
-            await asyncio.sleep(2.9)
-            await expire(event_id)
-
-        asyncio.create_task(remove_original())
+                item.expires_at = datetime.now(UTC) + timedelta(seconds=5)
         return {"ok": True}
 
     @app.post("/__test/link-work-scenario")
