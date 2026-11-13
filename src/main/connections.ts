@@ -24,6 +24,7 @@ import type {
   LogoutSummary,
 } from '../shared/api'
 import { REQUIRED_API_REVISION } from '../shared/api'
+import type { PlatformApplyInput, PlatformControlResult, PlatformsView } from '../shared/platforms'
 import type {
   ModelApplyInput,
   ModelBundle,
@@ -373,6 +374,19 @@ export class Connections {
       expected_revision: input.expectedRevision,
       document: input.document,
       ...(input.apiKeys === undefined ? {} : { api_keys: input.apiKeys }),
+    })
+  }
+  async platforms(id: string) {
+    return (await this.modelClient(id)).get<PlatformsView>('platforms')
+  }
+  async applyPlatform(id: string, input: PlatformApplyInput) {
+    return (await this.modelClient(id)).post<PlatformControlResult>('platforms/apply', {
+      request_id: input.requestId,
+      expected_revision: input.expectedRevision,
+      platform: input.platform,
+      enabled: input.enabled,
+      settings: input.settings,
+      secrets: input.secrets,
     })
   }
   async testModel(id: string, input: ModelTestInput) {
@@ -897,7 +911,8 @@ export class Connections {
     )
       throw new ApiError('invalid_response')
     uuid(meta.character.id)
-    if (meta.api_revision < REQUIRED_API_REVISION) throw new ApiError('server_upgrade_required')
+    if (meta.api_revision < REQUIRED_API_REVISION)
+      throw new ApiError('server_upgrade_required', String(meta.api_revision))
     const compatible =
       meta.min_client.desktop === null || meetsMinimum(this.version, meta.min_client.desktop)
     if (compatible === null) throw new ApiError('invalid_response')

@@ -30,7 +30,7 @@ npm run check:package
 
 ## 後端契約與聯調
 
-目前 main 需要提供 **Client API revision 9** 與相應實際服務的配套 Yuki 後端，固定來源與 OpenAPI 內容雜湊見 [contracts/source.json](../contracts/source.json)。桌面與後端應使用同一組配套版本；僅更新桌面不會升級後端。以下介紹產品入口及驗證安排，各平台原生操作、安裝包、簽章與部署結果以對應的實際運行記錄為準。
+目前 main 需要提供 **Client API revision 11** 與相應實際服務的配套 Yuki 後端，固定來源與 OpenAPI 內容雜湊見 [contracts/source.json](../contracts/source.json)。桌面與後端應使用同一組配套版本；僅更新桌面不會升級後端。以下介紹產品入口及驗證安排，各平台原生操作、安裝包、簽章與部署結果以對應的實際運行記錄為準。
 
 `contracts/` 保存固定版本的 OpenAPI 與來源提交、內容雜湊。`npm run check:contract` 核對快照及生成型別，建置不讀取其他本機倉庫。需要與後端聯調時，可明確指定隔離的測試 checkout 與 Python 環境：
 
@@ -49,6 +49,8 @@ npm run test:e2e -- tests/e2e/backend.spec.ts
 `tests/e2e/real-headed-computer.spec.ts` 可用 `YUKI_DESKTOP_HEADED_BACKEND_URL` 指向已啟動真 Xvnc 與 Chromium 的隔離 API，檢查畫面、接手、實際鍵盤與中文剪貼簿輸入、PNG 截圖、切頁後原控制租約及交回。輸入由遠端瀏覽器的真 HTTP 回傳核對；測試使用臨時 App 設定檔，不啟停該 API，也不代表三平台安裝包或正式環境已驗收。
 
 `tests/e2e/real-computer-lifecycle.spec.ts` 另需 `YUKI_DESKTOP_REAL_MANAGER_RESTART=1`，以兩個實際桌面設定檔驗證純等待跨三個控制租約。測試在輸出目錄寫出各次重啟閘點，由操作者核對後只重啟隔離 Manager；以 Linux 核心的 Unix peer PID 確認真重啟，核對原容器、執行與等待持續，最後交回才接續原工作。測試本身不操作部署服務；已有 L1 等待時可沿保留的兩個設定檔接續，不能用已完成工作重新送出。
+
+`tests/e2e/platforms.spec.ts` 經真後端驗證設定的「平台」頁：被拒憑據的原因、revision 衝突、回應遺失後以原請求號確認、設定目錄不可寫，以及 QQ 官方 Bot／SnowLuma 與三種語言的截圖。憑據預檢會以被拒的假憑據實際連到 Telegram 等平台，不呼叫付費服務。舊後端案例另需 `YUKI_BACKEND_PREVIOUS_ROOT` 與 `YUKI_BACKEND_PREVIOUS_PYTHON` 指向 revision 低於 11 的後端 checkout，未設定時跳過。
 
 ## 原生殼與平台專項
 

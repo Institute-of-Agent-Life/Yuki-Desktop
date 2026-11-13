@@ -828,6 +828,18 @@
         "title": "Envelope[ModelTestResult]",
         "type": "object"
       },
+      "Envelope_PlatformsView_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PlatformsView"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[PlatformsView]",
+        "type": "object"
+      },
       "Envelope_SoulDocument_": {
         "properties": {
           "data": {
@@ -1986,6 +1998,36 @@
         "title": "ModelsBody",
         "type": "object"
       },
+      "OneBotPlatformView": {
+        "description": "SnowLuma stays in the deployment .env; this API only reports it.",
+        "properties": {
+          "apply_mode": {
+            "const": "restart",
+            "title": "Apply Mode",
+            "type": "string"
+          },
+          "health": {
+            "$ref": "#/components/schemas/PlatformHealthView"
+          },
+          "login_available": {
+            "title": "Login Available",
+            "type": "boolean"
+          },
+          "savable": {
+            "const": false,
+            "title": "Savable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "apply_mode",
+          "savable",
+          "login_available",
+          "health"
+        ],
+        "title": "OneBotPlatformView",
+        "type": "object"
+      },
       "OperationRef": {
         "description": "Projection of an existing rebuild/dream/automation run.",
         "properties": {
@@ -2107,6 +2149,260 @@
           "expected_revision"
         ],
         "title": "PersonBody",
+        "type": "object"
+      },
+      "PlatformAccount": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "external_account_id": {
+            "title": "External Account Id",
+            "type": "string"
+          },
+          "presence_id": {
+            "title": "Presence Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "presence_id",
+          "external_account_id",
+          "display_name"
+        ],
+        "title": "PlatformAccount",
+        "type": "object"
+      },
+      "PlatformApplyBody": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "expected_revision": {
+            "minimum": 0.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "platform": {
+            "enum": [
+              "telegram",
+              "feishu",
+              "lark",
+              "qq_official"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "secrets": {
+            "additionalProperties": {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            "title": "Secrets",
+            "type": "object"
+          },
+          "settings": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "title": "Settings",
+            "type": "object"
+          }
+        },
+        "required": [
+          "request_id",
+          "expected_revision",
+          "platform",
+          "enabled"
+        ],
+        "title": "PlatformApplyBody",
+        "type": "object"
+      },
+      "PlatformEntries": {
+        "properties": {
+          "feishu": {
+            "$ref": "#/components/schemas/PlatformView"
+          },
+          "lark": {
+            "$ref": "#/components/schemas/PlatformView"
+          },
+          "qq": {
+            "$ref": "#/components/schemas/OneBotPlatformView"
+          },
+          "qq_official": {
+            "$ref": "#/components/schemas/PlatformView"
+          },
+          "telegram": {
+            "$ref": "#/components/schemas/PlatformView"
+          }
+        },
+        "required": [
+          "telegram",
+          "feishu",
+          "lark",
+          "qq_official",
+          "qq"
+        ],
+        "title": "PlatformEntries",
+        "type": "object"
+      },
+      "PlatformHealthView": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformAccount"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "connected": {
+            "title": "Connected",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "healthy": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Healthy"
+          },
+          "last_error_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Category"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "running",
+          "healthy",
+          "connected",
+          "last_error_category",
+          "last_success_at",
+          "accounts"
+        ],
+        "title": "PlatformHealthView",
+        "type": "object"
+      },
+      "PlatformView": {
+        "properties": {
+          "apply_mode": {
+            "enum": [
+              "hot",
+              "restart"
+            ],
+            "title": "Apply Mode",
+            "type": "string"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "health": {
+            "$ref": "#/components/schemas/PlatformHealthView"
+          },
+          "saved_secrets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Saved Secrets",
+            "type": "array"
+          },
+          "settings": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "title": "Settings",
+            "type": "object"
+          }
+        },
+        "required": [
+          "configured",
+          "enabled",
+          "settings",
+          "saved_secrets",
+          "apply_mode",
+          "health"
+        ],
+        "title": "PlatformView",
+        "type": "object"
+      },
+      "PlatformsView": {
+        "properties": {
+          "platforms": {
+            "$ref": "#/components/schemas/PlatformEntries"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "writable_directory": {
+            "title": "Writable Directory",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "revision",
+          "writable_directory",
+          "platforms"
+        ],
+        "title": "PlatformsView",
         "type": "object"
       },
       "PluginBody": {
@@ -5073,6 +5369,108 @@
           }
         },
         "summary": "Superuser"
+      }
+    },
+    "/admin/v1/platforms": {
+      "get": {
+        "operationId": "platforms_admin_v1_platforms_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_PlatformsView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Platforms"
+      }
+    },
+    "/admin/v1/platforms/apply": {
+      "post": {
+        "operationId": "apply_platform_admin_v1_platforms_apply_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlatformApplyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ModelControlResult_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Platform"
       }
     },
     "/admin/v1/plugin-outbox/{identity}/retry": {

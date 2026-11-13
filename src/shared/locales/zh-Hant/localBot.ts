@@ -4,5 +4,6 @@ export default {
   configure: '儲存模型與本機設定',
   initialize: '初始化 Yuki 與資料庫',
   start: '啟動本機 Yuki',
+  snowluma: '以 SnowLuma 重新啟動本機 Yuki',
   connect: '建立本人入口並連接桌面',
 } as const

@@ -483,6 +483,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/v1/platforms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Platforms */
+        get: operations["platforms_admin_v1_platforms_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/v1/platforms/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Platform */
+        post: operations["apply_platform_admin_v1_platforms_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/v1/plugin-outbox/{identity}/retry": {
         parameters: {
             query?: never;
@@ -1092,6 +1126,10 @@ export interface components {
         Envelope_ModelTestResult_: {
             data: components["schemas"]["ModelTestResult"];
         };
+        /** Envelope[PlatformsView] */
+        Envelope_PlatformsView_: {
+            data: components["schemas"]["PlatformsView"];
+        };
         /** Envelope[SoulDocument] */
         Envelope_SoulDocument_: {
             data: components["schemas"]["SoulDocument"];
@@ -1503,6 +1541,25 @@ export interface components {
             request_id: string;
         };
         /**
+         * OneBotPlatformView
+         * @description SnowLuma stays in the deployment .env; this API only reports it.
+         */
+        OneBotPlatformView: {
+            /**
+             * Apply Mode
+             * @constant
+             */
+            apply_mode: "restart";
+            health: components["schemas"]["PlatformHealthView"];
+            /** Login Available */
+            login_available: boolean;
+            /**
+             * Savable
+             * @constant
+             */
+            savable: false;
+        };
+        /**
          * OperationRef
          * @description Projection of an existing rebuild/dream/automation run.
          */
@@ -1559,6 +1616,92 @@ export interface components {
              * Format: uuid4
              */
             request_id: string;
+        };
+        /** PlatformAccount */
+        PlatformAccount: {
+            /** Display Name */
+            display_name: string;
+            /** External Account Id */
+            external_account_id: string;
+            /** Presence Id */
+            presence_id: string;
+        };
+        /** PlatformApplyBody */
+        PlatformApplyBody: {
+            /** Enabled */
+            enabled: boolean;
+            /** Expected Revision */
+            expected_revision: number;
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "telegram" | "feishu" | "lark" | "qq_official";
+            /**
+             * Request Id
+             * Format: uuid4
+             */
+            request_id: string;
+            /** Secrets */
+            secrets?: {
+                [key: string]: string;
+            };
+            /** Settings */
+            settings?: {
+                [key: string]: string | boolean;
+            };
+        };
+        /** PlatformEntries */
+        PlatformEntries: {
+            feishu: components["schemas"]["PlatformView"];
+            lark: components["schemas"]["PlatformView"];
+            qq: components["schemas"]["OneBotPlatformView"];
+            qq_official: components["schemas"]["PlatformView"];
+            telegram: components["schemas"]["PlatformView"];
+        };
+        /** PlatformHealthView */
+        PlatformHealthView: {
+            /** Accounts */
+            accounts: components["schemas"]["PlatformAccount"][];
+            /** Connected */
+            connected: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Healthy */
+            healthy: boolean | null;
+            /** Last Error Category */
+            last_error_category: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
+            /** Running */
+            running: boolean;
+        };
+        /** PlatformView */
+        PlatformView: {
+            /**
+             * Apply Mode
+             * @enum {string}
+             */
+            apply_mode: "hot" | "restart";
+            /** Configured */
+            configured: boolean;
+            /** Enabled */
+            enabled: boolean;
+            health: components["schemas"]["PlatformHealthView"];
+            /** Saved Secrets */
+            saved_secrets: string[];
+            /** Settings */
+            settings: {
+                [key: string]: string | boolean;
+            };
+        };
+        /** PlatformsView */
+        PlatformsView: {
+            platforms: components["schemas"]["PlatformEntries"];
+            /** Revision */
+            revision: number;
+            /** Writable Directory */
+            writable_directory: boolean;
         };
         /** PluginBody */
         PluginBody: {
@@ -3026,6 +3169,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    platforms_admin_v1_platforms_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_PlatformsView_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_platform_admin_v1_platforms_apply_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlatformApplyBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ModelControlResult_"];
                 };
             };
             /** @description Validation Error */

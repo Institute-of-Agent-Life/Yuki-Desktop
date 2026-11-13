@@ -7,6 +7,7 @@ import dialogs from './dialogs'
 import localBot from './localBot'
 import time from './time'
 import settings from './settings'
+import platforms from './platforms'
 
 import type { Translation } from '../types'
 
@@ -19,4 +20,5 @@ export default {
   localBot,
   time,
   settings,
+  platforms,
 } satisfies Translation<'zh-Hans'>

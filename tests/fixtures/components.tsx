@@ -294,6 +294,7 @@ function operationPage(id: string, cursor = 0): ConnectorOperation {
 window.yuki = {
   localBot: {
     presets: async () => ({ ok: false, code: 'fixture_only' }),
+    enableSnowLuma: async () => ({ ok: false, code: 'fixture_only' }),
     state: async () => ({
       ok: true,
       value: {
@@ -620,6 +621,10 @@ window.yuki = {
       test: async () => ({ ok: false, code: 'fixture_only' }),
       discover: async () => ({ ok: false, code: 'fixture_only' }),
       stats: async () => ({ ok: false, code: 'fixture_only' }),
+    },
+    platforms: {
+      read: async () => ({ ok: false, code: 'fixture_only' }),
+      apply: async () => ({ ok: false, code: 'fixture_only' }),
     },
     pendingPairings: async () => ({ ok: true, value: [] }),
     resumePairing: async () => ({ ok: false, code: 'fixture_only' }),

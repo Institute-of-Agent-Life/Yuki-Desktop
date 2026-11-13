@@ -95,6 +95,7 @@ test('settings have one navigation column and keep the selected category across 
       ['updates', '更新'],
       ['connection', '連線'],
       ['models', '模型'],
+      ['platforms', '平台'],
       ['devices', '裝置'],
       ['computer', '這台電腦'],
       ['yukis', '所有 Yuki'],

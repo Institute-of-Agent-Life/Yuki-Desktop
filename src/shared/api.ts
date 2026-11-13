@@ -3,8 +3,9 @@ import type { components } from './contract.gen'
 import type { NavigationTarget } from './desktop'
 import type { MessageReference } from './message'
 import type { ModelsBridge } from './models'
+import type { PlatformsBridge } from './platforms'
 
-export const REQUIRED_API_REVISION = 9
+export const REQUIRED_API_REVISION = 11
 
 export type Meta = ServerComponents['schemas']['Meta']
 export type Me = components['schemas']['Me']
@@ -185,7 +186,14 @@ export interface OutboxItem {
   problem: string | null
   createdAt: number
 }
-export type ApiReply<T> = { ok: true; value: T } | { ok: false; code: string; reason?: string }
+export type ApiReply<T> =
+  | { ok: true; value: T }
+  | {
+      ok: false
+      code: string
+      reason?: string
+      details?: Record<string, components['schemas']['JsonValue']>
+    }
 export interface UploadDraft {
   requestId: string
   filename: string
@@ -238,6 +246,7 @@ export type ApiRead =
 
 export interface ConversationBridge {
   models: ModelsBridge
+  platforms: PlatformsBridge
   pendingPairings(): Promise<ApiReply<PendingPairing[]>>
   resumePairing(characterId: string, deviceId: string): Promise<ApiReply<Connection>>
   forgetPairing(characterId: string, deviceId: string): Promise<ApiReply<void>>

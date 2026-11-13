@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { access, copyFile, mkdir, readFile, stat } from 'node:fs/promises'
+import { access, copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve, delimiter, isAbsolute } from 'node:path'
 import type {
   LocalBotConfiguration,
@@ -12,6 +12,7 @@ import type { Connections } from './connections'
 import { ApiError } from './api/client'
 import { t } from './i18n'
 import type { ProviderPreset } from '../shared/models'
+import { snowLumaEnvironment } from './snowluma'
 
 export type DockerRunner = (
   args: string[],
@@ -235,7 +236,6 @@ export class LocalBot {
       .replaceAll('${YUKI_LOCAL_UID:-10001}', String(process.getuid?.() ?? 10001))
       .replaceAll('${YUKI_LOCAL_GID:-10001}', String(process.getgid?.() ?? 10001))
       .replace('${YUKI_SANDBOX_PROFILE:-desktop}', item.sandboxProfile ?? 'desktop')
-    const { writeFile } = await import('node:fs/promises')
     await writeFile(join(directory, 'docker-compose.local.yml'), configuredOverride)
     this.options.progress(t('localBot:image'))
     await this.run(['image', 'inspect', item.image]).catch(() =>
@@ -314,6 +314,16 @@ export class LocalBot {
     await this.compose(item, ['up', '-d', '--wait', 'bot'])
     // Yuki answers without its sandbox; the sandbox reports its own state when it is ready.
     await this.compose(item, ['up', '-d', 'manager'])
+    return this.state()
+  }
+  /** SnowLuma lives in this deployment's `.env`; Compose recreates the Bot with it. */
+  async enableSnowLuma(image: string) {
+    const item = this.installation()
+    if (!image.trim()) throw new ApiError('validation_error')
+    const environment = join(item.directory, '.env')
+    await writeFile(environment, snowLumaEnvironment(await readFile(environment, 'utf8'), image))
+    this.options.progress(t('localBot:snowluma'))
+    await this.compose(item, ['up', '-d', 'bot', 'snowluma'])
     return this.state()
   }
   async stop() {

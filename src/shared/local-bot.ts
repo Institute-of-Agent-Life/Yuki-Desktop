@@ -47,5 +47,6 @@ export interface LocalBotBridge {
   start(): Promise<ApiReply<LocalBotState>>
   stop(): Promise<ApiReply<LocalBotState>>
   connect(): Promise<ApiReply<Connection>>
+  enableSnowLuma(image: string): Promise<ApiReply<LocalBotState>>
   onProgress(callback: (message: string) => void): () => void
 }

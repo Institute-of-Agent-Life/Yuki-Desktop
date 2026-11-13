@@ -6,5 +6,6 @@ export default {
   configure: '保存模型与本机设置',
   initialize: '初始化 Yuki 与数据库',
   start: '启动本机 Yuki',
+  snowluma: '以 SnowLuma 重新启动本机 Yuki',
   connect: '创建本人入口并连接桌面',
 } satisfies Chinese<'localBot'>

@@ -5114,7 +5114,7 @@
   "info": {
     "title": "Yuki personal API",
     "version": "4.0.2",
-    "x-yuki-api-revision": 10
+    "x-yuki-api-revision": 11
   },
   "openapi": "3.1.0",
   "paths": {

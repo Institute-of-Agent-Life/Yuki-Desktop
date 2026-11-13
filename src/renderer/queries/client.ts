@@ -6,12 +6,13 @@ export class ClientProblem extends Error {
   constructor(
     readonly code: string,
     readonly reason?: string,
+    readonly details?: Extract<ApiReply<never>, { ok: false }>['details'],
   ) {
     super(reason && code === 'media_unavailable' ? mediaProblem(reason) : problemText(code))
   }
 }
 export function unwrap<T>(result: ApiReply<T>): T {
-  if (!result.ok) throw new ClientProblem(result.code, result.reason)
+  if (!result.ok) throw new ClientProblem(result.code, result.reason, result.details)
   return result.value
 }
 export function useMe(id: string) {

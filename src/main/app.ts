@@ -81,6 +81,7 @@ import type {
 import type { components } from '../shared/contract.gen'
 import { LocalBot } from './local-bot'
 import type { LocalBotConfiguration } from '../shared/local-bot'
+import type { PlatformApplyInput } from '../shared/platforms'
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -364,6 +365,7 @@ else {
             ok: false,
             code: error instanceof ApiError ? error.code : 'unknown',
             ...(error instanceof ApiError && error.reason ? { reason: error.reason } : {}),
+            ...(error instanceof ApiError && error.details ? { details: error.details } : {}),
           }
         }
       })
@@ -622,6 +624,7 @@ else {
     action('local-bot-start', () => localBot.start())
     action('local-bot-stop', () => localBot.stop())
     action('local-bot-connect', () => localBot.connect())
+    action('local-bot-snowluma', (image: string) => localBot.enableSnowLuma(image))
     action('update-check', () => updates.check())
     action('update-download', () => updates.download())
     action('update-cancel', () => updates.cancel())
@@ -839,6 +842,10 @@ else {
     )
     clientAction('models-stats', (id: string, query: ModelStatsQuery) =>
       connections.modelStats(id, query),
+    )
+    clientAction('platforms-read', (id: string) => connections.platforms(id))
+    clientAction('platforms-apply', (id: string, input: PlatformApplyInput) =>
+      connections.applyPlatform(id, input),
     )
     clientAction('soul-document', (id: string) => connections.soulDocument(id))
     clientAction('soul-edit', (id: string, edit: SoulEdit) => connections.soulEdit(id, edit))

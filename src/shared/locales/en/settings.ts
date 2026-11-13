@@ -12,6 +12,7 @@ export default {
     updates: 'Updates',
     connection: 'Connection',
     models: 'Models',
+    platforms: 'Platforms',
     devices: 'Devices',
     computer: 'This Computer',
     yukis: 'All Yukis',
