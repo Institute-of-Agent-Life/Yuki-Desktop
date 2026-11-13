@@ -22,8 +22,8 @@ import styles from './RoleSwitcher.module.css'
 
 // The menu is glass that grows out of the switcher and shrinks back into it. The motion comes
 // before the glass, so closing copies the glass before the glass is taken down. It lies in the
-// top layer, anchored to the switcher: inside the sidebar's scrolling area a real window gives
-// the glass no backdrop to bend.
+// top layer, anchored to the switcher: drawn inside the sidebar, a real window showed nothing of
+// its blur.
 function GlassMenu(props: HTMLAttributes<HTMLDivElement>) {
   const pane = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {

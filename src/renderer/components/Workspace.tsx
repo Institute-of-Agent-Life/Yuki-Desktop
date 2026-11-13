@@ -24,14 +24,13 @@ import {
 } from 'lucide-react'
 import { columns, centerColumnMinimum } from '../../main/geometry'
 import { useSessionActive, useWorkspace } from '../state/workspace'
-import { Button, IconButton, Segmented, SelectionPill } from './Controls'
+import { Button, Capsule, IconButton, Segmented, SelectionPill } from './Controls'
 import { UpdateReadyButton } from './Updates'
 import { PresenceCard } from './PresenceCard'
 import type { View } from '../../shared/desktop'
 import styles from '../App.module.css'
 import { useCommands } from '../state/commands'
 import { requestNavigation } from '../state/navigation'
-import { useGlass } from '../materials/glass'
 import { useWorkspaceMotion } from '../motion/workspace'
 import { ApplicationMenu } from './ApplicationMenu'
 import { EdgeFade, useScrolledUnder } from './EdgeFade'
@@ -67,7 +66,6 @@ const views = [
 ] as const
 
 export function Workspace(props: Props) {
-  const glass = useGlass<HTMLDivElement>('toolbar')
   const [main, scrolled] = useScrolledUnder<HTMLElement>()
   const state = useWorkspace()
   const active = useSessionActive()
@@ -367,9 +365,15 @@ export function Workspace(props: Props) {
           data-region="toolbar"
           className={`${styles.toolbar} ${props.toolbar ? styles.customToolbar : ''} ${scrolled ? styles.toolbarScrolled : ''}`}
         >
-          <IconButton label="側邊欄" aria-expanded={!focusMode && sidebar} onClick={toggleSidebar}>
-            <PanelLeft size={16} strokeWidth={1.5} />
-          </IconButton>
+          <Capsule>
+            <IconButton
+              label="側邊欄"
+              aria-expanded={!focusMode && sidebar}
+              onClick={toggleSidebar}
+            >
+              <PanelLeft size={16} strokeWidth={1.5} />
+            </IconButton>
+          </Capsule>
           {props.toolbar ?? (
             <>
               {props.toolbarTitle ?? (
@@ -382,7 +386,7 @@ export function Workspace(props: Props) {
                   {(state.view === 'chat' || focusMode) && <small>{props.status}</small>}
                 </span>
               )}
-              <div ref={glass.ref} data-glass="toolbar" className={styles.toolbarGroup}>
+              <Capsule>
                 <IconButton
                   label="搜尋已載入內容"
                   onClick={() => window.dispatchEvent(new Event('yuki:search'))}
@@ -396,7 +400,7 @@ export function Workspace(props: Props) {
                 >
                   <PanelRight size={16} strokeWidth={1.5} />
                 </IconButton>
-              </div>
+              </Capsule>
             </>
           )}
           <UpdateReadyButton />

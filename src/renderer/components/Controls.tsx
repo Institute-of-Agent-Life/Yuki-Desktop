@@ -1,6 +1,6 @@
 import { reducedMotion, usePress } from '../motion/hooks'
 import { sampleSpring, springs } from '../motion/spring'
-import { useGlass } from '../materials/glass'
+import { followPointer, useGlass } from '../materials/glass'
 import { emerge, withdraw } from '../motion/emerge'
 import { useSessionActive } from '../state/workspace'
 import {
@@ -40,6 +40,11 @@ export function Button({
   loading?: boolean
 }) {
   const press = usePress<HTMLButtonElement>()
+  // Tinted glass glows in its own colour where the pointer's light falls.
+  useEffect(
+    () => (variant === 'primary' ? followPointer(press.current!) : undefined),
+    [variant, press],
+  )
   const [visible, setVisible] = useState(false)
   const busy = useRef<HTMLSpanElement>(null),
     shown = useRef(false)
@@ -73,6 +78,8 @@ export function Button({
       {...props}
       ref={press}
       data-press="button"
+      // A secondary button is lit glass at rest: its rim catches the light, with no filter.
+      data-glass={variant === 'secondary' ? 'button' : undefined}
       disabled={props.disabled || loading}
       aria-busy={loading}
       className={`${styles.button} ${styles[variant]} ${large ? styles.large : ''} ${className}`}
@@ -95,6 +102,10 @@ export function IconButton({
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; variant?: 'plain' | 'send' }) {
   const press = usePress<HTMLButtonElement>('compact')
+  useEffect(
+    () => (variant === 'send' ? followPointer(press.current!) : undefined),
+    [variant, press],
+  )
   return (
     <button
       {...props}
@@ -161,6 +172,15 @@ export function StatusPill({ status, children }: { status: Status; children: Rea
       <span className={styles.dot} />
       {children}
     </span>
+  )
+}
+// Toolbar controls in their own clear glass capsule.
+export function Capsule({ children, className = '' }: { children: ReactNode; className?: string }) {
+  const glass = useGlass<HTMLDivElement>('toolbar')
+  return (
+    <div ref={glass.ref} data-glass="toolbar" className={`${styles.capsule} ${className}`}>
+      {children}
+    </div>
   )
 }
 export function Banner({ status = 'offline', children }: { status?: Status; children: ReactNode }) {

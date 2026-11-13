@@ -6,7 +6,17 @@ import { animateBubble, releaseDraft } from '../motion/bubble'
 import { glide, gliding, movedByApp, movedByOther, place } from '../motion/glide'
 import { sampleSpring, springs } from '../motion/spring'
 import { useGlass } from '../materials/glass'
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+} from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   Connection,
@@ -60,6 +70,38 @@ const followEnd = (log: HTMLElement, arriving: boolean) => {
   else if (!gliding(log)) place(log, log.scrollHeight - log.clientHeight)
 }
 
+// The draft changes with every key. It is kept apart from the conversation, so typing re-renders
+// the composer that shows it rather than every message above it.
+function useDraft() {
+  const [store] = useState(() => {
+    let value = ''
+    const listeners = new Set<() => void>()
+    return {
+      get: () => value,
+      set(next: string) {
+        value = next
+        for (const listener of listeners) listener()
+      },
+      subscribe(listener: () => void) {
+        listeners.add(listener)
+        return () => {
+          listeners.delete(listener)
+        }
+      },
+    }
+  })
+  return store
+}
+type Draft = ReturnType<typeof useDraft>
+// The way back to the newest message floats over the conversation as a lens.
+function NewMessagesPill(props: ButtonHTMLAttributes<HTMLButtonElement>) {
+  const glass = useGlass<HTMLButtonElement>('toolbar')
+  return <button ref={glass.ref} type="button" data-glass="toolbar" {...props} />
+}
+function DraftField({ draft, children }: { draft: Draft; children(text: string): ReactNode }) {
+  return children(useSyncExternalStore(draft.subscribe, draft.get))
+}
+
 const read = <T,>(id: string, route: Parameters<typeof window.yuki.client.read>[1]) =>
   window.yuki.client.read<T>(id, route).then(unwrap)
 
@@ -110,8 +152,7 @@ export function Conversation({
   }, [view, focusMode])
   const { artifact, preview, selectedWork, messageStage } = workspace
   const conversation = workspace.conversationId ?? connection.conversationId
-  const [draft, setDraft] = useState('')
-  const currentDraft = useRef(draft)
+  const draft = useDraft()
   const [dragging, setDragging] = useState(false),
     [mediaError, setMediaError] = useState(''),
     [recording, setRecording] = useState(false)
@@ -381,9 +422,8 @@ export function Conversation({
     void window.yuki.client.draft(id).then((result) => {
       if (active && result.ok) {
         const parsed = parseMessage(result.value)
-        currentDraft.current = parsed.text
         currentReferences.current = parsed.references
-        setDraft(parsed.text)
+        draft.set(parsed.text)
         setReferences(parsed.references)
       }
     })
@@ -533,9 +573,12 @@ export function Conversation({
     const log = list.current
     if (!log) return
     const follow = following(log) && anchor === null && !reducedMotion()
+    // Measured from the list's first row, so the room kept above it (a notice coming or going,
+    // with no render of its own) is not taken for rows being pushed.
+    const origin = (log.firstElementChild as HTMLElement).offsetTop
     for (const row of [...log.children].slice(-8) as HTMLElement[]) {
       const before = rowTops.current.get(row),
-        now = row.offsetTop
+        now = row.offsetTop - origin
       rowTops.current.set(row, now)
       if (!follow || before === undefined || before === now || Math.abs(now - before) > 400)
         continue
@@ -657,14 +700,13 @@ export function Conversation({
       workspace.setView('chat')
     })
   const updateDraft = (value: string) => {
-    currentDraft.current = value
-    setDraft(value)
+    draft.set(value)
     void window.yuki.client.draft(id, referencedMessage(currentReferences.current, value))
   }
   const updateReferences = (next: MessageReference[]) => {
     currentReferences.current = next
     setReferences(next)
-    void window.yuki.client.draft(id, referencedMessage(next, currentDraft.current))
+    void window.yuki.client.draft(id, referencedMessage(next, draft.get()))
   }
   const addReference = (event: PublicEvent) => {
     setReplyWork(undefined)
@@ -684,7 +726,7 @@ export function Conversation({
       '[data-region="composer"] textarea',
     )
     const origin = field?.getBoundingClientRect()
-    const submittedDraft = currentDraft.current
+    const submittedDraft = draft.get()
     const sentReferences = currentReferences.current
     const text = referencedMessage(sentReferences, submittedDraft)
     const receipt = unwrap(
@@ -695,10 +737,9 @@ export function Conversation({
       ),
     )
     sentMessages.current.set(receipt.requestId, origin)
-    if (currentDraft.current === submittedDraft) {
+    if (draft.get() === submittedDraft) {
       if (field && !reducedMotion()) releaseDraft(field)
-      currentDraft.current = ''
-      setDraft('')
+      draft.set('')
     }
     updateReferences(currentReferences.current.filter((item) => !sentReferences.includes(item)))
     bottom.current = true
@@ -1384,7 +1425,7 @@ export function Conversation({
               </div>
             </div>
             {(newMessages || anchor !== null) && (
-              <button
+              <NewMessagesPill
                 className={styles.newMessages}
                 onClick={() => {
                   if (anchor !== null) setAnchor(null)
@@ -1394,7 +1435,7 @@ export function Conversation({
                 }}
               >
                 {anchor !== null ? '回到最新訊息' : '↓ 新訊息'}
-              </button>
+              </NewMessagesPill>
             )}
             {isMain && replyWork ? (
               <WorkReply
@@ -1415,51 +1456,55 @@ export function Conversation({
                 }
               />
             ) : isMain ? (
-              <Composer
-                name={name}
-                platform={platform}
-                draft={draft}
-                onDraft={updateDraft}
-                onSubmit={send}
-                hasContent={references.length > 0 || !!uploads.data?.length}
-                blocked={recording || uploads.data?.some((item) => item.state !== 'ready')}
-                commandEnter={preferences.sendKey === 'command-enter'}
-                onAttach={() => void mediaAction(window.yuki.client.attach(id).then(unwrap))}
-                onRecord={() => (recording ? finishRecording.current?.() : setRecording(true))}
-              >
-                <DraftAttachments id={id} items={uploads.data ?? []} refresh={refresh} />
-                {recording && (
-                  <VoiceRecorder
-                    id={id}
-                    done={finishVoice}
-                    cancel={cancelVoice}
-                    finish={finishRecording}
-                  />
-                )}
-                {references.map((reference, index) => (
-                  <div
-                    key={`${reference.conversationId}/${reference.eventId}/${index}`}
-                    className={styles.reference}
+              <DraftField draft={draft}>
+                {(text) => (
+                  <Composer
+                    name={name}
+                    platform={platform}
+                    draft={text}
+                    onDraft={updateDraft}
+                    onSubmit={send}
+                    hasContent={references.length > 0 || !!uploads.data?.length}
+                    blocked={recording || uploads.data?.some((item) => item.state !== 'ready')}
+                    commandEnter={preferences.sendKey === 'command-enter'}
+                    onAttach={() => void mediaAction(window.yuki.client.attach(id).then(unwrap))}
+                    onRecord={() => (recording ? finishRecording.current?.() : setRecording(true))}
                   >
-                    <Reference
-                      id={id}
-                      conversation={reference.conversationId}
-                      eventId={reference.eventId}
-                      onJump={(ref) => void jumpTo(ref)}
-                    />
-                    <IconButton
-                      label="移除引用"
-                      onClick={() =>
-                        updateReferences(
-                          currentReferences.current.filter((item) => item !== reference),
-                        )
-                      }
-                    >
-                      <X size={14} />
-                    </IconButton>
-                  </div>
-                ))}
-              </Composer>
+                    <DraftAttachments id={id} items={uploads.data ?? []} refresh={refresh} />
+                    {recording && (
+                      <VoiceRecorder
+                        id={id}
+                        done={finishVoice}
+                        cancel={cancelVoice}
+                        finish={finishRecording}
+                      />
+                    )}
+                    {references.map((reference, index) => (
+                      <div
+                        key={`${reference.conversationId}/${reference.eventId}/${index}`}
+                        className={styles.reference}
+                      >
+                        <Reference
+                          id={id}
+                          conversation={reference.conversationId}
+                          eventId={reference.eventId}
+                          onJump={(ref) => void jumpTo(ref)}
+                        />
+                        <IconButton
+                          label="移除引用"
+                          onClick={() =>
+                            updateReferences(
+                              currentReferences.current.filter((item) => item !== reference),
+                            )
+                          }
+                        >
+                          <X size={14} />
+                        </IconButton>
+                      </div>
+                    ))}
+                  </Composer>
+                )}
+              </DraftField>
             ) : (
               <div
                 ref={readonlyGlass.ref}
@@ -1724,7 +1769,7 @@ export function Message({
           </MessageBubble>
         )}
         {event && (
-          <div className={styles.messageActions}>
+          <div className={styles.messageActions} data-message-actions>
             <IconButton
               label="複製訊息"
               onClick={(click) => {

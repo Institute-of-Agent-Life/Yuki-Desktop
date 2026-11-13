@@ -7,7 +7,7 @@ import type {
   ModelUsageGroup,
   ModelUsageStats,
 } from '../../shared/models'
-import { Banner, Spinner } from '../components/Controls'
+import { Banner, Segmented, Spinner } from '../components/Controls'
 import { unwrap } from '../queries/client'
 import { useDisplayTime } from '../state/time'
 import { modelTaskLabel } from './model-document'
@@ -94,7 +94,7 @@ function UsageGroup({
   const known = group.stats.coverage.total_tokens > 0
   const share = total && known ? group.stats.total_tokens / total : null
   return (
-    <details className={styles.group}>
+    <details className={styles.group} data-disclosure="row">
       <summary className={styles.groupSummary}>
         <div className={styles.groupName}>
           <strong title={name}>{name}</strong>
@@ -200,18 +200,13 @@ export function ModelUsage({
           <h2>用量</h2>
           <p>看看 Yuki 這段時間用了多少。</p>
         </div>
-        <div className={styles.ranges} role="group" aria-label="統計時間範圍">
-          {ranges.map((range) => (
-            <button
-              key={range.value}
-              type="button"
-              aria-pressed={period.range === range.value}
-              onClick={() => changeRange(range.value)}
-            >
-              {range.label}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          kind="radio"
+          label="統計時間範圍"
+          items={ranges}
+          value={period.range}
+          onChange={changeRange}
+        />
       </header>
       {stats.error ? (
         <Banner status="failed">{stats.error.message}</Banner>
@@ -281,22 +276,16 @@ export function ModelUsage({
             )}
           </div>
           <div className={styles.groupBar}>
-            <div className={styles.groupTabs} role="group" aria-label="用量分組">
-              <button
-                type="button"
-                aria-pressed={by === 'model'}
-                onClick={() => changeGroup('model')}
-              >
-                模型
-              </button>
-              <button
-                type="button"
-                aria-pressed={by === 'task'}
-                onClick={() => changeGroup('task')}
-              >
-                用途
-              </button>
-            </div>
+            <Segmented
+              kind="radio"
+              label="用量分組"
+              items={[
+                { value: 'model', label: '模型' },
+                { value: 'task', label: '用途' },
+              ]}
+              value={by}
+              onChange={changeGroup}
+            />
             <label className={styles.filter}>
               <span>{by === 'model' ? '用途' : '模型'}</span>
               <select
@@ -334,7 +323,7 @@ export function ModelUsage({
                 <UsageGroup key={key(group)} group={group} by={by} total={summary!.total_tokens} />
               ))}
               {historical.length > 0 && (
-                <details className={styles.history}>
+                <details className={styles.history} data-disclosure="row">
                   <summary>
                     <span>歷史用途</span>
                     <span>

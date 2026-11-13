@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
+import { readRim } from '../fixtures/rim'
 
 const evidence: Record<string, unknown> = {}
 test.afterAll(async () => {
@@ -21,30 +22,14 @@ async function openConversation(page: Page) {
   await page.evaluate(() => (window as unknown as GlassWindow).regression.connection('online'))
 }
 
-// The light map's pixel size, against the pane's own box at the display's pixel ratio.
-const lightMap = (page: Page, selector: string) =>
-  page.locator(selector).evaluate(async (element: HTMLElement) => {
-    const image = new Image()
-    image.src = getComputedStyle(element)
-      .getPropertyValue('--rim')
-      .match(/url\("?(.*?)"?\)$/)![1]!
-    await image.decode()
-    return {
-      image: [image.width, image.height],
-      expected: [
-        Math.round(element.offsetWidth * devicePixelRatio),
-        Math.round(element.offsetHeight * devicePixelRatio),
-      ],
-    }
-  })
-
-test('resting bubbles are shaped by their radius, with a light map at display resolution', async ({
+test('resting bubbles are shaped by their radius, and lit glass has its light at display resolution', async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await openConversation(page)
   const resting = page.locator('article[data-event-id="34"] [data-glass="bubble"]')
-  await expect(resting).toHaveAttribute('data-refracting', 'true')
+  // Q1 of the 液态玻璃组件统一 task book: a bubble is content, a tinted pane with no lens.
+  await expect(resting).toHaveCSS('backdrop-filter', 'none')
   // 1: at rest the radius alone shapes the glass, never a clip-path with its square backdrop.
   const shape = await resting.evaluate((surface) => ({
     clip: getComputedStyle(surface).clipPath,
@@ -56,31 +41,41 @@ test('resting bubbles are shaped by their radius, with a light map at display re
   expect(shape.clip).toBe('none')
   expect(shape.radius).toBe('18px')
   expect(shape.surface).toBe(shape.bubble)
-  // 2: the light map has the display's own pixels, so the rim stays smooth on Retina screens.
-  const rest = await lightMap(page, 'article[data-event-id="34"] [data-glass="bubble"]')
-  evidence.restingLightMap = rest
-  expect(rest.image).toEqual(rest.expected)
+  // 2, as revised by the 液态玻璃组件统一 task book: the light is a slice drawn at the display's
+  // own pixels, so the rim stays smooth on Retina screens at any size.
+  const lit = page.locator('[data-region="composer"]')
+  await expect(lit).toHaveAttribute('data-refracting', 'true')
+  const size = await lit.evaluate((element: HTMLElement) => ({
+    width: element.offsetWidth,
+    height: element.offsetHeight,
+    ratio: devicePixelRatio,
+  }))
+  const pixel = 1 / size.ratio
+  const rim = await lit.evaluate(readRim, [
+    [size.width / 2, pixel],
+    [size.width / 2, 4 * pixel],
+    [size.width - 2 * pixel, size.height / 2],
+    [pixel, size.height / 2],
+    [size.width / 2, size.height - 2 * pixel],
+  ] as [number, number][])
+  evidence.restingLightMap = { size, rim }
+  for (const [axis, length] of [
+    [0, size.height],
+    [1, size.width],
+  ] as const)
+    if (rim.slice[axis]) expect(rim.slice[axis]! / rim.border[axis]!).toBe(size.ratio)
+    else expect(rim.image[1 - axis]).toBe(Math.round(length * size.ratio))
   // 10, and 1–2 of the 苹果式打光 task book: a thin light on the edge facing it and a softer one
   // on the far edge, as in thick glass; the sides between stay dim and nothing draws an outline.
-  const light = await resting.evaluate(async (surface) => {
-    const image = new Image()
-    image.src = getComputedStyle(surface)
-      .getPropertyValue('--rim')
-      .match(/url\("?(.*?)"?\)$/)![1]!
-    await image.decode()
-    const canvas = new OffscreenCanvas(image.width, image.height),
-      context = canvas.getContext('2d')!
-    context.drawImage(image, 0, 0)
-    const alpha = (x: number, y: number) => context.getImageData(x, y, 1, 1).data[3]!
-    return {
-      top: alpha(Math.round(image.width / 2), 1),
-      inward: alpha(Math.round(image.width / 2), 4),
-      side: alpha(image.width - 2, Math.round(image.height / 2)),
-      left: alpha(1, Math.round(image.height / 2)),
-      bottom: alpha(Math.round(image.width / 2), image.height - 2),
-      outline: getComputedStyle(surface, '::before').backgroundImage,
-    }
-  })
+  const [top, inward, side, left, bottom] = rim.light
+  const light = {
+    top: top!,
+    inward: inward!,
+    side: side!,
+    left: left!,
+    bottom: bottom!,
+    outline: await lit.evaluate((surface) => getComputedStyle(surface, '::before').backgroundImage),
+  }
   evidence.restingLight = light
   expect(light.top).toBeGreaterThan(128)
   expect(light.bottom).toBeGreaterThanOrEqual(light.top * 0.35)
@@ -90,7 +85,7 @@ test('resting bubbles are shaped by their radius, with a light map at display re
   expect(light.inward).toBeLessThan(light.top * 0.4)
   expect(light.outline).toBe('none')
 
-  // An entering reply reaches past its bubble only while it enters, then its map follows it back.
+  // An entering reply reaches past its bubble only while it enters.
   await page.evaluate(() =>
     (window as unknown as GlassWindow).regression.receiveGlassReply('已把問題放在摘要最後。'),
   )
@@ -98,12 +93,6 @@ test('resting bubbles are shaped by their radius, with a light map at display re
   await expect(reply).toHaveAttribute('data-liquid', '')
   expect(await reply.evaluate((surface) => getComputedStyle(surface).clipPath)).not.toBe('none')
   await expect(reply).not.toHaveAttribute('data-liquid', '')
-  await expect
-    .poll(async () => {
-      const map = await lightMap(page, 'article[data-event-id="35"] [data-glass="bubble"]')
-      return map.image.join('x') === map.expected.join('x')
-    })
-    .toBe(true)
   expect(await reply.evaluate((surface) => getComputedStyle(surface).clipPath)).toBe('none')
 })
 
@@ -180,7 +169,19 @@ test('a floating pane lets the backdrop through and parts its colours at the edg
       'data-refracting',
       'true',
     )
-    await page.waitForTimeout(500)
+    // The glass bends in as it appears; it is measured once it has fully.
+    await expect
+      .poll(() =>
+        page.locator('[data-region="composer"]').evaluate(async (element) => {
+          const id = getComputedStyle(element).backdropFilter.match(/#(yuki-glass-\d+)/)![1]!
+          const scale = () =>
+            document.getElementById(id)!.querySelector('feDisplacementMap')!.getAttribute('scale')
+          const first = scale()
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          return first === scale()
+        }),
+      )
+      .toBe(true)
     const seen = await through(page, '[data-region="composer"]')
     evidence[`composer-${theme}`] = seen
     // 8: the grid behind still shows through the clear middle.
@@ -192,12 +193,9 @@ test('a floating pane lets the backdrop through and parts its colours at the edg
 
 test('narrow glass bends at the display resolution', async ({ page }) => {
   await openConversation(page)
-  await page.evaluate(() => (window as unknown as GlassWindow).regression.receiveGlassReply('好'))
-  const short = page.locator('article[data-event-id="35"] [data-glass="bubble"]')
+  const short = page.locator('[data-region="toolbar"] [data-glass="toolbar"]').first()
   await expect(short).toHaveAttribute('data-refracting', 'true')
-  await expect(short).not.toHaveAttribute('data-liquid', '')
-  await page.waitForTimeout(300)
-  // 5 (透明磨砂 task book): a bubble this short is mapped at the display's own pixels.
+  // 5 (透明磨砂 task book): glass this narrow is mapped at the display's own pixels.
   const map = await short.evaluate(async (surface: HTMLElement) => {
     const id = getComputedStyle(surface).backdropFilter.match(/#([^")]+)/)![1]!
     const image = new Image()

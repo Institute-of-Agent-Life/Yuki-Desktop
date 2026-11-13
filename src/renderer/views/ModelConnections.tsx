@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import type { ModelBundle, ModelProfile } from '../../shared/models'
 import { Button, Sheet, TextField } from '../components/Controls'
-import { SettingsSection } from './SettingsRow'
+import { Row, SettingsSection } from './SettingsRow'
 import { ModelConnectionForm, type ConnectionDraft } from './ModelConnectionForm'
 import { ModelSchemaFields, schemaDefaults, type JsonSchema } from './ModelSchemaFields'
 import styles from './ModelSettings.module.css'
@@ -110,7 +110,7 @@ export function ModelConnections({
   return (
     <>
       <SettingsSection title="模型連接">
-        <div className={styles.sectionActions}>
+        <Row title="連接一個模型服務" description="選擇服務商，或填入相容的端點。">
           <Button
             onClick={() => {
               setPreset(undefined)
@@ -120,7 +120,7 @@ export function ModelConnections({
           >
             新增連接
           </Button>
-        </div>
+        </Row>
       </SettingsSection>
       {[...groups.entries()].map(([group, entries]) => {
         const [firstId, first] = entries[0]!,

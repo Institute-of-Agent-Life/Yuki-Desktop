@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Preferences } from '../../shared/desktop'
 import { useUpdates } from '../state/updates'
 import { unwrap } from '../queries/client'
-import { Banner, Button, Segmented, Sheet, Spinner } from './Controls'
+import { Banner, Button, Capsule, Segmented, Sheet, Spinner } from './Controls'
 import { Row } from '../views/SettingsRow'
 
 const failures = {
@@ -19,18 +19,20 @@ export function UpdateReadyButton() {
   return (
     <>
       {error && <span role="alert">{error}</span>}
-      <Button
-        variant="plain"
-        onClick={() => {
-          setError('')
-          void window.yuki.updates
-            .install()
-            .then(unwrap)
-            .catch(() => setError('更新尚未開始，請重新嘗試。'))
-        }}
-      >
-        重新啟動以更新
-      </Button>
+      <Capsule>
+        <Button
+          variant="plain"
+          onClick={() => {
+            setError('')
+            void window.yuki.updates
+              .install()
+              .then(unwrap)
+              .catch(() => setError('更新尚未開始，請重新嘗試。'))
+          }}
+        >
+          重新啟動以更新
+        </Button>
+      </Capsule>
     </>
   )
 }

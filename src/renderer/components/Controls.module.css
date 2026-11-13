@@ -59,12 +59,7 @@
   color: var(--text-secondary);
 }
 .field {
-  height: 28px;
   width: 100%;
-  border: var(--line) solid var(--separator-strong);
-  border-radius: 8px;
-  padding: 0 8px;
-  background: var(--bg-elevated);
 }
 .field[aria-invalid='true'] {
   border-color: var(--status-failed);
@@ -135,7 +130,7 @@
   padding: 0 20px;
   flex-shrink: 0;
   color: var(--status);
-  background: color-mix(in srgb, var(--status) 12%, var(--bg-content));
+  background: color-mix(in srgb, var(--status) 12%, var(--surface-page));
   font-size: 12px;
 }
 .dialog {
@@ -146,7 +141,7 @@
   padding: 0;
   color: var(--text-primary);
   background: var(--mat-pane);
-  backdrop-filter: blur(24px) saturate(160%) var(--glass-calm) var(--refract,) var(--seal,);
+  backdrop-filter: var(--glass-pane);
   box-shadow: var(--shadow-pane);
 }
 /* The scrim only dims: a blurred window under the sheet's own glass is recomputed every frame. */
@@ -252,6 +247,8 @@
 .primary::before,
 .send::before {
   content: '';
+  --pointer-x: inherit;
+  --pointer-y: inherit;
   position: absolute;
   inset: 0;
   border-radius: inherit;
@@ -261,7 +258,7 @@
      on the edge facing the light and softer on the far one, as on every clear pane. */
   background:
     radial-gradient(
-        circle 6rem at var(--pointer-x, -100vw) var(--pointer-y, -100vh),
+        circle 6rem at var(--pointer-x) var(--pointer-y),
         oklch(from var(--tinted) 0.92 calc(c * 0.6) h / 0.85),
         transparent
       )
@@ -358,4 +355,19 @@
 }
 .busy:not([data-shown='true']) > .spinner {
   animation-play-state: paused;
+}
+/* Toolbar controls in clear glass, a lone one or a few together, as in macOS 26. */
+.capsule {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+  height: 34px;
+  padding: 3px;
+  border-radius: 17px;
+  background: var(--mat-chrome);
+  box-shadow: var(--shadow-glass);
+  backdrop-filter: var(--glass-lens);
+  -webkit-app-region: no-drag;
 }

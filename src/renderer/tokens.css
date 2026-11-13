@@ -1,3 +1,15 @@
+/* Where the pointer's light falls, written only on the rims it lights: not inherited, so moving
+   the pointer never restyles the rest of the page. Without a pointer the light is far away. */
+@property --pointer-x {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: -10000px;
+}
+@property --pointer-y {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: -10000px;
+}
 :root {
   color-scheme: light;
   --font-ui:
@@ -11,6 +23,9 @@
   --bg-inspector: #fafbfd;
   --bg-sidebar: #e6eaf0;
   --bg-elevated: #ffffff;
+  /* Every field: its fill and its line (thinned over the window's frost). */
+  --field: var(--bg-elevated);
+  --field-line: var(--separator-strong);
   --fill-hover: rgba(20, 34, 64, 0.05);
   --fill-pressed: rgba(20, 34, 64, 0.09);
   --fill-selected: rgba(58, 107, 214, 0.14);
@@ -79,8 +94,6 @@
   --mat-ground: rgba(229, 234, 242, 0.84);
   --mat-sidebar: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.48));
   --mat-chrome: rgba(255, 255, 255, 0.66);
-  --mat-thick: rgba(255, 255, 255, 0.86);
-  --mat-hud: rgba(26, 28, 33, 0.64);
   --mat-sheet: rgba(255, 255, 255, 0.97);
   /* A floating glass pane, and how much of the backdrop's contrast it lets through. */
   --mat-pane: rgba(255, 255, 255, 0.6);
@@ -123,11 +136,12 @@
     repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px 24px);
   --grid-line: rgb(20 30 50 / 0.14);
   --glass-calm: contrast(0.9) brightness(1.03);
+  /* Frost: small things floating over content that need no lens (notices, a message's actions,
+     hints). It holds no pane's own lens, so it is one value for the whole page. */
+  --glass-frost: blur(12px) saturate(160%) var(--glass-calm) var(--seal,);
   --stroke-hi: rgba(255, 255, 255, 0.95);
   --stroke-lo: rgba(255, 255, 255, 0.28);
   --edge: rgba(20, 30, 50, 0.1);
-  --blur-chrome: 18px;
-  --blur-thick: 28px;
   --shadow-panel:
     0 0 0 0.5px rgba(20, 30, 50, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04),
     0 8px 24px rgba(16, 24, 40, 0.05);
@@ -177,8 +191,6 @@
   --mat-ground: rgba(14, 15, 19, 0.88);
   --mat-sidebar: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.05));
   --mat-chrome: rgba(46, 48, 55, 0.62);
-  --mat-thick: rgba(36, 38, 44, 0.86);
-  --mat-hud: rgba(22, 24, 28, 0.7);
   --mat-sheet: rgba(38, 40, 46, 0.97);
   --mat-pane: rgba(38, 40, 46, 0.64);
   --backdrop-aurora:
@@ -221,10 +233,12 @@
   --surface-pane: color-mix(in srgb, var(--bg-inspector) 25%, transparent);
   --bg-raised: rgb(255 255 255 / 0.4);
   --bg-stage: rgb(20 30 50 / 0.03);
+  --field: rgb(255 255 255 / 0.55);
 }
 :root:is([data-material='vibrancy'], [data-material='mica'])[data-theme='dark'] {
   --bg-raised: rgb(255 255 255 / 0.05);
   --bg-stage: rgb(0 0 0 / 0.1);
+  --field: rgb(255 255 255 / 0.07);
 }
 :root[data-contrast='true'] {
   --focus-ring: var(--accent);
@@ -265,6 +279,94 @@ textarea,
 select {
   font: inherit;
   color: inherit;
+}
+/*
+ * One field, one check box and one disclosure everywhere (液态玻璃组件统一 §2.1.1). They weigh
+ * nothing (:where), so a field drawn otherwise on purpose, like the composer's, keeps its look.
+ */
+:where(
+  select,
+  textarea,
+  input:not([type]),
+  input[type='text'],
+  input[type='url'],
+  input[type='password'],
+  input[type='number'],
+  input[type='search'],
+  input[type='email']
+) {
+  min-height: 28px;
+  padding: 3px 8px;
+  border: var(--line) solid var(--field-line);
+  border-radius: 8px;
+  background: var(--field);
+}
+:where(input[type='checkbox']) {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0 6px 0 0;
+  vertical-align: -3px;
+  border: var(--line) solid var(--field-line);
+  border-radius: 5px;
+  background: var(--field);
+  transition: background var(--motion-fast) var(--ease-standard);
+}
+:where(input[type='checkbox']:checked) {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+/* The tick springs in as it is checked. */
+:where(input[type='checkbox'])::before {
+  content: '';
+  width: 8px;
+  height: 4px;
+  border-left: 2px solid var(--accent-on);
+  border-bottom: 2px solid var(--accent-on);
+  rotate: -45deg;
+  translate: 0 -1px;
+  scale: 0;
+  transition: scale var(--motion-fast) var(--ease-pop);
+}
+:where(input[type='checkbox']:checked)::before {
+  scale: 1;
+}
+@media (forced-colors: active) {
+  :where(input[type='checkbox']) {
+    appearance: auto;
+  }
+}
+:where(summary) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  cursor: pointer;
+}
+:where(summary)::-webkit-details-marker {
+  display: none;
+}
+/* Opened by the same arrow, turning down as it opens. A row that opens (a usage group) keeps
+   the arrow at its end instead. */
+:where(summary)::before {
+  content: '';
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  margin: 0 2px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  rotate: -45deg;
+  transition: rotate var(--motion-fast) var(--ease-standard);
+}
+:where(details[open] > summary)::before {
+  rotate: 45deg;
+}
+:where([data-disclosure='row'] > summary)::before {
+  content: none;
 }
 button {
   cursor: pointer;

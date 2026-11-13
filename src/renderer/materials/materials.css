@@ -1,3 +1,16 @@
+/*
+ * The glass tiers, one filter each (液态玻璃组件统一任务书 §3). They are declared on each pane, so
+ * the lens each pane was given (`--refract`) is its own; every one ends in the seal.
+ *   lens: clear glass floating over content (toolbar group, composer, notices, a held control)
+ *   pane: thick glass that opens over the page (dialogs, the palette, menus, welcome cards)
+ *   clear: glass over media, darkened by its own tint (the computer's controls)
+ */
+[data-glass] {
+  --glass-lens: var(--refract,) blur(1px) saturate(116%) var(--glass-calm) var(--seal,);
+  --glass-pane: blur(24px) saturate(160%) var(--glass-calm) var(--refract,) var(--seal,);
+  --glass-clear: var(--refract,) blur(12px) saturate(150%) contrast(0.84) brightness(0.88)
+    var(--seal,);
+}
 [data-glass]::before {
   content: '';
   position: absolute;
@@ -24,6 +37,8 @@
 }
 [data-glass]::after {
   content: '';
+  --pointer-x: inherit;
+  --pointer-y: inherit;
   position: absolute;
   inset: 0;
   border-radius: inherit;
@@ -32,12 +47,17 @@
   --rim-lit: #fff;
   /* The light source sits at the pointer; each pane's light map decides where it lands. */
   background: radial-gradient(
-      circle 13rem at var(--pointer-x, -100vw) var(--pointer-y, -100vh),
+      circle 13rem at var(--pointer-x) var(--pointer-y),
       var(--rim-lit),
       var(--rim-rest)
     )
     fixed;
-  mask: var(--rim, linear-gradient(transparent 0 0)) 0 0 / 100% 100%;
+  /* The pane's light map, laid around its edge from a slice (glass.ts). */
+  -webkit-mask-box-image: var(--rim) var(--rim-slice) fill / var(--rim-border);
+}
+/* Only glass with a light map of its own catches the pointer's light. */
+[data-glass]:not([data-refracting])::after {
+  display: none;
 }
 [data-theme='dark'] [data-glass]::after {
   --rim-rest: rgb(255 255 255 / 0.3);
@@ -47,7 +67,6 @@
   --mat-ground: var(--bg-window);
   --mat-sidebar: var(--bg-sidebar);
   --mat-chrome: var(--bg-elevated);
-  --mat-thick: var(--bg-elevated);
   --mat-sheet: var(--bg-elevated);
   --mat-pane: var(--bg-elevated);
   --stroke-hi: transparent;

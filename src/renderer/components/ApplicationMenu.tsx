@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Ellipsis } from 'lucide-react'
-import { IconButton } from './Controls'
+import { Capsule, IconButton } from './Controls'
 import styles from './ApplicationMenu.module.css'
 
 export function ApplicationMenu({
@@ -34,22 +34,24 @@ export function ApplicationMenu({
       data-platform={platform}
       className={`${styles.container} ${overlay ? styles.overlay : ''} ${className}`}
     >
-      <IconButton
-        type="button"
-        label="更多命令"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={(event) => void show(event.currentTarget)}
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowDown') {
-            event.preventDefault()
-            void show(event.currentTarget)
-          }
-          if (event.key === 'Escape') setError(false)
-        }}
-      >
-        <Ellipsis size={16} strokeWidth={1.5} />
-      </IconButton>
+      <Capsule>
+        <IconButton
+          type="button"
+          label="更多命令"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={(event) => void show(event.currentTarget)}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown') {
+              event.preventDefault()
+              void show(event.currentTarget)
+            }
+            if (event.key === 'Escape') setError(false)
+          }}
+        >
+          <Ellipsis size={16} strokeWidth={1.5} />
+        </IconButton>
+      </Capsule>
       {error && (
         <span role="alert" className={styles.error}>
           選單暫時無法開啟，請再試一次。

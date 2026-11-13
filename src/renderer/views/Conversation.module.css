@@ -134,15 +134,17 @@
   top: -12px;
   right: 8px;
   border-radius: 8px;
-  background: var(--bg-content);
-  box-shadow: var(--shadow-sheet);
+  background: var(--mat-chrome);
+  box-shadow: var(--shadow-glass);
   display: flex;
   justify-content: flex-end;
   opacity: 0;
 }
+/* Frost only while shown: a filter on every hidden bar would cost each message a frame. */
 .message:hover .messageActions,
 .message:focus-within .messageActions {
   opacity: 1;
+  backdrop-filter: var(--glass-frost);
 }
 .markdown {
   font-size: 14px;
@@ -167,7 +169,7 @@
   top: 8px;
   padding: 4px 8px;
   border-radius: 4px;
-  background: var(--bg-content);
+  background: var(--fill-control);
   color: var(--text-secondary);
   font-size: 11px;
   opacity: 0;
@@ -284,9 +286,10 @@
   bottom: calc(var(--composer-h, 84px) + 28px);
   right: 24px;
   padding: 6px 14px;
-  background: var(--bg-content);
+  background: var(--mat-chrome);
   border-radius: 14px;
-  box-shadow: var(--shadow-sheet);
+  box-shadow: var(--shadow-glass);
+  backdrop-filter: var(--glass-lens);
   color: var(--accent);
 }
 .readonly {
@@ -422,6 +425,11 @@
   right: 0;
   z-index: 4;
 }
+/* A notice over the conversation is frost tinted with its status. */
+.notices > [role='status'] {
+  background: color-mix(in srgb, var(--status) 14%, var(--mat-chrome));
+  backdrop-filter: var(--glass-frost);
+}
 .readonly {
   position: absolute;
   z-index: 6;
@@ -432,7 +440,7 @@
   width: min(712px, calc(100% - 40px));
   border-radius: 20px;
   background: color-mix(in srgb, var(--bg-elevated) var(--readonly-tint, 16%), transparent);
-  backdrop-filter: var(--refract,) blur(1px) saturate(116%) var(--glass-calm) var(--seal,);
+  backdrop-filter: var(--glass-lens);
   box-shadow: var(--shadow-glass);
 }
 :global([data-theme='dark']) .readonly {

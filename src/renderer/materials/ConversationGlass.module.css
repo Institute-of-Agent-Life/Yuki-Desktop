@@ -12,10 +12,7 @@
 .surface {
   position: absolute;
   inset: 0;
-  /*
-   * At rest the radius alone shapes the glass: a clip-path inside the scrolling list leaves the
-   * backdrop filter square at the corners in the compositor, a visible square shadow.
-   */
+  /* At rest the radius alone shapes the pane; only an entering drop is clipped to its contour. */
   border-radius: var(--glass-radius, 14px);
   pointer-events: none;
   background: var(--glass-tint, var(--glass-neutral-tint));
@@ -30,10 +27,6 @@
 }
 .surface:global([data-liquid])::before {
   inset: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
-}
-.surface:global([data-refracting]) {
-  /* A slight blur first, so thin backdrop lines bend smoothly instead of fraying. */
-  backdrop-filter: blur(1px) saturate(116%) var(--glass-calm) var(--refract,) var(--seal,);
 }
 :global([data-opaque='true']) .surface {
   background: var(--glass-solid, var(--bg-elevated));
