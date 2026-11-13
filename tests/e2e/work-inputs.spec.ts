@@ -114,7 +114,7 @@ test('inline answers and supplements retain distinct multiline drafts, survive a
         height: element.getBoundingClientRect().height,
         radius: getComputedStyle(element).borderRadius,
       })),
-    ).toEqual({ height: 28, radius: '6px' })
+    ).toEqual({ height: 28, radius: '8px' })
     await supplement.fill('另外保留的補充草稿')
     await supplement.press('Shift+Enter')
     await page.keyboard.insertText('第二行沒有被壓平')

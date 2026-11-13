@@ -68,24 +68,38 @@ test('pointing and scrolling cost the same however long the conversation is', as
   }
   const short = await pointing(25)
   const perMove = await pointing(300)
-  const frames = await page.getByRole('log', { name: '對話訊息' }).evaluate(async (log) => {
-    const times: number[] = []
-    let last = performance.now()
-    for (let step = 0; step < 120; step++) {
-      log.scrollTop = Math.max(0, log.scrollTop - 40)
-      await new Promise((resolve) => requestAnimationFrame(resolve))
-      const now = performance.now()
-      times.push(now - last)
-      last = now
+  // Scrolling, timed frame by frame, from the end up.
+  const scrolling = async () => {
+    const frames = await page.getByRole('log', { name: '對話訊息' }).evaluate(async (log) => {
+      log.scrollTop = log.scrollHeight
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      const times: number[] = []
+      let last = performance.now()
+      for (let step = 0; step < 120; step++) {
+        log.scrollTop = Math.max(0, log.scrollTop - 40)
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+        const now = performance.now()
+        times.push(now - last)
+        last = now
+      }
+      return times
+    })
+    return {
+      average: frames.reduce((sum, frame) => sum + frame, 0) / frames.length,
+      slow: frames.filter((frame) => frame > 20).length,
     }
-    return times
-  })
-  const average = frames.reduce((sum, frame) => sum + frame, 0) / frames.length
-  evidence.pointing = { short, perMove, average, slow: frames.filter((frame) => frame > 20).length }
+  }
+  const glass = await scrolling()
+  // The same scroll with no glass at all, on this machine: what the page costs without it.
+  const style = await page.addStyleTag({ content: '* { backdrop-filter: none !important }' })
+  const bare = await scrolling()
+  await style.evaluate((node) => (node as Element).remove())
+  evidence.pointing = { short, perMove, glass, bare }
   // 21: what a pointer move costs does not grow with the conversation (it was four times as much
   // at 300 messages as at 25), on any machine.
   expect(perMove).toBeLessThanOrEqual(Math.max(short * 1.5, 0.5))
-  // 22
-  expect(average).toBeLessThanOrEqual(18)
-  expect(frames.filter((frame) => frame > 20).length).toBeLessThanOrEqual(frames.length * 0.05)
+  // 22: the glass adds little to scrolling a long conversation (refracting bubbles made it 1.5
+  // times as slow), on any machine.
+  expect(glass.average).toBeLessThanOrEqual(bare.average * 1.2)
+  expect(glass.slow).toBeLessThanOrEqual(bare.slow + 6)
 })

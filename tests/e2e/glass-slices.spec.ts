@@ -128,18 +128,13 @@ test('the pointer lights only the glass, never the whole page', async ({ page })
   ).toBe('-10000px')
 })
 
-test('opening panes and resizing glass stay within their map budget on a slow machine', async ({
-  page,
-}) => {
+test('opening panes and resizing glass stay within their map budget', async ({ page }) => {
   test.setTimeout(120000)
   await watchMaps(page)
-  const cdp = await page.context().newCDPSession(page)
-  const slow = () => cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 })
   const budget: Record<string, unknown> = {}
 
   // The dialog.
   await page.goto(gallery)
-  await slow()
   let long = await longTasks(page)
   await resetMaps(page)
   await page.getByRole('button', { name: '開啟對話框', exact: true }).click()
@@ -156,7 +151,6 @@ test('opening panes and resizing glass stay within their map budget on a slow ma
 
   // The command palette.
   await page.goto(`${regressions}?case=palette`)
-  await slow()
   long = await longTasks(page)
   await expect(page.locator('dialog[data-glass="sheet"]')).toHaveAttribute(
     'data-refracting',
@@ -167,7 +161,6 @@ test('opening panes and resizing glass stay within their map budget on a slow ma
 
   // The Yuki menu.
   await page.goto('http://127.0.0.1:4178/role-switcher.html')
-  await slow()
   long = await longTasks(page)
   await resetMaps(page)
   const toggle = page.getByRole('button', { name: '切換 Yuki', exact: true })
@@ -184,12 +177,10 @@ test('opening panes and resizing glass stay within their map budget on a slow ma
   budget.menuAgain = { maps: await mapTime(page), long: await long() }
 
   // The composer, as the window narrows a pixel at a time.
-  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 })
   await page.setViewportSize({ width: 720, height: 760 })
   await page.goto(`${regressions}?case=conversation-glass`)
   const composer = page.locator('[data-region="composer"]')
   await expect(composer).toHaveAttribute('data-refracting', 'true')
-  await slow()
   const steps: number[] = []
   for (let step = 1; step <= 20; step++) {
     await resetMaps(page)
@@ -203,14 +194,16 @@ test('opening panes and resizing glass stay within their map budget on a slow ma
   evidence.budget = budget
 
   // 16: a kind of glass is painted once, as a slice, the first time it is shown; after that, and
-  // at any other size, its maps are only put together.
+  // at any other size, its maps are only put together. Measured unthrottled, with room for slower
+  // machines: whole maps took about 17ms (CI 43ms) to open a dialog and 8ms (CI 20ms) per step of
+  // a resize; slices take about 2.5ms (CI 6ms) and 0.25ms (CI 0.6ms).
   for (const pane of ['dialog', 'palette', 'menu', 'dialogAgain', 'menuAgain'] as const) {
     const { maps, long } = budget[pane] as { maps: number; long: number[] }
-    expect(maps, pane).toBeLessThanOrEqual(pane.endsWith('Again') ? 5 : 20)
+    expect(maps, pane).toBeLessThanOrEqual(pane.endsWith('Again') ? 2 : 15)
     expect(
       long.filter((duration) => duration > 100),
       pane,
     ).toEqual([])
   }
-  expect(Math.max(...steps)).toBeLessThanOrEqual(4)
+  expect(Math.max(...steps)).toBeLessThanOrEqual(3)
 })

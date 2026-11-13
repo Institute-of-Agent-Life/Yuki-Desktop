@@ -133,7 +133,6 @@ test('settings draw every field, check box and disclosure one way', async () => 
     expect(fields.filter((field) => field.clipped)).toEqual([])
     // C2: check boxes are drawn by the app, one way, never the browser's own square.
     const boxes = all.flatMap(([, page]) => page.boxes)
-    expect(boxes.length).toBeGreaterThan(0)
     expect(new Set(boxes.map((box) => `${box.drawn} | ${box.radius}`))).toEqual(
       new Set(['none | 5px']),
     )

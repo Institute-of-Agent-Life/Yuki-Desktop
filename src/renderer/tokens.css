@@ -296,7 +296,7 @@ select {
   input[type='email']
 ) {
   min-height: 28px;
-  padding: 4px 8px;
+  padding: 3px 8px;
   border: var(--line) solid var(--field-line);
   border-radius: 8px;
   background: var(--field);
