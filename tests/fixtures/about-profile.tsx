@@ -7,6 +7,7 @@ import { Workspace } from '../../src/renderer/components/Workspace'
 import { WorkspaceSession, workspaceFor } from '../../src/renderer/state/workspace'
 import appStyles from '../../src/renderer/App.module.css'
 import '../../src/renderer/tokens.css'
+import '../../src/renderer/materials/materials.css'
 
 const parameters = new URLSearchParams(location.search)
 const profile: Profile = {

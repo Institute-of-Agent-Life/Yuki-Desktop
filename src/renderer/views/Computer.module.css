@@ -78,8 +78,7 @@
   padding: 0 8px;
   border-radius: 18px;
   background: rgb(28 28 30 / 0.5);
-  backdrop-filter: var(--refract,) blur(12px) saturate(150%) contrast(0.84) brightness(0.88)
-    var(--seal,);
+  backdrop-filter: var(--glass-clear);
   color: white;
   white-space: nowrap;
   box-shadow: 0 4px 16px #0003;

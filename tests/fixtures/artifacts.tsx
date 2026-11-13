@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { ArtifactComparison } from '../../src/renderer/views/Files'
 import type { CachedContent } from '../../src/shared/api'
 import '../../src/renderer/tokens.css'
+import '../../src/renderer/materials/materials.css'
 
 async function content(text: string): Promise<CachedContent> {
   const bytes = new TextEncoder().encode(text)

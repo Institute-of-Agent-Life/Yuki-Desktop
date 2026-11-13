@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import { NativeRequest } from '../../src/renderer/views/NativeRequest'
 import type { ConnectorOperation, ConnectorTarget } from '../../src/shared/connector'
 import '../../src/renderer/tokens.css'
+import '../../src/renderer/materials/materials.css'
 
 const mode = new URLSearchParams(location.search).get('mode')
 const project = '/isolated/native/project'

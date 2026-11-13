@@ -432,7 +432,7 @@
   width: min(712px, calc(100% - 40px));
   border-radius: 20px;
   background: color-mix(in srgb, var(--bg-elevated) var(--readonly-tint, 16%), transparent);
-  backdrop-filter: var(--refract,) blur(1px) saturate(116%) var(--glass-calm) var(--seal,);
+  backdrop-filter: var(--glass-lens);
   box-shadow: var(--shadow-glass);
 }
 :global([data-theme='dark']) .readonly {
