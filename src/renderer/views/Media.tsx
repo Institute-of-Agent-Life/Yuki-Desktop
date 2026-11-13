@@ -39,10 +39,16 @@ export function MessageAttachment({
     image = attachment.kind === 'image'
   const element = useRef<HTMLButtonElement>(null),
     [visible, setVisible] = useState(false)
+  // Loaded as it first comes near the view, then kept: one scrolled away and back shows as it was.
   useEffect(() => {
-    const observer = new IntersectionObserver(([entry]) => setVisible(!!entry?.isIntersecting), {
-      rootMargin: '120px',
-    })
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return
+        setVisible(true)
+        observer.disconnect()
+      },
+      { rootMargin: '120px' },
+    )
     observer.observe(element.current!)
     return () => observer.disconnect()
   }, [])

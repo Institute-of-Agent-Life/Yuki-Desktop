@@ -806,7 +806,7 @@ else {
     })
     action('subscribe', () => connections.publishStates())
     action('reconnect', () => connections.reconnect())
-    powerMonitor.on('resume', () => connections.reconnect())
+    powerMonitor.on('resume', () => connections.revive())
     action('external', openExternal)
     action('meta', (server: string) => connections.meta(server))
     action('pair', async (server: string, code: string, label: string) => {
@@ -1180,7 +1180,7 @@ else {
     app.on('activate', () => {
       reveal?.()
     })
-    app.on('browser-window-focus', () => connections.reconnect())
+    app.on('browser-window-focus', () => connections.revive())
     app.on('window-all-closed', () => {
       if (!store.preferences().keepInTray) app.quit()
     })

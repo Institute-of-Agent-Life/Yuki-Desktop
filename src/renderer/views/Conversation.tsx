@@ -165,7 +165,7 @@ export function Conversation({
       setAnchor(null)
       workspace.patch({ conversationId: target.conversationId })
       setSelection(undefined)
-      bottom.current = true
+      setBottom(true)
     }
   }, [id, target])
   const [online, setOnline] = useState<'connecting' | 'online' | 'offline'>('connecting'),
@@ -191,6 +191,12 @@ export function Conversation({
     [newMessages, setNewMessages] = useState(false)
   // At the end as last seen, unless something else moved the list since and its scroll event is
   // still on its way: then where the list stands now decides.
+  // At the end the app keeps the end in view; away from it, the browser keeps what is being read
+  // in place while something above it changes size (a picture loading).
+  const setBottom = (value: boolean) => {
+    bottom.current = value
+    list.current?.style.setProperty('overflow-anchor', value ? 'none' : 'auto')
+  }
   const following = (log: HTMLElement) =>
     bottom.current &&
     (!movedByOther(log) || log.scrollHeight - log.scrollTop - log.clientHeight < 64)
@@ -573,19 +579,29 @@ export function Conversation({
   }, [anchor])
   // Rows pushed down by something inserted above them slide there on the bubbles' spring;
   // the offsets add up, so a row pushed twice in a row still lands exactly.
-  const rowTops = useRef(new WeakMap<Element, number>())
+  const rowTops = useRef(new WeakMap<Element, { top: number; screen: number }>())
   useLayoutEffect(() => {
     const log = list.current
     if (!log) return
     const follow = following(log) && anchor === null && !reducedMotion()
     // Measured from the list's first row, so the room kept above it (a notice coming or going,
     // with no render of its own) is not taken for rows being pushed.
+    // A row whose place on screen is unchanged was not pushed: something above it changed size
+    // and the list's end held it where it was.
     const origin = (log.firstElementChild as HTMLElement).offsetTop
     for (const row of [...log.children].slice(-8) as HTMLElement[]) {
-      const before = rowTops.current.get(row),
-        now = row.offsetTop - origin
-      rowTops.current.set(row, now)
-      if (!follow || before === undefined || before === now || Math.abs(now - before) > 400)
+      const previous = rowTops.current.get(row),
+        before = previous?.top,
+        now = row.offsetTop - origin,
+        screen = row.offsetTop - log.scrollTop
+      rowTops.current.set(row, { top: now, screen })
+      if (
+        !follow ||
+        before === undefined ||
+        before === now ||
+        Math.abs(now - before) > 400 ||
+        Math.abs(screen - previous!.screen) < 1
+      )
         continue
       const samples = sampleSpring(springs.bubble),
         last = samples.length - 1
@@ -701,7 +717,7 @@ export function Conversation({
       setNewMessages(false)
       workspace.patch({ conversationId: next })
       setSelection(undefined)
-      bottom.current = true
+      setBottom(true)
       workspace.setView('chat')
     })
   const updateDraft = (value: string) => {
@@ -747,7 +763,7 @@ export function Conversation({
       draft.set('')
     }
     updateReferences(currentReferences.current.filter((item) => !sentReferences.includes(item)))
-    bottom.current = true
+    setBottom(true)
     refresh()
   }
   const more = async () => {
@@ -795,7 +811,7 @@ export function Conversation({
       workspace.patch({ conversationId: reference.conversationId })
     }
     setSearch(null)
-    bottom.current = false
+    setBottom(false)
     setJump(reference)
     workspace.setView('chat')
     workspace.patch({ messageStage: stage ? reference : undefined })
@@ -1324,7 +1340,7 @@ export function Conversation({
                 const node = event.currentTarget
                 // The app keeping the end in view is not the person leaving it.
                 if (movedByApp(node)) return
-                bottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 64
+                setBottom(node.scrollHeight - node.scrollTop - node.clientHeight < 64)
                 needsEarlier.current = node.scrollTop < 48 && !bottom.current
                 if (needsEarlier.current) void more()
               }}
@@ -1430,7 +1446,7 @@ export function Conversation({
                 className={styles.newMessages}
                 onClick={() => {
                   if (anchor !== null) setAnchor(null)
-                  bottom.current = true
+                  setBottom(true)
                   list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' })
                   setNewMessages(false)
                 }}

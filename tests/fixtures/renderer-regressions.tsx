@@ -253,6 +253,7 @@ const glassConversation = '22222222-2222-4222-8222-222222222222'
 const glassEntry = { ...home.main, conversation_id: glassConversation }
 // `readonly=1` opens a QQ conversation of the same Yuki, which only the desktop one can continue.
 let avatarReads = 0
+let previewOpens = 0
 const readonlyEntry = {
   ...home.main,
   conversation_id: '33333333-3333-4333-8333-333333333333',
@@ -742,7 +743,11 @@ Object.assign(window, {
               filename: picture.filename!,
               mime: 'image/svg+xml',
               sha256: '0'.repeat(64),
-              preview: { id: `glass-${value.eventId}`, url: `/${picture.filename}` },
+              // As in the app: every open is a new preview with its own address.
+              preview: {
+                id: `glass-${value.eventId}-${++previewOpens}`,
+                url: `/${picture.filename}?open=${previewOpens}`,
+              },
             } satisfies CachedContent,
           }
         return { ok: false, code: 'media_unavailable' }
@@ -803,6 +808,10 @@ Object.assign(window, {
       appendGlassMessage(glassOutbox!.body.text, false)
     },
     avatarReads: () => avatarReads,
+    previewOpens: () => previewOpens,
+    hint: (kind: string) => {
+      for (const listener of hintListeners) listener('role', kind, {})
+    },
     receiveGlassPicture: (content: string, sticker: boolean) =>
       appendGlassMessage(content, true, {
         sticker,
