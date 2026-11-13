@@ -1,140 +1,61 @@
-.platforms {
+/* Messages on the list are sentences; let them wrap instead of the toolbar banner's single line. */
+.platforms div[role='status'] {
+  height: auto;
+  min-height: 32px;
+  padding: 8px 16px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+  flex-wrap: wrap;
+}
+.mode {
+  margin-bottom: 16px;
+}
+.body {
   display: grid;
   gap: 16px;
   min-width: 0;
 }
-.intro,
-.description {
+.body > button {
+  justify-self: start;
+}
+.note {
   margin: 0;
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 18px;
-}
-/* Messages here are sentences; let them wrap instead of the toolbar banner's single line. */
-.platforms [role='status'] {
-  height: auto;
-  min-height: 32px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  line-height: 18px;
-  overflow-wrap: anywhere;
-  flex-wrap: wrap;
-}
-.card {
-  display: grid;
-  gap: 12px;
-  padding: 16px;
-  border: var(--line) solid var(--separator);
-  border-radius: 12px;
-  background: var(--bg-raised);
-  min-width: 0;
-}
-.cardHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-.cardHeader h3 {
-  margin: 0;
-  font-size: 14px;
-}
-.health {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  min-width: 0;
-}
-.health small {
-  color: var(--text-secondary);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-.form {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-}
-.field {
-  display: grid;
-  gap: 6px;
-  font-size: 13px;
-  min-width: 0;
-}
-.fieldLabel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.saved {
-  font-size: 11px;
-  line-height: 16px;
-  padding: 0 6px;
-  border-radius: 8px;
-  color: var(--status-running);
-  background: color-mix(in srgb, var(--status-running) 12%, transparent);
-}
-.switchRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 13px;
-}
-.switchRow small {
-  display: block;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--text-secondary);
-}
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.done {
-  margin: 0;
-  font-size: 13px;
-  color: var(--status-running);
-}
-.failure {
-  display: grid;
-  gap: 2px;
-}
-.failure small {
-  font-size: 12px;
-  opacity: 0.85;
-}
-.guide {
-  font-size: 13px;
-  line-height: 20px;
-}
-.guide summary {
-  cursor: pointer;
-  font-weight: 500;
-}
-.guide ol,
-.limits ul {
-  display: grid;
-  gap: 6px;
-  margin: 8px 0 0;
-  padding-left: 22px;
-  color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
 .limits {
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--status-waiting) 10%, transparent);
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-secondary);
+}
+.limits strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.limits ul,
+.howTo ol {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}
+.howTo {
   font-size: 13px;
   line-height: 20px;
 }
-.limits h4 {
-  margin: 0;
-  font-size: 13px;
+.howTo ol,
+.howTo .note {
+  margin: 8px 0;
+}
+.howTo ol {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
 }
 .commands {
   display: grid;
@@ -142,10 +63,10 @@
   justify-items: start;
   min-width: 0;
 }
+/* The same code block as the Tailscale guide's command. */
 .commands code {
   display: block;
   width: 100%;
-  box-sizing: border-box;
   padding: 10px 12px;
   border-radius: 8px;
   background: var(--fill-code);

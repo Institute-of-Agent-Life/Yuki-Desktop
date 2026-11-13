@@ -1,6 +1,6 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useId, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Copy } from 'lucide-react'
+import { ArrowUpRight, Copy } from 'lucide-react'
 import type { Connection } from '../../shared/api'
 import {
   PLATFORMS_API_REVISION,
@@ -16,19 +16,22 @@ import {
   Banner,
   Button,
   Segmented,
+  Sheet,
   Spinner,
-  StatusPill,
   TextField,
   Toggle,
 } from '../components/Controls'
 import { ClientProblem, problemText, unwrap, useMe } from '../queries/client'
-import { useDisplayTime } from '../state/time'
 import { useTranslation } from '../i18n'
-import { Row } from './SettingsRow'
+import { Row, SettingsSection } from './SettingsRow'
+import settings from './Settings.module.css'
+import form from './ModelSettings.module.css'
 import styles from './Platforms.module.css'
 
 type T = ReturnType<typeof useTranslation<['platforms']>>['t']
 type Credential = PlatformKey
+type Editable = 'telegram' | 'feishu' | 'lark' | 'qq'
+type QQMode = 'official' | 'snowluma'
 const forms: Record<
   Credential,
   { appId: boolean; secret: 'bot_token' | 'app_secret'; sandbox: boolean }
@@ -38,6 +41,30 @@ const forms: Record<
   lark: { appId: true, secret: 'app_secret', sandbox: false },
   qq_official: { appId: true, secret: 'app_secret', sandbox: true },
 }
+// Where each platform's credentials are made.
+const consoles: Record<Credential, string> = {
+  telegram: 'https://t.me/BotFather',
+  feishu: 'https://open.feishu.cn/app',
+  lark: 'https://open.larksuite.com/app',
+  qq_official: 'https://q.qq.com',
+}
+
+interface Draft {
+  appId: string
+  secret: string
+  enabled: boolean
+  sandbox: boolean
+}
+const draftOf = (view: PlatformView): Draft => ({
+  appId: String(view.settings.app_id ?? ''),
+  secret: '',
+  enabled: view.enabled,
+  sandbox: view.settings.sandbox === true,
+})
+const settingsOf = (platform: Credential, draft: Draft) => ({
+  ...(forms[platform].appId ? { app_id: draft.appId } : {}),
+  ...(forms[platform].sandbox ? { sandbox: draft.sandbox } : {}),
+})
 
 export function Platforms({
   connection,
@@ -69,77 +96,14 @@ export function Platforms({
   if (authority.error) return <Banner status="failed">{authority.error.message}</Banner>
   if (authority.isPending || view.isPending) return <Spinner />
   if (view.error) return <Banner status="failed">{view.error.message}</Banner>
-  const data = view.data!
-  const refresh = () => view.refetch()
-  const card = (platform: 'telegram' | 'feishu' | 'lark') => (
-    <Card
-      key={platform}
-      platform={platform}
-      name={t(`platforms:name.${platform}`)}
-      health={data.platforms[platform].health}
-    >
-      <CredentialForm
-        id={id}
-        platform={platform}
-        name={t(`platforms:name.${platform}`)}
-        data={data}
-        refresh={refresh}
-        guide={
-          platform === 'telegram' ? (
-            <Guide
-              title={t('platforms:guide.telegram')}
-              steps={(['create', 'token', 'privacy', 'webhook', 'single'] as const).map((step) =>
-                t(`platforms:telegramSteps.${step}`),
-              )}
-            />
-          ) : (
-            <Guide
-              title={t(`platforms:guide.${platform}`)}
-              steps={(
-                ['create', 'scope', 'events', 'permissions', 'publish', 'credentials'] as const
-              ).map((step) =>
-                t(`platforms:feishuSteps.${step}`, {
-                  console: t(`platforms:${platform}Console`),
-                }),
-              )}
-            />
-          )
-        }
-      />
-    </Card>
-  )
   return (
-    <div className={styles.platforms}>
-      <p className={styles.intro}>{t('platforms:intro')}</p>
-      {!data.writable_directory && <Banner status="failed">{t('platforms:readOnly')}</Banner>}
-      {card('telegram')}
-      {card('feishu')}
-      {card('lark')}
-      <QQCard id={id} connection={connection} data={data} refresh={refresh} onQQLogin={onQQLogin} />
-    </div>
-  )
-}
-
-function Card({
-  platform,
-  name,
-  health,
-  children,
-}: {
-  platform: string
-  name: string
-  health: PlatformHealth
-  children: ReactNode
-}) {
-  const heading = useId()
-  return (
-    <section className={styles.card} aria-labelledby={heading} data-platform={platform}>
-      <header className={styles.cardHeader}>
-        <h3 id={heading}>{name}</h3>
-      </header>
-      <Health health={health} />
-      {children}
-    </section>
+    <PlatformList
+      id={id}
+      connection={connection}
+      data={view.data!}
+      refresh={() => view.refetch()}
+      onQQLogin={onQQLogin}
+    />
   )
 }
 
@@ -149,62 +113,32 @@ function errorText(t: T, category: string) {
     : t('platforms:errors.other', { category })
 }
 
-function Health({ health }: { health: PlatformHealth }) {
-  const { t } = useTranslation(['platforms'])
-  const { date } = useDisplayTime()
-  const state = !health.enabled
-    ? 'disabled'
-    : health.connected
-      ? 'connected'
-      : health.last_error_category
-        ? 'failed'
-        : 'connecting'
-  return (
-    <div className={styles.health}>
-      <StatusPill
-        status={
-          state === 'connected'
-            ? 'running'
-            : state === 'failed'
-              ? 'failed'
-              : state === 'connecting'
-                ? 'waiting'
-                : 'offline'
-        }
-      >
-        {t(`platforms:status.${state}`)}
-      </StatusPill>
-      {health.accounts.length > 0 && (
-        <small>
-          {t('platforms:accounts', {
-            accounts: health.accounts
-              .map((account) => `${account.display_name} (${account.external_account_id})`)
-              .join('、'),
-          })}
-        </small>
-      )}
-      {health.last_success_at && (
-        <small>{t('platforms:lastSuccess', { time: date(health.last_success_at) })}</small>
-      )}
-      {health.enabled && !health.connected && health.last_error_category && (
-        <small>
-          {t('platforms:lastError', { reason: errorText(t, health.last_error_category) })}
-        </small>
-      )}
-    </div>
-  )
+// One line under the platform's name: who it is connected as, why it is not, or that it is off.
+function summary(t: T, health: PlatformHealth, configured: boolean) {
+  if (!health.enabled) return t(configured ? 'platforms:status.disabled' : 'platforms:status.unset')
+  if (health.connected)
+    return health.accounts.length
+      ? t('platforms:connectedAs', {
+          accounts: health.accounts
+            .map((account) => account.display_name || account.external_account_id)
+            .join(t('platforms:accountSeparator')),
+        })
+      : t('platforms:status.connected')
+  if (health.last_error_category) return errorText(t, health.last_error_category)
+  return t('platforms:status.connecting')
 }
 
-function Guide({ title, steps }: { title: string; steps: string[] }) {
-  return (
-    <details className={styles.guide}>
-      <summary>{title}</summary>
-      <ol>
-        {steps.map((step) => (
-          <li key={step}>{step}</li>
-        ))}
-      </ol>
-    </details>
+function steps(t: T, platform: Credential) {
+  if (platform === 'telegram')
+    return (['create', 'token', 'privacy', 'webhook'] as const).map((step) =>
+      t(`platforms:telegramSteps.${step}`),
+    )
+  if (platform === 'qq_official')
+    return (['register', 'credentials', 'sandbox', 'release'] as const).map((step) =>
+      t(`platforms:qqSteps.${step}`),
+    )
+  return (['create', 'events', 'permissions', 'publish', 'credentials'] as const).map((step) =>
+    t(`platforms:feishuSteps.${step}`, { console: t(`platforms:${platform}Console`) }),
   )
 }
 
@@ -278,138 +212,317 @@ function usePlatformApply(id: string, refresh: () => Promise<unknown>) {
   }
 }
 
-function CredentialForm({
+function PlatformList({
   id,
-  platform,
-  name,
+  connection,
   data,
   refresh,
-  guide,
-  beforeSave,
+  onQQLogin,
 }: {
   id: string
-  platform: Credential
-  name: string
+  connection: Connection
   data: PlatformsView
   refresh: () => Promise<unknown>
-  guide: ReactNode
-  beforeSave?: ReactNode
+  onQQLogin(): void
 }) {
   const { t } = useTranslation(['platforms'])
-  const field = useId()
-  const form = forms[platform]
-  const current: PlatformView = data.platforms[platform]
-  const [appId, setAppId] = useState(String(current.settings.app_id ?? ''))
-  const [secret, setSecret] = useState('')
-  const [enabled, setEnabled] = useState(current.enabled)
-  const [sandbox, setSandbox] = useState(current.settings.sandbox === true)
   const save = usePlatformApply(id, refresh)
-  const secretSaved = current.saved_secrets.includes(form.secret)
-  const settings = {
-    ...(form.appId ? { app_id: appId } : {}),
-    ...(form.sandbox ? { sandbox } : {}),
-  }
+  const [editing, setEditing] = useState<{ platform: Editable; mode: QQMode; draft: Draft }>()
   const blocked = !data.writable_directory || save.busy || !!save.pending
+  const official = data.platforms.qq_official,
+    onebot = data.platforms.qq
+  const credential: Credential | undefined =
+    editing?.platform === 'qq'
+      ? editing.mode === 'official'
+        ? 'qq_official'
+        : undefined
+      : editing?.platform
+  const open = (platform: Editable) => {
+    save.clear()
+    setEditing({
+      platform,
+      mode:
+        platform === 'qq' &&
+        !official.configured &&
+        (onebot.login_available || onebot.health.connected)
+          ? 'snowluma'
+          : 'official',
+      draft: draftOf(data.platforms[platform === 'qq' ? 'qq_official' : platform]),
+    })
+  }
+  const close = () => {
+    if (!save.busy && !save.pending) setEditing(undefined)
+  }
+  const apply = (input: Omit<PlatformApplyInput, 'requestId' | 'expectedRevision'>) =>
+    save.apply({ ...input, expectedRevision: data.revision }, () => setEditing(undefined))
+  const feedback = <Feedback save={save} refresh={refresh} />
+  const controls = (platform: Credential, title: string, name: string) => {
+    const view = data.platforms[platform]
+    return (
+      <>
+        {view.configured && (
+          <Toggle
+            label={t('platforms:enable', { name })}
+            checked={view.enabled}
+            disabled={blocked}
+            onChange={(enabled) =>
+              apply({
+                platform,
+                enabled,
+                settings: settingsOf(platform, draftOf(view)),
+                secrets: {},
+              })
+            }
+          />
+        )}
+        <Button
+          aria-label={t('platforms:configureName', { name: title })}
+          onClick={() => open(platform === 'qq_official' ? 'qq' : platform)}
+        >
+          {t('platforms:configure')}
+        </Button>
+      </>
+    )
+  }
+  const qqSummary = official.configured
+    ? t('platforms:qqSummary', {
+        mode: t('platforms:qqOfficial'),
+        status: summary(t, official.health, true),
+      })
+    : onebot.health.enabled
+      ? t('platforms:qqSummary', {
+          mode: t('platforms:snowluma'),
+          status: summary(t, onebot.health, true),
+        })
+      : t('platforms:status.unset')
+  const name = editing && t(`platforms:name.${editing.platform}`)
+  return (
+    <>
+      <div className={styles.platforms}>
+        <p className={settings.notice}>{t('platforms:intro')}</p>
+        <SettingsSection>
+          {!data.writable_directory && <Banner status="failed">{t('platforms:readOnly')}</Banner>}
+          {!editing && feedback}
+          {(['telegram', 'feishu', 'lark'] as const).map((platform) => {
+            const view = data.platforms[platform],
+              title = t(`platforms:name.${platform}`)
+            return (
+              <Row
+                key={platform}
+                group
+                title={title}
+                description={summary(t, view.health, view.configured)}
+              >
+                {controls(platform, title, title)}
+              </Row>
+            )
+          })}
+          <Row group title={t('platforms:name.qq')} description={qqSummary}>
+            {controls('qq_official', t('platforms:name.qq'), t('platforms:qqOfficial'))}
+          </Row>
+        </SettingsSection>
+      </div>
+      <Sheet
+        title={name ?? ''}
+        open={!!editing}
+        width={560}
+        onClose={close}
+        actions={
+          credential ? (
+            <>
+              <Button disabled={save.busy || !!save.pending} onClick={close}>
+                {t('platforms:cancel')}
+              </Button>
+              <Button
+                variant="primary"
+                loading={save.busy}
+                disabled={blocked}
+                onClick={() =>
+                  apply({
+                    platform: credential,
+                    enabled: editing!.draft.enabled,
+                    settings: settingsOf(credential, editing!.draft),
+                    secrets: editing!.draft.secret
+                      ? { [forms[credential].secret]: editing!.draft.secret }
+                      : {},
+                  })
+                }
+              >
+                {t('platforms:save')}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={close}>{t('platforms:done')}</Button>
+          )
+        }
+      >
+        {editing && (
+          <>
+            {editing.platform === 'qq' && (
+              <div className={styles.mode}>
+                <Segmented
+                  kind="radio"
+                  label={t('platforms:qqMode')}
+                  value={editing.mode}
+                  disabled={save.busy || !!save.pending}
+                  items={[
+                    { value: 'official', label: t('platforms:qqOfficial') },
+                    { value: 'snowluma', label: t('platforms:snowluma') },
+                  ]}
+                  onChange={(mode) => setEditing({ ...editing, mode })}
+                />
+              </div>
+            )}
+            {credential ? (
+              <>
+                <CredentialFields
+                  platform={credential}
+                  view={data.platforms[credential]}
+                  draft={editing.draft}
+                  change={(draft) => setEditing({ ...editing, draft })}
+                  disabled={save.busy || !!save.pending}
+                  remove={
+                    blocked
+                      ? undefined
+                      : () =>
+                          apply({
+                            platform: credential,
+                            enabled: false,
+                            settings: forms[credential].appId ? { app_id: '' } : {},
+                            secrets: { [forms[credential].secret]: '' },
+                          })
+                  }
+                />
+                {feedback}
+              </>
+            ) : (
+              <SnowLuma
+                connection={connection}
+                health={onebot.health}
+                loginAvailable={onebot.login_available}
+                onQQLogin={() => {
+                  setEditing(undefined)
+                  onQQLogin()
+                }}
+                refresh={refresh}
+              />
+            )}
+          </>
+        )}
+      </Sheet>
+    </>
+  )
+}
+
+function CredentialFields({
+  platform,
+  view,
+  draft,
+  change,
+  disabled,
+  remove,
+}: {
+  platform: Credential
+  view: PlatformView
+  draft: Draft
+  change(draft: Draft): void
+  disabled: boolean
+  /** Absent while a save cannot go through. */
+  remove?: () => void
+}) {
+  const { t } = useTranslation(['platforms'])
+  const limits = useId()
+  const shape = forms[platform]
+  const name =
+    platform === 'qq_official' ? t('platforms:qqOfficial') : t(`platforms:name.${platform}`)
   const labels =
     platform === 'telegram'
-      ? { secret: t('platforms:field.botToken') }
+      ? { appId: '', secret: t('platforms:field.botToken') }
       : platform === 'qq_official'
         ? { appId: t('platforms:field.qqAppId'), secret: t('platforms:field.qqAppSecret') }
         : { appId: t('platforms:field.appId'), secret: t('platforms:field.appSecret') }
   return (
-    <div className={styles.form}>
-      {guide}
-      {form.appId && (
-        <div className={styles.field}>
-          <label htmlFor={`${field}-app`}>{labels.appId}</label>
+    <div className={styles.body}>
+      {platform === 'qq_official' && (
+        <div className={styles.limits}>
+          <strong id={limits}>{t('platforms:limitsTitle')}</strong>
+          <ul aria-labelledby={limits}>
+            {(['mentions', 'replies', 'identity'] as const).map((item) => (
+              <li key={item}>{t(`platforms:limits.${item}`)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <details className={styles.howTo}>
+        <summary>{t('platforms:howTo')}</summary>
+        <ol>
+          {steps(t, platform).map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+        <Button
+          variant="plain"
+          onClick={() => void window.yuki.client.external(consoles[platform])}
+        >
+          {t(`platforms:console.${platform}`)} <ArrowUpRight size={14} />
+        </Button>
+      </details>
+      <fieldset className={`${form.editor} ${form.formFields}`} disabled={disabled}>
+        {shape.appId && (
+          <label className={form.formField}>
+            {labels.appId}
+            <TextField
+              value={draft.appId}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => change({ ...draft, appId: event.target.value })}
+            />
+          </label>
+        )}
+        <label className={form.formField}>
+          {labels.secret}
           <TextField
-            id={`${field}-app`}
-            value={appId}
+            type="password"
             autoComplete="off"
-            spellCheck={false}
-            onChange={(event) => setAppId(event.target.value)}
+            value={draft.secret}
+            placeholder={
+              view.saved_secrets.includes(shape.secret) ? t('platforms:saved') : undefined
+            }
+            onChange={(event) => change({ ...draft, secret: event.target.value })}
+          />
+        </label>
+        {shape.sandbox && (
+          <div className={form.formRow}>
+            <span className={form.formField}>
+              {t('platforms:field.sandbox')}
+              <small>{t('platforms:field.sandboxDescription')}</small>
+            </span>
+            <Toggle
+              label={t('platforms:field.sandbox')}
+              checked={draft.sandbox}
+              onChange={(sandbox) => change({ ...draft, sandbox })}
+            />
+          </div>
+        )}
+        <div className={form.formRow}>
+          <span>{t('platforms:enable', { name })}</span>
+          <Toggle
+            label={t('platforms:enable', { name })}
+            checked={draft.enabled}
+            onChange={(enabled) => change({ ...draft, enabled })}
           />
         </div>
-      )}
-      <div className={styles.field}>
-        <span className={styles.fieldLabel}>
-          <label htmlFor={`${field}-secret`}>{labels.secret}</label>
-          {secretSaved && <span className={styles.saved}>{t('platforms:saved')}</span>}
-        </span>
-        <TextField
-          id={`${field}-secret`}
-          type="password"
-          autoComplete="off"
-          value={secret}
-          placeholder={secretSaved ? t('platforms:keepSaved') : undefined}
-          onChange={(event) => setSecret(event.target.value)}
-        />
-      </div>
-      {form.sandbox && (
-        <div className={styles.switchRow}>
-          <span>
-            {t('platforms:field.sandbox')}
-            <small>{t('platforms:field.sandboxDescription')}</small>
-          </span>
-          <Toggle label={t('platforms:field.sandbox')} checked={sandbox} onChange={setSandbox} />
-        </div>
-      )}
-      <div className={styles.switchRow}>
-        <span>{t('platforms:enable', { name })}</span>
-        <Toggle label={t('platforms:enable', { name })} checked={enabled} onChange={setEnabled} />
-      </div>
-      {beforeSave}
-      <div className={styles.actions}>
-        {(current.configured || current.saved_secrets.length > 0) && (
-          <Button
-            variant="plain"
-            disabled={blocked}
-            onClick={() =>
-              save.apply(
-                {
-                  expectedRevision: data.revision,
-                  platform,
-                  enabled: false,
-                  settings: form.appId ? { app_id: '' } : {},
-                  secrets: { [form.secret]: '' },
-                },
-                () => {
-                  setAppId('')
-                  setSecret('')
-                  setEnabled(false)
-                },
-              )
-            }
-          >
-            {t('platforms:removeCredentials')}
-          </Button>
-        )}
-        <Button
-          variant="primary"
-          loading={save.busy}
-          disabled={blocked}
-          onClick={() =>
-            save.apply(
-              {
-                expectedRevision: data.revision,
-                platform,
-                enabled,
-                settings,
-                secrets: secret ? { [form.secret]: secret } : {},
-              },
-              () => setSecret(''),
-            )
-          }
-        >
-          {t('platforms:save')}
+      </fieldset>
+      {(view.configured || view.saved_secrets.length > 0) && (
+        <Button variant="plain" disabled={!remove} onClick={remove}>
+          {t('platforms:removeCredentials')}
         </Button>
-      </div>
-      <SaveFeedback save={save} refresh={refresh} />
+      )}
     </div>
   )
 }
 
-function SaveFeedback({
+function Feedback({
   save,
   refresh,
 }: {
@@ -427,9 +540,9 @@ function SaveFeedback({
         </Row>
       )}
       {outcome?.kind === 'applied' || outcome?.kind === 'restart' ? (
-        <p role="status" className={styles.done}>
+        <Banner status="done">
           {t(outcome.kind === 'applied' ? 'platforms:applied' : 'platforms:savedPendingRestart')}
-        </p>
+        </Banner>
       ) : outcome?.kind === 'notApplied' ? (
         <Banner status="failed">{t('platforms:notApplied')}</Banner>
       ) : outcome?.kind === 'conflict' ? (
@@ -449,108 +562,25 @@ function SaveFeedback({
         </Banner>
       ) : outcome?.kind === 'failed' ? (
         <Banner status="failed">
-          <span className={styles.failure}>
-            {outcome.text}
-            {outcome.code !== undefined && (
-              <small>{t('platforms:platformCode', { code: outcome.code })}</small>
-            )}
-          </span>
+          {outcome.text}
+          {outcome.code !== undefined && (
+            <span>{t('platforms:platformCode', { code: outcome.code })}</span>
+          )}
         </Banner>
       ) : null}
     </>
   )
 }
 
-function QQCard({
-  id,
-  connection,
-  data,
-  refresh,
-  onQQLogin,
-}: {
-  id: string
-  connection: Connection
-  data: PlatformsView
-  refresh: () => Promise<unknown>
-  onQQLogin(): void
-}) {
-  const { t } = useTranslation(['platforms'])
-  const official = data.platforms.qq_official,
-    onebot = data.platforms.qq
-  const [mode, setMode] = useState<'official' | 'snowluma'>(
-    !official.configured && (onebot.login_available || onebot.health.connected)
-      ? 'snowluma'
-      : 'official',
-  )
-  const heading = useId(),
-    limits = useId()
-  return (
-    <section className={styles.card} aria-labelledby={heading} data-platform="qq">
-      <header className={styles.cardHeader}>
-        <h3 id={heading}>{t('platforms:name.qq')}</h3>
-        <Segmented
-          kind="radio"
-          label={t('platforms:qqMode')}
-          value={mode}
-          items={[
-            { value: 'official', label: t('platforms:qqOfficial') },
-            { value: 'snowluma', label: t('platforms:snowluma') },
-          ]}
-          onChange={setMode}
-        />
-      </header>
-      {mode === 'official' ? (
-        <>
-          <Health health={official.health} />
-          <p className={styles.description}>{t('platforms:qqOfficialDescription')}</p>
-          <CredentialForm
-            id={id}
-            platform="qq_official"
-            name={t('platforms:qqOfficial')}
-            data={data}
-            refresh={refresh}
-            guide={
-              <Guide
-                title={t('platforms:guide.qqOfficial')}
-                steps={(
-                  ['register', 'credentials', 'whitelist', 'sandbox', 'release'] as const
-                ).map((step) => t(`platforms:qqSteps.${step}`))}
-              />
-            }
-            beforeSave={
-              <div className={styles.limits}>
-                <h4 id={limits}>{t('platforms:limitsTitle')}</h4>
-                <ul aria-labelledby={limits}>
-                  {(['mentions', 'proactive', 'window', 'identity'] as const).map((item) => (
-                    <li key={item}>{t(`platforms:limits.${item}`)}</li>
-                  ))}
-                </ul>
-              </div>
-            }
-          />
-        </>
-      ) : (
-        <>
-          <Health health={onebot.health} />
-          <SnowLuma
-            connection={connection}
-            loginAvailable={onebot.login_available}
-            onQQLogin={onQQLogin}
-            refresh={refresh}
-          />
-        </>
-      )}
-    </section>
-  )
-}
-
 function SnowLuma({
   connection,
+  health,
   loginAvailable,
   onQQLogin,
   refresh,
 }: {
   connection: Connection
+  health: PlatformHealth
   loginAvailable: boolean
   onQQLogin(): void
   refresh: () => Promise<unknown>
@@ -568,80 +598,90 @@ function SnowLuma({
   const here = local.data?.installation?.address === connection.baseUrl
   const script = snowLumaServerScript(image.trim() || t('platforms:imagePlaceholder'))
   return (
-    <div className={styles.form}>
-      <p className={styles.description}>{t('platforms:snowlumaDescription')}</p>
-      {loginAvailable ? (
-        <Row title={t('platforms:qqLogin')} description={t('platforms:qqLoginDescription')}>
-          <Button onClick={onQQLogin}>{t('platforms:openQQLogin')}</Button>
-        </Row>
-      ) : (
-        <p className={styles.description}>{t('platforms:qqLoginUnavailable')}</p>
-      )}
-      <div className={styles.field}>
-        <label htmlFor={`${field}-image`}>{t('platforms:image')}</label>
-        <TextField
-          id={`${field}-image`}
-          value={image}
-          spellCheck={false}
-          autoComplete="off"
-          placeholder={t('platforms:imagePlaceholder')}
-          onChange={(event) => setImage(event.target.value)}
-        />
-      </div>
-      {local.isPending ? (
-        <Spinner />
-      ) : here ? (
-        <Row title={t('platforms:enableLocal')} description={t('platforms:enableLocalDescription')}>
-          <Button
-            variant="primary"
-            loading={busy}
-            disabled={!image.trim()}
-            onClick={async () => {
-              setBusy(true)
-              setNotice(undefined)
-              try {
-                unwrap(await window.yuki.localBot.enableSnowLuma(image))
-                setNotice({ failed: false, text: t('platforms:enabledLocal') })
-                await refresh()
-              } catch (failure) {
-                setNotice({
-                  failed: true,
-                  text:
-                    failure instanceof ClientProblem ? problemText(failure.code) : String(failure),
-                })
-              } finally {
-                setBusy(false)
-              }
-            }}
-          >
-            {t('platforms:enableLocal')}
-          </Button>
-        </Row>
-      ) : (
-        <div className={styles.commands}>
-          <p className={styles.description}>{t('platforms:serverCommands')}</p>
-          <code>{script}</code>
-          <Button
-            variant="plain"
-            onClick={async () => {
-              setNotice(undefined)
-              unwrap(await window.yuki.client.copy(script))
-              setNotice({ failed: false, text: t('platforms:copied') })
-            }}
-          >
-            <Copy size={14} /> {t('platforms:copyCommands')}
-          </Button>
+    <>
+      <div className={styles.body}>
+        <p className={styles.note}>{t('platforms:snowlumaDescription')}</p>
+        <div className={form.formRow}>
+          <span>{t('platforms:snowlumaStatus')}</span>
+          <span className={styles.note}>{summary(t, health, false)}</span>
         </div>
-      )}
-      {notice &&
-        (notice.failed ? (
-          <Banner status="failed">{notice.text}</Banner>
+        {loginAvailable ? (
+          <div className={form.formRow}>
+            <span className={form.formField}>
+              {t('platforms:qqLogin')}
+              <small>{t('platforms:qqLoginDescription')}</small>
+            </span>
+            <Button onClick={onQQLogin}>{t('platforms:openQQLogin')}</Button>
+          </div>
         ) : (
-          <p role="status" className={styles.done}>
-            {notice.text}
-          </p>
-        ))}
-      <p className={styles.description}>{t('platforms:elsewhere')}</p>
-    </div>
+          <p className={styles.note}>{t('platforms:qqLoginUnavailable')}</p>
+        )}
+        <div className={form.formField}>
+          <label htmlFor={`${field}-image`}>{t('platforms:image')}</label>
+          <TextField
+            id={`${field}-image`}
+            value={image}
+            spellCheck={false}
+            autoComplete="off"
+            placeholder={t('platforms:imagePlaceholder')}
+            onChange={(event) => setImage(event.target.value)}
+          />
+          <small>{t('platforms:imageDescription')}</small>
+        </div>
+        {local.isPending ? (
+          <Spinner />
+        ) : here ? (
+          <div className={form.formRow}>
+            <span className={styles.note}>{t('platforms:enableLocalDescription')}</span>
+            <Button
+              variant="primary"
+              loading={busy}
+              disabled={!image.trim()}
+              onClick={async () => {
+                setBusy(true)
+                setNotice(undefined)
+                try {
+                  unwrap(await window.yuki.localBot.enableSnowLuma(image))
+                  setNotice({ failed: false, text: t('platforms:enabledLocal') })
+                  await refresh()
+                } catch (failure) {
+                  setNotice({
+                    failed: true,
+                    text:
+                      failure instanceof ClientProblem
+                        ? problemText(failure.code)
+                        : String(failure),
+                  })
+                } finally {
+                  setBusy(false)
+                }
+              }}
+            >
+              {t('platforms:enableLocal')}
+            </Button>
+          </div>
+        ) : (
+          <div className={styles.commands}>
+            <p className={styles.note}>{t('platforms:serverCommands')}</p>
+            <code>{script}</code>
+            <Button
+              variant="plain"
+              onClick={async () => {
+                setNotice(undefined)
+                unwrap(await window.yuki.client.copy(script))
+                setNotice({ failed: false, text: t('platforms:copied') })
+              }}
+            >
+              <Copy size={14} /> {t('platforms:copyCommands')}
+            </Button>
+          </div>
+        )}
+        <details className={styles.howTo}>
+          <summary>{t('platforms:elsewhereTitle')}</summary>
+          <p className={styles.note}>{t('platforms:elsewhere')}</p>
+        </details>
+      </div>
+      {notice && <Banner status={notice.failed ? 'failed' : 'done'}>{notice.text}</Banner>}
+    </>
   )
 }

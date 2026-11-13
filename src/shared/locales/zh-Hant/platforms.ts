@@ -12,14 +12,16 @@ export default {
     qq: 'QQ',
   },
   status: {
+    unset: '未設定',
     disabled: '未啟用',
     connected: '已連線',
     connecting: '正在連線',
-    failed: '連線錯誤',
   },
-  lastSuccess: '最近成功：{{time}}',
-  accounts: '目前帳號：{{accounts}}',
-  lastError: '最近錯誤：{{reason}}',
+  connectedAs: '已連線：{{accounts}}',
+  accountSeparator: '、',
+  qqSummary: '{{mode}} · {{status}}',
+  configure: '設定',
+  configureName: '設定 {{name}}',
   enable: '啟用 {{name}}',
   field: {
     botToken: 'Bot Token',
@@ -28,11 +30,12 @@ export default {
     qqAppId: 'AppID',
     qqAppSecret: 'AppSecret',
     sandbox: '沙箱',
-    sandboxDescription: '機器人審核上線前只能在沙箱聯調，上線後取消。',
+    sandboxDescription: '審核上線前只能在沙箱聯調，上線後關閉。',
   },
   saved: '已儲存',
-  keepSaved: '留空則保留已儲存的值',
   save: '儲存',
+  cancel: '取消',
+  done: '完成',
   removeCredentials: '移除憑據',
   applied: '已儲存並套用。',
   savedPendingRestart: '已儲存，重新啟動 Yuki 後生效。',
@@ -76,75 +79,63 @@ export default {
     qq_official_rejected: 'QQ 開放平台拒絕了請求。',
     other: '連線錯誤（{{category}}）',
   },
-  guide: {
-    telegram: '取得 Bot Token',
-    feishu: '取得飛書應用憑據',
-    lark: '取得 Lark 應用憑據',
-    qqOfficial: '取得 AppID 與 AppSecret',
+  howTo: '如何取得',
+  console: {
+    telegram: '開啟 BotFather',
+    feishu: '開啟飛書開放平台',
+    lark: '開啟 Lark 開放平台',
+    qq_official: '開啟 QQ 開放平台',
   },
   telegramSteps: {
-    create:
-      '在 Telegram 打開 @BotFather，傳送 /newbot，依提示填寫顯示名稱與以 bot 結尾的使用者名稱。',
-    token:
-      'BotFather 回覆的 token（形如 123456789:AA…）就是這個 Bot 的全部控制權，只貼在這裡；外洩時在 BotFather 用 /revoke 換一個新的。',
+    create: '在 Telegram 向 @BotFather 傳送 /newbot，依提示建立 Bot。',
+    token: '把它回覆的 token 填入 Bot Token；外洩時用 /revoke 換一個。',
     privacy:
-      '要讓 Bot 在群組看到一般訊息：向 BotFather 傳送 /setprivacy，選這個 Bot 再選 Disable，然後把 Bot 移出群組再重新加入。只私聊不必改。',
-    webhook:
-      '這個 Bot 設定過 webhook（例如以前接過別的服務）時，Yuki 收不到訊息，要先刪除：用 getWebhookInfo 檢查，url 不為空就呼叫 deleteWebhook。',
-    single: '同一個 token 同一時間只能由一個程式收訊息，其他程式也在用時兩邊會互相擠掉。',
+      '要在群組看到一般訊息，向 BotFather 傳送 /setprivacy 選 Disable，再把 Bot 重新加入群組。',
+    webhook: '一個 token 同時只能由一個程式收訊息；設定過 webhook 的要先呼叫 deleteWebhook。',
   },
   feishuSteps: {
-    create: '在{{console}}建立企業自建應用，啟用「機器人」能力。',
-    scope: '設定應用的可用範圍，讓要使用 Yuki 的人能打開機器人，並把機器人加入目標群組。',
-    events:
-      '在「事件與回呼」選擇「使用長連線接收事件」，訂閱 im.message.receive_v1，不需要公網回呼位址。',
+    create: '在{{console}}建立企業自建應用，啟用「機器人」，並在可用範圍加入要使用的人。',
+    events: '在「事件與回呼」選「使用長連線接收事件」，訂閱 im.message.receive_v1。',
     permissions:
-      '申請權限：單聊 im:message.p2p_msg:readonly、群內 @ im:message.group_at_msg:readonly、群內一般訊息 im:message.group_msg、以機器人傳送 im:message:send_as_bot、讀取訊息與資源 im:message:readonly、上傳 im:resource。',
-    publish: '建立版本並發布，等組織管理員審核通過；之後改權限也要重新發布。',
-    credentials:
-      '在「憑證與基礎資訊」複製 App ID 與 App Secret 填到下方。飛書與 Lark 的應用不能混用。',
+      '申請權限 im:message.p2p_msg:readonly、im:message.group_at_msg:readonly、im:message.group_msg、im:message:send_as_bot、im:message:readonly 與 im:resource。',
+    publish: '建立版本並發布，等管理員審核通過；之後改權限也要重新發布。',
+    credentials: '在「憑證與基礎資訊」複製 App ID 與 App Secret；飛書與 Lark 的應用不能混用。',
   },
-  feishuConsole: '飛書開放平台（open.feishu.cn）',
-  larkConsole: 'Lark 開放平台（open.larksuite.com）',
+  feishuConsole: '飛書開放平台',
+  larkConsole: 'Lark 開放平台',
   qqSteps: {
-    register: '用 QQ 登入 QQ 開放平台（q.qq.com），完成開發者註冊與認證，建立「QQ 機器人」。',
-    credentials:
-      '在機器人的開發設定取得 AppID 與 AppSecret。AppSecret 只在產生時顯示，重設後舊的立即失效。',
-    whitelist: '開發設定要求 IP 白名單時，加入伺服器的出口公網 IP。',
-    sandbox: '上線前只能在沙箱聯調：把測試用的 QQ 號與群加入沙箱範圍，並勾選下方「沙箱」。',
-    release: '聯調完成後在開放平台提交審核、發布上線，再到這裡取消「沙箱」。',
+    register: '在 QQ 開放平台（q.qq.com）完成開發者註冊，建立 QQ 機器人。',
+    credentials: '在開發設定取得 AppID 與 AppSecret；要求 IP 白名單時，加入伺服器的出口 IP。',
+    sandbox: '上線前把測試用的 QQ 號與群加入沙箱，並開啟「沙箱」。',
+    release: '審核發布後，回到這裡關閉「沙箱」。',
   },
   qqMode: 'QQ 接入方式',
   qqOfficial: '官方 Bot',
   snowluma: 'SnowLuma',
-  qqOfficialDescription: '經 QQ 開放平台的官方機器人接入，不需要 QQ 帳號登入，也不需要公網位址。',
   limitsTitle: '官方 Bot 的限制',
   limits: {
-    mentions:
-      '群裡預設只收到 @ 機器人的訊息。群主把「機器人可獲取的群聊訊息範圍」改為「獲取群內全部訊息」後，Yuki 才看得到一般聊天、自然插話。',
-    proactive:
-      '群裡不能主動發訊息：每則群訊息都要回覆群裡已收到的一則訊息，一則都沒收到過的群無法送出。',
-    window:
-      '回覆有時間窗口與次數限制：單聊約 60 分鐘、群聊約 5 分鐘，超出時這次傳送記為失敗，不會重試或改發別處。',
-    identity: '官方 Bot 給的是 openid，與 SnowLuma 的 QQ 號互不相通，不會自動合併為同一個人。',
+    mentions: '群裡預設只收到 @ 機器人的訊息，群主開放「獲取群內全部訊息」後才看得到一般聊天。',
+    replies:
+      '群裡不能主動發訊息，只能在時間窗口內回覆收到的訊息（單聊約 60 分鐘、群聊約 5 分鐘）。',
+    identity: '官方 Bot 的 openid 與 SnowLuma 的 QQ 號不相通，不會合併為同一個人。',
   },
-  snowlumaDescription:
-    'SnowLuma 以一個 QQ 帳號登入接入。它的設定在部署目錄的 .env，由 Docker Compose 讀取，要重建容器才會生效。SnowLuma 上游已停止維護，Yuki 不提供映像，請填你自己能拉取的映像。',
-  snowlumaStatus: 'SnowLuma 連線',
+  snowlumaDescription: 'SnowLuma 以一個 QQ 帳號登入接入，設定寫在部署目錄的 .env，重建容器後生效。',
+  snowlumaStatus: '連線狀態',
   qqLogin: 'QQ 登入',
   qqLoginDescription: '在電腦視窗的 QQ 畫面掃碼登入。',
   openQQLogin: '開啟 QQ 登入',
   qqLoginUnavailable: '伺服器沒有設定 SNOWLUMA_VNC_HOST，「QQ 登入」暫時不可用。',
   image: 'SnowLuma 映像',
+  imageDescription: '上游已停止維護，Yuki 不提供映像，請填你自己能拉取的映像。',
   imagePlaceholder: 'registry.example.com/you/snowluma:tag',
   enableLocal: '在這台電腦啟用',
   enableLocalDescription:
     '寫入本機部署的 .env（加入 snowluma、映像、QQ 畫面位址並產生 token 與密碼），再重新啟動 Yuki 與 SnowLuma。',
   enabledLocal: 'SnowLuma 已啟動。Yuki 重新連上後，就能從「QQ 登入」掃碼。',
-  serverCommands:
-    '這個 Yuki 不在這台電腦上。請在伺服器的 Yuki 部署目錄（有 .env 與 docker-compose.yml 的目錄）執行：',
+  serverCommands: '這個 Yuki 不在這台電腦上。請在伺服器的 Yuki 部署目錄（有 .env 的目錄）執行：',
   copyCommands: '複製指令',
   copied: '已複製。',
+  elsewhereTitle: 'SnowLuma 部署在別處',
   elsewhere:
-    'SnowLuma 部署在別處時，不必執行上面的指令：在 Yuki 的 .env 填 SNOWLUMA_VNC_HOST、SNOWLUMA_VNC_PORT（預設 5900）與 SNOWLUMA_VNC_PASSWORD，讓 SnowLuma 的反向 WebSocket 連到 Yuki 的 /onebot/v11/snowluma/ws 並使用同一個 ONEBOT_ACCESS_TOKEN，再重建 Bot。',
+    '不必執行上面的指令：在 Yuki 的 .env 填 SNOWLUMA_VNC_HOST、SNOWLUMA_VNC_PORT（預設 5900）與 SNOWLUMA_VNC_PASSWORD，讓 SnowLuma 的反向 WebSocket 以同一個 ONEBOT_ACCESS_TOKEN 連到 Yuki 的 /onebot/v11/snowluma/ws，再重建 Bot。',
 } as const

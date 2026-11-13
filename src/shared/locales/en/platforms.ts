@@ -15,14 +15,16 @@ export default {
     qq: 'QQ',
   },
   status: {
+    unset: 'Not set up',
     disabled: 'Off',
     connected: 'Connected',
     connecting: 'Connecting',
-    failed: 'Connection error',
   },
-  lastSuccess: 'Last success: {{time}}',
-  accounts: 'Account: {{accounts}}',
-  lastError: 'Last error: {{reason}}',
+  connectedAs: 'Connected as {{accounts}}',
+  accountSeparator: ', ',
+  qqSummary: '{{mode}} · {{status}}',
+  configure: 'Set Up',
+  configureName: 'Set Up {{name}}',
   enable: 'Enable {{name}}',
   field: {
     botToken: 'Bot Token',
@@ -31,12 +33,12 @@ export default {
     qqAppId: 'AppID',
     qqAppSecret: 'AppSecret',
     sandbox: 'Sandbox',
-    sandboxDescription:
-      'Before review and release, the bot works only in its sandbox. Turn this off once it’s live.',
+    sandboxDescription: 'Until review and release, the bot works only in its sandbox.',
   },
   saved: 'Saved',
-  keepSaved: 'Leave empty to keep the saved value',
   save: 'Save',
+  cancel: 'Cancel',
+  done: 'Done',
   removeCredentials: 'Remove Credentials',
   applied: 'Saved and applied.',
   savedPendingRestart: 'Saved. It takes effect after Yuki restarts.',
@@ -91,84 +93,76 @@ export default {
     qq_official_rejected: 'The QQ open platform refused the request.',
     other: 'Connection error ({{category}})',
   },
-  guide: {
-    telegram: 'Getting a Bot Token',
-    feishu: 'Getting Feishu App Credentials',
-    lark: 'Getting Lark App Credentials',
-    qqOfficial: 'Getting the AppID and AppSecret',
+  howTo: 'How to Get Them',
+  console: {
+    telegram: 'Open BotFather',
+    feishu: 'Open Feishu Open Platform',
+    lark: 'Open Lark Developer',
+    qq_official: 'Open QQ Open Platform',
   },
   telegramSteps: {
-    create:
-      'In Telegram, open @BotFather, send /newbot, and follow the prompts for a display name and a username ending in “bot”.',
+    create: 'In Telegram, send /newbot to @BotFather and follow the prompts.',
     token:
-      'The token BotFather replies with (like 123456789:AA…) is full control of this bot. Paste it only here; if it leaks, get a new one with /revoke in BotFather.',
+      'Enter the token it replies with as the Bot Token; if it leaks, get a new one with /revoke.',
     privacy:
-      'For the bot to see ordinary group messages: send /setprivacy to BotFather, pick this bot, choose Disable, then remove the bot from the group and add it back. Not needed for private chats.',
+      'To see ordinary group messages, send /setprivacy to BotFather, choose Disable, then add the bot to the group again.',
     webhook:
-      'If this bot ever had a webhook (for example, another service used it), Yuki receives nothing until it’s deleted: check with getWebhookInfo, and if the url isn’t empty, call deleteWebhook.',
-    single:
-      'Only one program at a time can receive messages with a token; two programs using it push each other off.',
+      'Only one program at a time can receive with a token; if the bot ever had a webhook, call deleteWebhook first.',
   },
   feishuSteps: {
-    create: 'In the {{console}}, create a custom enterprise app and enable its Bot capability.',
-    scope:
-      'Set the app’s availability so the people using Yuki can open the bot, and add the bot to the target groups.',
+    create:
+      'In the {{console}}, create a custom enterprise app, enable its Bot capability, and add the people who use Yuki to its availability.',
     events:
-      'Under Events & Callbacks, choose to receive events through a long connection and subscribe to im.message.receive_v1. No public callback address is needed.',
+      'Under Events & Callbacks, choose to receive events through a long connection and subscribe to im.message.receive_v1.',
     permissions:
-      'Request permissions: direct messages im:message.p2p_msg:readonly, group mentions im:message.group_at_msg:readonly, ordinary group messages im:message.group_msg, sending as the bot im:message:send_as_bot, reading messages and resources im:message:readonly, uploads im:resource.',
+      'Request im:message.p2p_msg:readonly, im:message.group_at_msg:readonly, im:message.group_msg, im:message:send_as_bot, im:message:readonly and im:resource.',
     publish:
-      'Create and publish a version, and wait for your organization’s administrator to approve it. Permission changes need a new release too.',
+      'Create and publish a version and wait for approval; permission changes need a new release too.',
     credentials:
-      'Copy the App ID and App Secret from Credentials & Basic Info into the fields below. Feishu and Lark apps aren’t interchangeable.',
+      'Copy the App ID and App Secret from Credentials & Basic Info; Feishu and Lark apps aren’t interchangeable.',
   },
-  feishuConsole: 'Feishu Open Platform (open.feishu.cn)',
-  larkConsole: 'Lark Developer console (open.larksuite.com)',
+  feishuConsole: 'Feishu Open Platform',
+  larkConsole: 'Lark Developer console',
   qqSteps: {
-    register:
-      'Sign in to the QQ open platform (q.qq.com) with QQ, complete developer registration and verification, and create a QQ bot.',
+    register: 'Register as a developer on the QQ open platform (q.qq.com) and create a QQ bot.',
     credentials:
-      'Find the AppID and AppSecret in the bot’s development settings. The AppSecret is shown only when generated; resetting it invalidates the old one at once.',
-    whitelist:
-      'If the development settings ask for an IP allowlist, add the server’s public outbound IP.',
+      'Find the AppID and AppSecret in its development settings; if an IP allowlist is required, add the server’s public IP.',
     sandbox:
-      'Until it’s released, the bot works only in its sandbox: add the QQ accounts and groups you test with to the sandbox, and turn on Sandbox below.',
-    release:
-      'When testing is done, submit the bot for review and release it on the open platform, then turn off Sandbox here.',
+      'Before release, add the QQ accounts and groups you test with to the sandbox and turn on Sandbox.',
+    release: 'Once it’s reviewed and released, come back and turn off Sandbox.',
   },
   qqMode: 'QQ Connection',
   qqOfficial: 'Official Bot',
   snowluma: 'SnowLuma',
-  qqOfficialDescription:
-    'Connects through an official bot on the QQ open platform. No QQ account sign-in and no public address needed.',
   limitsTitle: 'Limits of the Official Bot',
   limits: {
     mentions:
-      'In groups, only messages that @mention the bot arrive by default. Yuki sees ordinary chat and joins in naturally only after the group owner sets the bot’s group message range to all messages.',
-    proactive:
-      'The bot can’t start a group message: every group message must reply to one the group already sent, so a group that has sent nothing can’t be reached.',
-    window:
-      'Replies have a time window and a count limit: about 60 minutes in private chats and 5 minutes in groups. Past that, the send is recorded as failed and isn’t retried or sent elsewhere.',
+      'In groups, only messages that @mention the bot arrive until the group owner allows it to read all messages.',
+    replies:
+      'It can’t start a group message and can only reply within a time window (about 60 minutes in private chats, 5 minutes in groups).',
     identity:
-      'The official bot identifies people by openid, separate from SnowLuma’s QQ numbers; the two are never merged into one person automatically.',
+      'Its openids are separate from SnowLuma’s QQ numbers and are never merged into one person.',
   },
   snowlumaDescription:
-    'SnowLuma connects by signing in to a QQ account. Its settings live in the deployment’s .env, read by Docker Compose, and take effect when the containers are recreated. SnowLuma is no longer maintained upstream and Yuki ships no image; enter an image you can pull yourself.',
-  snowlumaStatus: 'SnowLuma Connection',
+    'SnowLuma connects by signing in to a QQ account. Its settings live in the deployment’s .env and take effect when the containers are recreated.',
+  snowlumaStatus: 'Status',
   qqLogin: 'QQ Sign-In',
   qqLoginDescription: 'Scan the code on the QQ screen in the computer window.',
   openQQLogin: 'Open QQ Sign-In',
   qqLoginUnavailable: 'The server has no SNOWLUMA_VNC_HOST set, so QQ Sign-In isn’t available.',
   image: 'SnowLuma Image',
+  imageDescription:
+    'SnowLuma is no longer maintained upstream and Yuki ships no image; enter one you can pull yourself.',
   imagePlaceholder: 'registry.example.com/you/snowluma:tag',
   enableLocal: 'Enable on This Computer',
   enableLocalDescription:
     'Writes the local deployment’s .env (adds snowluma, the image and the QQ screen address, and generates a token and password), then restarts Yuki with SnowLuma.',
   enabledLocal: 'SnowLuma is running. Once Yuki reconnects, scan the code in QQ Sign-In.',
   serverCommands:
-    'This Yuki isn’t on this computer. Run the following in the Yuki deployment directory on the server (the one with .env and docker-compose.yml):',
+    'This Yuki isn’t on this computer. Run the following in the Yuki deployment directory on the server (the one with .env):',
   copyCommands: 'Copy Commands',
   copied: 'Copied.',
+  elsewhereTitle: 'SnowLuma Runs Elsewhere',
   elsewhere:
-    'If SnowLuma runs somewhere else, skip the commands above: set SNOWLUMA_VNC_HOST, SNOWLUMA_VNC_PORT (default 5900) and SNOWLUMA_VNC_PASSWORD in Yuki’s .env, point SnowLuma’s reverse WebSocket at Yuki’s /onebot/v11/snowluma/ws with the same ONEBOT_ACCESS_TOKEN, then recreate the Bot.',
+    'Skip the commands above: set SNOWLUMA_VNC_HOST, SNOWLUMA_VNC_PORT (default 5900) and SNOWLUMA_VNC_PASSWORD in Yuki’s .env, point SnowLuma’s reverse WebSocket at Yuki’s /onebot/v11/snowluma/ws with the same ONEBOT_ACCESS_TOKEN, then recreate the Bot.',
 } satisfies English<'platforms'>

@@ -50,7 +50,7 @@ npm run test:e2e -- tests/e2e/backend.spec.ts
 
 `tests/e2e/real-computer-lifecycle.spec.ts` 另需 `YUKI_DESKTOP_REAL_MANAGER_RESTART=1`，以兩個實際桌面設定檔驗證純等待跨三個控制租約。測試在輸出目錄寫出各次重啟閘點，由操作者核對後只重啟隔離 Manager；以 Linux 核心的 Unix peer PID 確認真重啟，核對原容器、執行與等待持續，最後交回才接續原工作。測試本身不操作部署服務；已有 L1 等待時可沿保留的兩個設定檔接續，不能用已完成工作重新送出。
 
-`tests/e2e/platforms.spec.ts` 經真後端驗證設定的「平台」頁：被拒憑據的原因、revision 衝突、回應遺失後以原請求號確認、設定目錄不可寫，以及 QQ 官方 Bot／SnowLuma 與三種語言的截圖。憑據預檢會以被拒的假憑據實際連到 Telegram 等平台，不呼叫付費服務。舊後端案例另需 `YUKI_BACKEND_PREVIOUS_ROOT` 與 `YUKI_BACKEND_PREVIOUS_PYTHON` 指向 revision 低於 11 的後端 checkout，未設定時跳過。
+`tests/e2e/platforms.spec.ts` 經真後端驗證設定的「平台」頁：被拒憑據的原因、revision 衝突、回應遺失後以原請求號確認、設定目錄不可寫，QQ 官方 Bot／SnowLuma 與三種語言的截圖，以及清單與各平台對話框在淺色／深色、透明磨砂／不透明下與「模型」頁同條件的對照截圖和列樣式量測（`platforms-looks.json`）。憑據預檢會以被拒的假憑據實際連到 Telegram 等平台，不呼叫付費服務。舊後端案例另需 `YUKI_BACKEND_PREVIOUS_ROOT` 與 `YUKI_BACKEND_PREVIOUS_PYTHON` 指向 revision 低於 11 的後端 checkout，未設定時跳過。
 
 ## 原生殼與平台專項
 

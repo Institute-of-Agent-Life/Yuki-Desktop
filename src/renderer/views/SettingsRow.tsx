@@ -5,14 +5,22 @@ import styles from './Settings.module.css'
 export function Row({
   title,
   description,
+  group = false,
   children,
 }: {
   title: string
   description?: string
+  /** A row that stands for one thing (a platform) is named by its title. */
+  group?: boolean
   children?: ReactNode
 }) {
   return (
-    <div className={styles.row} data-settings-row>
+    <div
+      className={styles.row}
+      data-settings-row
+      role={group ? 'group' : undefined}
+      aria-label={group ? title : undefined}
+    >
       <div className={styles.label}>
         {title}
         {description && <small>{description}</small>}
