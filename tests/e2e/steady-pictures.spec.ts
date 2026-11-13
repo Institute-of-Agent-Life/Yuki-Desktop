@@ -196,3 +196,65 @@ test('something above the view changing size leaves the rows in view where they 
   evidence.growWhileReading = moves(growing.tops)
   expect(moves(growing.tops)).toEqual([])
 })
+
+// A slow machine can deliver a picture's crossings together: out of view as it mounted, then in
+// view once scrolled to. Failure case: only the first entry was read, so the picture stayed a file
+// card for good (seen on a Windows CI runner).
+test('a picture loads when the observer reports its crossings together', async ({ page }) => {
+  await page.addInitScript(() => {
+    const Native = window.IntersectionObserver
+    window.IntersectionObserver = class {
+      private queue: IntersectionObserverEntry[] = []
+      private timer?: ReturnType<typeof setTimeout>
+      private readonly native: IntersectionObserver
+      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+        this.native = new Native((entries) => {
+          this.queue.push(...entries)
+          clearTimeout(this.timer)
+          this.timer = setTimeout(() => {
+            const batch = this.queue
+            this.queue = []
+            callback(batch, this as unknown as IntersectionObserver)
+          }, 400)
+        }, options)
+      }
+      observe(target: Element) {
+        this.native.observe(target)
+      }
+      unobserve(target: Element) {
+        this.native.unobserve(target)
+      }
+      disconnect() {
+        clearTimeout(this.timer)
+        this.native.disconnect()
+      }
+      takeRecords() {
+        return this.native.takeRecords()
+      }
+    } as unknown as typeof IntersectionObserver
+  })
+  await page.setViewportSize({ width: 1100, height: 560 })
+  await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=conversation-glass')
+  await expect(page.getByText('幫我整理一下這週的訪談筆記。', { exact: true })).toBeVisible()
+  await page.evaluate(() => {
+    const regression = (window as unknown as SteadyWindow).regression
+    regression.connection('online')
+    for (let index = 0; index < 12; index++) regression.receiveGlassReply(`再一則 ${index}`)
+  })
+  await page.waitForTimeout(800)
+  const log = page.locator('[role="log"]')
+  // Reading from the top, so the picture arrives far below the view.
+  await log.evaluate((log) => (log.scrollTop = 0))
+  await page.waitForTimeout(300)
+  await page.evaluate(() =>
+    (window as unknown as SteadyWindow).regression.receiveGlassPicture('一張照片', false),
+  )
+  await page.waitForTimeout(50)
+  await log.evaluate((log) => (log.scrollTop = log.scrollHeight))
+  const picture = page.locator('article').filter({ hasText: '一張照片' })
+  await expect(picture).toBeInViewport()
+  await expect.poll(() => picture.locator('img').count(), { timeout: 3000 }).toBe(1)
+  await expect
+    .poll(() => picture.locator('img').evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBeGreaterThan(0)
+})
