@@ -44,6 +44,9 @@
   height: auto;
   object-fit: contain;
 }
+.sticker img[hidden] {
+  display: none;
+}
 .stickerWaiting {
   display: block;
   width: 96px;

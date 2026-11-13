@@ -547,12 +547,17 @@ export function Conversation({
     }
   })
   // Rows settling into their size, the room kept for the composer or a narrower window move the
-  // end as well: a person at the end stays there.
+  // end as well: a person at the end stays there. A row growing on its own (a picture that has
+  // loaded) is followed on the bubbles' spring; the list itself resized keeps the end at once.
   useEffect(() => {
     const log = list.current
     if (!log) return
-    const sizes = new ResizeObserver(() => {
-      if (following(log) && anchor === null) followEnd(log, false)
+    const sizes = new ResizeObserver((entries) => {
+      if (following(log) && anchor === null)
+        followEnd(
+          log,
+          entries.every((entry) => entry.target !== log),
+        )
     })
     sizes.observe(log)
     for (const row of log.children) sizes.observe(row)
@@ -1315,10 +1320,6 @@ export function Conversation({
               aria-label="對話訊息"
               aria-live="polite"
               ref={attachList}
-              onLoadCapture={(event) => {
-                if (following(event.currentTarget) && anchor === null)
-                  followEnd(event.currentTarget, false)
-              }}
               onScroll={(event) => {
                 const node = event.currentTarget
                 // The app keeping the end in view is not the person leaving it.
