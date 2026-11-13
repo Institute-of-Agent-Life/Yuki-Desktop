@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process'
 import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import { delimiter, join } from 'node:path'
 import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
+import { fillSsh, sshHost } from '../fixtures/ssh-host'
 
 /*
  * Settings → 平台 (task book 2026-11-13 §3.2 desktop, §4 failure cases 4, 6–10, §5 revision),
@@ -16,7 +17,9 @@ import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
  * 8  A save with an expired revision overwrites what another device just saved.
  * 9  A saved secret is shown, echoed into the page, or returned by the read.
  * 10 「QQ 登入」is offered without `SNOWLUMA_VNC_HOST`, or missing (or not opening the QQ display)
- *    with it; a server reached only by URL gets no commands to enable SnowLuma.
+ *    with it; a server reached only by URL gets no commands to enable SnowLuma. A server this
+ *    desktop manages over SSH is asked to copy commands instead of running them, runs them outside
+ *    its deployment directory, or runs anything but the backend's one line.
  *    QQ 官方 Bot: its limits are not in front of the operator before saving.
  * Layout (UI 液态玻璃统一): a platform is a card of its own instead of a settings row like the
  * model page's, a guide is spread over the page instead of folded in the dialog, or the rows'
@@ -385,6 +388,70 @@ test(
     }
   },
 )
+
+test('a server managed over SSH runs the one SnowLuma line in its deployment directory', async () => {
+  test.setTimeout(150000)
+  const rig = await deployment({ basePath: '' }),
+    password = 'snowluma server ' + crypto.randomUUID(),
+    ran: string[] = []
+  const host = await sshHost({
+    user: 'yuki',
+    password,
+    async exec(command) {
+      if (command.includes('id -u')) return { stdout: 'uid=1000\nhome=/home/yuki\nsudo=yes\n' }
+      if (command.includes('YUKI_PORT')) return { stdout: `${rig.port}\n` }
+      if (command.includes('deploy/pair.sh'))
+        return { stdout: `  Pairing code: ${await rig.code()}\n` }
+      if (command.includes('deploy/snowluma.sh')) {
+        ran.push(command)
+        return { stdout: 'SnowLuma is starting.\n' }
+      }
+      return { code: 127, stderr: `unexpected: ${command}` }
+    },
+  })
+  const app = await rig.launch('platforms-ssh-snowluma')
+  let success = false
+  try {
+    const page = await app.firstWindow()
+    await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
+    await page.getByRole('button', { name: '通過 SSH 連接', exact: true }).click()
+    await fillSsh(page, { address: 'yuki@127.0.0.1', port: host.port, password })
+    await page.getByRole('button', { name: '檢查主機', exact: true }).click()
+    await page.getByRole('button', { name: '確認指紋並連接', exact: true }).click()
+    await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible({
+      timeout: 60000,
+    })
+    await platforms(page)
+    const qq = await configure(page, 'QQ')
+    await qq
+      .getByRole('radiogroup', { name: 'QQ 接入方式', exact: true })
+      .getByRole('radio', { name: 'SnowLuma', exact: true })
+      .click()
+    await qq
+      .getByLabel('SnowLuma 映像', { exact: true })
+      .fill("registry.example.com/me/snow'luma:1")
+    // Nothing to copy: the desktop holds the server's SSH login and runs the line itself.
+    await expect(qq.locator('code')).toHaveCount(0)
+    await qq
+      .locator('[data-settings-row]')
+      .filter({ hasText: '在伺服器上啟用' })
+      .getByRole('button', { name: '啟用 SnowLuma', exact: true })
+      .click()
+    await expect(qq.getByText('SnowLuma 已在伺服器上啟動', { exact: false })).toBeVisible({
+      timeout: 30000,
+    })
+    expect(ran).toEqual([
+      `cd '/home/yuki/yuki' && sudo -n sh deploy/snowluma.sh 'registry.example.com/me/snow'\\''luma:1'`,
+    ])
+    await settle(page)
+    await page.screenshot({ path: test.info().outputPath('platforms-ssh-snowluma.png') })
+    success = true
+  } finally {
+    await app.close()
+    await host.stop()
+    await rig.close(success)
+  }
+})
 
 // Type, spacing and buttons of the first settings row and its button on the open settings page.
 const rowMetrics = (page: Page) =>

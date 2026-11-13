@@ -80,7 +80,10 @@ test('deploy to my server: Docker install, image pull and installer failures eac
     image: false,
     environmentImage: false,
     env: false,
+    // install.sh's own .env records: the owner it was told to create, and the one it created.
+    ownerName: '',
     owner: '',
+    owners: 0,
     uploads: new Map<string, Buffer>(),
   }
   const host = await sshHost({
@@ -131,34 +134,27 @@ test('deploy to my server: Docker install, image pull and installer failures eac
         return {}
       }
       if (command.includes('install.sh')) {
-        if (!server.environmentImage) {
-          server.env = true
+        // As install.sh since 7094d76a: a first run records the owner's name in .env; any run
+        // that finds the name and no owner creates the owner, under the request ID it recorded.
+        if (!server.env) server.ownerName = /--owner-name '([^']*)'/.exec(command)?.[1] ?? ''
+        server.env = true
+        if (!server.environmentImage)
           return {
             code: 1,
             stdout: `Pulling ghcr.io/yuanyeyoutao/yuki-environment:${version}\n`,
             stderr:
               'Error response from daemon: Get "https://ghcr.io/v2/": dial tcp: i/o timeout\n',
           }
+        if (server.ownerName && !server.owner) {
+          server.owner = ready.owner_person_id
+          server.owners += 1
         }
-        server.env = true
         return { stdout: `Yuki ${version} is running in /root/yuki\n` }
       }
-      if (command.includes('desktop-pair')) {
-        const body = JSON.parse(input.toString()) as { person_id?: string }
-        return {
-          stdout: JSON.stringify({
-            person_id: body.person_id ?? ready.owner_person_id,
-            code: await rig.code(),
-          }),
-        }
-      }
-      if (command.includes('YUKI_OWNER_PERSON_ID=') && command.includes('tee -a')) {
-        server.owner = /YUKI_OWNER_PERSON_ID=([0-9a-f-]+)/.exec(command)![1]!
-        return {}
-      }
-      if (command.includes('YUKI_OWNER_PERSON_ID')) return { stdout: server.owner + '\n' }
       if (command.includes('deploy/pair.sh'))
-        return { stdout: `  Pairing code: ${await rig.code()}\n` }
+        return server.owner
+          ? { stdout: `  Pairing code: ${await rig.code()}\n` }
+          : { code: 1, stderr: 'No owner is recorded in .env\n' }
       if (command.includes('YUKI_PORT')) return { stdout: `${rig.port}\n` }
       if (command.includes('id -u')) return { stdout: 'uid=0\nhome=/root\n' }
       if (command.includes('compose logs')) return { stdout: 'bot-1  | Yuki is ready\n' }
@@ -214,8 +210,8 @@ test('deploy to my server: Docker install, image pull and installer failures eac
     })
     await page.screenshot({ path: test.info().outputPath('steps-05-install-mirror.png') })
 
-    // 22: the first run created .env before failing; retrying creates the owner once, through
-    // Desktop's own request IDs, and records it where pair.sh looks.
+    // 22: the first run created .env before failing; running install.sh again with the same
+    // owner name lets it create the owner once. Desktop creates no owner and writes no .env.
     server.environmentImage = true
     await page.getByRole('button', { name: '重試這一步', exact: true }).click()
     await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible({
@@ -231,8 +227,12 @@ test('deploy to my server: Docker install, image pull and installer failures eac
     })
     expect(connection.personId).toBe(ready.owner_person_id)
     expect(server.owner).toBe(ready.owner_person_id)
-    const pairs = host.execs.filter((item) => item.command.includes('desktop-pair'))
-    expect(pairs).toHaveLength(1)
+    expect(server.owners).toBe(1)
+    expect(server.ownerName).toBe('伺服器主人')
+    const ownHands = host.execs.filter((item) =>
+      /desktop-pair|\btee\b|YUKI_OWNER_PERSON_ID=/.test(item.command),
+    )
+    expect(ownHands).toEqual([])
 
     // 25: exactly the installer and package Desktop ships, for its own backend version; the
     // server is never asked to reach GitHub.
@@ -248,6 +248,7 @@ test('deploy to my server: Docker install, image pull and installer failures eac
     const installs = host.execs.filter((item) => item.command.includes(' --yes '))
     expect(installs).toHaveLength(2)
     for (const item of installs) {
+      expect(item.command).toContain("--owner-name '伺服器主人'")
       expect(item.command).toContain(`--version '${version}'`)
       expect(item.command).toContain(`yuki-${version}-deploy.tar.gz`)
       expect(item.command).toContain("--profile 'headless'")
@@ -270,7 +271,8 @@ test('deploy to my server: Docker install, image pull and installer failures eac
       timeout: 30000,
     })
     await page.screenshot({ path: test.info().outputPath('steps-07-manage.png') })
-    expect(host.execs.filter((item) => item.command.includes('desktop-pair'))).toHaveLength(1)
+    expect(server.owners).toBe(1)
+    expect(host.execs.filter((item) => item.command.includes('desktop-pair'))).toEqual([])
     const listed = await page.evaluate(() => window.yuki.client.connections())
     expect(listed.ok && listed.value.map((item) => item.characterId)).toEqual([
       connection.characterId,

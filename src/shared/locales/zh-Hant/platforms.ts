@@ -132,6 +132,10 @@ export default {
   enableLocalDescription:
     '寫入本機部署的 .env（加入 snowluma、映像、QQ 畫面位址並產生 token 與密碼），再重新啟動 Yuki 與 SnowLuma。',
   enabledLocal: 'SnowLuma 已啟動。Yuki 重新連上後，就能從「QQ 登入」掃碼。',
+  enableServer: '在伺服器上啟用',
+  enableServerDescription:
+    '經這台電腦保存的 SSH 登入，在伺服器的部署目錄執行 sh deploy/snowluma.sh，再重新啟動 Yuki 與 SnowLuma。',
+  enabledServer: 'SnowLuma 已在伺服器上啟動。Yuki 重新連上後，就能從「QQ 登入」掃碼。',
   serverCommands: '這個 Yuki 不在這台電腦上。請在伺服器的 Yuki 部署目錄（有 .env 的目錄）執行：',
   copyCommands: '複製指令',
   copied: '已複製。',

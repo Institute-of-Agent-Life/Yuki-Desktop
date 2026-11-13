@@ -197,6 +197,18 @@
   font-size: 12px;
   line-height: 18px;
 }
+/* A dialog's description, its choice and the chosen side's fields, one rhythm apart. */
+.sheetStack {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.sheetStack > p {
+  margin: 0;
+}
+.sheetStack > [role='radiogroup'] {
+  justify-self: start;
+}
 .nativePath {
   flex: 1 1 220px;
   overflow-wrap: anywhere;

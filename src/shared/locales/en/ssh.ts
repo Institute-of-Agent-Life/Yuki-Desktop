@@ -26,9 +26,9 @@ export default {
   limitations:
     'Over SSH, this app keeps the tunnel open: while the app is not running, this computer’s Connector is offline too. If Yuki should be able to use this computer at any time, turn on Open at Login, or use a Tailscale or HTTPS address instead. The mobile app cannot connect this way.',
   transport: 'Connection method',
-  transportDirect: '{{address}}',
-  transportSsh: '{{user}}@{{host}} · local port {{port}}',
-  changeTransport: 'Change connection method…',
+  transportDirect: 'Direct · {{address}}',
+  transportSsh: 'Over SSH · {{user}}@{{host}}',
+  change: 'Change…',
   changeTransportTitle: 'Change connection method',
   direct: 'Direct',
   overSsh: 'Over SSH',

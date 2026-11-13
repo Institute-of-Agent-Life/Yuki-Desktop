@@ -68,7 +68,7 @@ const messages: Record<string, string> = {
   invalid_response: '伺服器回應不完整，請確認這是 Yuki 伺服器。',
   client_api_unavailable: '此位址未提供桌面連線介面，請確認位址或更新 Yuki。',
   transport_unknown:
-    '無法取得伺服器回應。請確認網址與網路；若透過 SSH、VPN 或 Tailscale 連接，請先恢復該連線。本機內容已保留。',
+    '無法取得伺服器回應。請確認網址與網路；使用 VPN 或 Tailscale 時請先恢復該網路，通過 SSH 的連線會自動恢復。本機內容已保留。',
   unauthenticated: '裝置憑據已失效，請重新配對。',
   credentials_unavailable: '系統金鑰圈目前無法讀取，請解鎖後重試。',
   invalid_code: '綁定碼無效、已使用或已過期，請重新取得。',

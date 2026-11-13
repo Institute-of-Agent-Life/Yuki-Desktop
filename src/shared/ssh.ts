@@ -47,6 +47,8 @@ export interface SshBridge {
   ): Promise<ApiReply<{ connection: Connection; connectorProblem?: string }>>
   upgrade(characterId: string): Promise<ApiReply<void>>
   logs(characterId: string): Promise<ApiReply<string>>
+  /** The backend's `sh deploy/snowluma.sh '<image>'` in the server's deployment directory. */
+  snowLuma(characterId: string, image: string): Promise<ApiReply<void>>
 }
 
 export interface RemoteCheck {

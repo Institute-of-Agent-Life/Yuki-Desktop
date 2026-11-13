@@ -109,9 +109,15 @@ test('new server address proves real identity before bearer and resumes the orig
     await pairUI(page, old.base, await rig.code())
     const original = await connection(page)
     await settings(page)
+    // One row names how this desktop reaches the Yuki; its one button opens the one dialog.
+    const way = page.locator('[data-settings-row]').filter({ hasText: '連線方式' })
+    await expect(way).toContainText(old.base)
+    await expect(page.getByRole('button', { name: '更改連線方式…', exact: true })).toHaveCount(0)
     await page.getByRole('button', { name: '更改…', exact: true }).click()
-    await page.getByRole('textbox', { name: '新伺服器位址' }).fill(wrong.base)
-    await page.getByRole('button', { name: '確認並連線', exact: true }).click()
+    let dialog = page.getByRole('dialog', { name: '更改連線方式', exact: true })
+    await expect(dialog.getByLabel('伺服器位址', { exact: true })).toHaveValue(old.base)
+    await dialog.getByLabel('伺服器位址', { exact: true }).fill(wrong.base)
+    await dialog.getByRole('button', { name: '確認並連線', exact: true }).click()
     await expect(
       page.getByText('這個位址是另一個 Yuki，請確認原 Yuki 的新位址。', { exact: true }),
     ).toBeVisible()
@@ -149,9 +155,11 @@ test('new server address proves real identity before bearer and resumes the orig
     old.faults.offline = true
     await settingsWithoutWaiting(page)
     await page.getByRole('button', { name: '更改…', exact: true }).click()
-    await page.getByRole('textbox', { name: '新伺服器位址' }).fill(moved.base)
-    await page.getByRole('button', { name: '確認並連線', exact: true }).click()
+    dialog = page.getByRole('dialog', { name: '更改連線方式', exact: true })
+    await dialog.getByLabel('伺服器位址', { exact: true }).fill(moved.base)
+    await dialog.getByRole('button', { name: '確認並連線', exact: true }).click()
     await expect(page.getByRole('dialog')).not.toBeVisible()
+    await expect(way).toContainText(moved.base)
     expect(await connection(page)).toMatchObject({ ...original, baseUrl: moved.base })
     expect(moved.calls[0]).toMatchObject({ path: '/client/v1/meta', bearer: false })
     const proof = moved.calls.find((call) => call.path === '/client/v1/me')

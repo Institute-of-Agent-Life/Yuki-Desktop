@@ -349,7 +349,6 @@ async function packagedFixture(root, packed = {}) {
     'docker-compose.yml',
     'docker-compose.local.yml',
     'config/SOUL.md',
-    'deploy/snowluma.sh',
     'server/install.sh',
     'server/yuki-1.2.3-deploy.tar.gz',
   ])

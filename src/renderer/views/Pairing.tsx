@@ -305,8 +305,8 @@ export function Pairing({
           >
             {confirmed && <small>伺服器：{confirmed.server}</small>}
             <small>
-              使用可從這台電腦存取的 Yuki 網址。透過 SSH、VPN 或 Tailscale
-              連接時，請先建立網路連線。
+              使用可從這台電腦存取的 Yuki 網址。伺服器沒有公開網址時，選「通過 SSH
+              連接」，不必另外建立通道；使用 VPN 或 Tailscale 時，請先接上該網路。
             </small>
             <TailscaleGuide onError={setError} />
             {step === 'connect' && !confirmed && (

@@ -78,7 +78,6 @@ export function checkProductResources(resources) {
     'docker-compose.yml',
     'docker-compose.local.yml',
     'config/SOUL.md',
-    'deploy/snowluma.sh',
     // "Deploy to my server" uploads the matching release installer and package.
     'server/install.sh',
     `server/yuki-${source.version}-deploy.tar.gz`,

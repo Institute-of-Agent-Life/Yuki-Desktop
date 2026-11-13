@@ -8,7 +8,7 @@ import type { ConnectorState } from '../../src/shared/connector'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
 
-test('the original computer keeps its identity across independent client and Connector addresses', async () => {
+test('the original computer keeps its identity as the client address moves it and its own address is set apart', async () => {
   test.setTimeout(120000)
   const manifest = JSON.parse(await readFile('.cache/connector-runtime/manifest.json', 'utf8')) as {
     executable: string
@@ -79,12 +79,14 @@ test('the original computer keeps its identity across independent client and Con
     )
     expect(state.ok && state.value.available && state.value.admission?.matched).toBe(true)
 
+    // The one 連線方式 change moves the desktop and, since this Connector is ours, its address.
     const changed = await page.evaluate(
-      ({ id, server }) => window.yuki.client.changeAddress(id, server),
+      ({ id, server }) => window.yuki.ssh.changeTransport(id, { kind: 'direct', server }),
       { id: connection.characterId, server: newRoute.base },
     )
-    expect(changed.ok).toBe(true)
-    expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual(original)
+    expect(changed.ok && changed.value.connectorProblem).toBeUndefined()
+    const moved = { ...original, url: newRoute.base.replace('http:', 'ws:') + '/agents/v1/connect' }
+    expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual(moved)
     oldRoute.faults.offline = true
     await app.evaluate(() => {
       const host = globalThis as typeof globalThis & {
@@ -126,7 +128,7 @@ test('the original computer keeps its identity across independent client and Con
     })
     expect(insecure).toMatchObject({ ok: false, code: 'invalid_server' })
     expect(rejectedRequests).toEqual([])
-    expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual(original)
+    expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual(moved)
     expect(
       await page.evaluate(async () => {
         const result = await window.yuki.client.connections()
@@ -139,11 +141,11 @@ test('the original computer keeps its identity across independent client and Con
     await page.getByRole('button', { name: '修改連接器位址', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: '修改連接器位址', exact: true }),
       address = dialog.getByRole('textbox', { name: '連接器伺服器位址', exact: true })
-    await expect(address).toHaveValue(oldRoute.base)
+    await expect(address).toHaveValue(newRoute.base)
     await address.fill(other.base)
     await dialog.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(dialog.getByRole('status').filter({ hasText: '另一個 Yuki' })).toBeVisible()
-    expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual(original)
+    expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual(moved)
     await address.fill(rig.base)
     await dialog.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(dialog).toHaveCount(0)

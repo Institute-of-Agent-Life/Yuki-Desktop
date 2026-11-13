@@ -27,7 +27,6 @@ for (const name of [
   'docker-compose.yml',
   'docker-compose.local.yml',
   'config/SOUL.md',
-  'deploy/snowluma.sh',
 ]) {
   await mkdir(dirname(join(output, name)), { recursive: true })
   await copyFile(join(source, name), join(output, name))

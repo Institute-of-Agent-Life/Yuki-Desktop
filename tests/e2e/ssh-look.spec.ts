@@ -73,7 +73,7 @@ test('SSH and server deployment screens use the existing glass card, rows and di
       await look(page, value)
       await page.keyboard.press('ControlOrMeta+,')
       await page.getByRole('tab', { name: '連線', exact: true }).click()
-      const row = page.getByRole('button', { name: '更改連線方式…', exact: true })
+      const row = page.getByRole('button', { name: '更改…', exact: true })
       await row.scrollIntoViewIfNeeded()
       await shot(page, '4-settings', key)
       await row.click()

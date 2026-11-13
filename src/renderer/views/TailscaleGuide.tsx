@@ -57,7 +57,7 @@ export function TailscaleGuide({ onError }: { onError(message: string): void }) 
             <strong>使用原有欄位連接</strong>
             <p>
               填寫實際的 HTTPS 網址或貼上原配對連結，再依原流程確認
-              Yuki。已有連線可從伺服器位址旁選擇「更改…」。
+              Yuki。已有連線可在設定「連線方式」選擇「更改…」。
             </p>
           </li>
         </ol>

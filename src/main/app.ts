@@ -632,7 +632,6 @@ else {
     action('local-bot-snowluma', (image: string) => localBot.enableSnowLuma(image))
     const remote = new RemoteYuki({
       resources: join(resourceRoot, 'local-bot'),
-      store,
       connections,
       connector,
       progress: (step) => win?.webContents.send('yuki:remote-deploy-progress', step),
@@ -645,6 +644,7 @@ else {
     )
     action('ssh-upgrade', (id: string) => remote.upgrade(id))
     action('ssh-logs', (id: string) => remote.logs(id))
+    action('ssh-snowluma', (id: string, image: string) => remote.snowLuma(id, image))
     action('remote-deploy-state', () => remote.state())
     action('remote-deploy-check', (access: SshAccess) => remote.check(access))
     action('remote-deploy-install-docker', (access: SshAccess, mirror: boolean) =>
@@ -705,9 +705,6 @@ else {
       connections.verifyLinkCode(id, request),
     )
     clientAction('server-info', (id: string) => connections.serverInfo(id))
-    clientAction('change-address', (id: string, server: string) =>
-      connections.changeAddress(id, server),
-    )
     clientAction('ssh-change-transport', (id: string, change: TransportChange) =>
       remote.changeTransport(id, change),
     )

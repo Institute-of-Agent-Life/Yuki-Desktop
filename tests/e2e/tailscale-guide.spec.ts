@@ -116,14 +116,26 @@ test('static Tailscale guidance keeps original pairing, connection errors and th
     await composer.fill(draft)
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '連線', exact: true }).click()
+    // One entry for the address and the way to reach it; the guide lives on its direct side,
+    // folded until asked for.
+    await expect(page.getByRole('button', { name: '更改…', exact: true })).toHaveCount(1)
+    await expect(guideFor(page)).toBeHidden()
+    await page.getByRole('button', { name: '更改…', exact: true }).click()
+    const sheet = page.getByRole('dialog', { name: '更改連線方式', exact: true })
+    await expect(sheet.getByRole('radio', { name: '直接連線', exact: true })).toBeChecked()
     const settingsGuide = guideFor(page)
+    await expect(settingsGuide).toHaveCount(1)
+    expect(await settingsGuide.evaluate((element) => (element as HTMLDetailsElement).open)).toBe(
+      false,
+    )
     await settingsGuide.locator('summary').first().click()
     await captureGuide(app, page, 'settings')
     await contentSize(app, page, 1440, 900)
-    await page.getByRole('button', { name: '更改…', exact: true }).click()
+    await sheet.getByRole('radio', { name: '通過 SSH', exact: true }).click()
+    await expect(guideFor(page)).toHaveCount(0)
+    await sheet.getByRole('radio', { name: '直接連線', exact: true }).click()
     unavailable.faults.offline = true
-    const sheet = page.getByRole('dialog', { name: '更改伺服器位址', exact: true })
-    await sheet.getByRole('textbox', { name: '新伺服器位址', exact: true }).fill(unavailable.base)
+    await sheet.getByLabel('伺服器位址', { exact: true }).fill(unavailable.base)
     await sheet.getByRole('button', { name: '確認並連線', exact: true }).click()
     await expect(
       sheet.getByRole('status').filter({ hasText: '伺服器暫時無法接收，尚未寫入。' }),

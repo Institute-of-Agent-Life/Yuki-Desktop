@@ -34,18 +34,6 @@ async function dockerExecutable() {
 }
 export const runDocker: DockerRunner = async (args, options = {}) =>
   runProcess(await dockerExecutable(), args, options)
-/** Runs a deployment's sh script; the docker the desktop found comes first on its PATH. */
-async function runScript(args: string[], options: { cwd: string; env: Record<string, string> }) {
-  const docker = await dockerExecutable()
-  return runProcess('sh', args, {
-    ...options,
-    env: {
-      ...process.env,
-      ...options.env,
-      PATH: [dirname(docker), process.env.PATH].join(delimiter),
-    },
-  })
-}
 function runProcess(
   executable: string,
   args: string[],
@@ -333,23 +321,35 @@ export class LocalBot {
     return this.state()
   }
   /**
-   * The backend's `deploy/snowluma.sh`, bundled with this image, writes SnowLuma into `.env` and
-   * recreates the Bot with it, in this deployment's own Compose files and project.
+   * The two steps of the backend's `deploy/snowluma.sh`, in this deployment's own Compose files and
+   * project: `yuki setup snowluma` (the one place that writes SnowLuma into `.env`) as root in a
+   * one-off Bot, then the Bot and SnowLuma. No sh, so a Windows deployment runs them the same way.
    */
   async enableSnowLuma(image: string) {
-    const item = this.installation()
-    if (!image.trim()) throw new ApiError('validation_error')
-    const script = join('deploy', 'snowluma.sh')
-    await mkdir(join(item.directory, 'deploy'), { recursive: true })
-    await copyFile(join(this.options.resources, script), join(item.directory, script))
+    const item = this.installation(),
+      value = image.trim()
+    if (!value) throw new ApiError('validation_error')
     this.options.progress(t('localBot:snowluma'))
-    await runScript([script, image.trim()], {
-      cwd: item.directory,
-      env: {
-        COMPOSE_FILE: ['docker-compose.yml', 'docker-compose.local.yml'].join(delimiter),
-        COMPOSE_PROJECT_NAME: this.project(item),
-      },
-    })
+    await this.compose(item, [
+      'run',
+      '--rm',
+      '--no-deps',
+      '-T',
+      '--user',
+      '0:0',
+      '--entrypoint',
+      'yuki',
+      '--volume',
+      `${item.directory}:/deploy`,
+      'bot',
+      'setup',
+      'snowluma',
+      '--deployment-root',
+      '/deploy',
+      '--image',
+      value,
+    ])
+    await this.compose(item, ['up', '-d', 'bot', 'snowluma'])
     return this.state()
   }
   async stop() {

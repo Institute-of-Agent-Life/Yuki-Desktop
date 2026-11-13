@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Connection, Me, ProactiveRoute, CharacterCommandItem } from '../../shared/api'
-import { Banner, Button, Sheet, TextField } from '../components/Controls'
+import { Banner, Button } from '../components/Controls'
 import { unwrap, problemText, hidesPrivateData } from '../queries/client'
 import { PendingRequest, Row, SettingsSection } from './SettingsRow'
 import { LogoutFlow } from './LogoutFlow'
-import { TailscaleGuide } from './TailscaleGuide'
-import { TransportSettings } from './TransportSettings'
+import { ServerManagement, TransportSettings } from './TransportSettings'
 import styles from './Settings.module.css'
 
 export function ServerSettings({
@@ -42,8 +41,6 @@ export function ServerSettings({
     queryKey: [id, 'character-commands'],
     queryFn: () => window.yuki.client.characterCommands(id).then(unwrap),
   })
-  const [address, setAddress] = useState<string>(),
-    [addressError, setAddressError] = useState('')
   const [draft, setDraft] = useState<{ binding: string; revision: number }>(),
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
@@ -141,16 +138,7 @@ export function ServerSettings({
             {(info.error || me.error) && (
               <Banner status="failed">{(info.error ?? me.error)?.message}</Banner>
             )}
-            <Row title="伺服器位址" description={connection.baseUrl}>
-              <Button
-                onClick={() => {
-                  setAddress(connection.baseUrl)
-                  setAddressError('')
-                }}
-              >
-                更改…
-              </Button>
-            </Row>
+            <TransportSettings connection={connection} onConnection={onConnection} />
             <Row title="狀態">
               <span role="status">
                 {info.isFetching || me.isFetching
@@ -170,14 +158,8 @@ export function ServerSettings({
                 </Button>
               )}
             </Row>
+            {connection.transport?.kind === 'ssh' && <ServerManagement connection={connection} />}
           </SettingsSection>
-          <TransportSettings connection={connection} onConnection={onConnection} />
-          <div className={styles.section}>
-            <TailscaleGuide onError={setAddressError} />
-            {address === undefined && addressError && (
-              <Banner status="failed">{addressError}</Banner>
-            )}
-          </div>
           <SettingsSection title="主動訊息">
             {route.isError && <Banner status="failed">{route.error.message}</Banner>}
             {error && <Banner status="failed">{error}</Banner>}
@@ -241,53 +223,6 @@ export function ServerSettings({
               <span>{info.data?.api_revision ?? '—'}</span>
             </Row>
           </details>
-          <Sheet
-            title="更改伺服器位址"
-            open={address !== undefined}
-            onClose={() => {
-              if (!busy) setAddress(undefined)
-            }}
-            actions={
-              <>
-                <Button disabled={busy} onClick={() => setAddress(undefined)}>
-                  取消
-                </Button>
-                <Button
-                  variant="primary"
-                  disabled={!address?.trim()}
-                  loading={busy}
-                  onClick={async () => {
-                    setBusy(true)
-                    setAddressError('')
-                    try {
-                      const updated = unwrap(await window.yuki.client.changeAddress(id, address!))
-                      onConnection(updated)
-                      await query.invalidateQueries({ queryKey: [id] })
-                      setAddress(undefined)
-                    } catch (error) {
-                      setAddressError(error instanceof Error ? error.message : '位址尚未變更。')
-                    } finally {
-                      setBusy(false)
-                    }
-                  }}
-                >
-                  確認並連線
-                </Button>
-              </>
-            }
-          >
-            <p>
-              先確認這是同一個 Yuki 與原本的本人入口，再更新連線位址。待確認內容會以原請求繼續查證。
-            </p>
-            <TextField
-              aria-label="新伺服器位址"
-              value={address ?? ''}
-              onChange={(event) => setAddress(event.target.value)}
-              disabled={busy}
-              autoFocus
-            />
-            {addressError && <Banner status="failed">{addressError}</Banner>}
-          </Sheet>
         </>
       )}
       <SettingsSection title="登出" danger>

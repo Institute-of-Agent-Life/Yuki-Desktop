@@ -24,9 +24,9 @@ export default {
   limitations:
     '通過 SSH 時，通道由這個 App 維持：App 沒有執行時，這台電腦的連接器也會離線。需要 Yuki 隨時使用這台電腦時，可以開啟「登入時開啟」，或改用 Tailscale／HTTPS 位址。手機 App 不能使用這種方式。',
   transport: '連線方式',
-  transportDirect: '{{address}}',
-  transportSsh: '{{user}}@{{host}} · 本機連接埠 {{port}}',
-  changeTransport: '更改連線方式…',
+  transportDirect: '直接連線 · {{address}}',
+  transportSsh: '通過 SSH · {{user}}@{{host}}',
+  change: '更改…',
   changeTransportTitle: '更改連線方式',
   direct: '直接連線',
   overSsh: '通過 SSH',

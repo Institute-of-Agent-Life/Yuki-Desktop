@@ -320,6 +320,7 @@ window.yuki = {
     changeTransport: async () => ({ ok: false, code: 'fixture_only' }),
     upgrade: async () => ({ ok: false, code: 'fixture_only' }),
     logs: async () => ({ ok: false, code: 'fixture_only' }),
+    snowLuma: async () => ({ ok: false, code: 'fixture_only' }),
   },
   remoteDeploy: {
     state: async () => ({ ok: true, value: { bundled: false } }),
@@ -655,7 +656,6 @@ window.yuki = {
     linkCodeRequests: async () => ({ ok: true, value: [] }),
     verifyLinkCode: async () => ({ ok: false, code: 'fixture_only' }),
     serverInfo: async () => ({ ok: false, code: 'fixture_only' }),
-    changeAddress: async () => ({ ok: false, code: 'fixture_only' }),
     soulDocument: async () => ({ ok: false, code: 'fixture_only' }),
     soulEdit: async () => ({ ok: false, code: 'fixture_only' }),
     soulDraft: async () => ({ ok: true, value: null }),

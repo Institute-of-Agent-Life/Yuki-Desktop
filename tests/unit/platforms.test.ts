@@ -1,29 +1,30 @@
 /*
  * Platform settings (task book 2026-11-13 §3.2 desktop, failure cases 9 and 10, and §5 revision),
- * failure cases written before the code. SnowLuma is enabled by the backend's own
- * `deploy/snowluma.sh <image>`, run in the deployment directory; the desktop keeps no copy of its
- * .env edit.
+ * failure cases written before the code. SnowLuma is enabled by the backend's own steps: its
+ * `yuki setup snowluma` is the only .env edit, run as root in a one-off Bot, then the Bot and
+ * SnowLuma are started. A server runs `deploy/snowluma.sh <image>`; the local deployment runs the
+ * script's two Compose steps itself (Windows has no sh), in its own Compose project.
  * - The command shown for a server reached only by URL is not the one line
  *   `sh deploy/snowluma.sh '<image>'`, or an image with a quote or space reaches the script as
  *   something else.
  * - An SSH-managed server runs it outside its deployment directory, or with a different command.
- * - The local deployment runs an older copy of the script than the one bundled with its image, runs
- *   it outside its directory, or with Compose files or a project other than its own (the Bot
- *   would be recreated in a second project), or without the docker the desktop found.
- * - An empty image still runs the script.
- * - The local deployment reports SnowLuma enabled though the script failed.
- * - With the backend's actual script, its one-off setup Bot or `up` runs in another project.
+ * - The local deployment needs sh, copies a script into its directory, or runs Compose with files
+ *   or a project other than its own (the Bot would be recreated in a second project), or with
+ *   the deployment directory mounted anywhere but /deploy.
+ * - The local deployment's two steps drift from the backend's script: another setup command,
+ *   user, entrypoint or services than the script's own.
+ * - An empty image still runs anything; a failed setup step still starts SnowLuma, or is taken
+ *   as SnowLuma enabled.
  * - A server below Client API revision 11 is accepted, or the refusal loses its actual revision.
  */
 import { afterEach, expect, it, vi } from 'vitest'
-import { chmod, mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, mkdir, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
-import { delimiter, join } from 'node:path'
+import { join } from 'node:path'
 vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false } }))
-import { enableSnowLumaOnServer } from '../../src/main/snowluma'
-import { snowLumaCommand } from '../../src/shared/snowluma'
+import { snowLumaCommand, snowLumaOnServer } from '../../src/shared/snowluma'
 import { LocalBot, type DockerRunner } from '../../src/main/local-bot'
 import { Connections } from '../../src/main/connections'
 import { LocalStore } from '../../src/main/store'
@@ -31,10 +32,8 @@ import { ApiError } from '../../src/main/api/client'
 import type { Meta } from '../../src/shared/api'
 
 const roots: string[] = []
-const path = process.env.PATH
 afterEach(async () => {
   vi.unstubAllGlobals()
-  process.env.PATH = path
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true })
 })
 async function temporary() {
@@ -44,15 +43,11 @@ async function temporary() {
   return root
 }
 // A stand-in for the backend's deploy/snowluma.sh: it records where and how it ran.
-const recorder = (exit = 0) => `#!/bin/sh
+const recorder = `#!/bin/sh
 {
   printf 'args=%s|\n' "$@"
   printf 'cwd=%s\n' "$(pwd)"
-  printf 'compose_file=%s\n' "$COMPOSE_FILE"
-  printf 'project=%s\n' "$COMPOSE_PROJECT_NAME"
-  printf 'docker=%s\n' "$(command -v docker)"
 } > "$(dirname "$0")/../ran"
-exit ${exit}
 `
 const image = "registry.example.com/me/snow'luma:1 x"
 
@@ -62,43 +57,27 @@ it.skipIf(process.platform === 'win32')(
     const root = await temporary(),
       deployment = join(root, "it's yuki")
     await mkdir(join(deployment, 'deploy'), { recursive: true })
-    await writeFile(join(deployment, 'deploy/snowluma.sh'), recorder())
+    await writeFile(join(deployment, 'deploy/snowluma.sh'), recorder)
     const command = snowLumaCommand(image)
     expect(command).toBe(`sh deploy/snowluma.sh 'registry.example.com/me/snow'\\''luma:1 x'`)
     expect(command).not.toContain('\n')
-    const scripts: string[] = []
-    await enableSnowLumaOnServer(
-      async (script) => {
-        scripts.push(script)
-        const result = spawnSync('/bin/sh', ['-c', script], { cwd: root, encoding: 'utf8' })
-        if (result.status !== 0) throw Error(result.stderr)
-        return result.stdout
-      },
-      deployment,
-      image,
-    )
-    expect(scripts[0]!.split('\n').at(-1)).toBe(command)
+    // An SSH-managed server: the same line, in its directory, as the deployment's owner.
+    const remote = snowLumaOnServer(deployment, image, 'sudo -n ')
+    expect(remote).toBe(`cd '${root}/it'\\''s yuki' && sudo -n ${command}`)
+    const result = spawnSync('/bin/sh', ['-c', snowLumaOnServer(deployment, image, '')], {
+      cwd: root,
+      encoding: 'utf8',
+    })
+    expect(result.status).toBe(0)
     const ran = await readFile(join(deployment, 'ran'), 'utf8')
-    expect(ran).toContain(`args=${image}|\n`)
-    expect(ran).toContain(`cwd=${deployment}\n`)
+    expect(ran).toBe(`args=${image}|\ncwd=${deployment}\n`)
   },
 )
 
-async function localBot(run: DockerRunner, exit = 0) {
+async function localBot(run: DockerRunner) {
   const root = await temporary(),
-    directory = join(root, '本機 Yuki'),
-    resources = join(root, 'resources')
-  await mkdir(join(directory, 'deploy'), { recursive: true })
-  await mkdir(join(resources, 'deploy'), { recursive: true })
-  // An older copy from an earlier enable stays behind; the bundled one replaces it.
-  await writeFile(join(directory, 'deploy/snowluma.sh'), '#!/bin/sh\nexit 7\n')
-  await writeFile(join(resources, 'deploy/snowluma.sh'), recorder(exit))
-  // The docker the desktop finds, and nothing else of that name on PATH.
-  const bin = join(root, 'bin')
-  await mkdir(bin)
-  await writeFile(join(bin, 'docker'), '#!/bin/sh\nexit 0\n')
-  await chmod(join(bin, 'docker'), 0o755)
-  process.env.PATH = [bin, '/usr/bin', '/bin'].join(delimiter)
+    directory = join(root, '本機 Yuki')
+  await mkdir(directory, { recursive: true })
   const store = new LocalStore(join(root, 'desktop.sqlite3'))
   store.set('local-bot', {
     directory,
@@ -110,79 +89,128 @@ async function localBot(run: DockerRunner, exit = 0) {
     personRequestId: crypto.randomUUID(),
     pairRequestId: crypto.randomUUID(),
   })
+  // No resources: the local deployment needs nothing beyond its own Compose files.
   const bot = new LocalBot({
-    resources,
+    resources: join(root, 'no-resources'),
     store,
     connections: {} as Connections,
     progress: () => {},
     run,
   })
-  return { bot, directory, store, bin }
+  return { bot, directory, store }
 }
 const project = (directory: string) =>
   'yuki-desktop-' + createHash('sha256').update(directory).digest('hex').slice(0, 12)
+// What every local Compose call names: this deployment's directory, project and files.
+const own = (directory: string) => [
+  'compose',
+  '--project-directory',
+  directory,
+  '-p',
+  project(directory),
+  '-f',
+  join(directory, 'docker-compose.yml'),
+  '-f',
+  join(directory, 'docker-compose.local.yml'),
+]
+const steps = (directory: string, value: string) => [
+  [
+    ...own(directory),
+    'run',
+    '--rm',
+    '--no-deps',
+    '-T',
+    '--user',
+    '0:0',
+    '--entrypoint',
+    'yuki',
+    '--volume',
+    `${directory}:/deploy`,
+    'bot',
+    'setup',
+    'snowluma',
+    '--deployment-root',
+    '/deploy',
+    '--image',
+    value,
+  ],
+  [...own(directory), 'up', '-d', 'bot', 'snowluma'],
+]
 
-it.skipIf(process.platform === 'win32')(
-  'the local deployment runs the bundled script in its own directory, Compose files and project',
-  async () => {
-    const calls: string[][] = []
-    const { bot, directory, store, bin } = await localBot(async (args) => {
-      calls.push(args)
-      return args[0] === 'info' ? '"linux"' : ''
-    })
-    await bot.enableSnowLuma(image)
-    expect(await readFile(join(directory, 'deploy/snowluma.sh'), 'utf8')).toBe(recorder())
-    const ran = await readFile(join(directory, 'ran'), 'utf8')
-    expect(ran).toBe(
-      [
-        `args=${image}|`,
-        `cwd=${directory}`,
-        'compose_file=docker-compose.yml:docker-compose.local.yml',
-        `project=${project(directory)}`,
-        `docker=${join(bin, 'docker')}`,
-        '',
-      ].join('\n'),
-    )
-    // The same project every other local Compose call uses.
-    await bot.stop()
-    const stop = calls.find((args) => args.includes('stop'))!
-    expect(stop[stop.indexOf('-p') + 1]).toBe(project(directory))
-    store.db.close()
-  },
-)
+it('the local deployment runs the two setup steps through its own Compose, with no script', async () => {
+  const calls: string[][] = []
+  const { bot, directory, store } = await localBot(async (args) => {
+    calls.push(args)
+    return args[0] === 'info' ? '"linux"' : ''
+  })
+  await bot.enableSnowLuma(` ${image} `)
+  // The two steps, then the deployment's state is read again.
+  const compose = calls.filter((args) => args[0] === 'compose')
+  expect(compose.slice(0, 2)).toEqual(steps(directory, image))
+  expect(compose.slice(2).every((args) => args.includes('ps'))).toBe(true)
+  // Nothing is copied into the deployment, and no sh or environment carries the project.
+  expect(await readdir(directory)).toEqual([])
+  // The same project every other local Compose call uses.
+  await bot.stop()
+  const stop = calls.find((args) => args.includes('stop'))!
+  expect(stop.slice(0, own(directory).length)).toEqual(own(directory))
+  store.db.close()
+})
 
-it.skipIf(process.platform === 'win32')(
-  'an empty image runs nothing, and a failed script is reported, not taken as SnowLuma running',
-  async () => {
-    const { bot, directory, store } = await localBot(async () => '', 3)
-    await expect(bot.enableSnowLuma('  ')).rejects.toThrow('validation_error')
-    await expect(readFile(join(directory, 'ran'), 'utf8')).rejects.toThrow()
-    await expect(bot.enableSnowLuma('me/snowluma')).rejects.toThrow('local_deployment_failed')
-    store.db.close()
-  },
-)
+it('an empty image runs nothing; a failed setup step starts nothing and is reported', async () => {
+  const calls: string[][] = []
+  const { bot, directory, store } = await localBot(async (args) => {
+    calls.push(args)
+    if (args.includes('setup')) throw new ApiError('local_deployment_failed', 'setup failed')
+    return ''
+  })
+  await expect(bot.enableSnowLuma('  ')).rejects.toThrow('validation_error')
+  expect(calls).toEqual([])
+  await expect(bot.enableSnowLuma('me/snowluma')).rejects.toThrow('local_deployment_failed')
+  expect(calls).toEqual([steps(directory, 'me/snowluma')[0]])
+  store.db.close()
+})
 
-// The backend's real script, with docker standing in: both of its Compose calls reach this
-// deployment's files and project, and an image is required.
+// The backend's real script, with docker standing in: the local deployment's two steps are its
+// two Compose calls, word for word after the Compose files and project.
 it.skipIf(process.platform === 'win32' || !process.env.YUKI_BACKEND_TEST_ROOT)(
-  "the backend's deploy/snowluma.sh runs both Compose calls in the local deployment's project",
+  "the local steps are the backend's deploy/snowluma.sh, call for call",
   async () => {
-    const { bot, directory, store, bin } = await localBot(async () => '')
+    const root = await temporary(),
+      deployment = join(root, 'deployment'),
+      bin = join(root, 'bin')
+    await mkdir(join(deployment, 'deploy'), { recursive: true })
+    await mkdir(bin)
     await writeFile(
-      join(bin, 'docker'),
-      '#!/bin/sh\nprintf "%s %s | %s\\n" "$COMPOSE_PROJECT_NAME" "$COMPOSE_FILE" "$*" >> "$(pwd)/docker-calls"\n',
-    )
-    await writeFile(
-      join(directory, '../resources/deploy/snowluma.sh'),
+      join(deployment, 'deploy/snowluma.sh'),
       await readFile(join(process.env.YUKI_BACKEND_TEST_ROOT!, 'deploy/snowluma.sh')),
     )
+    // One argument per line, one blank line after each call.
+    await writeFile(
+      join(bin, 'docker'),
+      '#!/bin/sh\nfor value in "$@"; do printf "%s\\n" "$value"; done >> "$(pwd)/docker-calls"\necho >> "$(pwd)/docker-calls"\n',
+    )
+    await chmod(join(bin, 'docker'), 0o755)
+    const result = spawnSync('sh', ['deploy/snowluma.sh', 'me/snowluma:1'], {
+      cwd: deployment,
+      env: { ...process.env, PATH: `${bin}:/usr/bin:/bin` },
+      encoding: 'utf8',
+    })
+    expect(result.status).toBe(0)
+    const script = (await readFile(join(deployment, 'docker-calls'), 'utf8'))
+      .trim()
+      .split('\n\n')
+      .map((call) => call.split('\n'))
+    const calls: string[][] = []
+    const { bot, directory, store } = await localBot(async (args) => {
+      calls.push(args)
+      return ''
+    })
     await bot.enableSnowLuma('me/snowluma:1')
-    const prefix = `${project(directory)} docker-compose.yml:docker-compose.local.yml | compose`
-    expect((await readFile(join(directory, 'docker-calls'), 'utf8')).split('\n')).toEqual([
-      `${prefix} run --rm --no-deps -T --user 0:0 --entrypoint yuki --volume ${directory}:/deploy bot setup snowluma --deployment-root /deploy --image me/snowluma:1`,
-      `${prefix} up -d bot snowluma`,
-      '',
-    ])
+    const compose = calls.filter((args) => args[0] === 'compose' && !args.includes('ps'))
+    expect(compose.map((args) => ['compose', ...args.slice(own(directory).length)])).toEqual(
+      script.map((call) => call.map((value) => value.replace(deployment, directory))),
+    )
     store.db.close()
   },
 )

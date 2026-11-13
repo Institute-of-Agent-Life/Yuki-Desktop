@@ -158,6 +158,11 @@ export default {
   enableLocalDescription:
     'Writes the local deployment’s .env (adds snowluma, the image and the QQ screen address, and generates a token and password), then restarts Yuki with SnowLuma.',
   enabledLocal: 'SnowLuma is running. Once Yuki reconnects, scan the code in QQ Sign-In.',
+  enableServer: 'Enable on the Server',
+  enableServerDescription:
+    'Uses the SSH sign-in saved on this computer to run sh deploy/snowluma.sh in the server’s deployment directory, then restarts Yuki with SnowLuma.',
+  enabledServer:
+    'SnowLuma is running on the server. Once Yuki reconnects, scan the code in QQ Sign-In.',
   serverCommands:
     'This Yuki isn’t on this computer. Run the following in the Yuki deployment directory on the server (the one with .env):',
   copyCommands: 'Copy Commands',

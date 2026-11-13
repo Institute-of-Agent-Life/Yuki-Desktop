@@ -265,7 +265,6 @@ export interface ConversationBridge {
   linkCodeRequests(characterId: string): Promise<ApiReply<LinkCodeRequest[]>>
   verifyLinkCode(characterId: string, requestId: string): Promise<ApiReply<LinkCodeReply>>
   serverInfo(characterId: string): Promise<ApiReply<Meta>>
-  changeAddress(characterId: string, server: string): Promise<ApiReply<Connection>>
   soulDocument(
     characterId: string,
   ): Promise<ApiReply<{ document: SoulDocument; draft: SoulDraft | null }>>

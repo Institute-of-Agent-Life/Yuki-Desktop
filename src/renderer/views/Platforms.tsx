@@ -595,7 +595,8 @@ function SnowLuma({
     queryFn: () => window.yuki.localBot.state().then(unwrap),
     retry: false,
   })
-  const here = local.data?.installation?.address === connection.baseUrl
+  const here = local.data?.installation?.address === connection.baseUrl,
+    overSsh = connection.transport?.kind === 'ssh'
   const command = snowLumaCommand(image.trim() || t('platforms:imagePlaceholder'))
   return (
     <>
@@ -626,11 +627,13 @@ function SnowLuma({
         </div>
         {local.isPending ? (
           <Spinner />
-        ) : here ? (
+        ) : here || overSsh ? (
           <SettingsSection>
             <Row
-              title={t('platforms:enableLocal')}
-              description={t('platforms:enableLocalDescription')}
+              title={t(here ? 'platforms:enableLocal' : 'platforms:enableServer')}
+              description={t(
+                here ? 'platforms:enableLocalDescription' : 'platforms:enableServerDescription',
+              )}
             >
               <Button
                 variant="primary"
@@ -640,8 +643,12 @@ function SnowLuma({
                   setBusy(true)
                   setNotice(undefined)
                   try {
-                    unwrap(await window.yuki.localBot.enableSnowLuma(image))
-                    setNotice({ failed: false, text: t('platforms:enabledLocal') })
+                    if (here) unwrap(await window.yuki.localBot.enableSnowLuma(image))
+                    else unwrap(await window.yuki.ssh.snowLuma(connection.characterId, image))
+                    setNotice({
+                      failed: false,
+                      text: t(here ? 'platforms:enabledLocal' : 'platforms:enabledServer'),
+                    })
                     await refresh()
                   } catch (failure) {
                     setNotice({

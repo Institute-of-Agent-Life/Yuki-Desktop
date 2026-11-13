@@ -63,6 +63,7 @@ const bridge: DesktopBridge = {
     changeTransport: (id, change) => ipcRenderer.invoke('yuki:ssh-change-transport', id, change),
     upgrade: (id) => ipcRenderer.invoke('yuki:ssh-upgrade', id),
     logs: (id) => ipcRenderer.invoke('yuki:ssh-logs', id),
+    snowLuma: (id, image) => ipcRenderer.invoke('yuki:ssh-snowluma', id, image),
   },
   remoteDeploy: {
     state: () => ipcRenderer.invoke('yuki:remote-deploy-state'),
@@ -105,7 +106,6 @@ const bridge: DesktopBridge = {
     linkCodeRequests: (id) => ipcRenderer.invoke('yuki:link-code-requests', id),
     verifyLinkCode: (id, request) => ipcRenderer.invoke('yuki:verify-link-code', id, request),
     serverInfo: (id) => ipcRenderer.invoke('yuki:server-info', id),
-    changeAddress: (id, server) => ipcRenderer.invoke('yuki:change-address', id, server),
     soulDocument: (id) => ipcRenderer.invoke('yuki:soul-document', id),
     soulEdit: (id, edit) => ipcRenderer.invoke('yuki:soul-edit', id, edit),
     soulDraft: (id) => ipcRenderer.invoke('yuki:soul-draft', id),

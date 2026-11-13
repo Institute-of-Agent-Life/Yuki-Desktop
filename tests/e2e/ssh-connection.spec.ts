@@ -67,6 +67,9 @@ test('SSH: confirm the host key once, keep the password in the keychain and the 
     app.process().stderr?.on('data', (chunk: Buffer) => output.push(chunk.toString()))
     let page = await app.firstWindow()
     await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
+    // The pairing hint points at the SSH entry below it; nobody builds a tunnel first.
+    await expect(page.getByText('選「通過 SSH 連接」', { exact: false })).toBeVisible()
+    await expect(page.getByText('請先建立網路連線', { exact: false })).toHaveCount(0)
     await page.getByRole('button', { name: '通過 SSH 連接', exact: true }).click()
     await fillSsh(page, { address: 'yuki@127.0.0.1', port: host.port, password })
     await page.getByRole('button', { name: '檢查主機', exact: true }).click()
@@ -224,7 +227,7 @@ test('SSH: switching between SSH and direct keeps the original connection and mo
     const switchTo = async (kind: 'direct' | 'ssh', name: string) => {
       await page.keyboard.press('ControlOrMeta+,')
       await page.getByRole('tab', { name: '連線', exact: true }).click()
-      await page.getByRole('button', { name: '更改連線方式…', exact: true }).click()
+      await page.getByRole('button', { name: '更改…', exact: true }).click()
       const dialog = page.getByRole('dialog', { name: '更改連線方式', exact: true })
       if (kind === 'direct') {
         await dialog.getByRole('radio', { name: '直接連線', exact: true }).click()
@@ -240,6 +243,10 @@ test('SSH: switching between SSH and direct keeps the original connection and mo
         await dialog.getByRole('button', { name: '確認指紋並連接', exact: true }).click()
       }
       await expect(dialog).toHaveCount(0, { timeout: 60000 })
+      // The one 連線方式 row names the address, or the SSH login, now in use.
+      await expect(
+        page.locator('[data-settings-row]').filter({ hasText: '連線方式' }),
+      ).toContainText(kind === 'direct' ? rig.base : 'yuki@127.0.0.1')
       await page.screenshot({ path: test.info().outputPath(`${name}-done.png`) })
       await page.keyboard.press('Escape')
       return currentConnection(page)

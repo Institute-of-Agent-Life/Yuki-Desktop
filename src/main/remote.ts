@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { access as exists, readFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { basename, join } from 'node:path'
@@ -15,9 +14,9 @@ import type {
   SshTransport,
   TransportChange,
 } from '../shared/ssh'
+import { snowLumaOnServer } from '../shared/snowluma'
 import { ApiError } from './api/client'
 import type { Connections } from './connections'
-import type { LocalStore } from './store'
 import {
   CHECK,
   RemoteHost,
@@ -67,7 +66,6 @@ export class RemoteYuki {
   constructor(
     private readonly options: {
       resources: string
-      store: LocalStore
       connections: Connections
       connector: {
         state(characterId: string): Promise<ConnectorState>
@@ -277,16 +275,14 @@ export class RemoteYuki {
     if (result.code !== 0) throw installFailure(result)
   }
 
-  /** Install, or run again after a failure: the same directory, owner and request IDs. */
+  /**
+   * Install, or run install.sh again after a failure in the same directory: the installer records
+   * the owner it was asked for in .env and creates that owner once, also on a later run.
+   */
   async deploy(input: RemoteDeployInput) {
     const host = await this.host(input.access)
     try {
-      const directory = host.directory(input.directory),
-        target = input.access.target,
-        key = `${target.user}@${target.host}:${target.port}${directory}`,
-        records = this.options.store.get<Record<string, RemoteOwner>>('remote-deployments') ?? {},
-        record = records[key] ?? { personRequestId: randomUUID(), superuserRequestId: randomUUID() }
-      this.options.store.set('remote-deployments', { ...records, [key]: record })
+      const directory = host.directory(input.directory)
       const model = { ...input.model },
         endpoint = new URL(model.base_url)
       // The server's own loopback, as the Bot's container reaches it.
@@ -315,7 +311,8 @@ export class RemoteYuki {
         await host.run(`rm -f ${quote(answers)}`)
       }
       this.options.progress('pair')
-      const code = await this.ownerCode(host, directory, record, input.personName)
+      // pair.sh signs a code for the owner install.sh recorded (YUKI_OWNER_PERSON_ID in .env).
+      const code = await host.pairingCode(directory)
       this.options.progress('connect')
       return await this.connect(
         await this.transport(host, input.access, directory),
@@ -326,42 +323,23 @@ export class RemoteYuki {
       host.close()
     }
   }
-  /**
-   * install.sh creates and records the owner on a first run that completes. A first run that
-   * failed after writing .env never does; then this desktop creates the owner once, under its
-   * own persisted request IDs, and records it where pair.sh looks.
-   */
-  private async ownerCode(host: RemoteHost, directory: string, record: RemoteOwner, name: string) {
-    const env = quote(`${directory}/.env`),
-      owner = (
-        await host.run(`${host.sudo}sed -n 's/^YUKI_OWNER_PERSON_ID=//p' ${env} | tail -n 1`)
-      ).stdout.trim()
-    if (owner) return host.pairingCode(directory)
-    const result = await host.run(
-      `cd ${quote(directory)} && ${host.sudo}docker compose exec -T bot yuki setup desktop-pair --deployment-root /app`,
-      JSON.stringify({
-        display_name: name,
-        person_request_id: record.personRequestId,
-        superuser_request_id: record.superuserRequestId,
-        pair_request_id: randomUUID(),
-      }),
-    )
-    if (result.code !== 0) throw new ApiError('remote_pairing_failed', tail(result))
-    const paired = JSON.parse(result.stdout) as { person_id: string; code: string | null }
-    const recorded = await host.run(
-      `printf '%s\\n' ${quote(`YUKI_OWNER_PERSON_ID=${paired.person_id}`)} | ${host.sudo}tee -a ${env} >/dev/null`,
-    )
-    if (recorded.code !== 0 || !paired.code)
-      throw new ApiError('remote_pairing_failed', tail(recorded))
-    return paired.code
-  }
-
   /** Upload this desktop's installer and package and run them again in the same directory. */
   async upgrade(id: string) {
     const { transport, access } = this.saved(id),
       host = await this.host(access)
     try {
       await this.install(host, transport.directory, [])
+    } finally {
+      host.close()
+    }
+  }
+  async snowLuma(id: string, image: string) {
+    if (!image.trim()) throw new ApiError('validation_error')
+    const { transport, access } = this.saved(id),
+      host = await this.host(access)
+    try {
+      const result = await host.run(snowLumaOnServer(transport.directory, image, host.sudo))
+      if (result.code !== 0) throw new ApiError('ssh_failed', tail(result))
     } finally {
       host.close()
     }
@@ -379,8 +357,4 @@ export class RemoteYuki {
       host.close()
     }
   }
-}
-interface RemoteOwner {
-  personRequestId: string
-  superuserRequestId: string
 }
