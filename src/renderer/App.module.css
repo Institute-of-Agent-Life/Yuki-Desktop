@@ -28,8 +28,7 @@
   padding: 32px;
   border-radius: 28px;
   background: var(--mat-pane);
-  backdrop-filter: blur(var(--blur-thick)) saturate(160%) var(--glass-calm) var(--refract,)
-    var(--seal,);
+  backdrop-filter: var(--glass-pane);
   box-shadow: var(--shadow-glass);
   display: flex;
   align-items: center;
@@ -222,8 +221,7 @@
   border-radius: 17px;
   background: var(--mat-chrome);
   box-shadow: var(--shadow-glass);
-  /* Bent (and dispersed) first, so the colour fringe softens with the blur like light in glass. */
-  backdrop-filter: var(--refract,) blur(6px) saturate(180%) var(--glass-calm) var(--seal,);
+  backdrop-filter: var(--glass-lens);
   -webkit-app-region: no-drag;
 }
 .toolbar {
@@ -299,7 +297,7 @@
   box-shadow: var(--shadow-glass);
   padding: 8px;
   background: color-mix(in srgb, var(--bg-elevated) var(--composer-tint), transparent);
-  backdrop-filter: var(--refract,) blur(1px) saturate(116%) var(--glass-calm) var(--seal,);
+  backdrop-filter: var(--glass-lens);
 }
 :global([data-theme='dark']) .composer {
   --composer-tint: 24%;

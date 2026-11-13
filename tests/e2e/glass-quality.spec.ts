@@ -169,7 +169,19 @@ test('a floating pane lets the backdrop through and parts its colours at the edg
       'data-refracting',
       'true',
     )
-    await page.waitForTimeout(500)
+    // The glass bends in as it appears; it is measured once it has fully.
+    await expect
+      .poll(() =>
+        page.locator('[data-region="composer"]').evaluate(async (element) => {
+          const id = getComputedStyle(element).backdropFilter.match(/#(yuki-glass-\d+)/)![1]!
+          const scale = () =>
+            document.getElementById(id)!.querySelector('feDisplacementMap')!.getAttribute('scale')
+          const first = scale()
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          return first === scale()
+        }),
+      )
+      .toBe(true)
     const seen = await through(page, '[data-region="composer"]')
     evidence[`composer-${theme}`] = seen
     // 8: the grid behind still shows through the clear middle.

@@ -1,4 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
+import { reducedMotion } from '../motion/hooks'
+import { sampleSpring, springs } from '../motion/spring'
 
 const NS = 'http://www.w3.org/2000/svg'
 
@@ -377,6 +379,21 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
     document.body.append(svg)
     displacement.current = warp
     let size = ''
+    // A pane appears by bending in, as Apple's glass materialises: its bend rises on the emerging
+    // spring from nothing to its full strength, rather than being there at once.
+    let rising = 0
+    const materialise = () => {
+      if (reducedMotion()) return
+      const samples = sampleSpring(springs.emerge),
+        start = performance.now()
+      const step = (now: number) => {
+        const index = Math.min(samples.length - 1, Math.round(((now - start) * 60) / 1000))
+        bend(strength.current * Math.min(1, Math.max(0, samples[index]!.value)))
+        rising = index < samples.length - 1 ? requestAnimationFrame(step) : 0
+      }
+      bend(0)
+      rising = requestAnimationFrame(step)
+    }
     const quiet = () => {
       element.style.removeProperty('--refract')
       element.style.removeProperty('--rim')
@@ -416,6 +433,7 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
           node.setAttribute('height', String(h))
         }
       } else if (next !== size) {
+        if (!size && !dynamic) materialise()
         const map = lens(w, h, r, kind)
         filter.setAttribute('width', String(w))
         filter.setAttribute('height', String(h))
@@ -429,7 +447,8 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
       }
       element.style.setProperty('--refract', `url(#${id})`)
       element.dataset.refracting = 'true'
-      bend(strength.current)
+      // While it bends in, the rising spring alone sets its strength.
+      if (!rising) bend(strength.current)
     }
     const resize = new ResizeObserver(sync),
       appearance = new MutationObserver(() => {
@@ -444,6 +463,7 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
     })
     sync()
     const dispose = () => {
+      cancelAnimationFrame(rising)
       unlit()
       resize.disconnect()
       appearance.disconnect()

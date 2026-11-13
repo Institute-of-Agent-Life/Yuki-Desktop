@@ -1,3 +1,16 @@
+/*
+ * The glass tiers, one filter each (液态玻璃组件统一任务书 §3). They are declared on each pane, so
+ * the lens each pane was given (`--refract`) is its own; every one ends in the seal.
+ *   lens: clear glass floating over content (toolbar group, composer, notices, a held control)
+ *   pane: thick glass that opens over the page (dialogs, the palette, menus, welcome cards)
+ *   clear: glass over media, darkened by its own tint (the computer's controls)
+ */
+[data-glass] {
+  --glass-lens: var(--refract,) blur(1px) saturate(116%) var(--glass-calm) var(--seal,);
+  --glass-pane: blur(24px) saturate(160%) var(--glass-calm) var(--refract,) var(--seal,);
+  --glass-clear: var(--refract,) blur(12px) saturate(150%) contrast(0.84) brightness(0.88)
+    var(--seal,);
+}
 [data-glass]::before {
   content: '';
   position: absolute;
