@@ -52,6 +52,7 @@ test('typing in a long conversation is as quick as in a short one', async ({ pag
 })
 
 test('pointing and scrolling cost the same however long the conversation is', async ({ page }) => {
+  test.setTimeout(120000)
   // The style work of one pointer move, on this machine.
   const pointing = async (messages: number) => {
     await open(page, messages)

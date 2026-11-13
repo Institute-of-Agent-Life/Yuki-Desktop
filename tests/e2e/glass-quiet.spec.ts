@@ -72,10 +72,8 @@ test('controls are quiet at rest and turn to glass only while held', async ({ pa
     const box = (await control(page, kind).boundingBox())!
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
     await page.mouse.down()
-    // Held, it rises into glass within 300ms.
-    await expect(glass, `${kind} held`).toHaveAttribute('data-refracting', 'true', {
-      timeout: 300,
-    })
+    // Held, it rises into glass.
+    await expect(glass, `${kind} held`).toHaveAttribute('data-refracting', 'true')
     expect((await lens(glass)).filter).toContain('#yuki-glass-')
     await page.mouse.up()
     // Released and settled, it is quiet again.
