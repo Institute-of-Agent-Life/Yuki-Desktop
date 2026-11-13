@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ArtifactSource, AttachmentSource, CachedContent } from '../../shared/api'
 import { unwrap } from '../queries/client'
 import { useSessionActive } from '../state/workspace'
@@ -9,21 +9,31 @@ export type MediaSource = ArtifactSource | AttachmentSource
 export function useMediaContent(id: string, source?: MediaSource, enabled = true) {
   const activeSession = useSessionActive()
   const key = JSON.stringify(source),
+    // A reload replaces what shows; a check (after a sync) reads again and keeps what shows when
+    // the content is the same, so the picture is not reloaded and nothing around it moves.
     [revision, setRevision] = useState(0),
+    [check, setCheck] = useState(0),
     [result, setResult] = useState<{ data?: CachedContent; error?: Error; isPending: boolean }>({
       isPending: enabled && !!source,
     })
+  const shown = useRef<{ identity: string; data: CachedContent } | undefined>(undefined)
   useEffect(() => {
-    if (!enabled || !source || !activeSession) {
+    const release = (value: CachedContent) => {
+      if (value.preview) void window.yuki.client.releasePreview(id, value.preview.id)
+    }
+    const identity = `${id}\n${key}\n${revision}`,
+      live = enabled && !!source && activeSession,
+      kept = live && shown.current?.identity === identity ? shown.current.data : undefined
+    if (!kept && shown.current) {
+      release(shown.current.data)
+      shown.current = undefined
+    }
+    if (!live) {
       setResult({ isPending: false })
       return
     }
-    let active = true,
-      content: CachedContent | undefined
-    const release = (value?: CachedContent) => {
-      if (value?.preview) void window.yuki.client.releasePreview(id, value.preview.id)
-    }
-    setResult({ isPending: true })
+    let active = true
+    if (!kept) setResult({ isPending: true })
     const request =
       'artifactId' in source
         ? window.yuki.client.artifactContent(id, source)
@@ -31,19 +41,29 @@ export function useMediaContent(id: string, source?: MediaSource, enabled = true
     void request
       .then(unwrap)
       .then((data) => {
-        if (!active) return release(data)
-        content = data
+        if (!active || (kept && data.sha256 === kept.sha256)) return release(data)
+        if (shown.current) release(shown.current.data)
+        shown.current = { identity, data }
         setResult({ data, isPending: false })
       })
       .catch((error: Error) => {
-        if (active) setResult({ error, isPending: false })
+        if (!active) return
+        if (shown.current) release(shown.current.data)
+        shown.current = undefined
+        setResult({ error, isPending: false })
       })
     return () => {
       active = false
-      release(content)
     }
     // Source is a value, not the caller's freshly constructed object.
-  }, [id, key, enabled, revision, activeSession])
+  }, [id, key, enabled, revision, check, activeSession])
+  useEffect(
+    () => () => {
+      if (shown.current?.data.preview)
+        void window.yuki.client.releasePreview(id, shown.current.data.preview.id)
+    },
+    [id],
+  )
   useEffect(() => {
     if (!enabled || !source || !activeSession) return
     return window.yuki.client.onHint((character, kind, data) => {
@@ -54,7 +74,7 @@ export function useMediaContent(id: string, source?: MediaSource, enabled = true
       }
       if (kind === 'connection' && (data as { code?: string }).code === 'unauthenticated')
         setResult({ error: new Error('連接已失效，請重新配對。'), isPending: false })
-      if (kind === 'sync' || kind === 'artifacts') setRevision((value) => value + 1)
+      if (kind === 'sync' || kind === 'artifacts') setCheck((value) => value + 1)
     })
   }, [id, key, enabled, activeSession, result.data?.preview?.id])
   return { ...result, refetch: () => setRevision((value) => value + 1) }

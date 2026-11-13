@@ -87,6 +87,7 @@ export class Connections {
   readonly credentials: Credentials
   private readonly outboxes = new Map<string, Outbox>()
   private readonly streams = new Map<string, AbortController>()
+  private readonly heard = new Map<string, number>()
   private readonly retries = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly checking = new Map<string, Promise<OutboxItem>>()
   private readonly identified = new Map<string, Promise<Meta>>()
@@ -1198,6 +1199,12 @@ export class Connections {
   reconnect() {
     for (const item of this.list()) this.start(item.characterId)
   }
+  // Coming back to the app (focus, waking) reconnects only streams that have gone quiet: the
+  // server sends a keepalive every 15 seconds, so a live one has been heard from since.
+  revive() {
+    for (const item of this.list())
+      if (Date.now() - (this.heard.get(item.characterId) ?? 0) > 20000) this.start(item.characterId)
+  }
   private async stream(id: string, controller: AbortController) {
     let delay = 1000
     while (!controller.signal.aborted) {
@@ -1241,6 +1248,7 @@ export class Connections {
             }
             this.emit(id, kind, data)
           },
+          () => this.heard.set(id, Date.now()),
           'stream?works=active',
         )
         if (!controller.signal.aborted) this.emit(id, 'connection', { state: 'offline' })

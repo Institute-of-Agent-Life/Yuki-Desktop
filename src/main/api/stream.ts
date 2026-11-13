@@ -4,6 +4,8 @@ export async function readStream(
   client: ApiClient,
   signal: AbortSignal,
   hint: (kind: string, data: unknown) => void,
+  // Anything at all arrived, a keepalive included: the stream is alive.
+  heard: () => void,
   path = 'stream',
 ) {
   const response = await client.response(path, { signal })
@@ -17,6 +19,7 @@ export async function readStream(
     while (!signal.aborted) {
       const chunk = await reader.read()
       if (chunk.done) return
+      heard()
       buffer += decoder.decode(chunk.value, { stream: true })
       let end: number
       while ((end = buffer.indexOf('\n')) >= 0) {
