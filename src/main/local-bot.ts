@@ -10,6 +10,7 @@ import type {
 import type { LocalStore } from './store'
 import type { Connections } from './connections'
 import { ApiError } from './api/client'
+import { t } from './i18n'
 import type { ProviderPreset } from '../shared/models'
 
 export type DockerRunner = (
@@ -236,14 +237,14 @@ export class LocalBot {
       .replace('${YUKI_SANDBOX_PROFILE:-desktop}', item.sandboxProfile ?? 'desktop')
     const { writeFile } = await import('node:fs/promises')
     await writeFile(join(directory, 'docker-compose.local.yml'), configuredOverride)
-    this.options.progress('準備本機 Yuki 映像')
+    this.options.progress(t('localBot:image'))
     await this.run(['image', 'inspect', item.image]).catch(() =>
       this.run(['pull', item.image]).catch(() => {
         throw new ApiError('local_image_unavailable')
       }),
     )
     if (!(await exists(join(directory, '.env')))) {
-      this.options.progress('儲存模型與本機設定')
+      this.options.progress(t('localBot:configure'))
       if (!input.model) throw new ApiError('validation_error')
       const model = { ...input.model }
       const endpoint = new URL(model.base_url)
@@ -292,7 +293,7 @@ export class LocalBot {
       await this.run(['volume', 'inspect', volume]).catch(() =>
         this.run(['volume', 'create', volume]),
       )
-    this.options.progress('初始化 Yuki 與資料庫')
+    this.options.progress(t('localBot:initialize'))
     await this.compose(item, [
       'run',
       '--rm',
@@ -309,7 +310,7 @@ export class LocalBot {
   }
   async start() {
     const item = this.installation()
-    this.options.progress('啟動本機 Yuki')
+    this.options.progress(t('localBot:start'))
     await this.compose(item, ['up', '-d', '--wait', 'bot'])
     // Yuki answers without its sandbox; the sandbox reports its own state when it is ready.
     await this.compose(item, ['up', '-d', 'manager'])
@@ -337,7 +338,7 @@ export class LocalBot {
       item.pairRequestId = randomUUID()
       this.options.store.set('local-bot', item)
     }
-    this.options.progress('建立本人入口並連接桌面')
+    this.options.progress(t('localBot:connect'))
     const result = JSON.parse(
       await this.compose(
         item,

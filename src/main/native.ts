@@ -13,6 +13,7 @@ import type { Preferences, NavigationTarget } from '../shared/desktop'
 import type { ClientNotice } from './notifications'
 import type { Profile } from '../shared/api'
 import type { ConnectorHolder, ConnectorSupervision } from '../shared/connector'
+import { t } from './i18n'
 
 export class NativeShell {
   private tray: Tray | undefined
@@ -20,7 +21,8 @@ export class NativeShell {
   private readonly notices = new Map<Notification, string>()
   private selected: string | undefined
   /** Yuki operating or stopped on this computer: one status line and its one action. */
-  private operation: MenuItemConstructorOptions[] = []
+  private connector:
+    { supervision?: ConnectorSupervision; control(holder: ConnectorHolder): void } | undefined
   private readonly desired = new Map<string, { key: string; name: string }>()
   private readonly decorations = new Map<
     string,
@@ -76,14 +78,14 @@ export class NativeShell {
     this.tray.setToolTip(this.desired.get(this.selected ?? '')?.name || 'Yuki')
     this.tray.setContextMenu(
       Menu.buildFromTemplate([
-        ...this.operation,
+        ...this.operation(),
         ...[...this.desired].map(([characterId, { name }]) => ({
-          label: `開啟 ${name}`,
+          label: t('tray:open', { name }),
           click: () => this.open({ characterId, view: 'chat' }),
         })),
-        { label: '顯示視窗', click: this.reveal },
+        { label: t('tray:showWindow'), click: this.reveal },
         { type: 'separator' },
-        { label: '結束', click: () => app.quit() },
+        { label: t('tray:quit'), click: () => app.quit() },
       ]),
     )
   }
@@ -97,27 +99,37 @@ export class NativeShell {
     supervision: ConnectorSupervision | undefined,
     control: (holder: ConnectorHolder) => void,
   ) {
-    const activity = supervision?.activity
-    const tool = activity?.tool
-    const target = tool === 'browser' ? '瀏覽器' : '電腦'
-    this.operation =
-      supervision?.control?.holder === 'owner'
-        ? [
-            { label: '已按「停止」叫停', enabled: false },
-            { label: '繼續', click: () => control('none') },
-            { type: 'separator' },
-          ]
-        : tool
-          ? [
-              {
-                label: `Yuki 正在${activity?.background ? '背景' : ''}操作${target}`,
-                enabled: false,
-              },
-              { label: '停止', click: () => control('owner') },
-              { type: 'separator' },
-            ]
-          : []
+    this.connector = { supervision, control }
     this.updateMenu()
+  }
+  /** The tray reads the current language whenever it is rebuilt. */
+  relocalize() {
+    this.updateMenu()
+  }
+  private operation(): MenuItemConstructorOptions[] {
+    if (!this.connector) return []
+    const { supervision, control } = this.connector,
+      activity = supervision?.activity
+    if (supervision?.control?.holder === 'owner')
+      return [
+        { label: t('tray:stopped'), enabled: false },
+        { label: t('tray:resume'), click: () => control('none') },
+        { type: 'separator' },
+      ]
+    if (!activity?.tool) return []
+    const operating =
+      activity.tool === 'browser'
+        ? activity.background
+          ? t('tray:operatingBrowserInBackground')
+          : t('tray:operatingBrowser')
+        : activity.background
+          ? t('tray:operatingComputerInBackground')
+          : t('tray:operatingComputer')
+    return [
+      { label: operating, enabled: false },
+      { label: t('tray:stop'), click: () => control('owner') },
+      { type: 'separator' },
+    ]
   }
   update(preferences: Preferences) {
     if (preferences.keepInTray && !this.tray) {

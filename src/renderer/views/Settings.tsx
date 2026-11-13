@@ -38,6 +38,8 @@ import {
 } from '../components/Controls'
 import { unwrap } from '../queries/client'
 import styles from './Settings.module.css'
+import { useTranslation } from '../i18n'
+import { languageNames, languages } from '../../shared/locales'
 
 export type SettingsCategory =
   | 'general'
@@ -51,33 +53,34 @@ export type SettingsCategory =
   | 'yukis'
   | 'advanced'
 
+// `heading` null: the current Yuki's own group; '' : no heading. Labels are `settings:category.*`.
 const groups: {
-  label: string | null
-  items: { id: SettingsCategory; label: string; icon: LucideIcon }[]
+  heading: 'appGroup' | '' | null
+  items: { id: SettingsCategory; icon: LucideIcon }[]
 }[] = [
   {
-    label: '應用程式',
+    heading: 'appGroup',
     items: [
-      { id: 'general', label: '一般', icon: SlidersHorizontal },
-      { id: 'look', label: '外觀', icon: Palette },
-      { id: 'notify', label: '通知', icon: Bell },
-      { id: 'updates', label: '更新', icon: Download },
+      { id: 'general', icon: SlidersHorizontal },
+      { id: 'look', icon: Palette },
+      { id: 'notify', icon: Bell },
+      { id: 'updates', icon: Download },
     ],
   },
   {
-    label: null,
+    heading: null,
     items: [
-      { id: 'connection', label: '連線', icon: Server },
-      { id: 'models', label: '模型', icon: Cpu },
-      { id: 'devices', label: '裝置', icon: ShieldCheck },
-      { id: 'computer', label: '這台電腦', icon: Laptop },
+      { id: 'connection', icon: Server },
+      { id: 'models', icon: Cpu },
+      { id: 'devices', icon: ShieldCheck },
+      { id: 'computer', icon: Laptop },
     ],
   },
   {
-    label: '',
+    heading: '',
     items: [
-      { id: 'yukis', label: '所有 Yuki', icon: Snowflake },
-      { id: 'advanced', label: '進階', icon: Wrench },
+      { id: 'yukis', icon: Snowflake },
+      { id: 'advanced', icon: Wrench },
     ],
   },
 ]
@@ -117,11 +120,14 @@ export function Settings({
   onAddCharacter(): void
   onDeployLocal(): void
 }) {
-  const tray = boot.platform === 'darwin' ? '選單列' : '系統匣'
+  const { t } = useTranslation(['settings', 'common'])
+  const keepInTray = t(
+    boot.platform === 'darwin' ? 'settings:keepInMenuBar' : 'settings:keepInTray',
+  )
   const modEnter = boot.platform === 'darwin' ? '⌘ Enter' : 'Ctrl Enter'
   const shown = connection?.logout ? 'connection' : category
   const visibleGroups = groups.filter(
-    (group) => group.label !== null || (connection && !connection.needsPairing),
+    (group) => group.heading !== null || (connection && !connection.needsPairing),
   )
   const visible = visibleGroups.flatMap((group) => group.items)
   const [error, setError] = useState<{ section: string; message: string }>()
@@ -153,7 +159,7 @@ export function Settings({
     try {
       await save(patch)
     } catch {
-      setError({ section, message: '設定未能儲存，請重新開啟設定確認。' })
+      setError({ section, message: t('settings:saveFailed') })
     }
   }
   const setLogin = async (enabled: boolean) => {
@@ -162,17 +168,17 @@ export function Settings({
     try {
       query.setQueryData(['desktop', 'login-item'], unwrap(await window.yuki.loginItem(enabled)))
     } catch {
-      setError({ section: 'startup', message: '系統未能更新登入設定。請重新讀取目前狀態。' })
+      setError({ section: 'startup', message: t('settings:loginFailed') })
     } finally {
       setBusy(false)
     }
   }
   const loginDescription =
     login.data?.reason === 'install-required'
-      ? '使用正式安裝版後可設定。'
+      ? t('settings:loginInstallRequired')
       : login.data?.reason === 'system-approval-required'
-        ? '需要到系統的登入項目設定中核准。'
-        : '登入這台電腦時開啟 Yuki。'
+        ? t('settings:loginApprovalRequired')
+        : t('settings:loginDescription')
   const yukiTitle = connection && (
     <div className={styles.yukiTitle}>
       <Avatar name={connection.name} size={20} />
@@ -190,27 +196,27 @@ export function Settings({
     </>
   )
   return (
-    <section ref={edge} className={styles.settings} aria-label="設定">
+    <section ref={edge} className={styles.settings} aria-label={t('settings:title')}>
       <EdgeFade shown={scrolled} />
       <header className={`${styles.header} ${scrolled ? styles.headerScrolled : ''}`}>
         <Button variant="plain" onClick={back} disabled={!!connection?.logout}>
           <ArrowLeft size={16} />
-          返回
+          {t('settings:back')}
         </Button>
-        <strong>設定</strong>
+        <strong>{t('settings:title')}</strong>
         <ApplicationMenu platform={boot.platform} className={styles.menu} />
       </header>
       <div className={styles.layout}>
         <nav
           className={styles.categories}
           role="tablist"
-          aria-label="設定分類"
+          aria-label={t('settings:categories')}
           aria-orientation="vertical"
         >
           <SelectionPill selected={shown} selector="button[aria-selected=true]" />
           {visibleGroups.map((group) => (
-            <div key={group.label ?? 'current-yuki'} className={styles.categoryGroup}>
-              {group.label === null && connection ? (
+            <div key={group.heading ?? 'current-yuki'} className={styles.categoryGroup}>
+              {group.heading === null && connection ? (
                 <div className={styles.yukiHeader}>
                   {connections.length > 1 ? (
                     <RoleSwitcher
@@ -226,8 +232,8 @@ export function Settings({
                     yukiTitle
                   )}
                 </div>
-              ) : group.label ? (
-                <div className={styles.navGroup}>{group.label}</div>
+              ) : group.heading ? (
+                <div className={styles.navGroup}>{t(`settings:${group.heading}`)}</div>
               ) : null}
               {group.items.map((item) => (
                 <button
@@ -258,7 +264,7 @@ export function Settings({
                   }}
                 >
                   <item.icon size={16} strokeWidth={1.5} />
-                  {item.label}
+                  {t(`settings:category.${item.id}`)}
                 </button>
               ))}
             </div>
@@ -273,25 +279,50 @@ export function Settings({
         >
           <h2>
             {shown === 'connection' && connection
-              ? `${connection.name} 的連線`
-              : groups.flatMap((group) => group.items).find((item) => item.id === shown)!.label}
+              ? t('settings:connectionOf', { name: connection.name })
+              : t(`settings:category.${shown}`)}
           </h2>
           {shown === 'general' ? (
             <>
-              <SettingsSection title="啟動">
+              <SettingsSection title={t('settings:language')}>
+                {feedback('language')}
+                <Row title={t('settings:interfaceLanguage')}>
+                  <select
+                    aria-label={t('settings:interfaceLanguage')}
+                    value={preferences.language}
+                    onChange={(event) =>
+                      void change(
+                        { language: event.target.value as Preferences['language'] },
+                        'language',
+                      )
+                    }
+                  >
+                    <option value="system">{t('common:followSystem')}</option>
+                    {languages.map((language) => (
+                      <option key={language} value={language} lang={language}>
+                        {languageNames[language]}
+                      </option>
+                    ))}
+                  </select>
+                </Row>
+              </SettingsSection>
+              <SettingsSection title={t('settings:startup')}>
                 {feedback('startup')}
-                <Row title="登入時開啟" description={loginDescription}>
+                <Row title={t('settings:openAtLogin')} description={loginDescription}>
                   {login.isPending ? (
                     <Spinner />
                   ) : (
                     <>
                       {login.data?.reason === 'system-approval-required' && (
-                        <Button onClick={() => void login.refetch()} aria-label="重新讀取登入設定">
-                          重新讀取
+                        <Button
+                          onClick={() => void login.refetch()}
+                          aria-label={t('settings:reloadLogin')}
+                        >
+                          {t('settings:reload')}
                         </Button>
                       )}
                       <Toggle
-                        label="登入時開啟"
+                        label={t('settings:openAtLogin')}
                         checked={login.data?.enabled ?? false}
                         disabled={!login.data?.available || busy}
                         onChange={(enabled) => void setLogin(enabled)}
@@ -300,30 +331,30 @@ export function Settings({
                   )}
                 </Row>
                 {login.isError && (
-                  <Row title="目前無法讀取登入設定">
-                    <Button onClick={() => void login.refetch()}>重新讀取</Button>
+                  <Row title={t('settings:loginUnreadable')}>
+                    <Button onClick={() => void login.refetch()}>{t('settings:reload')}</Button>
                   </Row>
                 )}
                 <Row
-                  title={`關閉視窗後保留在${tray}`}
+                  title={keepInTray}
                   description={
                     boot.platform === 'linux'
-                      ? 'Linux 桌面需支援 AppIndicator 才會顯示系統匣圖示。'
-                      : '讓連線與通知在背景保持可用。'
+                      ? t('settings:trayLinux')
+                      : t('settings:trayDescription')
                   }
                 >
                   <Toggle
-                    label={`關閉視窗後保留在${tray}`}
+                    label={keepInTray}
                     checked={preferences.keepInTray}
                     onChange={(keepInTray) => void change({ keepInTray }, 'startup')}
                   />
                 </Row>
               </SettingsSection>
-              <SettingsSection title="輸入">
+              <SettingsSection title={t('settings:input')}>
                 {feedback('input')}
-                <Row title="送出訊息">
+                <Row title={t('settings:sendMessage')}>
                   <Segmented
-                    label="送出訊息"
+                    label={t('settings:sendMessage')}
                     kind="radio"
                     value={preferences.sendKey}
                     items={[
@@ -334,11 +365,11 @@ export function Settings({
                   />
                 </Row>
               </SettingsSection>
-              <SettingsSection title="時間">
+              <SettingsSection title={t('settings:time')}>
                 {feedback('time')}
-                <Row title="時間顯示" description="只影響這台電腦顯示的時間。">
+                <Row title={t('settings:timeDisplay')} description={t('settings:timeDescription')}>
                   <select
-                    aria-label="時間顯示"
+                    aria-label={t('settings:timeDisplay')}
                     value={preferences.timeZone}
                     onChange={(event) =>
                       void change(
@@ -347,8 +378,8 @@ export function Settings({
                       )
                     }
                   >
-                    <option value="system">跟隨系統</option>
-                    <option value="Asia/Taipei">台北時間（UTC+8）</option>
+                    <option value="system">{t('common:followSystem')}</option>
+                    <option value="Asia/Taipei">{t('settings:taipeiTime')}</option>
                   </select>
                 </Row>
               </SettingsSection>
@@ -356,53 +387,50 @@ export function Settings({
           ) : shown === 'look' ? (
             <SettingsSection>
               {feedback('look')}
-              <Row title="主題">
+              <Row title={t('settings:theme')}>
                 <Segmented
-                  label="主題"
+                  label={t('settings:theme')}
                   kind="radio"
                   value={preferences.theme}
                   items={[
-                    { value: 'system', label: '跟隨系統' },
-                    { value: 'light', label: '淺色' },
-                    { value: 'dark', label: '深色' },
+                    { value: 'system', label: t('common:followSystem') },
+                    { value: 'light', label: t('settings:light') },
+                    { value: 'dark', label: t('settings:dark') },
                   ]}
                   onChange={(theme) => void change({ theme }, 'look')}
                 />
               </Row>
-              <Row
-                title="視窗材質"
-                description="透明磨砂讓桌面從所有畫面透出；不透明時一律使用實色。"
-              >
+              <Row title={t('settings:material')} description={t('settings:materialDescription')}>
                 <Segmented
-                  label="視窗材質"
+                  label={t('settings:material')}
                   kind="radio"
                   value={preferences.opaque ? 'opaque' : 'frost'}
                   items={[
-                    { value: 'frost', label: '透明磨砂' },
-                    { value: 'opaque', label: '不透明' },
+                    { value: 'frost', label: t('settings:frost') },
+                    { value: 'opaque', label: t('settings:opaque') },
                   ]}
                   onChange={(material) => void change({ opaque: material === 'opaque' }, 'look')}
                 />
               </Row>
-              <Row
-                title="對話背景"
-                description="疊在對話底下、玻璃之後的圖案；換一換，看看玻璃在不同底色上的樣子。"
-              >
+              <Row title={t('settings:backdrop')} description={t('settings:backdropDescription')}>
                 <BackdropPicker
                   value={preferences.backdrop}
                   onChange={(backdrop) => void change({ backdrop }, 'look')}
                 />
               </Row>
-              <Row title="減少動態" description="減少介面的位移與過場。">
+              <Row
+                title={t('settings:reducedMotion')}
+                description={t('settings:reducedMotionDescription')}
+              >
                 <Toggle
-                  label="減少動態"
+                  label={t('settings:reducedMotion')}
                   checked={preferences.reducedMotion}
                   onChange={(reducedMotion) => void change({ reducedMotion }, 'look')}
                 />
               </Row>
-              <Row title="增加對比">
+              <Row title={t('settings:highContrast')}>
                 <Toggle
-                  label="增加對比"
+                  label={t('settings:highContrast')}
                   checked={preferences.highContrast}
                   onChange={(highContrast) => void change({ highContrast }, 'look')}
                 />
@@ -410,29 +438,24 @@ export function Settings({
             </SettingsSection>
           ) : shown === 'notify' ? (
             <>
-              <p className={styles.notice}>適用於所有已連接的 Yuki。</p>
+              <p className={styles.notice}>{t('settings:notifyScope')}</p>
               <SettingsSection>
                 {feedback('notify')}
                 {(
-                  [
-                    { key: 'notifyProactive', label: 'Yuki 主動傳來的訊息' },
-                    { key: 'notifyWaiting', label: '等待你回覆的工作' },
-                    { key: 'notifyCompleted', label: '工作完成' },
-                    { key: 'notifyHelp', label: 'Yuki 的電腦請求協助' },
-                  ] as const
-                ).map((item) => (
-                  <Row key={item.key} title={item.label}>
+                  ['notifyProactive', 'notifyWaiting', 'notifyCompleted', 'notifyHelp'] as const
+                ).map((key) => (
+                  <Row key={key} title={t(`settings:${key}`)}>
                     <Toggle
-                      label={item.label}
-                      checked={preferences[item.key]}
-                      onChange={(value) => void change({ [item.key]: value }, 'notify')}
+                      label={t(`settings:${key}`)}
+                      checked={preferences[key]}
+                      onChange={(value) => void change({ [key]: value }, 'notify')}
                     />
                   </Row>
                 ))}
               </SettingsSection>
             </>
           ) : shown === 'updates' ? (
-            <SettingsSection title="App 更新">
+            <SettingsSection title={t('settings:appUpdates')}>
               <UpdatePanel preferences={preferences} save={save} />
             </SettingsSection>
           ) : shown === 'models' ? (
@@ -456,7 +479,7 @@ export function Settings({
           ) : shown === 'connection' ? (
             connection &&
             (connection.logout ? (
-              <SettingsSection title="登出" danger>
+              <SettingsSection title={t('settings:logout')} danger>
                 <LogoutFlow
                   key={connection.characterId}
                   connection={connection}
@@ -476,15 +499,15 @@ export function Settings({
           ) : shown === 'yukis' ? (
             <>
               {connections.length > 0 && (
-                <SettingsSection title="已連接">
+                <SettingsSection title={t('settings:connected')}>
                   {connections.map((item) => {
                     const current = item.characterId === connection?.characterId
                     const status = item.needsPairing
-                      ? '需要重新配對'
+                      ? t('settings:needsPairing')
                       : item.logout
-                        ? '登出尚未完成'
+                        ? t('settings:logoutPending')
                         : current
-                          ? '目前使用中'
+                          ? t('settings:current')
                           : ''
                     return (
                       <Row
@@ -493,18 +516,26 @@ export function Settings({
                         description={`${item.baseUrl}${status ? ` · ${status}` : ''}`}
                       >
                         <Avatar name={item.name} size={24} />
-                        {!current && <Button onClick={() => onSelect(item)}>切換</Button>}
+                        {!current && (
+                          <Button onClick={() => onSelect(item)}>{t('settings:switch')}</Button>
+                        )}
                       </Row>
                     )
                   })}
                 </SettingsSection>
               )}
-              <SettingsSection title="新增">
-                <Row title="連接已有 Yuki" description="用配對連結或綁定碼連接。">
-                  <Button onClick={onAddCharacter}>連接…</Button>
+              <SettingsSection title={t('settings:add')}>
+                <Row
+                  title={t('settings:connectExisting')}
+                  description={t('settings:connectExistingDescription')}
+                >
+                  <Button onClick={onAddCharacter}>{t('settings:connect')}</Button>
                 </Row>
-                <Row title="在這台電腦部署 Yuki" description="用 Docker 在本機執行一個 Yuki。">
-                  <Button onClick={onDeployLocal}>部署與管理…</Button>
+                <Row
+                  title={t('settings:deployLocal')}
+                  description={t('settings:deployLocalDescription')}
+                >
+                  <Button onClick={onDeployLocal}>{t('settings:deployManage')}</Button>
                 </Row>
               </SettingsSection>
             </>
@@ -512,8 +543,8 @@ export function Settings({
             <SettingsSection>
               {feedback('advanced')}
               <Row
-                title="匯出診斷記錄"
-                description="包含版本、外觀設定與佇列數量，不含憑據、訊息正文或本機檔案路徑。"
+                title={t('settings:exportDiagnostics')}
+                description={t('settings:exportDiagnosticsDescription')}
               >
                 <Button
                   loading={busy}
@@ -523,24 +554,24 @@ export function Settings({
                     setNotice('')
                     try {
                       if (unwrap(await window.yuki.exportDiagnostics()))
-                        setNotice('診斷記錄已匯出。')
+                        setNotice(t('settings:diagnosticsExported'))
                     } catch {
                       setError({
                         section: 'advanced',
-                        message: '無法匯出診斷記錄，請確認儲存位置可寫入。',
+                        message: t('settings:diagnosticsFailed'),
                       })
                     } finally {
                       setBusy(false)
                     }
                   }}
                 >
-                  匯出…
+                  {t('settings:export')}
                 </Button>
               </Row>
               {!!history.data?.length && (
                 <Row
-                  title="舊版操作記錄"
-                  description="保留舊版頭像與本機操作的原始識別碼、未決操作及回執供查閱，不會重新執行。匯出檔案含原始操作資料，請自行保管。"
+                  title={t('settings:retiredHistory')}
+                  description={t('settings:retiredHistoryDescription')}
                 >
                   <Button
                     onClick={async () => {
@@ -551,13 +582,15 @@ export function Settings({
                             await window.yuki.client.exportRetiredHistory(connection!.characterId),
                           )
                         )
-                          setNotice('舊版操作記錄已匯出。')
+                          setNotice(t('settings:retiredExported'))
                       } catch {
-                        setError({ section: 'advanced', message: '舊版操作記錄未能匯出。' })
+                        setError({ section: 'advanced', message: t('settings:retiredFailed') })
                       }
                     }}
                   >
-                    匯出 {history.data.reduce((sum, item) => sum + item.count, 0)} 筆記錄…
+                    {t('settings:exportRecords', {
+                      count: history.data.reduce((sum, item) => sum + item.count, 0),
+                    })}
                   </Button>
                 </Row>
               )}
@@ -569,18 +602,11 @@ export function Settings({
   )
 }
 
-const backdropNames: Record<Backdrop, string> = {
-  plain: '無',
-  lens: '光線',
-  aurora: '極光',
-  sunset: '晚霞',
-  grid: '格線',
-}
-
 // Each choice previews the backdrop itself, in the current theme.
 function BackdropPicker({ value, onChange }: { value: Backdrop; onChange(value: Backdrop): void }) {
+  const { t } = useTranslation(['settings'])
   return (
-    <div role="radiogroup" aria-label="對話背景" className={styles.backdrops}>
+    <div role="radiogroup" aria-label={t('settings:backdrop')} className={styles.backdrops}>
       {backdrops.map((backdrop, index) => (
         <button
           key={backdrop}
@@ -608,7 +634,7 @@ function BackdropPicker({ value, onChange }: { value: Backdrop; onChange(value: 
             className={styles.backdropSwatch}
             style={{ background: `var(--backdrop-${backdrop}), var(--surface-page)` }}
           />
-          <span>{backdropNames[backdrop]}</span>
+          <span>{t(`settings:backdrops.${backdrop}`)}</span>
         </button>
       ))}
     </div>

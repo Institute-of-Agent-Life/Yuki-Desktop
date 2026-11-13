@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { BootInfo, Command, DesktopBridge } from '../shared/desktop'
 import type { ConnectorDriver } from '../shared/connector'
+import type { Language } from '../shared/locales'
 
 const bridge: DesktopBridge = {
   connector: {
@@ -198,6 +199,11 @@ const bridge: DesktopBridge = {
     ) => callback(theme)
     ipcRenderer.on('yuki:theme', listener)
     return () => ipcRenderer.removeListener('yuki:theme', listener)
+  },
+  onLanguage(callback) {
+    const listener = (_event: Electron.IpcRendererEvent, language: Language) => callback(language)
+    ipcRenderer.on('yuki:language', listener)
+    return () => ipcRenderer.removeListener('yuki:language', listener)
   },
   onPairLink(callback) {
     const listener = (_event: Electron.IpcRendererEvent, link: string) => callback(link)

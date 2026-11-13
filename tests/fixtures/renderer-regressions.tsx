@@ -881,6 +881,7 @@ function Case() {
         reducedTransparency: false,
         highContrast: false,
         preferences,
+        language: 'zh-Hant',
         pairLink: null,
         openTarget: null,
       }}

@@ -713,6 +713,7 @@ window.yuki = {
   onLeaveRequest: () => () => {},
   leaveResponse: () => {},
   onTheme: () => () => {},
+  onLanguage: () => () => {},
   onPairLink: () => () => {},
   onOpenTarget: () => () => {},
 }

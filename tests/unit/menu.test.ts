@@ -1,6 +1,7 @@
 import { expect, it, vi, afterEach } from 'vitest'
 import type { BrowserWindow, MenuItemConstructorOptions } from 'electron'
 import { installMenu } from '../../src/main/menu'
+import { setLanguage } from '../../src/main/i18n'
 
 const os = vi.hoisted(() => ({
   template: [] as MenuItemConstructorOptions[],
@@ -111,4 +112,20 @@ it.each(['win32', 'linux'] as const)('uses supported window commands on %s', (pl
   os.maximizable = false
   toggle.click!({} as never, {} as never, {} as never)
   expect(os.maximized).toBe(false)
+})
+
+// Language switch (task book 2026-11-13 §4 item 26): a rebuilt menu keeps the old language.
+it.each([
+  ['en', ['Yuki', 'File', 'Edit', 'View', 'Window', 'Help'], 'Settings…', 'Undo'],
+  ['zh-Hans', ['Yuki', '文件', '编辑', '显示', '窗口', '帮助'], '设置…', '撤销'],
+] as const)('rebuilds the application menu in %s', (language, labels, settings, undo) => {
+  try {
+    setLanguage(language)
+    const menu = build('darwin')
+    expect(menu.map((item) => item.label)).toEqual(labels)
+    expect(submenu(menu[1]!).map((item) => item.label)).toContain(settings)
+    expect(submenu(menu[2]!)[0]!.label).toBe(undo)
+  } finally {
+    setLanguage('zh-Hant')
+  }
 })

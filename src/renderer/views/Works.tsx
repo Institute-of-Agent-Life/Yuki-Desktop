@@ -29,6 +29,7 @@ import styles from './Works.module.css'
 import chatStyles from './Conversation.module.css'
 import { Markdown } from '../text/RichMarkdown'
 import { formatDateTime } from '../../shared/time'
+import type { Language } from '../../shared/locales'
 import type { DisplayTimeZone } from '../../shared/desktop'
 import { useDisplayTime } from '../state/time'
 
@@ -51,10 +52,10 @@ const source = (work: Work) =>
   work.source.platform === 'app'
     ? '桌面對話'
     : `${work.source.platform?.toUpperCase() ?? '原入口'} ${work.source.kind === 'group' ? '群' : '私聊'}${work.source.display_name ? ` · ${work.source.display_name}` : ''}`
-export function waitText(wait: Work['wait'], zone: DisplayTimeZone = 'Asia/Taipei'): string {
+export function waitText(wait: Work['wait'], zone: DisplayTimeZone, locale: Language): string {
   if (!wait) return ''
   const parts = wait.conditions.map((condition) => {
-    if (condition.kind === 'time_due') return `等到 ${time(condition.due_at, zone)}`
+    if (condition.kind === 'time_due') return `等到 ${time(condition.due_at, zone, locale)}`
     if (condition.kind === 'conversation') return '等待新的訊息'
     if (condition.kind === 'plugin_event') return '等待外掛事件'
     return condition.run_kind === 'terminal'
@@ -69,7 +70,7 @@ export function waitText(wait: Work['wait'], zone: DisplayTimeZone = 'Asia/Taipe
     (parts.length === 1
       ? parts[0]!
       : `等待${wait.mode === 'any' ? '其中一項' : '全部完成'}：${parts.slice(0, 2).join('、')}${parts.length > 2 ? ` 等 ${parts.length} 項` : ''}`) +
-    (wait.deadline_at ? ` · 最晚 ${time(wait.deadline_at, zone)}` : '')
+    (wait.deadline_at ? ` · 最晚 ${time(wait.deadline_at, zone, locale)}` : '')
   )
 }
 
@@ -83,7 +84,7 @@ export function WorkList({
   open(workId: string): void
 }) {
   const workspace = useWorkspace()
-  const { zone, group: dateGroup } = useDisplayTime()
+  const { zone, locale, group: dateGroup } = useDisplayTime()
   const [origin, setOrigin] = useState<'all' | 'this_entry' | 'other'>('all')
   const query = useQueryClient()
   const active = useInfiniteQuery({
@@ -146,7 +147,7 @@ export function WorkList({
           {work.goal}
         </span>
         <small title={source(work)}>{source(work)}</small>
-        <time>{time(work.updated_at, zone)}</time>
+        <time>{time(work.updated_at, zone, locale)}</time>
       </button>
     ))
   const scroll = (element: HTMLDivElement) => {
@@ -256,7 +257,7 @@ export function WorkDetail({
   artifact(source: ArtifactSource): void
   computer?: () => void
 }) {
-  const { zone } = useDisplayTime()
+  const { zone, locale } = useDisplayTime()
   const query = useQueryClient(),
     [cancel, setCancel] = useState<Work | null>(null),
     [linkProblem, setLinkProblem] = useState('')
@@ -356,7 +357,7 @@ export function WorkDetail({
               {data.reason || '已暫停'}。補充要求會送進原工作；是否繼續由 Yuki 依目前狀況決定。
             </Banner>
           )}
-          {data.wait && <p className={styles.secondary}>{waitText(data.wait, zone)}</p>}
+          {data.wait && <p className={styles.secondary}>{waitText(data.wait, zone, locale)}</p>}
           {data.waiting_question && !terminal(data) && (
             <QuestionBox
               key={`${data.waiting_question.conversation_id}/${data.waiting_question.event_id}`}
@@ -393,7 +394,7 @@ export function WorkDetail({
                           ? 'unknown'
                           : 'running'
                 }
-                time={time(step.updated_at, zone)}
+                time={time(step.updated_at, zone, locale)}
               />
             ))}
             {steps.hasNextPage && (
@@ -808,7 +809,7 @@ export function ConversationWork({
   open(workId: string): void
   reply(work: Work): void
 }) {
-  const { zone } = useDisplayTime()
+  const { zone, locale } = useDisplayTime()
   const [cancel, setCancel] = useState<Work | null>(null)
   const workId = typeof work === 'string' ? work : work.work_id
   const detail = useQuery({
@@ -828,7 +829,7 @@ export function ConversationWork({
         title={data.goal}
         status={status}
         statusLabel={label}
-        detail={data.wait ? waitText(data.wait, zone) : undefined}
+        detail={data.wait ? waitText(data.wait, zone, locale) : undefined}
         question={data.waiting_question?.text}
         onOpen={() => open(data.work_id)}
         onReply={() => reply(data)}

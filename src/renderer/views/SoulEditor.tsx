@@ -30,7 +30,7 @@ export function SoulEditor({
   name: string
   platform: string
 }) {
-  const { timeLabel } = useDisplayTime()
+  const { timeLabel, locale } = useDisplayTime()
   const active = useSessionActive()
   const hintId = useId()
   const [hintDismissed, setHintDismissed] = useState(false)
@@ -501,7 +501,7 @@ export function SoulEditor({
       <footer className={styles.footer}>
         <span>
           第 {cursor.line} 行，第 {cursor.column} 欄 ·{' '}
-          {Array.from(draft.draft).length.toLocaleString()} 字
+          {Array.from(draft.draft).length.toLocaleString(locale)} 字
         </span>
         <span title={draft.remote.file_name}>
           檔案 {draft.remote.file_name} · 版本 {short(draft.baseRevision)}

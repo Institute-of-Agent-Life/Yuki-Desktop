@@ -104,6 +104,8 @@ Windows 專項在未提供測試服務或非 Windows 時明確跳過，不讀取
 
 ## 其他 E2E
 
+介面有繁體中文、简体中文與 English，資源與寫法見 [src/shared/locales/README.md](../src/shared/locales/README.md)。E2E 以 zh-TW 系統執行，既有 spec 按繁體文案定位；`languages.spec.ts` 在執行中切換語言，核對選單、托盤、通知、對話框、SC 字形，以及時區、回執 note 與預設檔名不變，並在輸出目錄保留三種語言的設定頁截圖。
+
 `control-motion.spec.ts` 驗證實際拖曳、取消、鍵盤與背景像素折射；`frosted-workspace.spec.ts` 使用隔離真後端核對四種外觀、三個尺寸、原回執與草稿。兩者均不呼叫付費模型，截圖只作本地審閱。
 
 [開發約束](architecture/development-contract.md)隨原始碼維護。任務書、調研、設計文件、互動原型與其預覽／檢查材料只在本地維護，不在此發布。安裝包以產品檔案白名單建置，並經封裝內容檢查。E2E 在原輸出目錄保留 JSON 報告、每例 trace 與既有流程產物；CI 在 macOS arm64、Windows x64 與 Linux x64 各分三片執行 E2E，獨立上傳 `Yuki-e2e-results-<platform>-<arch>-<shard>`，不加入安裝包或正式 Release；Intel Mac 與 ARM Linux 只執行單元測試與封裝。

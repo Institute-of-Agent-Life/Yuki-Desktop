@@ -23,6 +23,7 @@ import {
 import { ClientProblem, problemText, unwrap } from '../queries/client'
 import { Row, SettingsSection } from './SettingsRow'
 import styles from './Settings.module.css'
+import { useTranslation } from '../i18n'
 
 const problems: Record<string, string> = {
   native_daemon_start_failed: '原生服務未能啟動，請檢查所選程式及其原生設定。',
@@ -146,6 +147,7 @@ export function AgentConnector({
   onUpdates?(): void
 }) {
   const query = useQueryClient()
+  const { i18n } = useTranslation()
   const key = ['desktop', 'agent-connector', connection?.characterId]
   const state = useQuery({
     queryKey: key,
@@ -551,7 +553,9 @@ export function AgentConnector({
             {available.supervision?.lastExit && (
               <Row
                 title="最近一次非預期結束"
-                description={new Date(available.supervision.lastExit.at).toLocaleString('zh-TW')}
+                description={new Date(available.supervision.lastExit.at).toLocaleString(
+                  i18n.language,
+                )}
               >
                 <span>
                   {available.supervision.lastExit.code !== null

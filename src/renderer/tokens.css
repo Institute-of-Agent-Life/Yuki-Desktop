@@ -154,6 +154,16 @@
   --toggle-off: rgba(20, 34, 64, 0.16);
   --seg-thumb: #ffffff;
 }
+/* Simplified Chinese uses SC glyphs; the html lang follows the interface language. */
+:root:lang(zh-Hans) {
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI Variable Text', 'Segoe UI',
+    'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, 'Noto Sans CJK SC', 'Noto Sans SC',
+    sans-serif;
+  --font-mono:
+    'SF Mono', ui-monospace, Menlo, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'PingFang SC',
+    'Microsoft YaHei UI', 'Noto Sans CJK SC', monospace;
+}
 :root[data-theme='dark'] {
   color-scheme: dark;
   --bg-window: #101215;

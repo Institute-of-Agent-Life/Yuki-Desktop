@@ -10,17 +10,12 @@ import type {
 import { Banner, Segmented, Spinner } from '../components/Controls'
 import { unwrap } from '../queries/client'
 import { useDisplayTime } from '../state/time'
+import { useTranslation } from '../i18n'
 import { modelTaskLabel } from './model-document'
 import styles from './ModelUsage.module.css'
 
 type Field = keyof ModelUsageStats['coverage']
 type GroupBy = ModelStatsView['group_by']
-const exact = new Intl.NumberFormat('zh-Hant-TW', { maximumFractionDigits: 3 })
-const compact = new Intl.NumberFormat('zh-Hant-TW', { maximumFractionDigits: 2 })
-const percentage = new Intl.NumberFormat('zh-Hant-TW', {
-  style: 'percent',
-  maximumFractionDigits: 1,
-})
 const ranges: { value: ModelStatsQuery['range']; label: string }[] = [
   { value: 'today', label: '今日' },
   { value: '24h', label: '近 24 小時' },
@@ -28,23 +23,34 @@ const ranges: { value: ModelStatsQuery['range']; label: string }[] = [
   { value: 'all', label: '全部留存' },
 ]
 
-function quantity(value: number) {
-  for (const [size, suffix] of [
-    [1e9, 'B'],
-    [1e6, 'M'],
-    [1e3, 'K'],
-  ] as const) {
-    if (value >= size) return `${compact.format(value / size)} ${suffix}`
+// Numbers follow the interface language; a language switch re-renders through the hook.
+function useNumbers() {
+  const { i18n } = useTranslation()
+  const exact = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 3 })
+  const compact = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 })
+  const percentage = new Intl.NumberFormat(i18n.language, {
+    style: 'percent',
+    maximumFractionDigits: 1,
+  })
+  const quantity = (value: number) => {
+    for (const [size, suffix] of [
+      [1e9, 'B'],
+      [1e6, 'M'],
+      [1e3, 'K'],
+    ] as const) {
+      if (value >= size) return `${compact.format(value / size)} ${suffix}`
+    }
+    return exact.format(value)
   }
-  return exact.format(value)
-}
-
-function tokens(stats: ModelUsageStats, field: Field, full = false) {
-  if (stats.invocations && !stats.coverage[field]) return '未知'
-  return full ? exact.format(stats[field]) : quantity(stats[field])
+  const tokens = (stats: ModelUsageStats, field: Field, full = false) => {
+    if (stats.invocations && !stats.coverage[field]) return '未知'
+    return full ? exact.format(stats[field]) : quantity(stats[field])
+  }
+  return { exact, percentage, quantity, tokens }
 }
 
 function StatsDetail({ stats }: { stats: ModelUsageStats }) {
+  const { exact, tokens } = useNumbers()
   const fields: [string, string][] = [
     ['輸入 Token', tokens(stats, 'prompt_tokens', true)],
     ['輸出 Token', tokens(stats, 'completion_tokens', true)],
@@ -78,6 +84,7 @@ function UsageGroup({
   total: number
   historical?: boolean
 }) {
+  const { exact, percentage, tokens } = useNumbers()
   const name =
     by === 'model'
       ? group.model || '未標註模型'
@@ -157,6 +164,7 @@ export function ModelUsage({
   tasks: readonly string[]
 }) {
   const display = useDisplayTime()
+  const { exact, percentage, quantity, tokens } = useNumbers()
   const timezone =
     display.zone === 'system' ? Intl.DateTimeFormat().resolvedOptions().timeZone : display.zone
   const [period, setPeriod] = useState<{ range: ModelStatsQuery['range']; end: string }>({

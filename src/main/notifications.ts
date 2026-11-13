@@ -4,6 +4,7 @@ import type { NavigationTarget } from '../shared/desktop'
 import type { Connections } from './connections'
 import type { LocalStore } from './store'
 import { ApiError } from './api/client'
+import { t } from './i18n'
 
 type Work = components['schemas']['Work']
 interface Snapshot {
@@ -89,7 +90,7 @@ export class ClientNotifications {
         if (work.state === 'completed' && old?.state !== 'completed' && preferences.notifyCompleted)
           notices.push({
             category: 'completed',
-            title: `${profile.display_name} · 工作完成`,
+            title: t('notifications:completed', { name: profile.display_name }),
             body: work.goal,
             target,
           })
@@ -101,14 +102,14 @@ export class ClientNotifications {
         )
           notices.push({
             category: 'waiting',
-            title: `${profile.display_name} · 等待你回覆`,
+            title: t('notifications:waiting', { name: profile.display_name }),
             body: work.waiting_question?.text ?? work.goal,
             target,
           })
         if (work.help_requested && !old?.help && preferences.notifyHelp)
           notices.push({
             category: 'help',
-            title: `${profile.display_name} · 需要你幫忙`,
+            title: t('notifications:help', { name: profile.display_name }),
             body: work.goal,
             target: { ...target, view: 'computer' },
           })
@@ -128,7 +129,7 @@ export class ClientNotifications {
       notices.push({
         category: 'proactive',
         title: profile.display_name,
-        body: '主動傳來了新訊息。',
+        body: t('notifications:proactive'),
         target: { characterId: id, view: 'chat', conversationId: connection.conversationId },
       })
     // These are local presentation watermarks, never command or delivery receipts.

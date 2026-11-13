@@ -4,6 +4,7 @@ import { App } from './App'
 import './tokens.css'
 import './materials/materials.css'
 import { keyboardCommand } from '../shared/commands'
+import { applyLanguage } from './i18n'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: true } },
@@ -11,6 +12,8 @@ const queryClient = new QueryClient({
 window.yuki
   .boot()
   .then((boot) => {
+    applyLanguage(boot.language)
+    window.yuki.onLanguage(applyLanguage)
     window.addEventListener('keydown', (event) => {
       if (event.isComposing || event.keyCode === 229) return
       const command = keyboardCommand(
