@@ -84,22 +84,17 @@ test('pointing and scrolling cost the same however long the conversation is', as
       }
       return times
     })
-    return {
-      average: frames.reduce((sum, frame) => sum + frame, 0) / frames.length,
-      slow: frames.filter((frame) => frame > 20).length,
-    }
+    return frames.reduce((sum, frame) => sum + frame, 0) / frames.length
   }
-  const glass = await scrolling()
-  // The same scroll with no glass at all, on this machine: what the page costs without it.
-  const style = await page.addStyleTag({ content: '* { backdrop-filter: none !important }' })
-  const bare = await scrolling()
-  await style.evaluate((node) => (node as Element).remove())
-  evidence.pointing = { short, perMove, glass, bare }
+  const long = await scrolling()
+  await open(page, 120)
+  const shorter = await scrolling()
+  evidence.pointing = { short, perMove, scrolling: { 120: shorter, 300: long } }
   // 21: what a pointer move costs does not grow with the conversation (it was four times as much
   // at 300 messages as at 25), on any machine.
   expect(perMove).toBeLessThanOrEqual(Math.max(short * 1.5, 0.5))
-  // 22: the glass adds little to scrolling a long conversation (refracting bubbles made it 1.5
-  // times as slow), on any machine.
-  expect(glass.average).toBeLessThanOrEqual(bare.average * 1.2)
-  expect(glass.slow).toBeLessThanOrEqual(bare.slow + 6)
+  // 22: scrolling costs no more as the conversation grows, on any machine. (That the conversation
+  // itself carries no glass, which made each visible bubble a lens, is checked where bubbles are:
+  // conversation-glass, glass-floating.)
+  expect(long).toBeLessThanOrEqual(shorter * 1.2 + 1)
 })

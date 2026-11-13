@@ -133,9 +133,7 @@ test('settings draw every field, check box and disclosure one way', async () => 
     expect(fields.filter((field) => field.clipped)).toEqual([])
     // C2: check boxes are drawn by the app, one way, never the browser's own square.
     const boxes = all.flatMap(([, page]) => page.boxes)
-    expect(new Set(boxes.map((box) => `${box.drawn} | ${box.radius}`))).toEqual(
-      new Set(['none | 5px']),
-    )
+    for (const box of boxes) expect(`${box.drawn} | ${box.radius}`, box.name).toBe('none | 5px')
     // C3: every disclosure is opened by the same drawn arrow, never the browser's own marker.
     const summaries = all.flatMap(([, page]) => page.summaries).filter((summary) => !summary.row)
     expect(summaries.length).toBeGreaterThan(2)
