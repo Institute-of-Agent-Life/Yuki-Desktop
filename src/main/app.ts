@@ -22,16 +22,16 @@ import {
   systemPreferences,
 } from 'electron'
 import { heldComputers } from './computer-exit'
-import { hostname } from 'node:os'
+import { hostname, tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
-import { mkdir, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createWindow, setWindowMode, setKeyboardCapture } from './windows'
 import { applyWindowAppearance, platformMaterial } from './window-appearance'
 import { installMenu } from './menu'
 import { language, setLanguage, t } from './i18n'
-import { displayLanguage, languagePreferences } from '../shared/locales'
+import { displayLanguage, languagePreferences, listNames } from '../shared/locales'
 import { LocalStore } from './store'
 import {
   backdrops,
@@ -294,7 +294,10 @@ else {
           type: 'question' as const,
           title: t('dialogs:quitControlTitle'),
           message: t(offline ? 'dialogs:quitControlMessageOffline' : 'dialogs:quitControlMessage', {
-            names: new Intl.ListFormat(language()).format(held.map((item) => item.connection.name)),
+            names: listNames(
+              language(),
+              held.map((item) => item.connection.name),
+            ),
           }),
           detail: t(offline ? 'dialogs:quitControlDetailOffline' : 'dialogs:quitControlDetail'),
           buttons: [t('dialogs:returnAndQuit'), t('dialogs:keepAndQuit'), t('dialogs:cancel')],
@@ -975,6 +978,39 @@ else {
         : connections.stage(id, picked.filePaths)
     })
     clientAction('drop', (id: string, paths: string[]) => connections.stage(id, paths))
+    // Pasted content without a file of its own is written out under its name and staged with
+    // the other paths, as dropped files are; the staged copy is the upload's, so this one goes.
+    const stagePasted = async (
+      id: string,
+      paths: string[],
+      filename: string,
+      bytes: Uint8Array,
+    ) => {
+      const folder = await mkdtemp(join(tmpdir(), 'yuki-paste-'))
+      try {
+        const path = join(folder, filename)
+        await writeFile(path, bytes, { mode: 0o600 })
+        return await connections.stage(id, [...paths, path])
+      } finally {
+        await rm(folder, { recursive: true, force: true })
+      }
+    }
+    clientAction('paste-files', (id: string, paths: string[]) => {
+      // Copied files carry their paths. A screenshot is picture data without one (an empty path),
+      // and some sources give no file at all: the clipboard's image is staged as a PNG.
+      const named = paths.filter(Boolean)
+      const image = named.length < paths.length || !paths.length ? clipboard.readImage() : null
+      // Default file names are data and do not follow the interface language.
+      return image && !image.isEmpty()
+        ? stagePasted(id, named, '剪貼簿圖片.png', image.toPNG())
+        : connections.stage(id, named)
+    })
+    clientAction('paste-text', (id: string, text: string) => {
+      const now = new Date(),
+        two = (value: number) => String(value).padStart(2, '0'),
+        stamp = `${now.getFullYear()}${two(now.getMonth() + 1)}${two(now.getDate())}-${two(now.getHours())}${two(now.getMinutes())}${two(now.getSeconds())}`
+      return stagePasted(id, [], `粘貼內容-${stamp}.md`, Buffer.from(text))
+    })
     clientAction('record', (id: string, bytes: Uint8Array) => connections.record(id, bytes))
     clientAction('retry-upload', (id: string, request: string) =>
       connections.retryUpload(id, request),

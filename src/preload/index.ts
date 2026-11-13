@@ -124,6 +124,13 @@ const bridge: DesktopBridge = {
         id,
         files.map((file) => webUtils.getPathForFile(file)).filter(Boolean),
       ),
+    pasteFiles: (id, files) =>
+      ipcRenderer.invoke(
+        'yuki:paste-files',
+        id,
+        files.map((file) => webUtils.getPathForFile(file)),
+      ),
+    pasteText: (id, text) => ipcRenderer.invoke('yuki:paste-text', id, text),
     record: (id, bytes) => ipcRenderer.invoke('yuki:record', id, bytes),
     microphone: () => ipcRenderer.invoke('yuki:microphone'),
     retryUpload: (id, request) => ipcRenderer.invoke('yuki:retry-upload', id, request),

@@ -1485,6 +1485,12 @@ export function Conversation({
                     blocked={recording || uploads.data?.some((item) => item.state !== 'ready')}
                     commandEnter={preferences.sendKey === 'command-enter'}
                     onAttach={() => void mediaAction(window.yuki.client.attach(id).then(unwrap))}
+                    onPasteFiles={(files) =>
+                      void mediaAction(window.yuki.client.pasteFiles(id, files).then(unwrap))
+                    }
+                    onPasteText={(text) =>
+                      void mediaAction(window.yuki.client.pasteText(id, text).then(unwrap))
+                    }
                     onRecord={() => (recording ? finishRecording.current?.() : setRecording(true))}
                   >
                     <DraftAttachments id={id} items={uploads.data ?? []} refresh={refresh} />

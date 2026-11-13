@@ -14,7 +14,7 @@ src/shared/locales/
   */index.ts        匯集該語言全部命名空間
 ```
 
-命名空間按模組劃分，一個檔案一個：`common`（多處共用的字，如「跟隨系統」、編輯動作）、`menu`（應用程式選單與 Main 彈出的右鍵選單）、`tray`、`notifications`、`dialogs`（Main 的原生對話框）、`localBot`（本機部署進度）、`time`、`settings`。新畫面新增自己的命名空間（例如 `platforms`、`ssh`），不往別人的檔案裡塞；只有確實多處共用的字放 `common`。後端錯誤以錯誤碼為 key。
+命名空間按模組劃分，一個檔案一個：`common`（多處共用的字，如「跟隨系統」、編輯動作）、`menu`（應用程式選單與 Main 彈出的右鍵選單）、`tray`、`notifications`、`dialogs`（Main 的原生對話框）、`localBot`（本機部署進度）、`time`、`settings`、`errors`（後端錯誤碼，key 即錯誤碼；`problemText` 先查這裡，`queries/client.ts` 的舊表逐步遷入）。新畫面新增自己的命名空間（例如 `platforms`、`ssh`），不往別人的檔案裡塞；只有確實多處共用的字放 `common`。後端錯誤以錯誤碼為 key。
 
 ## 新增文案
 

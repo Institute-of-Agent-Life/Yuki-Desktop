@@ -30,6 +30,12 @@ export function displayLanguage(preference: LanguagePreference, preferred: reado
   return preference === 'system' ? systemLanguage(preferred) : preference
 }
 
+/** Names in a sentence: Chinese separates them with 、 as it always has; English reads
+ * "A and B", "A, B, and C". */
+export function listNames(language: Language, names: readonly string[]) {
+  return language === 'en' ? new Intl.ListFormat('en').format(names) : names.join('、')
+}
+
 /** Main and the renderer initialize i18next alike; resources are bundled, so this is synchronous. */
 export function i18nOptions(language: Language): InitOptions {
   return {

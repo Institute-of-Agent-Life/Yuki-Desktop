@@ -297,6 +297,10 @@ export interface ConversationBridge {
   uploads(characterId: string): Promise<ApiReply<UploadDraft[]>>
   attach(characterId: string): Promise<ApiReply<UploadDraft[]>>
   drop(characterId: string, files: File[]): Promise<ApiReply<UploadDraft[]>>
+  /** Pasted files stage as dropped ones; picture data without a file stages as a PNG. */
+  pasteFiles(characterId: string, files: File[]): Promise<ApiReply<UploadDraft[]>>
+  /** Long pasted text stages as a Markdown file. */
+  pasteText(characterId: string, text: string): Promise<ApiReply<UploadDraft[]>>
   record(characterId: string, bytes: Uint8Array): Promise<ApiReply<UploadDraft>>
   microphone(): Promise<ApiReply<void>>
   retryUpload(characterId: string, requestId: string): Promise<ApiReply<UploadDraft>>

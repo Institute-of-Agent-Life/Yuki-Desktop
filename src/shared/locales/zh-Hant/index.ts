@@ -7,5 +7,6 @@ import dialogs from './dialogs'
 import localBot from './localBot'
 import time from './time'
 import settings from './settings'
+import errors from './errors'
 
-export default { common, menu, tray, notifications, dialogs, localBot, time, settings }
+export default { common, menu, tray, notifications, dialogs, localBot, time, settings, errors }

@@ -4,6 +4,12 @@ import { useGlass } from '../materials/glass'
 import { IconButton } from './Controls'
 import styles from '../App.module.css'
 import { normalizeMessageText } from '../../shared/message'
+import { unwrap } from '../queries/client'
+
+/** Pasted text past either limit becomes a Markdown attachment instead of filling the field. */
+export const pastedTextLimit = { characters: 4000, lines: 80 }
+const pastesAsFile = (text: string) =>
+  [...text].length > pastedTextLimit.characters || text.split('\n').length > pastedTextLimit.lines
 
 export function Composer({
   name,
@@ -12,6 +18,8 @@ export function Composer({
   onDraft,
   onSubmit,
   onAttach,
+  onPasteFiles,
+  onPasteText,
   onRecord,
   commandEnter = false,
   hasContent = false,
@@ -24,6 +32,8 @@ export function Composer({
   onDraft(value: string): void
   onSubmit(): Promise<void>
   onAttach?: () => void
+  onPasteFiles?: (files: File[]) => void
+  onPasteText?: (text: string) => void
   onRecord?: () => void
   commandEnter?: boolean
   hasContent?: boolean
@@ -76,7 +86,34 @@ export function Composer({
             setError('')
             onDraft(event.target.value)
           }}
+          onPaste={(event) => {
+            const { files, types } = event.clipboardData
+            // Files and pictures attach (a screenshot is a file without a path; some sources expose none).
+            if (onPasteFiles && (files.length || !types.length)) {
+              event.preventDefault()
+              onPasteFiles([...files])
+              return
+            }
+            const text = event.clipboardData.getData('text/plain')
+            if (onPasteText && pastesAsFile(text)) {
+              event.preventDefault()
+              onPasteText(text)
+            }
+          }}
           onKeyDown={(event) => {
+            // ⌘⇧V / Ctrl+Shift+V always pastes the clipboard's text as it is, however long.
+            if (
+              (platform === 'darwin' ? event.metaKey : event.ctrlKey) &&
+              event.shiftKey &&
+              event.key.toLowerCase() === 'v'
+            ) {
+              event.preventDefault()
+              void window.yuki.client
+                .paste()
+                .then(unwrap)
+                .then((text) => document.execCommand('insertText', false, text))
+              return
+            }
             if (
               event.key === 'Enter' &&
               !event.shiftKey &&
