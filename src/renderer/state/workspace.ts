@@ -1,7 +1,7 @@
 import { createContext, createElement, useContext, useMemo, type ReactNode } from 'react'
 import { createStore, useStore, type StoreApi } from 'zustand'
 import type { View, NavigationTarget } from '../../shared/desktop'
-import type { ArtifactSource, AttachmentSource, Connection } from '../../shared/api'
+import type { ArtifactSource, AttachmentSource, ComputerScreen, Connection } from '../../shared/api'
 import type { MessageReference } from '../../shared/message'
 import { inspectorSplitMinimum } from '../../main/geometry'
 import { requestNavigation } from './navigation'
@@ -30,6 +30,8 @@ interface WorkspaceState {
   inspectorWidth: number
   inspectorWidthCustom: boolean
   target: NavigationTarget | null
+  /** A display another page asked the computer window to show; the window takes it once. */
+  computerScreen?: ComputerScreen
   navigate(target: NavigationTarget): void
   setView(view: View): void
   toggle(key: 'inspector' | 'sidebar' | 'focusMode'): void

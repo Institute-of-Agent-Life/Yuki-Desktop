@@ -8,6 +8,7 @@ import localBot from './localBot'
 import time from './time'
 import settings from './settings'
 import errors from './errors'
+import platforms from './platforms'
 
 import type { Translation } from '../types'
 
@@ -21,4 +22,5 @@ export default {
   time,
   settings,
   errors,
+  platforms,
 } satisfies Translation<'en'>

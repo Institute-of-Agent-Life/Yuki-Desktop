@@ -236,6 +236,7 @@ export function App({ boot }: { boot: BootInfo }) {
       [value.characterId],
       ['desktop', 'models', value.characterId],
       ['desktop', 'model-stats', value.characterId],
+      ['desktop', 'platforms', value.characterId],
     ]) {
       void query.cancelQueries({ queryKey })
       query.removeQueries({ queryKey })
@@ -275,12 +276,19 @@ export function App({ boot }: { boot: BootInfo }) {
       onConnection={updateConnection}
       onAddCharacter={adding}
       onDeployLocal={deployLocal}
+      onQQLogin={() => {
+        workspace.patch({ computerScreen: 'qq-view' })
+        workspace.setView('computer')
+        setSettingsOpen(false)
+        setStep('welcome')
+      }}
       onLoggedOut={async () => {
         const previous = connection!
         const keys = [
           [previous.characterId],
           ['desktop', 'models', previous.characterId],
           ['desktop', 'model-stats', previous.characterId],
+          ['desktop', 'platforms', previous.characterId],
         ]
         await Promise.all(keys.map((queryKey) => query.cancelQueries({ queryKey })))
         for (const queryKey of keys) query.removeQueries({ queryKey })

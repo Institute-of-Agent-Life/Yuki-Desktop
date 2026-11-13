@@ -8,5 +8,17 @@ import localBot from './localBot'
 import time from './time'
 import settings from './settings'
 import errors from './errors'
+import platforms from './platforms'
 
-export default { common, menu, tray, notifications, dialogs, localBot, time, settings, errors }
+export default {
+  common,
+  menu,
+  tray,
+  notifications,
+  dialogs,
+  localBot,
+  time,
+  settings,
+  errors,
+  platforms,
+}

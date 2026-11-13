@@ -13,6 +13,7 @@ import {
   Laptop,
   Snowflake,
   Cpu,
+  MessagesSquare,
   type LucideIcon,
 } from 'lucide-react'
 import type { Connection } from '../../shared/api'
@@ -24,6 +25,7 @@ import { ServerSettings } from './ServerSettings'
 import { DeviceSecurity } from './DeviceSecurity'
 import { AgentConnector } from './AgentConnector'
 import { ModelSettings, type ModelPage } from './ModelSettings'
+import { Platforms } from './Platforms'
 import { LogoutFlow } from './LogoutFlow'
 import { Row, SettingsSection } from './SettingsRow'
 import { backdrops, type Backdrop, type BootInfo, type Preferences } from '../../shared/desktop'
@@ -48,6 +50,7 @@ export type SettingsCategory =
   | 'updates'
   | 'connection'
   | 'models'
+  | 'platforms'
   | 'devices'
   | 'computer'
   | 'yukis'
@@ -72,6 +75,7 @@ const groups: {
     items: [
       { id: 'connection', icon: Server },
       { id: 'models', icon: Cpu },
+      { id: 'platforms', icon: MessagesSquare },
       { id: 'devices', icon: ShieldCheck },
       { id: 'computer', icon: Laptop },
     ],
@@ -102,6 +106,7 @@ export function Settings({
   onModelPage,
   onAddCharacter,
   onDeployLocal,
+  onQQLogin,
 }: {
   boot: BootInfo
   preferences: Preferences
@@ -119,6 +124,7 @@ export function Settings({
   onModelPage(page: ModelPage): void
   onAddCharacter(): void
   onDeployLocal(): void
+  onQQLogin(): void
 }) {
   const { t } = useTranslation(['settings', 'common'])
   const keepInTray = t(
@@ -465,6 +471,14 @@ export function Settings({
                 connection={connection}
                 page={modelPage}
                 onPage={onModelPage}
+              />
+            )
+          ) : shown === 'platforms' ? (
+            connection && (
+              <Platforms
+                key={connection.characterId}
+                connection={connection}
+                onQQLogin={onQQLogin}
               />
             )
           ) : shown === 'computer' ? (

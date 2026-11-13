@@ -12,6 +12,7 @@ export default {
     updates: '更新',
     connection: '连接',
     models: '模型',
+    platforms: '平台',
     devices: '设备',
     computer: '这台电脑',
     yukis: '所有 Yuki',

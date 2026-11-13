@@ -24,6 +24,7 @@ import {
 import { unwrap, problemText, ClientProblem, useMe, hidesPrivateData } from '../queries/client'
 import styles from './Computer.module.css'
 import { useGlass } from '../materials/glass'
+import { useWorkspace } from '../state/workspace'
 
 function useComputer(id: string) {
   const client = useQueryClient()
@@ -63,6 +64,13 @@ export function Computer({
     query = useComputer(id),
     client = useQueryClient()
   const [screen, setScreen] = useState<ComputerScreen>('sandbox')
+  const requested = useWorkspace((state) => state.computerScreen),
+    patch = useWorkspace((state) => state.patch)
+  useEffect(() => {
+    if (compact || !requested) return
+    setScreen(requested)
+    patch({ computerScreen: undefined })
+  }, [compact, requested, patch])
   const me = useMe(id)
   const administrator = me.data?.is_superuser === true && !hidesPrivateData(me.error)
   const state = query.error ? undefined : query.data

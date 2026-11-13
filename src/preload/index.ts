@@ -48,6 +48,7 @@ const bridge: DesktopBridge = {
     start: () => ipcRenderer.invoke('yuki:local-bot-start'),
     stop: () => ipcRenderer.invoke('yuki:local-bot-stop'),
     connect: () => ipcRenderer.invoke('yuki:local-bot-connect'),
+    enableSnowLuma: (image) => ipcRenderer.invoke('yuki:local-bot-snowluma', image),
     onProgress(callback) {
       const listener = (_event: Electron.IpcRendererEvent, message: string) => callback(message)
       ipcRenderer.on('yuki:local-bot-progress', listener)
@@ -61,6 +62,10 @@ const bridge: DesktopBridge = {
       test: (id, input) => ipcRenderer.invoke('yuki:models-test', id, input),
       discover: (id, input) => ipcRenderer.invoke('yuki:models-discover', id, input),
       stats: (id, query) => ipcRenderer.invoke('yuki:models-stats', id, query),
+    },
+    platforms: {
+      read: (id) => ipcRenderer.invoke('yuki:platforms-read', id),
+      apply: (id, input) => ipcRenderer.invoke('yuki:platforms-apply', id, input),
     },
     pendingPairings: () => ipcRenderer.invoke('yuki:pending-pairings'),
     resumePairing: (id, device) => ipcRenderer.invoke('yuki:resume-pairing', id, device),
