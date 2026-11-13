@@ -150,8 +150,10 @@
   left: 12px;
   right: 12px;
   color: white;
-  background: #3b2222e8;
-  border-radius: 6px;
+  /* Frost over the screen, darkened and tinted with failure, as clear glass over media. */
+  background: color-mix(in srgb, var(--status-failed) 30%, rgb(28 28 30 / 0.6));
+  backdrop-filter: var(--glass-frost);
+  border-radius: 8px;
   padding: 8px 12px;
   font-size: 12px;
 }

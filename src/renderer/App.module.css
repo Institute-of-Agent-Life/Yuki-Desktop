@@ -210,20 +210,6 @@
   margin-right: 0;
   border-radius: 14px 0 0 14px;
 }
-.toolbarGroup {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  gap: 2px;
-  height: 34px;
-  padding: 3px;
-  border-radius: 17px;
-  background: var(--mat-chrome);
-  box-shadow: var(--shadow-glass);
-  backdrop-filter: var(--glass-lens);
-  -webkit-app-region: no-drag;
-}
 .toolbar {
   position: absolute;
   inset: 0 0 auto;

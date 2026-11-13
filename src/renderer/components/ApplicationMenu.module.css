@@ -24,9 +24,9 @@
   width: max-content;
   max-width: min(260px, calc(100vw - 32px));
   padding: 8px 12px;
-  border: var(--line) solid var(--separator);
   border-radius: 8px;
-  background: var(--bg-elevated);
+  background: var(--mat-chrome);
+  backdrop-filter: var(--glass-frost);
   color: var(--status-failed);
-  box-shadow: var(--shadow-popover);
+  box-shadow: var(--shadow-glass);
 }

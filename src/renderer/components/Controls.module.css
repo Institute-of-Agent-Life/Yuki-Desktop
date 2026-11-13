@@ -130,7 +130,7 @@
   padding: 0 20px;
   flex-shrink: 0;
   color: var(--status);
-  background: color-mix(in srgb, var(--status) 12%, var(--bg-content));
+  background: color-mix(in srgb, var(--status) 12%, var(--surface-page));
   font-size: 12px;
 }
 .dialog {
@@ -355,4 +355,19 @@
 }
 .busy:not([data-shown='true']) > .spinner {
   animation-play-state: paused;
+}
+/* Toolbar controls in clear glass, a lone one or a few together, as in macOS 26. */
+.capsule {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+  height: 34px;
+  padding: 3px;
+  border-radius: 17px;
+  background: var(--mat-chrome);
+  box-shadow: var(--shadow-glass);
+  backdrop-filter: var(--glass-lens);
+  -webkit-app-region: no-drag;
 }

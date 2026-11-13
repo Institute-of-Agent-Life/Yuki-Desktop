@@ -193,7 +193,7 @@ test('a floating pane lets the backdrop through and parts its colours at the edg
 
 test('narrow glass bends at the display resolution', async ({ page }) => {
   await openConversation(page)
-  const short = page.locator('[data-region="toolbar"] [data-glass="toolbar"]')
+  const short = page.locator('[data-region="toolbar"] [data-glass="toolbar"]').first()
   await expect(short).toHaveAttribute('data-refracting', 'true')
   // 5 (透明磨砂 task book): glass this narrow is mapped at the display's own pixels.
   const map = await short.evaluate(async (surface: HTMLElement) => {

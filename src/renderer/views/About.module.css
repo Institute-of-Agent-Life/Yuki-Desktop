@@ -27,10 +27,10 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 1px solid var(--separator);
-  background: var(--bg-elevated);
+  background: var(--mat-chrome);
+  backdrop-filter: var(--glass-frost);
   color: var(--text-primary);
-  box-shadow: var(--shadow-popover);
+  box-shadow: var(--shadow-glass);
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -44,7 +44,7 @@
   font-size: 12px;
   padding: 4px 10px;
   border-radius: 14px;
-  background: var(--bg-elevated);
+  background: var(--mat-chrome);
   opacity: 0;
   transition: opacity 120ms ease;
 }

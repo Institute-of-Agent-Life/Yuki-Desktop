@@ -136,6 +136,9 @@
     repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px 24px);
   --grid-line: rgb(20 30 50 / 0.14);
   --glass-calm: contrast(0.9) brightness(1.03);
+  /* Frost: small things floating over content that need no lens (notices, a message's actions,
+     hints). It holds no pane's own lens, so it is one value for the whole page. */
+  --glass-frost: blur(12px) saturate(160%) var(--glass-calm) var(--seal,);
   --stroke-hi: rgba(255, 255, 255, 0.95);
   --stroke-lo: rgba(255, 255, 255, 0.28);
   --edge: rgba(20, 30, 50, 0.1);

@@ -14,6 +14,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type ButtonHTMLAttributes,
   type ReactNode,
 } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -92,6 +93,11 @@ function useDraft() {
   return store
 }
 type Draft = ReturnType<typeof useDraft>
+// The way back to the newest message floats over the conversation as a lens.
+function NewMessagesPill(props: ButtonHTMLAttributes<HTMLButtonElement>) {
+  const glass = useGlass<HTMLButtonElement>('toolbar')
+  return <button ref={glass.ref} type="button" data-glass="toolbar" {...props} />
+}
 function DraftField({ draft, children }: { draft: Draft; children(text: string): ReactNode }) {
   return children(useSyncExternalStore(draft.subscribe, draft.get))
 }
@@ -1419,7 +1425,7 @@ export function Conversation({
               </div>
             </div>
             {(newMessages || anchor !== null) && (
-              <button
+              <NewMessagesPill
                 className={styles.newMessages}
                 onClick={() => {
                   if (anchor !== null) setAnchor(null)
@@ -1429,7 +1435,7 @@ export function Conversation({
                 }}
               >
                 {anchor !== null ? '回到最新訊息' : '↓ 新訊息'}
-              </button>
+              </NewMessagesPill>
             )}
             {isMain && replyWork ? (
               <WorkReply
@@ -1763,7 +1769,7 @@ export function Message({
           </MessageBubble>
         )}
         {event && (
-          <div className={styles.messageActions}>
+          <div className={styles.messageActions} data-message-actions>
             <IconButton
               label="複製訊息"
               onClick={(click) => {

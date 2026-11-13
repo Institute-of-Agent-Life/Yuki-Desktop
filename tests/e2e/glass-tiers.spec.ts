@@ -33,7 +33,9 @@ test('every pane of a tier bends, blurs and seals the same way', async ({ page }
   const composer = page.locator('[data-region="composer"]')
   await expect(composer).toHaveAttribute('data-refracting', 'true')
   tiers.lens!.composer = await filter(composer)
-  tiers.lens!.toolbar = await filter(page.locator('[data-region="toolbar"] [data-glass="toolbar"]'))
+  tiers.lens!.toolbar = await filter(
+    page.locator('[data-region="toolbar"] [data-glass="toolbar"]').first(),
+  )
 
   await page.goto(gallery)
   await frost(page)

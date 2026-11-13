@@ -78,6 +78,8 @@ export function Button({
       {...props}
       ref={press}
       data-press="button"
+      // A secondary button is lit glass at rest: its rim catches the light, with no filter.
+      data-glass={variant === 'secondary' ? 'button' : undefined}
       disabled={props.disabled || loading}
       aria-busy={loading}
       className={`${styles.button} ${styles[variant]} ${large ? styles.large : ''} ${className}`}
@@ -170,6 +172,15 @@ export function StatusPill({ status, children }: { status: Status; children: Rea
       <span className={styles.dot} />
       {children}
     </span>
+  )
+}
+// Toolbar controls in their own clear glass capsule.
+export function Capsule({ children, className = '' }: { children: ReactNode; className?: string }) {
+  const glass = useGlass<HTMLDivElement>('toolbar')
+  return (
+    <div ref={glass.ref} data-glass="toolbar" className={`${styles.capsule} ${className}`}>
+      {children}
+    </div>
   )
 }
 export function Banner({ status = 'offline', children }: { status?: Status; children: ReactNode }) {
