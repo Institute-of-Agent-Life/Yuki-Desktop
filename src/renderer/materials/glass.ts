@@ -265,11 +265,16 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
     fringe.current?.blue.setAttribute('scale', String(2 * amount * (1 + spread) * value))
   }
   const setStrength = (value: number) => {
+    const rising = !strength.current !== !value
     strength.current = Math.max(0, value)
     bend(strength.current)
     ref.current?.style.setProperty('--glass-pressure', String(Math.min(1, strength.current)))
+    // A control turns to glass as it is pressed and back to its quiet self as it settles.
+    if (dynamic && rising) attachment.current?.sync()
   }
-  const attachment = useRef<{ element: T; kind: GlassKind; dispose(): void } | undefined>(undefined)
+  const attachment = useRef<
+    { element: T; kind: GlassKind; sync(): void; dispose(): void } | undefined
+  >(undefined)
   useLayoutEffect(() => {
     const element = enabled ? ref.current : null
     if (attachment.current?.element === element && attachment.current?.kind === kind) return
@@ -372,15 +377,17 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
     document.body.append(svg)
     displacement.current = warp
     let size = ''
+    const quiet = () => {
+      element.style.removeProperty('--refract')
+      element.style.removeProperty('--rim')
+      element.style.removeProperty('--rim-slice')
+      element.style.removeProperty('--rim-border')
+      delete element.dataset.refracting
+    }
     const sync = () => {
-      if (document.documentElement.dataset.opaque === 'true') {
-        element.style.removeProperty('--refract')
-        element.style.removeProperty('--rim')
-        element.style.removeProperty('--rim-slice')
-        element.style.removeProperty('--rim-border')
-        delete element.dataset.refracting
-        return
-      }
+      // Without transparency nothing bends; a control at rest is quiet, as in Apple's glass.
+      if (document.documentElement.dataset.opaque === 'true' || (dynamic && !strength.current))
+        return quiet()
       const w = element.offsetWidth,
         h = element.offsetHeight
       if (!w || !h) return
@@ -401,7 +408,14 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
         h / 2,
       )
       const next = `${w}/${h}/${r}`
-      if (next !== size) {
+      if (dynamic && size) {
+        // A held control stretches as it is pressed and dragged: the maps it was first given
+        // stretch with it, and none are made while it moves.
+        for (const node of [filter, image]) {
+          node.setAttribute('width', String(w))
+          node.setAttribute('height', String(h))
+        }
+      } else if (next !== size) {
         const map = lens(w, h, r, kind)
         filter.setAttribute('width', String(w))
         filter.setAttribute('height', String(h))
@@ -436,13 +450,9 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
       svg.remove()
       displacement.current = null
       fringe.current = null
-      element.style.removeProperty('--refract')
-      element.style.removeProperty('--rim')
-      element.style.removeProperty('--rim-slice')
-      element.style.removeProperty('--rim-border')
-      delete element.dataset.refracting
+      quiet()
     }
-    attachment.current = { element, kind, dispose }
+    attachment.current = { element, kind, sync, dispose }
   })
   useLayoutEffect(
     () => () => {

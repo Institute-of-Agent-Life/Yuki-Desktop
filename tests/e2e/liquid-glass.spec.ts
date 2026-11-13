@@ -206,8 +206,21 @@ test('dialogs, the command palette, pairing and controls share the glass without
   await page.screenshot({ path: test.info().outputPath('dialog.png') })
   await expectSolid(page, dialog)
   await page.keyboard.press('Escape')
-  for (const kind of ['toggle', 'segment', 'slider'])
+  // 1, as revised by the 液态玻璃组件统一 task book: a control is glass while it is held.
+  for (const [kind, control] of [
+    ['toggle', page.getByRole('switch').first()],
+    [
+      'segment',
+      page.locator('[data-glass="segment"]').first().locator('..').locator('button').first(),
+    ],
+    ['slider', page.getByRole('slider').first()],
+  ] as const) {
+    const box = (await control.boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
     await expectLiquidGlass(kind, page.locator(`[data-glass="${kind}"]`).first())
+    await page.mouse.up()
+  }
 
   await page.goto(`${regressions}?case=palette`)
   const palette = page.locator('dialog[data-glass="sheet"]')
