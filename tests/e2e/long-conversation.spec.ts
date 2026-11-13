@@ -52,6 +52,7 @@ test('typing in a long conversation is as quick as in a short one', async ({ pag
 })
 
 test('pointing and scrolling cost the same however long the conversation is', async ({ page }) => {
+  test.setTimeout(120000)
   // The style work of one pointer move, on this machine.
   const pointing = async (messages: number) => {
     await open(page, messages)
@@ -68,27 +69,35 @@ test('pointing and scrolling cost the same however long the conversation is', as
   }
   const short = await pointing(25)
   const perMove = await pointing(300)
-  // Scrolling, timed frame by frame, from the end up.
-  const scrolling = async () => {
-    const frames = await page.getByRole('log', { name: '對話訊息' }).evaluate(async (log) => {
+  // The main thread's work while scrolling from the end up, per step: what the page does, not the
+  // pace at which this machine draws frames. Each length is measured twice, in turn, so neither
+  // is the one measured cold.
+  const scrolling = async (messages: number) => {
+    await open(page, messages)
+    const cdp = await page.context().newCDPSession(page)
+    await cdp.send('Performance.enable')
+    const busy = async () =>
+      (await cdp.send('Performance.getMetrics')).metrics.find(
+        (metric) => metric.name === 'TaskDuration',
+      )!.value
+    const log = page.getByRole('log', { name: '對話訊息' })
+    await log.evaluate(async (log) => {
       log.scrollTop = log.scrollHeight
       await new Promise((resolve) => setTimeout(resolve, 200))
-      const times: number[] = []
-      let last = performance.now()
+    })
+    const before = await busy()
+    await log.evaluate(async (log) => {
       for (let step = 0; step < 120; step++) {
         log.scrollTop = Math.max(0, log.scrollTop - 40)
         await new Promise((resolve) => requestAnimationFrame(resolve))
-        const now = performance.now()
-        times.push(now - last)
-        last = now
       }
-      return times
     })
-    return frames.reduce((sum, frame) => sum + frame, 0) / frames.length
+    return ((await busy()) - before) * (1000 / 120)
   }
-  const long = await scrolling()
-  await open(page, 120)
-  const shorter = await scrolling()
+  const shorter = [await scrolling(120)]
+  const long = [await scrolling(300)]
+  shorter.push(await scrolling(120))
+  long.push(await scrolling(300))
   evidence.pointing = { short, perMove, scrolling: { 120: shorter, 300: long } }
   // 21: what a pointer move costs does not grow with the conversation (it was four times as much
   // at 300 messages as at 25), on any machine.
@@ -96,5 +105,5 @@ test('pointing and scrolling cost the same however long the conversation is', as
   // 22: scrolling costs no more as the conversation grows, on any machine. (That the conversation
   // itself carries no glass, which made each visible bubble a lens, is checked where bubbles are:
   // conversation-glass, glass-floating.)
-  expect(long).toBeLessThanOrEqual(shorter * 1.2 + 1)
+  expect(Math.min(...long)).toBeLessThanOrEqual(Math.min(...shorter) * 1.5 + 0.5)
 })

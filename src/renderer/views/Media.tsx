@@ -54,6 +54,9 @@ export function MessageAttachment({
     url = content.data?.preview?.url
   const [menuError, setMenuError] = useState('')
   const status = content.error?.message
+  // A sticker keeps its waiting square until its picture has loaded, so its row never shrinks.
+  const [shown, setShown] = useState<string>()
+  const waiting = !!sticker && (!url || shown !== url)
   return (
     <button
       ref={element}
@@ -84,11 +87,17 @@ export function MessageAttachment({
           .catch((error) => setMenuError(error instanceof Error ? error.message : '操作未完成。'))
       }}
     >
-      {image && url ? (
-        <img src={url} loading="lazy" alt={sticker ?? attachment.filename ?? '圖片附件'} />
-      ) : sticker ? (
+      {image && url && (
+        <img
+          src={url}
+          alt={sticker ?? attachment.filename ?? '圖片附件'}
+          hidden={waiting}
+          onLoad={() => setShown(url)}
+        />
+      )}
+      {waiting ? (
         <span className={styles.stickerWaiting} role="img" aria-label={sticker} />
-      ) : (
+      ) : image && url ? null : (
         <div className={styles.file}>
           <span>
             {image ? <ImageIcon size={20} /> : voice ? <Mic size={20} /> : <File size={20} />}

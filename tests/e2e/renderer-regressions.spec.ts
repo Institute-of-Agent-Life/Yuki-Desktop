@@ -80,7 +80,9 @@ for (const position of ['tail', 'reader', 'quoted-history'] as const) {
     await image.evaluate((node) => (node as HTMLImageElement).decode())
     await renderedFrames(page)
     expect(await image.evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBe(320)
-    if (position === 'tail') expect((await conversationPosition(log)).gap).toBe(0)
+    // At the tail the grown image is followed on the bubbles' spring and settles at the end.
+    if (position === 'tail')
+      await expect.poll(async () => (await conversationPosition(log)).gap).toBe(0)
     else expect((await conversationPosition(log)).top).toBe(before.top)
     await page.evaluate(() =>
       (

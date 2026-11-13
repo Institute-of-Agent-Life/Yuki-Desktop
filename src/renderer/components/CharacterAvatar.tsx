@@ -71,6 +71,8 @@ export function CharacterAvatar({
     queryKey: [context.id, 'avatar', photo?.sha256, pixels],
     queryFn: () => window.yuki.client.avatarBytes(context.id, photo!.sha256, pixels).then(unwrap),
     enabled: !!context.id && !!photo,
+    // A picture named by its digest never changes; a new one comes with a new digest.
+    staleTime: Infinity,
   })
   const allowed = !!photo && !hidesPrivateData(result.error)
   const url = useImageUrl(

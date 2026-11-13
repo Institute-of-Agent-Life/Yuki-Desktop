@@ -252,6 +252,7 @@ const showcaseSteps = [
 const glassConversation = '22222222-2222-4222-8222-222222222222'
 const glassEntry = { ...home.main, conversation_id: glassConversation }
 // `readonly=1` opens a QQ conversation of the same Yuki, which only the desktop one can continue.
+let avatarReads = 0
 const readonlyEntry = {
   ...home.main,
   conversation_id: '33333333-3333-4333-8333-333333333333',
@@ -290,8 +291,8 @@ function appendGlassMessage(
     event_id: eventId,
     conversation_id: glassConversation,
     content,
-    // A sticker carries no text of its own; its content names it.
-    text: picture?.sticker ? '' : content,
+    // As the server sends every event: its text is its content, a sticker's too ("[表情: 开心]").
+    text: content,
     work_ids: [],
     attachments: picture
       ? [
@@ -407,7 +408,11 @@ Object.assign(window, {
     connector: { state: async () => ({ ok: true, value: { available: false, bundled: true } }) },
     client: {
       ...client,
-      avatarBytes: async () => ({ ok: true, value: await showcaseAvatar }),
+      // As over IPC: every read hands over a fresh copy of the bytes.
+      avatarBytes: async () => {
+        avatarReads++
+        return { ok: true, value: new Uint8Array(await showcaseAvatar) }
+      },
       read: async (_id: string, route: ApiRead) => {
         reads.push(route.kind)
         if (route.kind === 'me') return { ok: true, value: { is_superuser: true } }
@@ -797,6 +802,7 @@ Object.assign(window, {
       glassExecuting = true
       appendGlassMessage(glassOutbox!.body.text, false)
     },
+    avatarReads: () => avatarReads,
     receiveGlassPicture: (content: string, sticker: boolean) =>
       appendGlassMessage(content, true, {
         sticker,

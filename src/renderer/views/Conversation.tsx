@@ -547,12 +547,17 @@ export function Conversation({
     }
   })
   // Rows settling into their size, the room kept for the composer or a narrower window move the
-  // end as well: a person at the end stays there.
+  // end as well: a person at the end stays there. A row growing on its own (a picture that has
+  // loaded) is followed on the bubbles' spring; the list itself resized keeps the end at once.
   useEffect(() => {
     const log = list.current
     if (!log) return
-    const sizes = new ResizeObserver(() => {
-      if (following(log) && anchor === null) followEnd(log, false)
+    const sizes = new ResizeObserver((entries) => {
+      if (following(log) && anchor === null)
+        followEnd(
+          log,
+          entries.every((entry) => entry.target !== log),
+        )
     })
     sizes.observe(log)
     for (const row of log.children) sizes.observe(row)
@@ -1315,10 +1320,6 @@ export function Conversation({
               aria-label="對話訊息"
               aria-live="polite"
               ref={attachList}
-              onLoadCapture={(event) => {
-                if (following(event.currentTarget) && anchor === null)
-                  followEnd(event.currentTarget, false)
-              }}
               onScroll={(event) => {
                 const node = event.currentTarget
                 // The app keeping the end in view is not the person leaving it.
@@ -1622,12 +1623,14 @@ function Pending({ item, verify }: { item: Receipt; verify(): Promise<void> }) {
   )
 }
 
-// A message of stickers alone shows them as stickers; its content ("[表情: 开心]") names them.
+// A message of stickers alone shows them as stickers: its content is nothing but their name
+// ("[表情: 开心]"), which the server also sends as its text.
 const stickerName = (event: PublicEvent | undefined) => {
-  if (!event || event.text.trim() || !event.attachments.length) return undefined
+  if (!event?.attachments.length) return undefined
   if (!event.attachments.every((attachment) => attachment.sticker)) return undefined
-  const tags = event.content.match(/^\[表情(?::\s*(.+))?\]$/)?.[1]
-  return tags ? `表情：${tags}` : '表情'
+  const name = event.content.trim().match(/^\[表情(?::\s*(.+))?\]$/)
+  if (!name) return undefined
+  return name[1] ? `表情：${name[1]}` : '表情'
 }
 
 function MessageBubble({ children }: { children: React.ReactNode }) {
