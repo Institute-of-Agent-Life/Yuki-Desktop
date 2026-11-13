@@ -387,7 +387,11 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
       const samples = sampleSpring(springs.emerge),
         start = performance.now()
       const step = (now: number) => {
-        const index = Math.min(samples.length - 1, Math.round(((now - start) * 60) / 1000))
+        // A frame's time is when it began, which can be just before the spring started.
+        const index = Math.min(
+          samples.length - 1,
+          Math.max(0, Math.round(((now - start) * 60) / 1000)),
+        )
         bend(strength.current * Math.min(1, Math.max(0, samples[index]!.value)))
         rising = index < samples.length - 1 ? requestAnimationFrame(step) : 0
       }
