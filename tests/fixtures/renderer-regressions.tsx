@@ -313,7 +313,10 @@ const imageConversation = '11111111-1111-4111-8111-111111111111'
 let imageAppended = false
 let pendingConversationImage: { eventId: number; release(): void } | undefined
 function imageEvents(last = imageAppended ? 1025 : 1024, only = false): EventsPage {
-  const length = only ? 1 : last === 1025 ? 26 : 25
+  // `messages=N` makes the conversation as long as a busy one gets.
+  const length = only
+    ? 1
+    : Number(new URLSearchParams(location.search).get('messages') ?? 25) + (last === 1025 ? 1 : 0)
   const items = Array.from({ length }, (_, index) => {
     const eventId = only ? last : last - length + 1 + index
     const content =

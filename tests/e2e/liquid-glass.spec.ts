@@ -115,17 +115,16 @@ test('every floating conversation pane is lit, calmed liquid glass that follows 
     ).regression.connection('online'),
   )
   const composer = page.locator('[data-region="composer"]')
-  const panes = {
-    composer,
-    bubble: page.locator('article[data-event-id="34"] [data-glass="bubble"]'),
-    'work-card': page.locator('[data-glass="work-card"]').first(),
-  }
-  for (const [name, pane] of Object.entries(panes)) {
-    await expectLiquidGlass(name, pane)
-    expect(await pane.evaluate((element) => getComputedStyle(element).backdropFilter)).toMatch(
-      /contrast\(/,
-    )
-  }
+  await expectLiquidGlass('composer', composer)
+  expect(await composer.evaluate((element) => getComputedStyle(element).backdropFilter)).toMatch(
+    /contrast\(/,
+  )
+  // Q1 of the 液态玻璃组件统一 task book: bubbles and work cards are content, with no lens.
+  for (const content of [
+    page.locator('article[data-event-id="34"] [data-glass="bubble"]'),
+    page.locator('[data-glass="work-card"]').first(),
+  ])
+    await expect(content).toHaveCSS('backdrop-filter', 'none')
   await page.screenshot({ path: test.info().outputPath('conversation-light.png') })
 
   // 5: the rim nearest the pointer catches more light.
@@ -170,7 +169,7 @@ test('every floating conversation pane is lit, calmed liquid glass that follows 
   evidence.calm = { calmed, raw }
   expect(calmed).toBeLessThan(raw)
 
-  for (const pane of Object.values(panes)) await expectSolid(page, pane)
+  await expectSolid(page, composer)
 })
 
 test('a conversation from another platform ends in a glass notice, not a frosted slab', async ({
@@ -251,10 +250,10 @@ test('only panes over moving content disperse, and blue buttons are tinted glass
   const composer = page.locator('[data-region="composer"]')
   await expect(composer).toHaveAttribute('data-refracting', 'true')
   const bubble = page.locator('article[data-event-id="34"] [data-glass="bubble"]')
-  await expect(bubble).toHaveAttribute('data-refracting', 'true')
-  evidence.bends = { composer: await bends(composer), bubble: await bends(bubble) }
+  evidence.bends = { composer: await bends(composer) }
   expect(await bends(composer)).toBe(3)
-  expect(await bends(bubble)).toBe(1)
+  // Content bends nothing at all (Q1 of the 液态玻璃组件统一 task book).
+  await expect(bubble).toHaveCSS('backdrop-filter', 'none')
 
   await page.goto(gallery)
   const primary = page.getByRole('button', { name: '開啟對話框', exact: true })

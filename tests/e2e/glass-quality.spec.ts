@@ -38,13 +38,14 @@ const lightMap = (page: Page, selector: string) =>
     }
   })
 
-test('resting bubbles are shaped by their radius, with a light map at display resolution', async ({
+test('resting bubbles are shaped by their radius, and lit glass has its light at display resolution', async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await openConversation(page)
   const resting = page.locator('article[data-event-id="34"] [data-glass="bubble"]')
-  await expect(resting).toHaveAttribute('data-refracting', 'true')
+  // Q1 of the 液态玻璃组件统一 task book: a bubble is content, a tinted pane with no lens.
+  await expect(resting).toHaveCSS('backdrop-filter', 'none')
   // 1: at rest the radius alone shapes the glass, never a clip-path with its square backdrop.
   const shape = await resting.evaluate((surface) => ({
     clip: getComputedStyle(surface).clipPath,
@@ -57,12 +58,14 @@ test('resting bubbles are shaped by their radius, with a light map at display re
   expect(shape.radius).toBe('18px')
   expect(shape.surface).toBe(shape.bubble)
   // 2: the light map has the display's own pixels, so the rim stays smooth on Retina screens.
-  const rest = await lightMap(page, 'article[data-event-id="34"] [data-glass="bubble"]')
+  const lit = page.locator('[data-region="composer"]')
+  await expect(lit).toHaveAttribute('data-refracting', 'true')
+  const rest = await lightMap(page, '[data-region="composer"]')
   evidence.restingLightMap = rest
   expect(rest.image).toEqual(rest.expected)
   // 10, and 1–2 of the 苹果式打光 task book: a thin light on the edge facing it and a softer one
   // on the far edge, as in thick glass; the sides between stay dim and nothing draws an outline.
-  const light = await resting.evaluate(async (surface) => {
+  const light = await lit.evaluate(async (surface) => {
     const image = new Image()
     image.src = getComputedStyle(surface)
       .getPropertyValue('--rim')
@@ -90,7 +93,7 @@ test('resting bubbles are shaped by their radius, with a light map at display re
   expect(light.inward).toBeLessThan(light.top * 0.4)
   expect(light.outline).toBe('none')
 
-  // An entering reply reaches past its bubble only while it enters, then its map follows it back.
+  // An entering reply reaches past its bubble only while it enters.
   await page.evaluate(() =>
     (window as unknown as GlassWindow).regression.receiveGlassReply('已把問題放在摘要最後。'),
   )
@@ -98,12 +101,6 @@ test('resting bubbles are shaped by their radius, with a light map at display re
   await expect(reply).toHaveAttribute('data-liquid', '')
   expect(await reply.evaluate((surface) => getComputedStyle(surface).clipPath)).not.toBe('none')
   await expect(reply).not.toHaveAttribute('data-liquid', '')
-  await expect
-    .poll(async () => {
-      const map = await lightMap(page, 'article[data-event-id="35"] [data-glass="bubble"]')
-      return map.image.join('x') === map.expected.join('x')
-    })
-    .toBe(true)
   expect(await reply.evaluate((surface) => getComputedStyle(surface).clipPath)).toBe('none')
 })
 
@@ -192,12 +189,9 @@ test('a floating pane lets the backdrop through and parts its colours at the edg
 
 test('narrow glass bends at the display resolution', async ({ page }) => {
   await openConversation(page)
-  await page.evaluate(() => (window as unknown as GlassWindow).regression.receiveGlassReply('好'))
-  const short = page.locator('article[data-event-id="35"] [data-glass="bubble"]')
+  const short = page.locator('[data-region="toolbar"] [data-glass="toolbar"]')
   await expect(short).toHaveAttribute('data-refracting', 'true')
-  await expect(short).not.toHaveAttribute('data-liquid', '')
-  await page.waitForTimeout(300)
-  // 5 (透明磨砂 task book): a bubble this short is mapped at the display's own pixels.
+  // 5 (透明磨砂 task book): glass this narrow is mapped at the display's own pixels.
   const map = await short.evaluate(async (surface: HTMLElement) => {
     const id = getComputedStyle(surface).backdropFilter.match(/#([^")]+)/)![1]!
     const image = new Image()

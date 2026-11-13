@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 
 const NS = 'http://www.w3.org/2000/svg'
 
@@ -29,8 +29,6 @@ const NS = 'http://www.w3.org/2000/svg'
 const presets = {
   toolbar: [10, 12, 0, 0.32],
   composer: [16, 18, 0, 0.32],
-  // Gentle: a stronger bend curls the backdrop's thin lines into hooks at the corners.
-  bubble: [12, 8, 0, 0],
   card: [18, 14, 0, 0],
   sheet: [20, 16, 0, 0],
   slider: [7, 10, 0.32, 0],
@@ -47,23 +45,16 @@ export function roundedDistance(x: number, y: number, hx: number, hy: number, ra
   return Math.min(Math.max(qx, qy), 0) + Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - radius
 }
 
-function lens(
-  width: number,
-  height: number,
-  radius: number,
-  kind: GlassKind,
-  inline: number,
-  bottom: number,
-) {
+function lens(width: number, height: number, radius: number, kind: GlassKind) {
   // The light map is drawn at the display's own pixels, so rims stay crisp on Retina screens.
   const scale = Math.min(3, Math.max(1, Math.ceil(devicePixelRatio)))
-  const key = `${width}/${height}/${radius}/${kind}/${inline}/${bottom}/${scale}`
+  const key = `${width}/${height}/${radius}/${kind}/${scale}`
   const cached = maps.get(key)
   if (cached) return cached
   const [edgeHeight, amount, zoom] = presets[kind]
-  const hx = width / 2 - inline,
-    hy = (height - bottom) / 2,
-    normalRadius = Math.min(radius * (kind === 'bubble' ? 1 : 1.5), hx, hy)
+  const hx = width / 2,
+    hy = height / 2,
+    normalRadius = Math.min(radius * 1.5, hx, hy)
   const normal = (x: number, y: number) => {
     const nx =
         roundedDistance(x + 0.5, y, hx, hy, normalRadius) -
@@ -109,7 +100,7 @@ function lens(
   }
   // Up to the display's own pixels, so narrow glass bends crisply on Retina screens; large panes
   // keep a coarser bend (their bezel alone is resolved), which keeps opening a sheet smooth.
-  const bendResolution = Math.min(scale, (kind === 'bubble' ? 360 : 720) / Math.max(width, height))
+  const bendResolution = Math.min(scale, 720 / Math.max(width, height))
   const displacement = paint(
     bendResolution,
     edgeHeight,
@@ -122,7 +113,7 @@ function lens(
         dy = 0
       if (inset < edgeHeight) {
         const edge = 1 - inset / edgeHeight
-        const arc = kind === 'bubble' ? edge ** 2.4 : 1 - Math.sqrt(Math.max(0, 1 - edge ** 2))
+        const arc = 1 - Math.sqrt(Math.max(0, 1 - edge ** 2))
         dx = -arc * nx
         dy = -arc * ny
       }
@@ -157,33 +148,44 @@ function lens(
   return result
 }
 
-// One listener moves the light source for every pane: rims are lit by a fixed-position
-// gradient centred on the pointer, masked by each pane's own light map.
-let pointerLight = false
-export function followPointer() {
-  if (pointerLight) return
-  pointerLight = true
-  const root = document.documentElement
-  let frame = 0,
-    x = 0,
-    y = 0
-  addEventListener(
-    'pointermove',
-    (event) => {
-      x = event.clientX
-      y = event.clientY
-      frame ||= requestAnimationFrame(() => {
-        frame = 0
-        root.style.setProperty('--pointer-x', `${x}px`)
-        root.style.setProperty('--pointer-y', `${y}px`)
-      })
-    },
-    { passive: true },
-  )
-  root.addEventListener('pointerleave', () => {
-    root.style.removeProperty('--pointer-x')
-    root.style.removeProperty('--pointer-y')
-  })
+// One listener moves the light source for every lit rim: a fixed-position gradient centred on
+// the pointer, masked by each pane's own light map. The position is written only on the panes
+// that show it (registered, not inherited), so moving the pointer restyles those few elements
+// rather than every node of a long conversation.
+const lit = new Set<HTMLElement>()
+let pointer: { x: number; y: number } | undefined
+const light = (element: HTMLElement) => {
+  if (pointer) {
+    element.style.setProperty('--pointer-x', `${pointer.x}px`)
+    element.style.setProperty('--pointer-y', `${pointer.y}px`)
+  } else {
+    element.style.removeProperty('--pointer-x')
+    element.style.removeProperty('--pointer-y')
+  }
+}
+let frame = 0
+addEventListener(
+  'pointermove',
+  (event) => {
+    pointer = { x: event.clientX, y: event.clientY }
+    frame ||= requestAnimationFrame(() => {
+      frame = 0
+      for (const element of lit) light(element)
+    })
+  },
+  { passive: true },
+)
+document.documentElement.addEventListener('pointerleave', () => {
+  pointer = undefined
+  for (const element of lit) light(element)
+})
+/** Lets `element`'s rim follow the pointer's light until the returned call. */
+export function followPointer(element: HTMLElement) {
+  lit.add(element)
+  light(element)
+  return () => {
+    lit.delete(element)
+  }
 }
 
 /** Samples only the backdrop; foreground text remains on the original surface. */
@@ -210,7 +212,7 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
     attachment.current?.dispose()
     attachment.current = undefined
     if (!element || !CSS.supports('backdrop-filter', 'url(#glass)')) return
-    followPointer()
+    const unlit = followPointer(element)
     const svg = document.createElementNS(NS, 'svg'),
       defs = document.createElementNS(NS, 'defs')
     const filter = document.createElementNS(NS, 'filter'),
@@ -327,16 +329,14 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
         )
         .find((frame) => frame && 'borderRadius' in frame)?.borderRadius
       const style = getComputedStyle(element)
-      const inline = kind === 'bubble' ? parseFloat(style.paddingInlineStart) : 0
-      const bottom = kind === 'bubble' ? parseFloat(style.paddingBottom) : 0
       const r = Math.min(
         parseFloat(String(landing ?? style.borderTopLeftRadius)) || 0,
-        w / 2 - inline,
-        (h - bottom) / 2,
+        w / 2,
+        h / 2,
       )
-      const next = `${w}/${h}/${r}/${inline}/${bottom}`
+      const next = `${w}/${h}/${r}`
       if (next !== size) {
-        const map = lens(w, h, r, kind, inline, bottom)
+        const map = lens(w, h, r, kind)
         filter.setAttribute('width', String(w))
         filter.setAttribute('height', String(h))
         image.setAttribute('width', String(w))
@@ -362,6 +362,7 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
     })
     sync()
     const dispose = () => {
+      unlit()
       resize.disconnect()
       appearance.disconnect()
       svg.remove()
@@ -381,29 +382,4 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
     [],
   )
   return { ref, setStrength }
-}
-
-const bubbleVisibility = new WeakMap<Element, (visible: boolean) => void>()
-let bubbleObserver: IntersectionObserver | undefined
-
-export function useConversationGlass() {
-  const [visible, setVisible] = useState(false)
-  const { ref } = useGlass<HTMLSpanElement>('bubble', false, visible)
-  return useCallback(
-    (element: HTMLSpanElement | null) => {
-      ref.current = element
-      if (!element) return
-      const observer = (bubbleObserver ??= new IntersectionObserver((entries) => {
-        for (const entry of entries) bubbleVisibility.get(entry.target)?.(entry.isIntersecting)
-      }))
-      bubbleVisibility.set(element, setVisible)
-      observer.observe(element)
-      return () => {
-        observer.unobserve(element)
-        bubbleVisibility.delete(element)
-        ref.current = null
-      }
-    },
-    [ref],
-  )
 }

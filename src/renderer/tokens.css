@@ -1,3 +1,15 @@
+/* Where the pointer's light falls, written only on the rims it lights: not inherited, so moving
+   the pointer never restyles the rest of the page. Without a pointer the light is far away. */
+@property --pointer-x {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: -10000px;
+}
+@property --pointer-y {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: -10000px;
+}
 :root {
   color-scheme: light;
   --font-ui:

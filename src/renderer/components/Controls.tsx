@@ -1,6 +1,6 @@
 import { reducedMotion, usePress } from '../motion/hooks'
 import { sampleSpring, springs } from '../motion/spring'
-import { useGlass } from '../materials/glass'
+import { followPointer, useGlass } from '../materials/glass'
 import { emerge, withdraw } from '../motion/emerge'
 import { useSessionActive } from '../state/workspace'
 import {
@@ -40,6 +40,11 @@ export function Button({
   loading?: boolean
 }) {
   const press = usePress<HTMLButtonElement>()
+  // Tinted glass glows in its own colour where the pointer's light falls.
+  useEffect(
+    () => (variant === 'primary' ? followPointer(press.current!) : undefined),
+    [variant, press],
+  )
   const [visible, setVisible] = useState(false)
   const busy = useRef<HTMLSpanElement>(null),
     shown = useRef(false)
@@ -95,6 +100,10 @@ export function IconButton({
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; variant?: 'plain' | 'send' }) {
   const press = usePress<HTMLButtonElement>('compact')
+  useEffect(
+    () => (variant === 'send' ? followPointer(press.current!) : undefined),
+    [variant, press],
+  )
   return (
     <button
       {...props}
