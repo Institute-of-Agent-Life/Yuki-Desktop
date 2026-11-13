@@ -10,7 +10,7 @@ import {
   type PlatformView,
   type PlatformsView,
 } from '../../shared/platforms'
-import { snowLumaServerScript } from '../../shared/snowluma'
+import { snowLumaCommand } from '../../shared/snowluma'
 import source from '../../shared/locales/zh-Hant/platforms'
 import {
   Banner,
@@ -596,26 +596,22 @@ function SnowLuma({
     retry: false,
   })
   const here = local.data?.installation?.address === connection.baseUrl
-  const script = snowLumaServerScript(image.trim() || t('platforms:imagePlaceholder'))
+  const command = snowLumaCommand(image.trim() || t('platforms:imagePlaceholder'))
   return (
     <>
       <div className={styles.body}>
         <p className={styles.note}>{t('platforms:snowlumaDescription')}</p>
-        <div className={form.formRow}>
-          <span>{t('platforms:snowlumaStatus')}</span>
-          <span className={styles.note}>{summary(t, health, false)}</span>
-        </div>
-        {loginAvailable ? (
-          <div className={form.formRow}>
-            <span className={form.formField}>
-              {t('platforms:qqLogin')}
-              <small>{t('platforms:qqLoginDescription')}</small>
-            </span>
-            <Button onClick={onQQLogin}>{t('platforms:openQQLogin')}</Button>
-          </div>
-        ) : (
-          <p className={styles.note}>{t('platforms:qqLoginUnavailable')}</p>
-        )}
+        <SettingsSection>
+          <Row title={t('platforms:snowlumaStatus')} description={summary(t, health, false)} />
+          <Row
+            title={t('platforms:qqLogin')}
+            description={t(
+              loginAvailable ? 'platforms:qqLoginDescription' : 'platforms:qqLoginUnavailable',
+            )}
+          >
+            {loginAvailable && <Button onClick={onQQLogin}>{t('platforms:openQQLogin')}</Button>}
+          </Row>
+        </SettingsSection>
         <div className={form.formField}>
           <label htmlFor={`${field}-image`}>{t('platforms:image')}</label>
           <TextField
@@ -631,44 +627,48 @@ function SnowLuma({
         {local.isPending ? (
           <Spinner />
         ) : here ? (
-          <div className={form.formRow}>
-            <span className={styles.note}>{t('platforms:enableLocalDescription')}</span>
-            <Button
-              variant="primary"
-              loading={busy}
-              disabled={!image.trim()}
-              onClick={async () => {
-                setBusy(true)
-                setNotice(undefined)
-                try {
-                  unwrap(await window.yuki.localBot.enableSnowLuma(image))
-                  setNotice({ failed: false, text: t('platforms:enabledLocal') })
-                  await refresh()
-                } catch (failure) {
-                  setNotice({
-                    failed: true,
-                    text:
-                      failure instanceof ClientProblem
-                        ? problemText(failure.code)
-                        : String(failure),
-                  })
-                } finally {
-                  setBusy(false)
-                }
-              }}
+          <SettingsSection>
+            <Row
+              title={t('platforms:enableLocal')}
+              description={t('platforms:enableLocalDescription')}
             >
-              {t('platforms:enableLocal')}
-            </Button>
-          </div>
+              <Button
+                variant="primary"
+                loading={busy}
+                disabled={!image.trim()}
+                onClick={async () => {
+                  setBusy(true)
+                  setNotice(undefined)
+                  try {
+                    unwrap(await window.yuki.localBot.enableSnowLuma(image))
+                    setNotice({ failed: false, text: t('platforms:enabledLocal') })
+                    await refresh()
+                  } catch (failure) {
+                    setNotice({
+                      failed: true,
+                      text:
+                        failure instanceof ClientProblem
+                          ? problemText(failure.code)
+                          : String(failure),
+                    })
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+              >
+                {t('platforms:enable', { name: t('platforms:snowluma') })}
+              </Button>
+            </Row>
+          </SettingsSection>
         ) : (
           <div className={styles.commands}>
             <p className={styles.note}>{t('platforms:serverCommands')}</p>
-            <code>{script}</code>
+            <code>{command}</code>
             <Button
               variant="plain"
               onClick={async () => {
                 setNotice(undefined)
-                unwrap(await window.yuki.client.copy(script))
+                unwrap(await window.yuki.client.copy(command))
                 setNotice({ failed: false, text: t('platforms:copied') })
               }}
             >

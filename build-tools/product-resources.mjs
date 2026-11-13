@@ -71,6 +71,7 @@ export function checkProductResources(resources) {
     'docker-compose.yml',
     'docker-compose.local.yml',
     'config/SOUL.md',
+    'deploy/snowluma.sh',
   ]
   const actualBot = entries(bot)
   if (actualBot.length !== templates.length || actualBot.some((path) => !templates.includes(path)))

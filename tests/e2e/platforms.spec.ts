@@ -1,4 +1,4 @@
-import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 import { spawn } from 'node:child_process'
 import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import { delimiter, join } from 'node:path'
@@ -20,7 +20,9 @@ import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
  *    QQ 官方 Bot: its limits are not in front of the operator before saving.
  * Layout (UI 液态玻璃统一): a platform is a card of its own instead of a settings row like the
  * model page's, a guide is spread over the page instead of folded in the dialog, or the rows'
- * type, row height and buttons differ from the model page's.
+ * type, row height and buttons differ from the model page's. A dialog opens with its guide unfolded.
+ * In dark (frosted or opaque) the page behind a dialog — the model page's or a platform's — shows
+ * through it readably; an opaque dialog shows any of it at all.
  * A lost apply response is retried with a new request ID instead of the original one.
  * A server that cannot write its settings directory still offers a save.
  * A server below Client API revision 11 shows a broken page instead of its actual revision.
@@ -321,9 +323,10 @@ test('QQ offers the official Bot with its limits, or SnowLuma with the server co
     // 10: no VNC host, no 「QQ 登入」; a server reached by URL gets the commands to run there.
     await expect(qq.getByRole('button', { name: '開啟 QQ 登入', exact: true })).toHaveCount(0)
     await qq.getByLabel('SnowLuma 映像', { exact: true }).fill('registry.example.com/me/snowluma:1')
-    const script = qq.locator('code')
-    await expect(script).toContainText("image='registry.example.com/me/snowluma:1'")
-    await expect(script).toContainText('docker compose up -d bot snowluma')
+    // One line: the backend's own script in the deployment directory, the image quoted for sh.
+    await expect(qq.locator('code')).toHaveText(
+      "sh deploy/snowluma.sh 'registry.example.com/me/snowluma:1'",
+    )
     await expect(qq.getByText('SNOWLUMA_VNC_HOST', { exact: false }).first()).toBeVisible()
     await settle(page)
     await page.screenshot({ path: test.info().outputPath('platforms-snowluma.png') })
@@ -413,6 +416,66 @@ const rowMetrics = (page: Page) =>
       }
     })
 
+// How much of the page's text shows through an open dialog: the dialog inside its rim, shot over
+// the page and again with the page's text (and icons) made transparent, its surfaces kept.
+// `max` is the largest per-channel difference (0–255), `edge` how sharply it changes across 2px.
+async function bleed(page: Page, dialog: Locator) {
+  const box = (await dialog.boundingBox())!
+  const clip = {
+    x: Math.round(box.x + 24),
+    y: Math.round(box.y + 24),
+    width: Math.round(box.width - 48),
+    height: Math.round(box.height - 48),
+  }
+  const over = await page.screenshot({ clip })
+  await page.evaluate(() => {
+    const style = document.createElement('style')
+    style.id = 'bleed'
+    style.textContent =
+      'body :not(dialog[open], dialog[open] *) { color: transparent !important; caret-color: transparent }'
+    document.head.append(style)
+  })
+  await page.waitForTimeout(100)
+  const alone = await page.screenshot({ clip })
+  await page.evaluate(() => document.getElementById('bleed')!.remove())
+  return page.evaluate(
+    async ([a, b]) => {
+      const pixels = async (data: string) => {
+        const image = new Image()
+        image.src = `data:image/png;base64,${data}`
+        await image.decode()
+        const context = new OffscreenCanvas(image.width, image.height).getContext('2d')!
+        context.drawImage(image, 0, 0)
+        return context.getImageData(0, 0, image.width, image.height)
+      }
+      const [shot, bare] = [await pixels(a), await pixels(b)]
+      const [first, second, width] = [shot.data, bare.data, shot.width]
+      const luma = (data: Uint8ClampedArray, index: number) =>
+        0.2126 * data[index]! + 0.7152 * data[index + 1]! + 0.0722 * data[index + 2]!
+      const difference: number[] = []
+      let max = 0
+      for (let index = 0; index < first.length; index += 4) {
+        difference.push(luma(first, index) - luma(second, index))
+        for (const channel of [0, 1, 2])
+          max = Math.max(max, Math.abs(first[index + channel]! - second[index + channel]!))
+      }
+      const steps: number[] = []
+      for (let index = 0; index + 2 * width + 2 < difference.length; index++)
+        steps.push(
+          Math.abs(difference[index]! - difference[index + 2]!),
+          Math.abs(difference[index]! - difference[index + 2 * width]!),
+        )
+      steps.sort((x, y) => x - y)
+      return { max, edge: Math.round(steps[Math.floor(steps.length * 0.999)]! * 10) / 10 }
+    },
+    [over.toString('base64'), alone.toString('base64')] as const,
+  )
+}
+// Opaque dialogs show nothing of the page. Frosted ones, light or dark, blur its text into a
+// faint wash: no step of more than 16 levels (about 6%) where it was.
+const unreadable = (look: string, measured: { max: number; edge: number }) =>
+  expect(measured.max).toBeLessThanOrEqual(look.endsWith('opaque') ? 1 : 16)
+
 test('the platform list and its dialogs match the model page in light and dark, frosted and opaque', async () => {
   test.setTimeout(240000)
   const rig = await deployment(),
@@ -456,6 +519,8 @@ test('the platform list and its dialogs match the model page in light and dark, 
       await expect(adding).toBeVisible()
       await settle(page)
       await page.screenshot({ path: test.info().outputPath(`compare-${look}-model-dialog.png`) })
+      const bleeds: Record<string, unknown> = { model: await bleed(page, adding) }
+      unreadable(look, bleeds.model as { max: number; edge: number })
       await page.keyboard.press('Escape')
       await expect(adding).toBeHidden()
       await page.getByRole('tab', { name: '平台', exact: true }).click()
@@ -470,7 +535,7 @@ test('the platform list and its dialogs match the model page in light and dark, 
       })
       expect(list.group.background).toBe(model.group.background)
       expect(await page.locator('#settings-panel details').count()).toBe(0)
-      metrics[look] = { model, platforms: list }
+      metrics[look] = { model, platforms: list, bleeds }
       for (const [name, mode] of [
         ['Telegram', undefined],
         ['飛書', undefined],
@@ -480,13 +545,14 @@ test('the platform list and its dialogs match the model page in light and dark, 
       ] as const) {
         const dialog = await configure(page, name)
         if (mode) await dialog.getByRole('radio', { name: mode, exact: true }).click()
-        // The guide is folded inside the dialog, one sentence a step.
-        const guide = dialog.locator('details').first()
-        await guide.locator('summary').click()
+        // The guide and other notes are folded inside the dialog, so it opens short.
+        for (const details of await dialog.locator('details').all())
+          await expect(details).not.toHaveAttribute('open')
         await settle(page)
-        await page.screenshot({
-          path: test.info().outputPath(`dialog-${look}-${name}${mode ? `-${mode}` : ''}.png`),
-        })
+        const shot = `${look}-${name}${mode ? `-${mode}` : ''}`
+        await page.screenshot({ path: test.info().outputPath(`dialog-${shot}.png`) })
+        bleeds[shot] = await bleed(page, dialog)
+        unreadable(look, bleeds[shot] as { max: number; edge: number })
         await page.keyboard.press('Escape')
         await expect(dialog).toBeHidden()
       }

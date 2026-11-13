@@ -347,6 +347,7 @@ async function packagedFixture(root) {
     'docker-compose.yml',
     'docker-compose.local.yml',
     'config/SOUL.md',
+    'deploy/snowluma.sh',
   ])
     extra['local-bot/' + name] = 'template fixture'
   extra['local-bot/manifest.json'] = JSON.stringify({

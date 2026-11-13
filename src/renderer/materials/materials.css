@@ -63,7 +63,8 @@
   --rim-rest: rgb(255 255 255 / 0.3);
   --rim-lit: rgb(255 255 255 / 0.7);
 }
-[data-opaque='true'] {
+/* As specific as the dark theme's materials (:root[data-theme='dark']), so opaque wins in dark too. */
+:root[data-opaque='true'] {
   --mat-ground: var(--bg-window);
   --mat-sidebar: var(--bg-sidebar);
   --mat-chrome: var(--bg-elevated);

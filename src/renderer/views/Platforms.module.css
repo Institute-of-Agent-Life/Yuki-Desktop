@@ -18,6 +18,9 @@
 .body > button {
   justify-self: start;
 }
+.body > section {
+  margin-bottom: 0;
+}
 .note {
   margin: 0;
   color: var(--text-secondary);
