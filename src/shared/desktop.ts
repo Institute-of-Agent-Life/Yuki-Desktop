@@ -1,8 +1,8 @@
 import type { ConversationBridge } from './api'
 
 export type Theme = 'system' | 'light' | 'dark'
-// The conversation's backdrop, behind every glass pane; chosen in Appearance and kept.
-export const backdrops = ['lens', 'desktop', 'plain', 'aurora', 'sunset', 'grid'] as const
+// The pattern laid over the conversation, behind its glass; chosen in Appearance and kept.
+export const backdrops = ['plain', 'lens', 'aurora', 'sunset', 'grid'] as const
 export type Backdrop = (typeof backdrops)[number]
 export type DisplayTimeZone = 'Asia/Taipei' | 'system'
 export interface LoginItemState {

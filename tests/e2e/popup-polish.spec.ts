@@ -63,6 +63,10 @@ test('the Yuki switcher closes from its own button and withdraws as the same gla
 
   await toggle.click()
   await expect(menu).toHaveAttribute('data-refracting', 'true')
+  // The glass bends from its first frame; its size is read once it has grown.
+  await menu.evaluate((element) =>
+    Promise.all(element.getAnimations().map((animation) => animation.finished)),
+  )
   const open = await box(menu)
   await freeze(page)
   await page.keyboard.press('Escape')

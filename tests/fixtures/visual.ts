@@ -103,14 +103,24 @@ export async function contentSize(
       outerBounds: window.getBounds(),
       contentSize: window.getContentSize(),
       minimumSize: window.getMinimumSize(),
-      display: { scaleFactor: display.scaleFactor, bounds: display.bounds, workArea: display.workArea },
+      display: {
+        scaleFactor: display.scaleFactor,
+        bounds: display.bounds,
+        workArea: display.workArea,
+      },
     }
   })
   viewports.set(page, { ...actual, emulated, scale: viewport.scale })
   await writeFile(
     test.info().outputPath(`viewport-${++measurement}-requested-${width}x${height}.json`),
     JSON.stringify(
-      { requested: { width, height }, actual, native, viewportMethod, emulationScale: viewport.scale },
+      {
+        requested: { width, height },
+        actual,
+        native,
+        viewportMethod,
+        emulationScale: viewport.scale,
+      },
       null,
       2,
     ),
@@ -221,8 +231,11 @@ export async function captureWorkspace(
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
     await page.getByRole('radio', { name: theme === 'dark' ? '深色' : '淺色', exact: true }).click()
+    await page
+      .getByRole('radiogroup', { name: '視窗材質', exact: true })
+      .getByRole('radio', { name: theme === 'opaque' ? '不透明' : '透明磨砂', exact: true })
+      .click()
     for (const [label, checked] of [
-      ['永遠不透明', theme === 'opaque'],
       ['增加對比', theme === 'contrast'],
       ['減少動態', true],
     ] as const) {

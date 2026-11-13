@@ -1,6 +1,7 @@
 .page {
   overflow: auto;
   padding: 24px;
+  padding-top: calc(24px + var(--toolbar-inset, 0px));
   max-width: 880px;
 }
 .toolbar {

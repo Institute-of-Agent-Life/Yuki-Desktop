@@ -23,6 +23,9 @@ export class LocalStore {
       .run(key, JSON.stringify(value))
   }
   preferences(): Preferences {
-    return { ...defaultPreferences, ...this.get<Partial<Preferences>>('appearance') }
+    const stored = { ...defaultPreferences, ...this.get<Partial<Preferences>>('appearance') }
+    // 「桌面」 was a backdrop before the window's frost became a choice of its own; it drew nothing.
+    if ((stored.backdrop as string) === 'desktop') stored.backdrop = 'plain'
+    return stored
   }
 }

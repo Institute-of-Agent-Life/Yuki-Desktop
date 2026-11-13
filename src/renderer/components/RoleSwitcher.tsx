@@ -4,6 +4,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type HTMLAttributes,
   type ReactNode,
 } from 'react'
@@ -20,11 +21,14 @@ import { useGlass } from '../materials/glass'
 import styles from './RoleSwitcher.module.css'
 
 // The menu is glass that grows out of the switcher and shrinks back into it. The motion comes
-// before the glass, so closing copies the glass before the glass is taken down.
+// before the glass, so closing copies the glass before the glass is taken down. It lies in the
+// top layer, anchored to the switcher: inside the sidebar's scrolling area a real window gives
+// the glass no backdrop to bend.
 function GlassMenu(props: HTMLAttributes<HTMLDivElement>) {
   const pane = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
     const menu = pane.current!
+    menu.showPopover()
     emerge(menu)
     return () => withdraw(menu)
   }, [])
@@ -36,6 +40,7 @@ function GlassMenu(props: HTMLAttributes<HTMLDivElement>) {
         glass.ref.current = node
       }}
       data-glass="card"
+      popover="manual"
       {...props}
     />
   )
@@ -114,6 +119,9 @@ export function RoleSwitcher({
   const root = useRef<HTMLDivElement>(null)
   const press = usePress<HTMLButtonElement>()
   const description = useId()
+  const anchor = {
+    '--switcher-anchor': `--switcher-${description.replace(/\W/g, '')}`,
+  } as CSSProperties
   const active = useSessionActive()
   const connection = connections.find((item) => item.characterId === selected)
   const close = () => {
@@ -136,7 +144,12 @@ export function RoleSwitcher({
     return () => document.removeEventListener('pointerdown', outside)
   }, [open, active])
   return (
-    <div ref={root} className={styles.switcher} onClick={(event) => event.stopPropagation()}>
+    <div
+      ref={root}
+      className={styles.switcher}
+      style={anchor}
+      onClick={(event) => event.stopPropagation()}
+    >
       <button
         ref={press}
         type="button"

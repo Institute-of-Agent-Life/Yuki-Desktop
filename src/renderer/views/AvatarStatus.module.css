@@ -3,7 +3,7 @@
   padding: 16px 20px;
   border: 1px solid var(--separator);
   border-radius: 12px;
-  background: var(--bg-inspector);
+  background: var(--bg-raised);
 }
 .status h2 {
   margin: 0 0 8px;

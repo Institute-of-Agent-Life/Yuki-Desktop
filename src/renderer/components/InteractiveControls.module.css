@@ -44,7 +44,7 @@
     transparent
   );
   box-shadow: 0 1px 3px #0002;
-  backdrop-filter: blur(1px) var(--refract,);
+  backdrop-filter: blur(1px) var(--refract,) var(--seal,);
 }
 .toggle {
   position: relative;
@@ -76,7 +76,7 @@
   height: 18px;
   border-radius: 9px;
   background: rgb(255 255 255 / calc(1 - var(--glass-pressure, 0) * 0.5));
-  backdrop-filter: blur(1.5px) var(--refract,);
+  backdrop-filter: blur(1.5px) var(--refract,) var(--seal,);
   box-shadow: 0 1px 3px #0003;
   pointer-events: none;
 }
@@ -116,7 +116,7 @@
   border-radius: 9px;
   pointer-events: none;
   background: rgb(255 255 255 / calc(1 - var(--glass-pressure, 0) * 0.74));
-  backdrop-filter: blur(1.5px) var(--refract,);
+  backdrop-filter: blur(1.5px) var(--refract,) var(--seal,);
   box-shadow:
     0 1px 3px #0003,
     0 3px 10px #0000000f;

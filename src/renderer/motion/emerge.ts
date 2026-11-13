@@ -124,7 +124,7 @@ export function withdraw(pane: HTMLElement) {
   for (const name of ['glass', 'refracting'])
     if (pane.dataset[name] !== undefined) glass.dataset[name] = pane.dataset[name]
   // It bends through its own copy of the pane's filter, which leaves with the pane.
-  const bend = getComputedStyle(pane).backdropFilter.match(/url\("?#([^")]+)/)?.[1]
+  const bend = pane.style.getPropertyValue('--refract').match(/#([^")]+)/)?.[1]
   const filter = bend && document.getElementById(bend)
   if (filter) {
     const copy = filter.closest('svg')!.cloneNode(true) as SVGSVGElement

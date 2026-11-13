@@ -2,6 +2,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  padding-top: var(--toolbar-inset, 0px);
 }
 .inner {
   max-width: 760px;
@@ -128,7 +129,7 @@
   gap: 10px;
 }
 .source {
-  background: var(--bg-inspector);
+  background: var(--bg-raised);
   color: var(--accent);
   border: 0;
   border-left: 2px solid var(--separator);
@@ -188,7 +189,7 @@
 .original {
   padding: 12px;
   border-radius: 8px;
-  background: var(--bg-inspector);
+  background: var(--bg-raised);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -232,7 +233,7 @@
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: var(--bg-inspector);
+  background: var(--bg-raised);
   border-radius: 8px;
   margin-top: 12px;
   font-size: 13px;

@@ -17,7 +17,6 @@ async function snapshot(app: ElectronApplication, page: Page) {
       root: getComputedStyle(root).backgroundColor,
       body: getComputedStyle(document.body).backgroundColor,
       sidebar: getComputedStyle(sidebar).backgroundColor,
-      sidebarImage: getComputedStyle(sidebar).backgroundImage,
       content: getComputedStyle(content).backgroundColor,
       ground: getComputedStyle(document.querySelector('main')!).backgroundColor,
       windowColor: getComputedStyle(root).getPropertyValue('--bg-window').trim(),
@@ -56,7 +55,7 @@ async function paintedSnapshot(app: ElectronApplication, page: Page, alpha: numb
   return snapshot(app, page)
 }
 
-test('native material remains exposed only beneath the sidebar and follows actual appearance controls', async () => {
+test('native material shows through every surface and follows actual appearance controls', async () => {
   const base = process.env.YUKI_DESKTOP_NATIVE_BACKEND_URL?.replace(/\/+$/, '')
   test.skip(!base, 'Requires a fresh isolated reference server')
   expect(process.env.YUKI_ELECTRON_EXECUTABLE).toBeTruthy()
@@ -118,8 +117,8 @@ test('native material remains exposed only beneath the sidebar and follows actua
         .getByRole('radio', { name: label, exact: true })
         .click()
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
-      const expectedAlpha =
-        material === 'none' ? 255 : Math.round((theme === 'dark' ? 0.88 : 0.84) * 255)
+      // Nothing lies over the system material but each page's own thin wash (35%).
+      const expectedAlpha = material === 'none' ? 255 : Math.round(0.35 * 255)
       const normal = await paintedSnapshot(app, page, expectedAlpha)
       stages.push({ stage: theme, ...normal })
       await save()
@@ -131,28 +130,26 @@ test('native material remains exposed only beneath the sidebar and follows actua
         material === 'none' ? opaqueBackground : '#000000',
       )
       expect(normal.renderer.material).toBe(material)
-      expect(normal.renderer.ground).toBe(
-        material === 'none'
-          ? opaqueRoot
-          : theme === 'dark'
-            ? 'rgba(14, 15, 19, 0.88)'
-            : 'rgba(229, 234, 242, 0.84)',
-      )
+      expect(normal.renderer.ground).toBe(material === 'none' ? opaqueRoot : 'rgba(0, 0, 0, 0)')
       expect(normal.native.groundPixel[3]).toBeGreaterThanOrEqual(expectedAlpha)
       expect(normal.native.groundPixel[3]).toBeLessThanOrEqual(
         Math.ceil(expectedAlpha + (255 - expectedAlpha) * 0.05),
       )
-      if (material === 'none') expect(normal.renderer.sidebar).toBe(opaqueSidebar)
-      else {
-        expect(normal.renderer.sidebar).toBe('rgba(0, 0, 0, 0)')
-        expect(normal.renderer.sidebarImage).toContain('linear-gradient')
+      if (material === 'none') {
+        expect(normal.renderer.sidebar).toBe(opaqueSidebar)
+        expect(normal.renderer.content).toBe(
+          theme === 'dark' ? 'rgb(27, 29, 34)' : 'rgb(255, 255, 255)',
+        )
+      } else {
+        expect(normal.renderer.sidebar).toMatch(/\/ 0\.16\)$/)
+        expect(normal.renderer.content).toMatch(/\/ 0\.35\)$/)
       }
-      expect(normal.renderer.content).toBe(
-        theme === 'dark' ? 'rgb(27, 29, 34)' : 'rgb(255, 255, 255)',
-      )
       expect(normal.native.bounds).toEqual(initialBounds)
       await page.screenshot({ path: test.info().outputPath(`native-material-${theme}.png`) })
-      await page.getByRole('switch', { name: '永遠不透明', exact: true }).click()
+      await page
+        .getByRole('radiogroup', { name: '視窗材質', exact: true })
+        .getByRole('radio', { name: '不透明', exact: true })
+        .click()
       await expect(page.locator('html')).toHaveAttribute('data-material', 'none')
       const opaque = await paintedSnapshot(app, page, 255)
       stages.push({ stage: theme + '-opaque', ...opaque })
@@ -162,7 +159,10 @@ test('native material remains exposed only beneath the sidebar and follows actua
       expect(opaque.renderer.sidebar).toBe(opaqueSidebar)
       expect(opaque.native.background.toLowerCase()).toBe(opaqueBackground)
       expect(opaque.native.bounds).toEqual(initialBounds)
-      await page.getByRole('switch', { name: '永遠不透明', exact: true }).click()
+      await page
+        .getByRole('radiogroup', { name: '視窗材質', exact: true })
+        .getByRole('radio', { name: '透明磨砂', exact: true })
+        .click()
       await expect(page.locator('html')).toHaveAttribute('data-material', material)
       await expect
         .poll(async () => (await snapshot(app, page)).native.background.toLowerCase())
@@ -178,7 +178,10 @@ test('native material remains exposed only beneath the sidebar and follows actua
       await page.getByRole('switch', { name: '增加對比', exact: true }).click()
       await expect(page.locator('html')).toHaveAttribute('data-material', material)
     }
-    await page.getByRole('switch', { name: '永遠不透明', exact: true }).click()
+    await page
+      .getByRole('radiogroup', { name: '視窗材質', exact: true })
+      .getByRole('radio', { name: '不透明', exact: true })
+      .click()
     await app.close()
     app = await launchShell(data)
     page = await app.firstWindow()
@@ -188,19 +191,26 @@ test('native material remains exposed only beneath the sidebar and follows actua
     await expect(page.locator('html')).toHaveAttribute('data-material', 'none')
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
-    await expect(page.getByRole('switch', { name: '永遠不透明', exact: true })).toBeChecked()
+    await expect(
+      page
+        .getByRole('radiogroup', { name: '視窗材質', exact: true })
+        .getByRole('radio', { name: '不透明', exact: true }),
+    ).toBeChecked()
     const cold = await paintedSnapshot(app, page, 255)
     stages.push({ stage: 'cold-opaque', ...cold })
     expect(cold.native.background.toLowerCase()).toBe('#101215')
     expect(cold.renderer.sidebar).toBe('rgb(32, 34, 39)')
     expect(cold.native.groundPixel[3]).toBe(255)
-    await page.getByRole('switch', { name: '永遠不透明', exact: true }).click()
+    await page
+      .getByRole('radiogroup', { name: '視窗材質', exact: true })
+      .getByRole('radio', { name: '透明磨砂', exact: true })
+      .click()
     await expect(page.locator('html')).toHaveAttribute('data-material', material)
-    const enabledAlpha = material === 'none' ? 255 : Math.round(0.88 * 255)
+    const enabledAlpha = material === 'none' ? 255 : Math.round(0.35 * 255)
     const enabled = await paintedSnapshot(app, page, enabledAlpha)
     stages.push({ stage: 'cold-enable-material', ...enabled })
     expect(enabled.renderer.ground).toBe(
-      material === 'none' ? 'rgb(16, 18, 21)' : 'rgba(14, 15, 19, 0.88)',
+      material === 'none' ? 'rgb(16, 18, 21)' : 'rgba(0, 0, 0, 0)',
     )
     expect(enabled.native.groundPixel[3]).toBeGreaterThanOrEqual(enabledAlpha)
     expect(enabled.native.groundPixel[3]).toBeLessThanOrEqual(

@@ -34,6 +34,7 @@ import { requestNavigation } from '../state/navigation'
 import { useGlass } from '../materials/glass'
 import { useWorkspaceMotion } from '../motion/workspace'
 import { ApplicationMenu } from './ApplicationMenu'
+import { EdgeFade, useScrolledUnder } from './EdgeFade'
 
 interface Props {
   name: string
@@ -50,8 +51,6 @@ interface Props {
   onSettings?: () => void
   toolbar?: ReactNode
   toolbarTitle?: ReactNode
-  scrolled?: boolean
-  floating?: boolean
   mainConversation?: boolean
 }
 const workspaceViews = [
@@ -69,6 +68,7 @@ const views = [
 
 export function Workspace(props: Props) {
   const glass = useGlass<HTMLDivElement>('toolbar')
+  const [main, scrolled] = useScrolledUnder<HTMLElement>()
   const state = useWorkspace()
   const active = useSessionActive()
   const focusMode = state.focusMode
@@ -356,25 +356,16 @@ export function Workspace(props: Props) {
         </>
       )}
       <section
-        className={`${styles.main} ${(props.floating ?? (state.view === 'chat' || focusMode)) ? styles.floating : ''} ${detailPage ? styles.behindDetail : ''}`}
+        ref={main}
+        data-region="main"
+        className={`${styles.main} ${detailPage ? styles.behindDetail : ''}`}
         inert={detailPage}
         style={{ gridColumn: focusMode ? 1 : 3, gridRow: 1 }}
       >
-        {/* Content scrolled under the top frosts into the edge: a strong blur near it, then a
-            light one with a wash, each its own layer so it sees what lies beneath. */}
-        <div
-          className={`${styles.edgeFrost} ${props.scrolled ? styles.edgeShown : ''}`}
-          data-edge-fade="upper"
-          aria-hidden="true"
-        />
-        <div
-          className={`${styles.edgeWash} ${props.scrolled ? styles.edgeShown : ''}`}
-          data-edge-fade="lower"
-          aria-hidden="true"
-        />
+        <EdgeFade shown={scrolled} />
         <header
           data-region="toolbar"
-          className={`${styles.toolbar} ${props.toolbar ? styles.customToolbar : ''} ${props.scrolled ? styles.toolbarScrolled : ''}`}
+          className={`${styles.toolbar} ${props.toolbar ? styles.customToolbar : ''} ${scrolled ? styles.toolbarScrolled : ''}`}
         >
           <IconButton label="側邊欄" aria-expanded={!focusMode && sidebar} onClick={toggleSidebar}>
             <PanelLeft size={16} strokeWidth={1.5} />

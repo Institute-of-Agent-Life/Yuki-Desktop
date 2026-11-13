@@ -1120,7 +1120,10 @@ export class Connections {
       .list()
       .map((item) => ({
         ...item,
-        sending: item.state === 'draft' && this.checking.has(`${id}/${item.requestId}`),
+        // Still in this process's hands: a draft being checked, or a request on its way that
+        // has met no problem. Only what is left unconfirmed asks the person to look.
+        sending:
+          this.checking.has(`${id}/${item.requestId}`) && (item.state === 'draft' || !item.problem),
       }))
   }
   async verify(id: string, requestId: string) {

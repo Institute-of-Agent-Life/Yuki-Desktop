@@ -18,21 +18,14 @@
 :global([data-backdrop='grid']) .chat {
   background: var(--backdrop-grid);
 }
-/* The desktop backdrop needs a system material behind the window; without one it is the lens. */
-:global([data-backdrop='desktop']) .chat {
-  background: var(--backdrop-desktop);
-}
-:global([data-backdrop='desktop'][data-material='none']) .chat {
-  background: var(--backdrop-lens);
-}
 .messages {
   overflow: auto;
   flex: 1;
   min-height: 0;
   /* The list runs up under the toolbar, so what scrolls past the top frosts into its edge. */
-  padding: calc(72px + var(--notice-h, 0px)) max(24px, calc((100% - 680px) / 2))
-    calc(var(--composer-h, 46px) + 40px);
-  scroll-padding-block: 72px calc(var(--composer-h, 46px) + 40px);
+  padding: calc(20px + var(--toolbar-inset) + var(--notice-h, 0px))
+    max(24px, calc((100% - 680px) / 2)) calc(var(--composer-h, 46px) + 40px);
+  scroll-padding-block: calc(20px + var(--toolbar-inset)) calc(var(--composer-h, 46px) + 40px);
   overflow-anchor: none;
 }
 .message {
@@ -424,7 +417,7 @@
 
 .notices {
   position: absolute;
-  top: 52px;
+  top: var(--toolbar-inset);
   left: 0;
   right: 0;
   z-index: 4;
@@ -439,7 +432,7 @@
   width: min(712px, calc(100% - 40px));
   border-radius: 20px;
   background: color-mix(in srgb, var(--bg-elevated) var(--readonly-tint, 16%), transparent);
-  backdrop-filter: var(--refract,) blur(1px) saturate(116%) var(--glass-calm);
+  backdrop-filter: var(--refract,) blur(1px) saturate(116%) var(--glass-calm) var(--seal,);
   box-shadow: var(--shadow-glass);
 }
 :global([data-theme='dark']) .readonly {

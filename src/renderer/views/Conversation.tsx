@@ -153,7 +153,6 @@ export function Conversation({
   const following = (log: HTMLElement) =>
     bottom.current &&
     (!movedByOther(log) || log.scrollHeight - log.scrollTop - log.clientHeight < 64)
-  const [scrolled, setScrolled] = useState(false)
   const [anchor, setAnchor] = useState<number | null>(null)
   const attachList = useCallback(
     (element: HTMLDivElement | null) => {
@@ -163,7 +162,6 @@ export function Conversation({
         element.scrollTo({
           top: bottom.current && anchor === null ? element.scrollHeight : scrollTop.current,
         })
-      setScrolled((element?.scrollTop ?? 0) > 0)
     },
     [anchor],
   )
@@ -967,7 +965,6 @@ export function Conversation({
   return (
     <CharacterVisuals.Provider value={{ id, name, profile: profileData, presence }}>
       <Workspace
-        scrolled={scrolled}
         mainConversation={isMain}
         onChat={() => choose(connection.conversationId)}
         toolbar={
@@ -1283,7 +1280,6 @@ export function Conversation({
               }}
               onScroll={(event) => {
                 const node = event.currentTarget
-                setScrolled(node.scrollTop > 0)
                 // The app keeping the end in view is not the person leaving it.
                 if (movedByApp(node)) return
                 bottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 64
@@ -1543,7 +1539,7 @@ function MessageStage({
 // A sent message shows its request's state only when the person may need to act on it: kept
 // offline, unconfirmed, or stopped by a problem. Sending, accepted and finished pass silently.
 const needsAttention = (item: Receipt) =>
-  !!item.problem || item.state === 'submitted' || (item.state === 'draft' && !item.sending)
+  !!item.problem || ((item.state === 'submitted' || item.state === 'draft') && !item.sending)
 
 function Pending({ item, verify }: { item: Receipt; verify(): Promise<void> }) {
   const [error, setError] = useState(''),

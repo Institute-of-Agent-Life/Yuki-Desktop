@@ -64,8 +64,11 @@ test('native startup, actual button and keyboard paths, preferences survive rest
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
     await page.getByRole('radio', { name: '深色', exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
-    await page.getByRole('switch', { name: '永遠不透明' }).click()
-    await expect(page.getByRole('switch', { name: '永遠不透明' })).toBeChecked()
+    const opaque = page
+      .getByRole('radiogroup', { name: '視窗材質', exact: true })
+      .getByRole('radio', { name: '不透明', exact: true })
+    await opaque.click()
+    await expect(opaque).toBeChecked()
     await page.screenshot({
       animations: 'disabled',
       path: test.info().outputPath('settings-dark.png'),
