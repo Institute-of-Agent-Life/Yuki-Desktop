@@ -64,33 +64,13 @@
 .screen canvas {
   outline: none;
 }
-.floating {
-  position: absolute;
-  bottom: 12px;
-  left: 0;
-  right: 0;
-  width: fit-content;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 36px;
-  padding: 0 8px;
-  border-radius: 18px;
-  background: rgb(28 28 30 / 0.5);
-  backdrop-filter: var(--glass-clear);
-  color: white;
-  white-space: nowrap;
-  box-shadow: 0 4px 16px #0003;
-  --text-primary: white;
-  --text-secondary: #e0e0e0;
+.screenControls {
+  align-self: center;
 }
-.floating button {
-  color: white;
-}
-.floating small {
+.screenControls small {
   font-size: 11px;
-  padding-left: 6px;
+  color: var(--text-secondary);
+  padding: 0 8px 0 4px;
 }
 .connecting {
   position: absolute;
@@ -233,9 +213,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-[data-opaque='true'] .floating {
-  background: rgba(28, 28, 30, 0.96);
 }
 @media (max-height: 600px) {
   .computer {

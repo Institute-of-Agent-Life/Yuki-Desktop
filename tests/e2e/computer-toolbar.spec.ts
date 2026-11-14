@@ -38,9 +38,16 @@ test(
       ).toBeVisible()
       const fit = pa.getByRole('button', { name: '縮放：適合', exact: true })
       await expect(fit).toHaveAttribute('aria-pressed', 'false')
-      // The controls over the remote screen are the same refracting glass as the composer, or
-      // solid when the system asks for less transparency.
-      const floating = pa.getByLabel('電腦畫面控制列', { exact: true })
+      // The screen controls sit below the remote screen, never over its bottom edge (where a
+      // dock lives), in the same refracting toolbar glass as the composer, or solid when the
+      // system asks for less transparency.
+      const floating = pa.getByRole('toolbar', { name: '電腦畫面控制列', exact: true })
+      const remote = pa.getByRole('application', { name: '遠端電腦畫面', exact: true })
+      const below = async () => {
+        const [screenBox, controlsBox] = [await remote.boundingBox(), await floating.boundingBox()]
+        expect(controlsBox!.y).toBeGreaterThanOrEqual(screenBox!.y + screenBox!.height)
+      }
+      await below()
       if (await pa.evaluate(() => document.documentElement.dataset.opaque === 'true'))
         await expect(floating).toHaveCSS('backdrop-filter', 'none')
       else {
@@ -51,6 +58,7 @@ test(
       await fit.click()
       const originalSize = pa.getByRole('button', { name: '縮放：100%', exact: true })
       await expect(originalSize).toHaveAttribute('aria-pressed', 'true')
+      await below()
       await captureViewport(a, pa, test.info().outputPath('computer-zoom-100.png'))
       const zoom = {
         originalSize: {
@@ -142,6 +150,7 @@ test(
       await expect(pa.getByRole('heading', { name: longName, exact: true })).toBeVisible()
       await navigate(pa, `${longName} 的電腦`)
       await contentSize(a, pa, 960, 492)
+      await below()
       await controls.getByRole('button', { name: '接手', exact: true }).click()
       const longReturn = controls.getByRole('button', { name: `交回給 ${longName}`, exact: true })
       await expect(longReturn).toBeInViewport({ ratio: 1 })

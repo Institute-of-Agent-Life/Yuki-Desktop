@@ -15,6 +15,7 @@ import type {
 import {
   Banner,
   Button,
+  Capsule,
   EmptyState,
   IconButton,
   Segmented,
@@ -23,7 +24,6 @@ import {
 } from '../components/Controls'
 import { unwrap, problemText, ClientProblem, useMe, hidesPrivateData } from '../queries/client'
 import styles from './Computer.module.css'
-import { useGlass } from '../materials/glass'
 import { useWorkspace } from '../state/workspace'
 import { useTranslation } from '../i18n'
 
@@ -458,7 +458,6 @@ function RemoteScreen({
 }) {
   // The connection reads its messages through `i18n`, which a language switch keeps, so it stays.
   const { t, i18n } = useTranslation(['computer', 'errors'])
-  const controls = useGlass<HTMLDivElement>('toolbar')
   const target = useRef<HTMLDivElement>(null),
     rfb = useRef<RFB>(null),
     holder = useRef(held)
@@ -557,59 +556,58 @@ function RemoteScreen({
     }
   }
   return (
-    <div
-      className={`${styles.remote} ${held ? styles.held : ''} ${preview ? styles.preview : ''}`}
-      tabIndex={-1}
-      onKeyDownCapture={(event) => {
-        if (preview) return
-        if (event.ctrlKey && event.altKey) {
-          event.preventDefault()
-          event.stopPropagation()
-          rfb.current?.blur()
-          void window.yuki.client.keyboardCapture(false)
-          target.current?.parentElement?.focus()
-        }
-      }}
-    >
+    <>
       <div
-        className={styles.screen}
-        style={
-          fit && dimensions.width
-            ? { maxWidth: dimensions.width, maxHeight: dimensions.height }
-            : undefined
-        }
-        role={preview ? 'img' : 'application'}
-        aria-label={t(preview ? 'computer:remotePreview' : 'computer:remoteScreen')}
-        ref={target}
-        onPointerDown={() => {
-          if (held) {
-            rfb.current?.focus()
-            void window.yuki.client.keyboardCapture(true)
+        className={`${styles.remote} ${held ? styles.held : ''} ${preview ? styles.preview : ''}`}
+        tabIndex={-1}
+        onKeyDownCapture={(event) => {
+          if (preview) return
+          if (event.ctrlKey && event.altKey) {
+            event.preventDefault()
+            event.stopPropagation()
+            rfb.current?.blur()
+            void window.yuki.client.keyboardCapture(false)
+            target.current?.parentElement?.focus()
           }
         }}
-        onBlur={() => {
-          if (!preview) void window.yuki.client.keyboardCapture(false)
-        }}
-      />
-      {!connected && (
-        <div className={styles.connecting}>
-          <Monitor size={32} strokeWidth={1} />
-          <span>{problem || t('computer:connectingScreen')}</span>
-          <IconButton
-            label={t('computer:reconnectScreen')}
-            onClick={() => setAttempt((value) => value + 1)}
-          >
-            <RefreshCw size={16} />
-          </IconButton>
-        </div>
-      )}
-      {!preview && (
+      >
         <div
-          ref={controls.ref}
-          data-glass="toolbar"
-          className={styles.floating}
-          aria-label={t('computer:toolbar')}
-        >
+          className={styles.screen}
+          style={
+            fit && dimensions.width
+              ? { maxWidth: dimensions.width, maxHeight: dimensions.height }
+              : undefined
+          }
+          role={preview ? 'img' : 'application'}
+          aria-label={t(preview ? 'computer:remotePreview' : 'computer:remoteScreen')}
+          ref={target}
+          onPointerDown={() => {
+            if (held) {
+              rfb.current?.focus()
+              void window.yuki.client.keyboardCapture(true)
+            }
+          }}
+          onBlur={() => {
+            if (!preview) void window.yuki.client.keyboardCapture(false)
+          }}
+        />
+        {!connected && (
+          <div className={styles.connecting}>
+            <Monitor size={32} strokeWidth={1} />
+            <span>{problem || t('computer:connectingScreen')}</span>
+            <IconButton
+              label={t('computer:reconnectScreen')}
+              onClick={() => setAttempt((value) => value + 1)}
+            >
+              <RefreshCw size={16} />
+            </IconButton>
+          </div>
+        )}
+        {connected && problem && <span className={styles.screenProblem}>{problem}</span>}
+      </div>
+      {/* Below the screen, so nothing covers its edges, where a desktop keeps its dock. */}
+      {!preview && (
+        <Capsule className={styles.screenControls} label={t('computer:toolbar')}>
           <Button variant="plain" aria-pressed={!fit} onClick={() => setFit((value) => !value)}>
             {t(fit ? 'computer:zoomFit' : 'computer:zoomActual')}
           </Button>
@@ -665,10 +663,9 @@ function RemoteScreen({
             <Camera size={16} />
           </IconButton>
           <small>{dimensions.width ? `${dimensions.width} × ${dimensions.height}` : ''}</small>
-        </div>
+        </Capsule>
       )}
-      {connected && problem && <span className={styles.screenProblem}>{problem}</span>}
-    </div>
+    </>
   )
 }
 
