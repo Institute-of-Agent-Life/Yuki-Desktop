@@ -4,6 +4,7 @@ import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import type { Connection, EventsPage } from '../../src/shared/api'
 import { currentConnection, yukiFixture } from '../fixtures/backend'
+import { navigate } from '../fixtures/navigation'
 import { fillSsh, sshHost } from '../fixtures/ssh-host'
 
 // Failure cases 18–21 and 24 of the 2026-11-13 usability task book: SSH is only the path to the
@@ -29,6 +30,13 @@ async function events(page: Page, connection: Connection): Promise<number[]> {
     if (!result.ok) throw Error(result.code)
     return result.value.items.map((event) => event.event_id)
   }, connection)
+}
+/** The problem one read reports right now. */
+async function failure(page: Page, id: string) {
+  return page.evaluate(async (id) => {
+    const result = await window.yuki.client.read(id, { kind: 'me' })
+    return result.ok ? 'ok' : result.code
+  }, id)
 }
 async function online(page: Page, id: string) {
   await expect
@@ -103,9 +111,23 @@ test('SSH: confirm the host key once, keep the password in the keychain and the 
     await expect(page.getByText('連不上這台主機的 SSH', { exact: false })).toBeVisible({
       timeout: 60000,
     })
+    // A request made after the drop is lost for the same reason, cached or not: it says the SSH
+    // path is gone instead of the generic "no reply", and does not take that reason off the
+    // connection. Works were never read, so that view has nothing to fall back on.
+    expect(await failure(page, first.characterId)).toBe('ssh_unreachable')
+    await expect(page.getByText('連不上這台主機的 SSH', { exact: false })).toBeVisible()
+    await navigate(page, '工作')
+    await expect(page.getByText('連不上這台主機的 SSH', { exact: false })).toBeVisible({
+      timeout: 60000,
+    })
+    await expect(page.getByText('無法取得伺服器回應', { exact: false })).toHaveCount(0)
     await page.screenshot({ path: test.info().outputPath('ssh-03-network-lost.png') })
+    await navigate(page, '桌面對話')
+    // It comes back but drops once more during the first login; the next login carries on.
+    host.cutLogins(1)
     await host.start()
     await online(page, first.characterId)
+    expect(host.cut).toHaveLength(1)
     await expect(page.getByText('連不上這台主機的 SSH', { exact: false })).toHaveCount(0, {
       timeout: 60000,
     })
@@ -127,6 +149,7 @@ test('SSH: confirm the host key once, keep the password in the keychain and the 
     await expect(page.getByText('主機指紋與第一次連接時不同', { exact: false })).toBeVisible({
       timeout: 60000,
     })
+    expect(await failure(page, first.characterId)).toBe('ssh_host_key_changed')
     await page.screenshot({ path: test.info().outputPath('ssh-05-host-key-changed.png') })
     expect(host.forwards.length).toBe(forwarded)
 

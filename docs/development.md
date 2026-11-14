@@ -108,7 +108,7 @@ Windows 專項在未提供測試服務或非 Windows 時明確跳過，不讀取
 
 介面有繁體中文、简体中文與 English，資源與寫法見 [src/shared/locales/README.md](../src/shared/locales/README.md)。E2E 以 zh-TW 系統執行，既有 spec 按繁體文案定位；`languages.spec.ts` 在執行中切換語言，核對選單、托盤、通知、對話框、SC 字形，以及時區、回執 note 與預設檔名不變，並在輸出目錄保留三種語言的設定頁截圖。
 
-SSH 與「部署到我的伺服器」：`prepare-local-bot.mjs` 以後端自己的 `scripts.build_release_bundle` 產生同版本的 `install.sh` 與 `yuki-X.Y.Z-deploy.tar.gz`，放在 `resources/local-bot/server/`（需要 uv）。ssh2 只用純 JavaScript：`electron-builder.yml` 排除其可選原生碼（crypto binding、cpu-features、nan），`check:package` 遇到即失敗。`ssh-connection.spec.ts` 與 `remote-deploy-steps.spec.ts` 以測試內的真 SSH 協定伺服器（ssh2）轉發到隔離後端，覆蓋主機指紋、密碼只在鑰匙圈、重啟後本機連接埠不變、斷線恢復、直接連線與 SSH 互換及各部署步驟的失敗與重試。`remote-deploy.spec.ts` 需要一台可丟棄的 Linux 伺服器：以 `YUKI_TEST_REMOTE_SSH` 傳入 `{host, port, user, key, provideBotImage, provideEnvironmentImage}`，後兩者是在映像加速器提示出現後把映像放進該伺服器的命令；伺服器應連不上 GitHub 與 ghcr.io。輸出目錄保留從部署、對話、升級到第二台桌面經 SSH 配對的截圖序列。
+SSH 與「部署到我的伺服器」：`prepare-local-bot.mjs` 以後端自己的 `scripts.build_release_bundle` 產生同版本的 `install.sh` 與 `yuki-X.Y.Z-deploy.tar.gz`，放在 `resources/local-bot/server/`（需要 uv）。ssh2 只用純 JavaScript：`electron-builder.yml` 排除其可選原生碼（crypto binding、cpu-features、nan），`check:package` 遇到即失敗。`ssh-connection.spec.ts` 與 `remote-deploy-steps.spec.ts` 以測試內的真 SSH 協定伺服器（ssh2）轉發到隔離後端，覆蓋主機指紋、密碼只在鑰匙圈、重啟後本機連接埠不變、斷線時之後的讀取與從未讀過的頁面都說明 SSH 連不上（而非籠統的無回應）、恢復時登入途中再斷一次仍會重新登入、直接連線與 SSH 互換及各部署步驟的失敗與重試。`remote-deploy.spec.ts` 需要一台可丟棄的 Linux 伺服器：以 `YUKI_TEST_REMOTE_SSH` 傳入 `{host, port, user, key, provideBotImage, provideEnvironmentImage}`，後兩者是在映像加速器提示出現後把映像放進該伺服器的命令；伺服器應連不上 GitHub 與 ghcr.io。輸出目錄保留從部署、對話、升級到第二台桌面經 SSH 配對的截圖序列。
 
 `control-motion.spec.ts` 驗證實際拖曳、取消、鍵盤與背景像素折射；`frosted-workspace.spec.ts` 使用隔離真後端核對四種外觀、三個尺寸、原回執與草稿。兩者均不呼叫付費模型，截圖只作本地審閱。
 
