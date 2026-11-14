@@ -180,10 +180,25 @@ export function StatusPill({ status, children }: { status: Status; children: Rea
   )
 }
 // Toolbar controls in their own clear glass capsule.
-export function Capsule({ children, className = '' }: { children: ReactNode; className?: string }) {
+export function Capsule({
+  children,
+  className = '',
+  label,
+}: {
+  children: ReactNode
+  className?: string
+  /** Named, the capsule is a toolbar of its own. */
+  label?: string
+}) {
   const glass = useGlass<HTMLDivElement>('toolbar')
   return (
-    <div ref={glass.ref} data-glass="toolbar" className={`${styles.capsule} ${className}`}>
+    <div
+      ref={glass.ref}
+      data-glass="toolbar"
+      className={`${styles.capsule} ${className}`}
+      role={label ? 'toolbar' : undefined}
+      aria-label={label}
+    >
       {children}
     </div>
   )

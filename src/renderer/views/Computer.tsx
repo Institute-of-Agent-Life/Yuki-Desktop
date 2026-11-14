@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import RFB from '@novnc/novnc'
@@ -15,6 +15,7 @@ import type {
 import {
   Banner,
   Button,
+  Capsule,
   EmptyState,
   IconButton,
   Segmented,
@@ -23,7 +24,6 @@ import {
 } from '../components/Controls'
 import { unwrap, problemText, ClientProblem, useMe, hidesPrivateData } from '../queries/client'
 import styles from './Computer.module.css'
-import { useGlass } from '../materials/glass'
 import { useWorkspace } from '../state/workspace'
 import { useTranslation } from '../i18n'
 
@@ -66,6 +66,9 @@ export function Computer({
     query = useComputer(id),
     client = useQueryClient()
   const [screen, setScreen] = useState<ComputerScreen>('sandbox')
+  // The status row hosts the screen's own controls, beside the text and never over the screen.
+  const [screenControls, setScreenControls] = useState<HTMLDivElement | null>(null)
+  const controlSlot = <div ref={setScreenControls} className={styles.screenControls} />
   const requested = useWorkspace((state) => state.computerScreen),
     patch = useWorkspace((state) => state.patch)
   useEffect(() => {
@@ -247,7 +250,14 @@ export function Computer({
     return (
       <section className={styles.computer} aria-label={t('platforms:qqLogin')}>
         {displayHeader}
-        <RemoteScreen key={id + screen} id={id} held={screen === 'qq-control'} screen={screen} />
+        <RemoteScreen
+          key={id + screen}
+          id={id}
+          held={screen === 'qq-control'}
+          screen={screen}
+          controls={screenControls}
+        />
+        <footer className={styles.status}>{controlSlot}</footer>
       </section>
     )
   return (
@@ -277,7 +287,13 @@ export function Computer({
         ))}
       {problem && <Banner status="failed">{problem}</Banner>}
       {state.display === 'running' ? (
-        <RemoteScreen key={id} id={id} held={held && !compact} preview={!!compact} />
+        <RemoteScreen
+          key={id}
+          id={id}
+          held={held && !compact}
+          preview={!!compact}
+          controls={screenControls}
+        />
       ) : (
         <div className={styles.resting}>
           {state.display === 'starting' ? <Spinner /> : <Moon size={40} strokeWidth={1} />}
@@ -338,6 +354,7 @@ export function Computer({
             {t('computer:currentWork')}
           </Button>
         )}
+        {controlSlot}
       </footer>
       {(commands.data ?? [])
         .filter((item) => item.state === 'submitted')
@@ -450,15 +467,17 @@ function RemoteScreen({
   held,
   preview = false,
   screen = 'sandbox',
+  controls,
 }: {
   screen?: ComputerScreen
   id: string
   held: boolean
   preview?: boolean
+  /** Where the screen's controls go: the page's status row. */
+  controls?: HTMLElement | null
 }) {
   // The connection reads its messages through `i18n`, which a language switch keeps, so it stays.
   const { t, i18n } = useTranslation(['computer', 'errors'])
-  const controls = useGlass<HTMLDivElement>('toolbar')
   const target = useRef<HTMLDivElement>(null),
     rfb = useRef<RFB>(null),
     holder = useRef(held)
@@ -571,11 +590,15 @@ function RemoteScreen({
         }
       }}
     >
+      {/* The screen is exactly the remote picture, so a click anywhere on it lands on noVNC. */}
       <div
-        className={styles.screen}
+        className={`${styles.screen} ${fit && dimensions.width ? styles.fitted : ''}`}
         style={
-          fit && dimensions.width
-            ? { maxWidth: dimensions.width, maxHeight: dimensions.height }
+          dimensions.width
+            ? ({
+                '--remote-width': dimensions.width,
+                '--remote-height': dimensions.height,
+              } as CSSProperties)
             : undefined
         }
         role={preview ? 'img' : 'application'}
@@ -603,71 +626,69 @@ function RemoteScreen({
           </IconButton>
         </div>
       )}
-      {!preview && (
-        <div
-          ref={controls.ref}
-          data-glass="toolbar"
-          className={styles.floating}
-          aria-label={t('computer:toolbar')}
-        >
-          <Button variant="plain" aria-pressed={!fit} onClick={() => setFit((value) => !value)}>
-            {t(fit ? 'computer:zoomFit' : 'computer:zoomActual')}
-          </Button>
-          <IconButton
-            label={t('computer:pasteText')}
-            disabled={!held || !connected || !clipboardReady}
-            onClick={() =>
-              void action(async () => {
-                const instance = rfb.current
-                if (
-                  !instance ||
-                  !holder.current ||
-                  instance.viewOnly ||
-                  instance.capabilities.clipboard !== true
-                )
-                  throw Error(t('computer:pasteNotReady'))
-                const text = unwrap(await window.yuki.client.paste())
-                if (
-                  rfb.current !== instance ||
-                  !holder.current ||
-                  instance.viewOnly ||
-                  instance.capabilities.clipboard !== true
-                )
-                  throw Error(t('computer:pasteChanged'))
-                instance.clipboardPasteFrom(text)
-              })
-            }
-          >
-            <ClipboardPaste size={16} />
-          </IconButton>
-          <IconButton
-            label={t('computer:ctrlAltDelete')}
-            disabled={!held || !connected}
-            onClick={() => rfb.current?.sendCtrlAltDel()}
-          >
-            <Keyboard size={16} />
-          </IconButton>
-          <IconButton
-            label={t('computer:screenshot')}
-            disabled={!connected}
-            onClick={() =>
-              void action(async () => {
-                const image = rfb.current?.toDataURL('image/png')
-                if (image) {
-                  const bytes = Uint8Array.from(atob(image.split(',')[1]!), (char) =>
-                    char.charCodeAt(0),
-                  )
-                  unwrap(await window.yuki.client.saveScreenshot(id, bytes))
-                }
-              })
-            }
-          >
-            <Camera size={16} />
-          </IconButton>
-          <small>{dimensions.width ? `${dimensions.width} × ${dimensions.height}` : ''}</small>
-        </div>
-      )}
       {connected && problem && <span className={styles.screenProblem}>{problem}</span>}
+      {!preview &&
+        controls &&
+        createPortal(
+          <Capsule label={t('computer:toolbar')}>
+            <Button variant="plain" aria-pressed={!fit} onClick={() => setFit((value) => !value)}>
+              {t(fit ? 'computer:zoomFit' : 'computer:zoomActual')}
+            </Button>
+            <IconButton
+              label={t('computer:pasteText')}
+              disabled={!held || !connected || !clipboardReady}
+              onClick={() =>
+                void action(async () => {
+                  const instance = rfb.current
+                  if (
+                    !instance ||
+                    !holder.current ||
+                    instance.viewOnly ||
+                    instance.capabilities.clipboard !== true
+                  )
+                    throw Error(t('computer:pasteNotReady'))
+                  const text = unwrap(await window.yuki.client.paste())
+                  if (
+                    rfb.current !== instance ||
+                    !holder.current ||
+                    instance.viewOnly ||
+                    instance.capabilities.clipboard !== true
+                  )
+                    throw Error(t('computer:pasteChanged'))
+                  instance.clipboardPasteFrom(text)
+                })
+              }
+            >
+              <ClipboardPaste size={16} />
+            </IconButton>
+            <IconButton
+              label={t('computer:ctrlAltDelete')}
+              disabled={!held || !connected}
+              onClick={() => rfb.current?.sendCtrlAltDel()}
+            >
+              <Keyboard size={16} />
+            </IconButton>
+            <IconButton
+              label={t('computer:screenshot')}
+              disabled={!connected}
+              onClick={() =>
+                void action(async () => {
+                  const image = rfb.current?.toDataURL('image/png')
+                  if (image) {
+                    const bytes = Uint8Array.from(atob(image.split(',')[1]!), (char) =>
+                      char.charCodeAt(0),
+                    )
+                    unwrap(await window.yuki.client.saveScreenshot(id, bytes))
+                  }
+                })
+              }
+            >
+              <Camera size={16} />
+            </IconButton>
+            <small>{dimensions.width ? `${dimensions.width} × ${dimensions.height}` : ''}</small>
+          </Capsule>,
+          controls,
+        )}
     </div>
   )
 }
