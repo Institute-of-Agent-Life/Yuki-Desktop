@@ -28,68 +28,62 @@ async function look(page: Page, value: (typeof looks)[number]) {
   await page.waitForTimeout(600)
 }
 
-test('SSH and server deployment screens use the existing glass card, rows and dialog', async ({
-  browser,
-}) => {
-  test.setTimeout(240000)
-  const rig = await yukiFixture()
-  // The local deployment card shows its "Docker unavailable" state; nothing touches a real Docker.
-  const docker = process.env.DOCKER_HOST
-  process.env.DOCKER_HOST = 'unix:///nonexistent/yuki-look.sock'
-  const app = await rig.launch('look')
-  if (docker === undefined) delete process.env.DOCKER_HOST
-  else process.env.DOCKER_HOST = docker
-  let success = false
-  const shots: Record<string, Record<string, string>> = {}
-  const shot = async (page: Page, name: string, key: string) => {
-    const path = test.info().outputPath(`${key}-${name}.png`)
-    await page.screenshot({ path })
-    ;(shots[key] ??= {})[name] = path
-  }
-  try {
-    const page = await app.firstWindow()
-    await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
-    for (const value of looks) {
-      const key = `${value.theme}-${value.opaque ? 'opaque' : 'frosted'}`
+// One look per test, each within its own deadline on the slowest runner.
+for (const value of looks) {
+  const key = `${value.theme}-${value.opaque ? 'opaque' : 'frosted'}`
+  test(`SSH and server deployment screens use the existing glass card, rows and dialog (${key})`, async ({
+    browser,
+  }) => {
+    test.setTimeout(180000)
+    const rig = await yukiFixture()
+    // The local deployment card shows its "Docker unavailable" state; nothing touches a real Docker.
+    const docker = process.env.DOCKER_HOST
+    process.env.DOCKER_HOST = 'unix:///nonexistent/yuki-look.sock'
+    const app = await rig.launch(`look-${key}`)
+    if (docker === undefined) delete process.env.DOCKER_HOST
+    else process.env.DOCKER_HOST = docker
+    let success = false
+    const shots: Record<string, string> = {}
+    const shot = async (page: Page, name: string) => {
+      const path = test.info().outputPath(`${key}-${name}.png`)
+      await page.screenshot({ path })
+      shots[name] = path
+    }
+    try {
+      const page = await app.firstWindow()
+      await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
       await look(page, value)
       await page.getByRole('button', { name: '在本機部署 Yuki', exact: true }).click()
       await expect(page.getByRole('heading', { name: '在本機部署 Yuki' })).toBeVisible()
-      await shot(page, '1-local', key)
+      await shot(page, '1-local')
       await page.getByRole('button', { name: '返回／稍後設定', exact: true }).click()
       await page.getByRole('button', { name: '部署到我的伺服器', exact: true }).click()
       await expect(page.getByRole('heading', { name: '部署到我的伺服器' })).toBeVisible()
-      await shot(page, '2-server', key)
+      await shot(page, '2-server')
       await page.getByRole('button', { name: '返回／稍後設定', exact: true }).click()
       await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
       await page.getByRole('button', { name: '通過 SSH 連接', exact: true }).click()
       await expect(page.getByRole('heading', { name: '通過 SSH 連接' })).toBeVisible()
-      await shot(page, '3-ssh', key)
+      await shot(page, '3-ssh')
       await page.getByRole('button', { name: '返回', exact: true }).click()
       await page.getByRole('button', { name: '返回', exact: true }).click()
-    }
-    await pairUI(page, rig.base, await rig.code())
-    for (const value of looks) {
-      const key = `${value.theme}-${value.opaque ? 'opaque' : 'frosted'}`
-      await look(page, value)
+      await pairUI(page, rig.base, await rig.code())
       await page.keyboard.press('ControlOrMeta+,')
       await page.getByRole('tab', { name: '連線', exact: true }).click()
       const row = page.getByRole('button', { name: '更改…', exact: true })
       await row.scrollIntoViewIfNeeded()
-      await shot(page, '4-settings', key)
+      await shot(page, '4-settings')
       await row.click()
       const dialog = page.getByRole('dialog', { name: '更改連線方式', exact: true })
       await dialog.getByRole('radio', { name: '通過 SSH', exact: true }).click()
       await page.waitForTimeout(600)
-      await shot(page, '5-dialog', key)
+      await shot(page, '5-dialog')
       await dialog.getByRole('button', { name: '取消', exact: true }).click()
       await expect(dialog).toHaveCount(0)
-      await page.keyboard.press('Escape')
-    }
-    // One sheet per look: the local deployment card beside each new screen.
-    const sheet = await browser.newPage({ viewport: { width: 2400, height: 900 } })
-    for (const [key, files] of Object.entries(shots)) {
+      // One sheet: the local deployment card beside each new screen.
+      const sheet = await browser.newPage({ viewport: { width: 2400, height: 900 } })
       const images = await Promise.all(
-        Object.entries(files)
+        Object.entries(shots)
           .sort()
           .map(
             async ([name, path]) =>
@@ -100,11 +94,11 @@ test('SSH and server deployment screens use the existing glass card, rows and di
         `<style>body{margin:0;display:flex;gap:8px;background:#888;font:14px system-ui}figure{margin:0}img{width:460px;display:block}</style>${images.join('')}`,
       )
       await sheet.screenshot({ path: test.info().outputPath(`compare-${key}.png`), fullPage: true })
+      await writeFile(test.info().outputPath(`looks-${key}.json`), JSON.stringify(shots, null, 2))
+      success = true
+    } finally {
+      await app.close()
+      await rig.close(success)
     }
-    await writeFile(test.info().outputPath('looks.json'), JSON.stringify(shots, null, 2))
-    success = true
-  } finally {
-    await app.close()
-    await rig.close(success)
-  }
-})
+  })
+}

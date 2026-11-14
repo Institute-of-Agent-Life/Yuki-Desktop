@@ -268,6 +268,9 @@ test('a lost apply response is confirmed with the original request ID', async ()
 })
 
 test('a server that cannot write its settings directory offers no save', async () => {
+  // A read-only settings directory is a Linux deployment's fact (a read-only mount); the server
+  // reads it with os.access, which on Windows reports every directory writable whatever its ACL.
+  test.skip(process.platform === 'win32', 'Unwritable directories are a POSIX deployment fact')
   test.setTimeout(120000)
   const rig = await deployment(),
     app = await rig.launch('platforms-read-only')
@@ -483,9 +486,13 @@ const rowMetrics = (page: Page) =>
       }
     })
 
-// How much of the page's text shows through an open dialog: the dialog inside its rim, shot over
-// the page and again with the page's text (and icons) made transparent, its surfaces kept.
-// `max` is the largest per-channel difference (0–255), `edge` how sharply it changes across 2px.
+// How much of the page's text shows through an open dialog. Four shots of the dialog's inner area:
+// the dialog over the page, the dialog over the page with its text made transparent, and the
+// same two with the dialog hidden. The last pair locates the page's text (`text`); the first pair
+// is what of it reaches the dialog. A renderer's own noise (software GPUs on CI repaint a few
+// levels differently between frames) lands anywhere; text seen through the dialog lands on and
+// around the text. `max` is the largest per-channel difference (0–255); `through` is how much
+// more the dialog changes over the page's text than away from it (mean luma levels).
 async function bleed(page: Page, dialog: Locator) {
   const box = (await dialog.boundingBox())!
   const clip = {
@@ -494,19 +501,36 @@ async function bleed(page: Page, dialog: Locator) {
     width: Math.round(box.width - 48),
     height: Math.round(box.height - 48),
   }
-  const over = await page.screenshot({ clip })
-  await page.evaluate(() => {
-    const style = document.createElement('style')
-    style.id = 'bleed'
-    style.textContent =
-      'body :not(dialog[open], dialog[open] *) { color: transparent !important; caret-color: transparent }'
-    document.head.append(style)
-  })
-  await page.waitForTimeout(100)
-  const alone = await page.screenshot({ clip })
-  await page.evaluate(() => document.getElementById('bleed')!.remove())
+  const css = (id: string, text: string) =>
+    page.evaluate(
+      ([id, text]) => {
+        const style = document.createElement('style')
+        style.id = id
+        style.textContent = text
+        document.head.append(style)
+      },
+      [id, text] as const,
+    )
+  const drop = (id: string) => page.evaluate((id) => document.getElementById(id)!.remove(), id)
+  const shoot = async () => {
+    await page.waitForTimeout(100)
+    return (await page.screenshot({ clip })).toString('base64')
+  }
+  const hideText =
+    'body :not(dialog[open], dialog[open] *) { color: transparent !important; caret-color: transparent }'
+  const over = await shoot()
+  await css('bleed-text', hideText)
+  const alone = await shoot()
+  await css(
+    'bleed-dialog',
+    'dialog[open] { visibility: hidden } dialog[open]::backdrop { display: none }',
+  )
+  const pageBare = await shoot()
+  await drop('bleed-text')
+  const pageText = await shoot()
+  await drop('bleed-dialog')
   return page.evaluate(
-    async ([a, b]) => {
+    async (shots) => {
       const pixels = async (data: string) => {
         const image = new Image()
         image.src = `data:image/png;base64,${data}`
@@ -515,56 +539,82 @@ async function bleed(page: Page, dialog: Locator) {
         context.drawImage(image, 0, 0)
         return context.getImageData(0, 0, image.width, image.height)
       }
-      const [shot, bare] = [await pixels(a), await pixels(b)]
-      const [first, second, width] = [shot.data, bare.data, shot.width]
+      const [over, alone, bare, text] = await Promise.all(shots.map(pixels))
+      const { width, height } = over!
       const luma = (data: Uint8ClampedArray, index: number) =>
         0.2126 * data[index]! + 0.7152 * data[index + 1]! + 0.0722 * data[index + 2]!
-      const difference: number[] = []
       let max = 0
-      for (let index = 0; index < first.length; index += 4) {
-        difference.push(luma(first, index) - luma(second, index))
+      const seen: number[] = [],
+        glyph: boolean[] = []
+      for (let index = 0; index < over!.data.length; index += 4) {
+        seen.push(Math.abs(luma(over!.data, index) - luma(alone!.data, index)))
+        glyph.push(Math.abs(luma(text!.data, index) - luma(bare!.data, index)) > 24)
         for (const channel of [0, 1, 2])
-          max = Math.max(max, Math.abs(first[index + channel]! - second[index + channel]!))
+          max = Math.max(
+            max,
+            Math.abs(over!.data[index + channel]! - alone!.data[index + channel]!),
+          )
       }
-      const steps: number[] = []
-      for (let index = 0; index + 2 * width + 2 < difference.length; index++)
-        steps.push(
-          Math.abs(difference[index]! - difference[index + 2]!),
-          Math.abs(difference[index]! - difference[index + 2 * width]!),
-        )
-      steps.sort((x, y) => x - y)
-      return { max, edge: Math.round(steps[Math.floor(steps.length * 0.999)]! * 10) / 10 }
+      // Near text: within the frost's blur of a glyph pixel.
+      const reach = 12
+      const near = new Uint8Array(width * height)
+      for (let y = 0; y < height; y++)
+        for (let x = 0; x < width; x++)
+          if (glyph[y * width + x])
+            for (let dy = -reach; dy <= reach; dy += 3)
+              for (let dx = -reach; dx <= reach; dx += 3) {
+                const [nx, ny] = [x + dx, y + dy]
+                if (nx >= 0 && ny >= 0 && nx < width && ny < height) near[ny * width + nx] = 1
+              }
+      let [onText, onCount, away, awayCount] = [0, 0, 0, 0]
+      for (let index = 0; index < seen.length; index++)
+        if (near[index]) [onText, onCount] = [onText + seen[index]!, onCount + 1]
+        else [away, awayCount] = [away + seen[index]!, awayCount + 1]
+      const mean = (sum: number, count: number) => (count ? sum / count : 0)
+      return {
+        max,
+        through: Math.round((mean(onText, onCount) - mean(away, awayCount)) * 100) / 100,
+        text: Math.round((onCount / seen.length) * 1000) / 1000,
+      }
     },
-    [over.toString('base64'), alone.toString('base64')] as const,
+    [over, alone, pageBare, pageText] as const,
   )
 }
-// Opaque dialogs show nothing of the page. Frosted ones, light or dark, blur its text into a
-// faint wash: no step of more than 16 levels (about 6%) where it was.
-const unreadable = (look: string, measured: { max: number; edge: number }) =>
-  expect(measured.max).toBeLessThanOrEqual(look.endsWith('opaque') ? 1 : 16)
+type Bleed = Awaited<ReturnType<typeof bleed>>
+// Opaque dialogs show nothing of the page: no more change over its text than away from it (a
+// quarter level; locally 0). Frosted ones, light or dark, blur its text into a faint wash that is
+// there (locally 1.7–4.9 levels more over the text) but no step of more than 16 levels (about 6%).
+function unreadable(look: string, measured: Bleed) {
+  expect(measured.text).toBeGreaterThan(0)
+  if (look.endsWith('opaque')) expect(measured.through).toBeLessThanOrEqual(0.25)
+  else {
+    expect(measured.through).toBeGreaterThanOrEqual(0.75)
+    expect(measured.max).toBeLessThanOrEqual(16)
+  }
+}
 
-test('the platform list and its dialogs match the model page in light and dark, frosted and opaque', async () => {
-  test.setTimeout(240000)
-  const rig = await deployment(),
-    app = await rig.launch('platforms-looks')
-  let success = false
-  try {
-    const page = await app.firstWindow()
-    await pairUI(page, rig.base, await rig.code())
-    await platforms(page)
-    // One saved platform, so the list shows a row with its switch.
-    const telegram = await configure(page, 'Telegram')
-    await telegram.getByLabel('Bot Token', { exact: true }).fill('123456:yuki-e2e-look-token')
-    await telegram.getByRole('button', { name: '儲存', exact: true }).click()
-    await expect(telegram).toBeHidden()
-    const looks = [
-      ['light', '淺色', '透明磨砂'],
-      ['light-opaque', '淺色', '不透明'],
-      ['dark', '深色', '透明磨砂'],
-      ['dark-opaque', '深色', '不透明'],
-    ] as const
-    const metrics: Record<string, unknown> = {}
-    for (const [look, theme, material] of looks) {
+const looks = [
+  ['light', '淺色', '透明磨砂'],
+  ['light-opaque', '淺色', '不透明'],
+  ['dark', '深色', '透明磨砂'],
+  ['dark-opaque', '深色', '不透明'],
+] as const
+// One look per test: each fits its own deadline on the slowest runner.
+for (const [look, theme, material] of looks)
+  test(`the platform list and its dialogs match the model page (${look})`, async () => {
+    test.setTimeout(180000)
+    const rig = await deployment(),
+      app = await rig.launch(`platforms-looks-${look}`)
+    let success = false
+    try {
+      const page = await app.firstWindow()
+      await pairUI(page, rig.base, await rig.code())
+      await platforms(page)
+      // One saved platform, so the list shows a row with its switch.
+      const telegram = await configure(page, 'Telegram')
+      await telegram.getByLabel('Bot Token', { exact: true }).fill('123456:yuki-e2e-look-token')
+      await telegram.getByRole('button', { name: '儲存', exact: true }).click()
+      await expect(telegram).toBeHidden()
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
       await page.getByRole('radio', { name: theme, exact: true }).click()
       await page
@@ -586,8 +636,7 @@ test('the platform list and its dialogs match the model page in light and dark, 
       await expect(adding).toBeVisible()
       await settle(page)
       await page.screenshot({ path: test.info().outputPath(`compare-${look}-model-dialog.png`) })
-      const bleeds: Record<string, unknown> = { model: await bleed(page, adding) }
-      unreadable(look, bleeds.model as { max: number; edge: number })
+      const bleeds: Record<string, Bleed> = { model: await bleed(page, adding) }
       await page.keyboard.press('Escape')
       await expect(adding).toBeHidden()
       await page.getByRole('tab', { name: '平台', exact: true }).click()
@@ -602,7 +651,6 @@ test('the platform list and its dialogs match the model page in light and dark, 
       })
       expect(list.group.background).toBe(model.group.background)
       expect(await page.locator('#settings-panel details').count()).toBe(0)
-      metrics[look] = { model, platforms: list, bleeds }
       for (const [name, mode] of [
         ['Telegram', undefined],
         ['飛書', undefined],
@@ -616,24 +664,23 @@ test('the platform list and its dialogs match the model page in light and dark, 
         for (const details of await dialog.locator('details').all())
           await expect(details).not.toHaveAttribute('open')
         await settle(page)
-        const shot = `${look}-${name}${mode ? `-${mode}` : ''}`
-        await page.screenshot({ path: test.info().outputPath(`dialog-${shot}.png`) })
+        const shot = `${name}${mode ? `-${mode}` : ''}`
+        await page.screenshot({ path: test.info().outputPath(`dialog-${look}-${shot}.png`) })
         bleeds[shot] = await bleed(page, dialog)
-        unreadable(look, bleeds[shot] as { max: number; edge: number })
         await page.keyboard.press('Escape')
         await expect(dialog).toBeHidden()
       }
+      await writeFile(
+        test.info().outputPath(`platforms-looks-${look}.json`),
+        JSON.stringify({ model, platforms: list, bleeds }, null, 2),
+      )
+      for (const measured of Object.values(bleeds)) unreadable(look, measured)
+      success = true
+    } finally {
+      await app.close()
+      await rig.close(success)
     }
-    await writeFile(
-      test.info().outputPath('platforms-looks.json'),
-      JSON.stringify(metrics, null, 2),
-    )
-    success = true
-  } finally {
-    await app.close()
-    await rig.close(success)
-  }
-})
+  })
 
 test('a server below Client API revision 11 shows the platform page as unavailable with its revision', async () => {
   test.setTimeout(150000)

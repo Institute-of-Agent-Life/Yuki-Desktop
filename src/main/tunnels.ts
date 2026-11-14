@@ -45,7 +45,12 @@ class Tunnel {
       (client) => {
         this.problem = undefined
         client.on('close', () => {
-          if (this.session === current) this.session = undefined
+          // The path went away under a running session (the server or the network): say so
+          // now, not only after the next login fails; a login that succeeds clears it.
+          if (this.session === current) {
+            this.session = undefined
+            this.problem = 'ssh_unreachable'
+          }
           for (const socket of this.sockets) socket.destroy()
         })
         client.on('error', () => {})
@@ -88,12 +93,13 @@ class Tunnel {
     )
   }
   close() {
+    const session = this.session
+    this.session = undefined
     for (const socket of this.sockets) socket.destroy()
-    void this.session?.then(
+    void session?.then(
       (client) => client.end(),
       () => {},
     )
-    this.session = undefined
     return new Promise<void>((resolve) => this.server.close(() => resolve()))
   }
 }
