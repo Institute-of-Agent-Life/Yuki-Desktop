@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import RFB from '@novnc/novnc'
@@ -571,11 +571,15 @@ function RemoteScreen({
           }
         }}
       >
+        {/* The screen is exactly the remote picture, so a click anywhere on it lands on noVNC. */}
         <div
-          className={styles.screen}
+          className={`${styles.screen} ${fit && dimensions.width ? styles.fitted : ''}`}
           style={
-            fit && dimensions.width
-              ? { maxWidth: dimensions.width, maxHeight: dimensions.height }
+            dimensions.width
+              ? ({
+                  '--remote-width': dimensions.width,
+                  '--remote-height': dimensions.height,
+                } as CSSProperties)
               : undefined
           }
           role={preview ? 'img' : 'application'}

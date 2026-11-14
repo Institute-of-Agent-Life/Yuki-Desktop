@@ -42,6 +42,7 @@
   min-width: 0;
 }
 .remote {
+  container-type: size;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -59,7 +60,15 @@
 .screen {
   width: 100%;
   height: 100%;
+  max-width: calc(var(--remote-width) * 1px);
+  max-height: calc(var(--remote-height) * 1px);
   overflow: auto;
+}
+/* Scaled to fit, the screen keeps the remote proportions instead of a letterbox around them. */
+.fitted {
+  width: min(100%, 100cqh * var(--remote-width) / var(--remote-height));
+  height: auto;
+  aspect-ratio: var(--remote-width) / var(--remote-height);
 }
 .screen canvas {
   outline: none;
