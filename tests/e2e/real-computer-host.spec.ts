@@ -70,7 +70,7 @@ test('isolated real computer accepts desktop input and resumes its original work
       page.getByRole('article').filter({
         has: page.getByRole('heading', { name: workTitle, exact: true }),
       })
-    await expect(waiting().getByText(/等待電腦交回/)).toBeVisible({ timeout: 45000 })
+    await expect(waiting().getByText(/等待電腦交回/)).toBeVisible()
     await expect.poll(async () => (await facts()).phase).toBe(3)
     const initial = await facts()
     const help = initial.waits.find((wait) => wait.run_id === initial.run_id)
@@ -96,12 +96,10 @@ test('isolated real computer accepts desktop input and resumes its original work
     await app.close().catch(() => {})
     app = await rig.launch('real-computer')
     page = await app.firstWindow()
-    await expect(waiting().getByText(/等待電腦交回/)).toBeVisible({ timeout: 20000 })
+    await expect(waiting().getByText(/等待電腦交回/)).toBeVisible()
     expect((await facts()).run_id).toBe(initial.run_id)
     await page.keyboard.press('ControlOrMeta+3')
-    await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled({
-      timeout: 20000,
-    })
+    await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled()
     await page.screenshot({ path: test.info().outputPath('real-tigervnc-viewing.png') })
     await page.getByRole('status').getByRole('button', { name: '接手', exact: true }).click()
     await expect(
@@ -122,7 +120,6 @@ test('isolated real computer accepts desktop input and resumes its original work
       .poll(
         async () =>
           (await facts()).manager_jobs.find((run) => run.run_id === initial.run_id)?.output,
-        { timeout: 20000 },
       )
       .toContain(`observed-input:${marker}`)
     await page.keyboard.press('Control+Alt')
@@ -137,9 +134,9 @@ test('isolated real computer accepts desktop input and resumes its original work
     const note = '畫面處理完成，請沿原工作接續。'
     await sheet.getByRole('textbox', { name: '說明', exact: true }).fill(note)
     await sheet.getByRole('button', { name: '交回', exact: true }).click()
-    await expect.poll(async () => (await facts()).phase, { timeout: 45000 }).toBe(7)
+    await expect.poll(async () => (await facts()).phase).toBe(7)
     await page.keyboard.press('ControlOrMeta+1')
-    await expect(waiting().getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
+    await expect(waiting().getByText('已完成', { exact: true })).toBeVisible()
     const final = await facts()
     expect(final.run_id).toBe(initial.run_id)
     expect(final.manager_jobs.find((run) => run.run_id === initial.run_id)?.status).toBe(

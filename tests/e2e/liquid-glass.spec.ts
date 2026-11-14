@@ -53,7 +53,7 @@ function rimLight(pane: Locator) {
 
 async function expectLiquidGlass(name: string, pane: Locator) {
   // 1: refracting glass with the calmed backdrop.
-  await expect(pane).toHaveAttribute('data-refracting', 'true', { timeout: 5000 })
+  await expect(pane).toHaveAttribute('data-refracting', 'true')
   const filter = await pane.evaluate((element) => getComputedStyle(element).backdropFilter)
   expect(filter).toMatch(/url\(/)
   // 3–4, as revised by the 苹果式打光 task book: lit from the upper left with a softer glow on the

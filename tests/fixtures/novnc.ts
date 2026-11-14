@@ -50,28 +50,24 @@ window.rfbTest = {
     rfb.sendKey(65, 'KeyA', false)
     rfb.sendCtrlAltDel()
     rfb.clipboardPasteFrom('viewer must not replace clipboard')
-    document
-      .querySelector('canvas')!
-      .dispatchEvent(
-        new MouseEvent('mousedown', {
-          clientX: 30,
-          clientY: 30,
-          bubbles: true,
-          button: 0,
-          buttons: 1,
-        }),
-      )
-    document
-      .querySelector('canvas')!
-      .dispatchEvent(
-        new MouseEvent('mouseup', {
-          clientX: 30,
-          clientY: 30,
-          bubbles: true,
-          button: 0,
-          buttons: 0,
-        }),
-      )
+    document.querySelector('canvas')!.dispatchEvent(
+      new MouseEvent('mousedown', {
+        clientX: 30,
+        clientY: 30,
+        bubbles: true,
+        button: 0,
+        buttons: 1,
+      }),
+    )
+    document.querySelector('canvas')!.dispatchEvent(
+      new MouseEvent('mouseup', {
+        clientX: 30,
+        clientY: 30,
+        bubbles: true,
+        button: 0,
+        buttons: 0,
+      }),
+    )
     messages.fbUpdateRequest(wire(), true, 0, 0, 1, 1)
   },
   unknown() {

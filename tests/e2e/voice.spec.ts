@@ -202,7 +202,6 @@ test('records through MediaRecorder, persists the original ASR transcript and co
         async () =>
           ((await (await fetch(`${rig.base}/__test/asr-started`)).json()) as { started: boolean })
             .started,
-        { timeout: 15000 },
       )
       .toBe(true)
     const before = await ledgerEvents(rig.base),
@@ -227,9 +226,7 @@ test('records through MediaRecorder, persists the original ASR transcript and co
     expect((await fetch(`${rig.base}/__test/resume-asr`, { method: 'POST' })).ok).toBe(true)
     await expect(
       originalArticle().getByText('原語音轉寫：請把附件留下。', { exact: true }),
-    ).toBeVisible({
-      timeout: 20000,
-    })
+    ).toBeVisible()
     const after = await ledgerEvents(rig.base)
     expect(
       after

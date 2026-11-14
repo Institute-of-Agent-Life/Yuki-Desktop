@@ -3,7 +3,13 @@ import { copyFile, writeFile, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import type { OutboxItem, OriginalRequest, Profile } from '../../src/shared/api'
-import { currentConnection, ledgerEvents, yukiFixture, pairUI } from '../fixtures/backend'
+import {
+  currentConnection,
+  ledgerEvents,
+  pairUI,
+  recordBusinessState,
+  yukiFixture,
+} from '../fixtures/backend'
 
 async function acceptedAttachment(page: Page, characterId: string, mediaId: string) {
   const item = await page.evaluate(
@@ -76,7 +82,7 @@ test('device A uploads with a lost receipt; device B previews and saves verified
     }, source)
     await page.getByRole('button', { name: '附加檔案', exact: true }).click()
     await expect(page.getByLabel('待送出附件')).toContainText('handoff.txt')
-    await expect(page.getByLabel('待送出附件')).toContainText('可送出', { timeout: 15000 })
+    await expect(page.getByLabel('待送出附件')).toContainText('可送出')
     const upload = await page.evaluate(async (id) => {
       const result = await window.yuki.client.uploads(id)
       if (!result.ok) throw Error(result.code)
@@ -284,6 +290,13 @@ test('device A uploads with a lost receipt; device B previews and saves verified
     })
     success = true
   } finally {
+    if (!success) {
+      const page = await app.firstWindow()
+      await page
+        .screenshot({ path: test.info().outputPath('media-failure.png'), timeout: 5000 })
+        .catch(console.error)
+      await recordBusinessState(page, 'media-state.json').catch(console.error)
+    }
     await app.close()
     await rig.close(success)
   }

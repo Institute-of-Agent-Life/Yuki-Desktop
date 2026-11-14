@@ -72,7 +72,7 @@ test('real wait-control follows three leases and survives each Manager restart b
         .fill('請沿原工作處理電腦步驟')
       await pa.getByRole('button', { name: '送出', exact: true }).click()
     }
-    await expect.poll(async () => (await facts()).phase, { timeout: 45000 }).toBe(3)
+    await expect.poll(async () => (await facts()).phase).toBe(3)
     const started = await facts()
     await expect
       .poll(
@@ -88,9 +88,7 @@ test('real wait-control follows three leases and survives each Manager restart b
     await contentSize(b, pb, 1440, 900)
     for (const page of [pa, pb]) {
       await navigate(page, `${await activeCharacterName(page)} 的電腦`)
-      await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled({
-        timeout: 20000,
-      })
+      await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled()
     }
     if (!rig.resumed) await controls(pa).getByRole('button', { name: '接手', exact: true }).click()
     await expect(
@@ -98,7 +96,7 @@ test('real wait-control follows three leases and survives each Manager restart b
         name: `交回給 ${await activeCharacterName(pa)}`,
         exact: true,
       }),
-    ).toBeEnabled({ timeout: 20000 })
+    ).toBeEnabled()
     await expect
       .poll(async () => (await facts()).waits.find((wait) => wait.run_id === started.run_id)?.kind)
       .toBe('wait_control')
@@ -125,7 +123,7 @@ test('real wait-control follows three leases and survives each Manager restart b
           has: pa.getByRole('heading', { name: original.work.goal, exact: true }),
         })
         .getByText(/等待電腦交回/),
-    ).toBeVisible({ timeout: 20000 })
+    ).toBeVisible()
     await navigate(pa, `${await activeCharacterName(pa)} 的電腦`)
     const stages: Facts[] = []
     for (const [index, page] of [pa, pb, pa].entries()) {
@@ -162,16 +160,13 @@ test('real wait-control follows three leases and survives each Manager restart b
       )
       // The operator restarts the isolated service. Only a new kernel SO_PEERCRED PID counts.
       await expect
-        .poll(
-          async () => {
-            try {
-              return (await facts()).manager_pid
-            } catch {
-              return before.manager_pid
-            }
-          },
-          { timeout: 45000 },
-        )
+        .poll(async () => {
+          try {
+            return (await facts()).manager_pid
+          } catch {
+            return before.manager_pid
+          }
+        })
         .not.toBe(before.manager_pid)
       const after = await facts()
       expect(after.environment_generation).toBe(initial.environment_generation)
@@ -192,10 +187,8 @@ test('real wait-control follows three leases and survives each Manager restart b
           name: `交回給 ${await activeCharacterName(page)}`,
           exact: true,
         }),
-      ).toBeEnabled({ timeout: 20000 })
-      await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled({
-        timeout: 20000,
-      })
+      ).toBeEnabled()
+      await expect(page.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled()
       stages.push(after)
     }
     expect(new Set(stages.map((stage) => stage.control.lease_id)).size).toBe(3)
@@ -214,7 +207,6 @@ test('real wait-control follows three leases and survives each Manager restart b
       .poll(
         async () =>
           (await facts()).manager_jobs.find((row) => row.run_id === initial.run_id)?.output,
-        { timeout: 20000 },
       )
       .toContain(`observed-input:${marker}`)
     await pa.keyboard.press('Control+Alt')
@@ -229,7 +221,7 @@ test('real wait-control follows three leases and survives each Manager restart b
     const note = '畫面處理完成，請沿原工作接續。'
     await sheet.getByRole('textbox', { name: '說明', exact: true }).fill(note)
     await sheet.getByRole('button', { name: '交回', exact: true }).click()
-    await expect.poll(async () => (await facts()).phase, { timeout: 45000 }).toBe(7)
+    await expect.poll(async () => (await facts()).phase).toBe(7)
     const final = await facts()
     expect(final.control.holder).toBe('none')
     const result = JSON.parse(final.waits.find((row) => row.run_id === initial.run_id)!.result!)

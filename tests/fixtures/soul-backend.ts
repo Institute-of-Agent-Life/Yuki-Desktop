@@ -46,17 +46,14 @@ export async function soulBackend() {
     | undefined
   try {
     await expect
-      .poll(
-        async () => {
-          try {
-            state = JSON.parse(await readFile(stateFile, 'utf8'))
-            return (await fetch(state!.base_url + '/healthz')).status
-          } catch {
-            return 0
-          }
-        },
-        { timeout: 30000 },
-      )
+      .poll(async () => {
+        try {
+          state = JSON.parse(await readFile(stateFile, 'utf8'))
+          return (await fetch(state!.base_url + '/healthz')).status
+        } catch {
+          return 0
+        }
+      })
       .toBe(200)
   } catch (error) {
     server.kill('SIGTERM')

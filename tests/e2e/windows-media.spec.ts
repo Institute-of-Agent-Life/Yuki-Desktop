@@ -81,7 +81,7 @@ test('Windows native attachments recover a lost upload receipt and save identica
         .getByLabel('待送出附件')
         .locator(':scope > div')
         .filter({ hasText: basename(selection) })
-      await expect(draft).toContainText('可送出', { timeout: 15000 })
+      await expect(draft).toContainText('可送出')
     }
     const staged = await page.evaluate(
       (id) => window.yuki.client.uploads(id),

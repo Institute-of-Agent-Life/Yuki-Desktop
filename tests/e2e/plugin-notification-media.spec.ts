@@ -68,7 +68,7 @@ test('delivers an approved plugin original through the real notification worker 
       }
     }
     await expect
-      .poll(async () => (await receipt()).items.map((item) => item.status), { timeout: 20000 })
+      .poll(async () => (await receipt()).items.map((item) => item.status))
       .toEqual(['sent'])
     const delivered = (await receipt()).items[0]!
     expect(delivered.source_event_id).toBe(accepted.source_event_id)

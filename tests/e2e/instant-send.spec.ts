@@ -72,9 +72,7 @@ test('a sent message shows at once while the original request is confirmed in th
     const offline = '離線時寫下的訊息'
     await box.fill(offline)
     await send.click()
-    await expect(bubble(offline).getByText('連線後送出', { exact: true })).toBeVisible({
-      timeout: 20_000,
-    })
+    await expect(bubble(offline).getByText('連線後送出', { exact: true })).toBeVisible()
     await expect(box).toHaveValue('')
     evidence.offline = (await outbox()).find((item) => item.body.text === offline)
     // With the server back the app delivers it on its own, once; while it is on its way nothing

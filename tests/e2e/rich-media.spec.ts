@@ -197,7 +197,7 @@ test('plays and seeks both actual media sources, renders local rich text and kee
         })
       ).ok,
     ).toBe(true)
-    await expect(inspector().locator('audio')).toHaveCount(0, { timeout: 10000 })
+    await expect(inspector().locator('audio')).toHaveCount(0)
     expect(await page.evaluate(async (url) => (await fetch(url!)).status, expiredUrl)).toBe(404)
     await close()
     // The same bytes as a stable artifact use their filename's video MIME; an explicit audio MIME wins where available.

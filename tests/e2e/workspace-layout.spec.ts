@@ -30,7 +30,7 @@ test(
       const card = page.getByRole('article').filter({
         has: page.getByRole('heading', { name: '原工作整合測試', exact: true }),
       })
-      await expect(card.getByText('等你回覆', { exact: true })).toBeVisible({ timeout: 20000 })
+      await expect(card.getByText('等你回覆', { exact: true })).toBeVisible()
       await card.getByRole('button', { name: '查看詳情', exact: true }).click()
       await expect(tabs(page).getByRole('tab', { name: '工作', exact: true })).toHaveAttribute(
         'aria-selected',

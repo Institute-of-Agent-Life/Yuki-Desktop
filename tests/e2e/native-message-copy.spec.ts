@@ -89,7 +89,7 @@ test('message Copy uses the native popup and copies the selection or full messag
       expect(selected).toBe(expectedSelection)
       await app.evaluate(({ clipboard }, sentinel) => clipboard.writeText(sentinel), sentinel)
       const action = await copy()
-      await expect.poll(clipboard, { timeout: 5_000 }).not.toBe(sentinel)
+      await expect.poll(clipboard).not.toBe(sentinel)
       const actual = await clipboard()
       results.push({ action, selected, expected, actual })
       expect.soft(actual, action).toBe(expected)

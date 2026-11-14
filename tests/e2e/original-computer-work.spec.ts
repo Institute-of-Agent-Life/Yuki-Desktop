@@ -52,9 +52,7 @@ test(
         page
           .getByRole('article')
           .filter({ has: page.getByRole('heading', { name: '原電腦協助工作', exact: true }) })
-      await expect(waiting().getByText(/等待電腦交回/)).toBeVisible({
-        timeout: 30000,
-      })
+      await expect(waiting().getByText(/等待電腦交回/)).toBeVisible()
       await expect.poll(async () => (await facts()).waits.length).toBe(1)
       const initial = await facts()
       expect(initial.phase).toBe(3)
@@ -94,9 +92,7 @@ test(
       expect((await facts()).manager_jobs).toEqual(initial.manager_jobs)
       app = await rig.launch('original-computer-work')
       page = await app.firstWindow()
-      await expect(waiting().getByText(/等待電腦交回/)).toBeVisible({
-        timeout: 20000,
-      })
+      await expect(waiting().getByText(/等待電腦交回/)).toBeVisible()
       await contentSize(app, page, 1440, 900)
       await waiting().getByRole('button', { name: '查看詳情', exact: true }).click()
       await page.getByRole('button', { name: '放大詳情', exact: true }).click()
@@ -173,9 +169,9 @@ test(
           ),
       })
       await sheet.getByRole('button', { name: '交回', exact: true }).click()
-      await expect.poll(async () => (await facts()).phase, { timeout: 30000 }).toBe(6)
+      await expect.poll(async () => (await facts()).phase).toBe(6)
       await page.keyboard.press('ControlOrMeta+1')
-      await expect(waiting().getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
+      await expect(waiting().getByText('已完成', { exact: true })).toBeVisible()
       const final = await facts()
       expect(final.work_ids).toEqual(initial.work_ids)
       expect(final.run_id).toBe(initial.run_id)
@@ -261,7 +257,7 @@ test(
       await rig.restart()
       await expect(
         stage.getByRole('heading', { name: 'Original computer artifact', exact: true }),
-      ).toBeVisible({ timeout: 20000 })
+      ).toBeVisible()
       await expect.poll(async () => (await facts()).work_ids).toEqual(initial.work_ids)
       expect((await facts()).manager_jobs).toEqual(final.manager_jobs)
       const restored = await page.evaluate(async ({ characterId, work }) => {
