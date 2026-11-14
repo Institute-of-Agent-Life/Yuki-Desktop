@@ -47,6 +47,9 @@ export async function sshHost(options: {
   })
   let server: Server
   let port = 0
+  // Logins still to be cut in the middle of authentication, and those already cut.
+  let cutting = 0
+  const cut: string[] = []
   const listen = () =>
     new Promise<void>((resolve) => {
       server = new ssh2.Server({ hostKeys: [host.private] }, (client) => {
@@ -54,6 +57,11 @@ export async function sshHost(options: {
         client.on('close', () => clients.delete(client))
         client.on('error', () => {})
         client.on('authentication', (context) => {
+          if (cutting > 0) {
+            cutting--
+            cut.push(context.method)
+            return client.end()
+          }
           if (context.username !== options.user) return context.reject()
           if (
             context.method === 'password' &&
@@ -127,6 +135,12 @@ export async function sshHost(options: {
     },
     execs,
     forwards,
+    /** Authentication methods of the logins cut by `cutLogins`. */
+    cut,
+    /** The path goes away again while the next `count` logins are authenticating. */
+    cutLogins(count: number) {
+      cutting = count
+    },
     /** The server was reinstalled: same address, a new host key. */
     async rotateKey() {
       await this.stop()

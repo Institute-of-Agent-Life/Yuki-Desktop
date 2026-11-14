@@ -84,6 +84,9 @@ export async function open(target: SshTarget, trusted: string | undefined, secre
           : failure(error),
       )
     })
+    // The host can also hang up mid-login without any error, and ssh2 then drops its ready
+    // timeout too: the path went away.
+    client.once('close', () => reject(new ApiError('ssh_unreachable')))
     client.connect(config)
   })
 }

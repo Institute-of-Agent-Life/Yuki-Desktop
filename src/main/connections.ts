@@ -142,6 +142,13 @@ export class Connections {
     if (kind === 'connection') this.states.set(id, data)
     this.hint(id, kind, data)
   }
+  /** Behind an SSH tunnel a lost request is explained by the tunnel's own last problem. */
+  private lost(id: string, code: string) {
+    const transport = this.connection(id).transport
+    return transport?.kind === 'ssh' && code === 'transport_unknown'
+      ? (this.tunnels.problem(transport.localPort) ?? code)
+      : code
+  }
   publishStates() {
     for (const [id, state] of this.states) this.hint(id, 'connection', state)
   }
@@ -1101,7 +1108,8 @@ export class Connections {
           await this.contentCache(id).clear()
         }
         if (['transport_unknown', 'unavailable'].includes(error.code)) {
-          this.emit(id, 'connection', { state: 'offline', code: error.code })
+          const code = this.lost(id, error.code)
+          this.emit(id, 'connection', { state: 'offline', code })
           const cached =
             offlineCache && !route.kind.startsWith('computer') && route.kind !== 'proactive-route'
               ? box.cached<T>(path)
@@ -1110,6 +1118,7 @@ export class Connections {
             if (route.kind === 'character') this.onProfile?.(id, cached as Profile)
             return cached
           }
+          if (code !== error.code) throw new ApiError(code)
         }
       }
       throw error
@@ -1320,15 +1329,7 @@ export class Connections {
       } catch (error) {
         this.identified.delete(id)
         if (controller.signal.aborted) break
-        const transport = this.connection(id).transport
-        // Behind an SSH tunnel a lost request is explained by the tunnel's own last problem.
-        const code =
-          transport?.kind === 'ssh' &&
-          (!(error instanceof ApiError) || error.code === 'transport_unknown')
-            ? (this.tunnels.problem(transport.localPort) ?? 'transport_unknown')
-            : error instanceof ApiError
-              ? error.code
-              : 'transport_unknown'
+        const code = this.lost(id, error instanceof ApiError ? error.code : 'transport_unknown')
         if (code === 'unauthenticated') {
           await this.previews.close(id)
           this.box(id).clearCache()
