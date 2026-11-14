@@ -290,6 +290,7 @@ export class LocalBot {
     for (const volume of [
       'yuki-sandbox-state',
       'yuki-sandbox-home',
+      'yuki-sandbox-snapshots',
       'yuki-sandbox-runtime',
       'yuki-sandbox-code',
       'yuki-media-cache',

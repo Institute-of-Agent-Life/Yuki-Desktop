@@ -517,6 +517,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/client/v1/computer/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Computer */
+        post: operations["restore_computer_client_v1_computer_restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/client/v1/computer/sleep": {
         parameters: {
             query?: never;
@@ -528,6 +545,23 @@ export interface paths {
         put?: never;
         /** Sleep Computer */
         post: operations["sleep_computer_client_v1_computer_sleep_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client/v1/computer/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Snapshot Computer */
+        post: operations["snapshot_computer_client_v1_computer_snapshots_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1323,6 +1357,44 @@ export interface components {
             /** Memory Mib */
             memory_mib: number;
         };
+        /** ComputerRestore */
+        ComputerRestore: {
+            /** By */
+            by: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /** Error */
+            error?: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Snapshot Id */
+            snapshot_id: string;
+            /** Started At */
+            started_at: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "accepted" | "done" | "failed";
+        };
+        /** ComputerRestoreBody */
+        ComputerRestoreBody: {
+            /**
+             * Confirm Active Work
+             * @default false
+             */
+            confirm_active_work: boolean;
+            /**
+             * Request Id
+             * Format: uuid4
+             */
+            request_id: string;
+            /**
+             * Snapshot Id
+             * Format: uuid4
+             */
+            snapshot_id: string;
+        };
         /** ComputerResult */
         ComputerResult: {
             /** At */
@@ -1338,6 +1410,8 @@ export interface components {
             note?: string | null;
             /** Replay */
             replay?: boolean | null;
+            restore?: components["schemas"]["ComputerRestore"] | null;
+            snapshot?: components["schemas"]["ComputerSnapshot"] | null;
         };
         /** ComputerSleepBody */
         ComputerSleepBody: {
@@ -1346,6 +1420,43 @@ export interface components {
              * @default false
              */
             confirm_active_work_tabs: boolean;
+            /**
+             * Request Id
+             * Format: uuid4
+             */
+            request_id: string;
+        };
+        /** ComputerSnapshot */
+        ComputerSnapshot: {
+            /** By */
+            by: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /** Created At */
+            created_at: string;
+            /** Error */
+            error?: string | null;
+            /** Id */
+            id: string;
+            /** Note */
+            note: string | null;
+            /** Size Bytes */
+            size_bytes: number | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "daily" | "yuki" | "person";
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "creating" | "ready" | "failed";
+        };
+        /** ComputerSnapshotBody */
+        ComputerSnapshotBody: {
+            /** Note */
+            note?: string | null;
             /**
              * Request Id
              * Format: uuid4
@@ -1385,9 +1496,18 @@ export interface components {
             environment: "running" | "stopped" | "unavailable";
             /** Help Requests */
             help_requests: components["schemas"]["ComputerHelp"][];
+            /** Idle Sleep Minutes */
+            idle_sleep_minutes?: number | null;
+            last_restore?: components["schemas"]["ComputerRestore"] | null;
             resources: components["schemas"]["ComputerResources"] | null;
             /** Revision */
             revision: number;
+            /** Session */
+            session?: string | null;
+            /** Snapshot Keep */
+            snapshot_keep?: number | null;
+            /** Snapshots */
+            snapshots?: components["schemas"]["ComputerSnapshot"][] | null;
             /**
              * Snowluma Display
              * @default false
@@ -3761,6 +3881,43 @@ export interface operations {
             };
         };
     };
+    restore_computer_client_v1_computer_restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-yuki-entry"?: string | null;
+                "x-yuki-conversation"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComputerRestoreBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ComputerResult_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     sleep_computer_client_v1_computer_sleep_post: {
         parameters: {
             query?: never;
@@ -3775,6 +3932,43 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ComputerSleepBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ComputerResult_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    snapshot_computer_client_v1_computer_snapshots_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-yuki-entry"?: string | null;
+                "x-yuki-conversation"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComputerSnapshotBody"];
             };
         };
         responses: {

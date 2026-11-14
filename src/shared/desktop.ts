@@ -109,6 +109,9 @@ export interface DesktopBridge {
   onCommand(callback: (command: Command) => void): () => void
   onLeaveRequest(callback: (requestId: string) => void): () => void
   leaveResponse(requestId: string, allowed: boolean): void
+  /** Whether the person can see this window now; remote screens are watched only then. */
+  windowShown(): boolean
+  onWindowShown(callback: (shown: boolean) => void): () => void
   onTheme(
     callback: (theme: Pick<BootInfo, 'dark' | 'reducedTransparency' | 'highContrast'>) => void,
   ): () => void

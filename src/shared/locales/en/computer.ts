@@ -88,4 +88,36 @@ export default {
   bytes_other: '{{count}} bytes',
   saveCurrent: 'Save Current Contents',
   loadMore: 'Load More',
+  idleSleep_one: 'Rests automatically after {{count}} idle minute.',
+  idleSleep_other: 'Rests automatically after {{count}} idle minutes.',
+  snapshots: {
+    title: 'Snapshots',
+    description_one:
+      'Restore points for the whole computer (system and home folder). The latest {{count}} is kept, and one is taken each day when something changed. Chats and memories aren’t in snapshots.',
+    description_other:
+      'Restore points for the whole computer (system and home folder). The latest {{count}} are kept, and one is taken each day when something changed. Chats and memories aren’t in snapshots.',
+    source: { daily: 'Daily', person: 'You' },
+    empty: 'No snapshots yet',
+    creating: 'Taking…',
+    failed: 'Didn’t finish: {{error}}',
+    restore: 'Restore to This',
+    create: 'Take Snapshot',
+    note: 'Note',
+    notePlaceholder: 'Optional, e.g. “Before installing new software”',
+    confirmTitle: 'Restore the Computer to {{time}}?',
+    confirmWhole:
+      'The whole computer goes back to that moment: software installed, files changed and browser sign-ins since then are gone, and running commands are interrupted.',
+    confirmKept: 'Chats and memories aren’t affected.',
+    confirmSites:
+      'Anything already done on websites (such as posts or password changes) isn’t undone.',
+    confirmFirst: 'To keep the computer as it is now, take a snapshot first.',
+    interrupted: 'Work That Will Be Interrupted',
+    interruptedTab: 'Browser tab · Work {{work}} · {{state}}',
+    interruptedRun: 'Running terminal command',
+    interruptedControl: '{{name}} is operating the screen',
+    restoreNow: 'Restore',
+    restoreAnyway: 'Restore Anyway',
+    restoring: 'Restoring the computer to the snapshot from {{time}}',
+    restoreFailed: 'Restoring to the snapshot from {{time}} didn’t finish.',
+  },
 } satisfies English<'computer'>

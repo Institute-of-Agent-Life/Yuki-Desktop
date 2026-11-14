@@ -27,7 +27,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { createWindow, setWindowMode, setKeyboardCapture } from './windows'
+import { createWindow, setWindowMode, setKeyboardCapture, windowShown } from './windows'
 import { applyWindowAppearance, platformMaterial } from './window-appearance'
 import { installMenu } from './menu'
 import { language, setLanguage, t } from './i18n'
@@ -271,6 +271,10 @@ else {
       win.webContents.send('yuki:leave-request', id)
       return promise
     }
+    ipcMain.handle('yuki:window-shown', (event) => {
+      authorize(event)
+      return windowShown(win!)
+    })
     ipcMain.handle('yuki:leave-ready', (event) => {
       authorize(event)
       leaveReady = event.sender.id
