@@ -37,64 +37,51 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Beside the status text; anything after it stays at the far end. */
-.idle {
-  margin-inline-end: auto;
-}
 .helpText {
   flex: 1;
   min-width: 0;
 }
+/* Only lays out the screen; around the picture is the page itself, not a dark frame. */
 .remote {
+  container-type: size;
   display: flex;
   align-items: center;
   justify-content: center;
   flex: 1;
   min-height: 140px;
-  overflow: hidden;
-  border-radius: 12px;
-  background: #171719;
   position: relative;
-  border: 2px solid transparent;
 }
-.held {
+/* Sizes are the picture's own (content box); the border is the held ring around it. */
+.screen {
+  box-sizing: content-box;
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
+  max-width: calc(var(--remote-width) * 1px);
+  max-height: calc(var(--remote-height) * 1px);
+  overflow: auto;
+  border: 2px solid transparent;
+  border-radius: 12px;
+}
+.held .screen {
   border-color: var(--accent);
 }
-.screen {
-  width: 100%;
-  height: 100%;
-  overflow: auto;
+/* Scaled to fit, the screen keeps the remote proportions instead of a letterbox around them. */
+.fitted {
+  width: min(100% - 4px, (100cqh - 4px) * var(--remote-width) / var(--remote-height));
+  height: auto;
+  aspect-ratio: var(--remote-width) / var(--remote-height);
 }
 .screen canvas {
   outline: none;
 }
-.floating {
-  position: absolute;
-  bottom: 12px;
-  left: 0;
-  right: 0;
-  width: fit-content;
-  margin: 0 auto;
+.screenControls {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 36px;
-  padding: 0 8px;
-  border-radius: 18px;
-  background: rgb(28 28 30 / 0.5);
-  backdrop-filter: var(--glass-clear);
-  color: white;
-  white-space: nowrap;
-  box-shadow: 0 4px 16px #0003;
-  --text-primary: white;
-  --text-secondary: #e0e0e0;
+  margin-left: auto;
 }
-.floating button {
-  color: white;
-}
-.floating small {
+.screenControls small {
   font-size: 11px;
-  padding-left: 6px;
+  color: var(--text-secondary);
+  padding: 0 8px 0 4px;
 }
 .connecting {
   position: absolute;
@@ -106,6 +93,7 @@
   gap: 16px;
   color: #eee;
   background: #1c1c1e;
+  border-radius: 12px;
   font-size: 13px;
 }
 .status {
@@ -237,9 +225,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-[data-opaque='true'] .floating {
-  background: rgba(28, 28, 30, 0.96);
 }
 @media (max-height: 600px) {
   .computer {

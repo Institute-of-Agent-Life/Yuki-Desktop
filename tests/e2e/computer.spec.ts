@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Profile } from '../../src/shared/api'
 import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
+import { contentSize } from '../fixtures/visual'
 
 async function characterName(page: Page) {
   const connection = await currentConnection(page)
@@ -67,6 +68,8 @@ test(
       await expect(pa.getByRole('button', { name: `交回給 ${name}`, exact: true })).toBeEnabled()
       await expect(pb.getByRole('button', { name: '改由這台控制', exact: true })).toBeVisible()
       const firstLease = (await facts()).control.lease_id
+      // In the smallest window the screen is scaled down to fit; a click on it still reaches noVNC.
+      await contentSize(a, pa, 960, 640)
       await pa
         .getByRole('application', { name: '遠端電腦畫面' })
         .click({ position: { x: 80, y: 80 } })
