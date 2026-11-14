@@ -4,6 +4,7 @@ import { Button, StatusPill, type Status } from './Controls'
 import { ConversationGlass } from '../materials/ConversationGlass'
 import glassStyles from '../materials/ConversationGlass.module.css'
 import styles from './Content.module.css'
+import { useTranslation } from '../i18n'
 
 export function WorkCard({
   title,
@@ -26,6 +27,7 @@ export function WorkCard({
   onCancel?: () => void
   children?: ReactNode
 }) {
+  const { t } = useTranslation(['conversation'])
   return (
     <article className={`${styles.work} ${glassStyles.root}`}>
       <ConversationGlass kind="work-card" />
@@ -40,7 +42,7 @@ export function WorkCard({
             {question}
             <div>
               <Button variant="plain" onClick={onReply}>
-                回覆
+                {t('conversation:work.reply')}
               </Button>
             </div>
           </div>
@@ -48,11 +50,11 @@ export function WorkCard({
         {children}
         <footer className={styles.workActions}>
           <Button variant="plain" onClick={onOpen}>
-            查看詳情
+            {t('conversation:work.details')}
           </Button>
           {onCancel && (
             <Button variant="destructive" onClick={onCancel}>
-              取消工作
+              {t('conversation:work.cancel')}
             </Button>
           )}
         </footer>
@@ -61,6 +63,7 @@ export function WorkCard({
   )
 }
 export function StepRow({ label, status, time }: { label: string; status: Status; time?: string }) {
+  const { t } = useTranslation(['conversation'])
   const Icon =
     status === 'done' ? Check : status === 'failed' ? X : status === 'unknown' ? CircleHelp : Circle
   return (
@@ -71,16 +74,7 @@ export function StepRow({ label, status, time }: { label: string; status: Status
         color={`var(--status-${status})`}
         fill={status === 'running' ? `var(--status-${status})` : 'none'}
         role="img"
-        aria-label={
-          {
-            running: '執行中',
-            waiting: '等待中',
-            done: '已完成',
-            failed: '失敗',
-            unknown: '結果未確認',
-            offline: '離線',
-          }[status]
-        }
+        aria-label={t(`conversation:step.${status}`)}
       />
       <span title={label}>{label}</span>
       {time && <time>{time}</time>}

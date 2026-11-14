@@ -123,6 +123,9 @@ jobs:
           repository: YuanYeYouTao/Yuki
           ref: ${{ steps.backend.outputs.commit }}
           path: .cache/backend
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.11.31'
       - run: npm ci
       - name: Build the actual App-only Bot image
         run: docker build --target direct --tag yuki-desktop-local:ci .cache/backend

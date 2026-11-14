@@ -62,7 +62,8 @@ test('actual settings paths retain native preferences, timezone, notifications a
     const originalTimestamp = await time.getAttribute('datetime')
     const expectedTaipei = await page.evaluate(
       (timestamp) =>
-        new Date(timestamp!).toLocaleString(undefined, {
+        // Times follow the interface language (zh-Hant in E2E), not the machine's locale.
+        new Date(timestamp!).toLocaleString('zh-Hant', {
           timeZone: 'Asia/Taipei',
           hour: '2-digit',
           minute: '2-digit',
@@ -135,7 +136,7 @@ test('actual settings paths retain native preferences, timezone, notifications a
     await page.getByRole('button', { name: '返回', exact: true }).click()
     const expectedSystem = await page.evaluate(
       (timestamp) =>
-        new Date(timestamp!).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' }),
+        new Date(timestamp!).toLocaleString('zh-Hant', { hour: '2-digit', minute: '2-digit' }),
       originalTimestamp,
     )
     await expect(time).toHaveText(expectedSystem)

@@ -3,8 +3,9 @@ import type { components } from './contract.gen'
 import type { NavigationTarget } from './desktop'
 import type { MessageReference } from './message'
 import type { ModelsBridge } from './models'
+import type { PlatformsBridge } from './platforms'
 
-export const REQUIRED_API_REVISION = 9
+export const REQUIRED_API_REVISION = 11
 
 export type Meta = ServerComponents['schemas']['Meta']
 export type Me = components['schemas']['Me']
@@ -159,6 +160,8 @@ export interface Connection {
   bindingId: string
   conversationId: string
   persistentCredentials: boolean
+  /** Connections saved before transports existed have none: they are direct. */
+  transport?: import('./ssh').Transport
   deviceId?: string
   needsPairing?: boolean
   credentialProblem?: string
@@ -185,7 +188,14 @@ export interface OutboxItem {
   problem: string | null
   createdAt: number
 }
-export type ApiReply<T> = { ok: true; value: T } | { ok: false; code: string; reason?: string }
+export type ApiReply<T> =
+  | { ok: true; value: T }
+  | {
+      ok: false
+      code: string
+      reason?: string
+      details?: Record<string, components['schemas']['JsonValue']>
+    }
 export interface UploadDraft {
   requestId: string
   filename: string
@@ -238,6 +248,7 @@ export type ApiRead =
 
 export interface ConversationBridge {
   models: ModelsBridge
+  platforms: PlatformsBridge
   pendingPairings(): Promise<ApiReply<PendingPairing[]>>
   resumePairing(characterId: string, deviceId: string): Promise<ApiReply<Connection>>
   forgetPairing(characterId: string, deviceId: string): Promise<ApiReply<void>>
@@ -254,7 +265,6 @@ export interface ConversationBridge {
   linkCodeRequests(characterId: string): Promise<ApiReply<LinkCodeRequest[]>>
   verifyLinkCode(characterId: string, requestId: string): Promise<ApiReply<LinkCodeReply>>
   serverInfo(characterId: string): Promise<ApiReply<Meta>>
-  changeAddress(characterId: string, server: string): Promise<ApiReply<Connection>>
   soulDocument(
     characterId: string,
   ): Promise<ApiReply<{ document: SoulDocument; draft: SoulDraft | null }>>
@@ -297,6 +307,10 @@ export interface ConversationBridge {
   uploads(characterId: string): Promise<ApiReply<UploadDraft[]>>
   attach(characterId: string): Promise<ApiReply<UploadDraft[]>>
   drop(characterId: string, files: File[]): Promise<ApiReply<UploadDraft[]>>
+  /** Pasted files stage as dropped ones; picture data without a file stages as a PNG. */
+  pasteFiles(characterId: string, files: File[]): Promise<ApiReply<UploadDraft[]>>
+  /** Long pasted text stages as a Markdown file. */
+  pasteText(characterId: string, text: string): Promise<ApiReply<UploadDraft[]>>
   record(characterId: string, bytes: Uint8Array): Promise<ApiReply<UploadDraft>>
   microphone(): Promise<ApiReply<void>>
   retryUpload(characterId: string, requestId: string): Promise<ApiReply<UploadDraft>>
@@ -359,4 +373,5 @@ export interface PendingPairing {
   name: string
   deviceId: string
   persistentCredentials: boolean
+  transport?: import('./ssh').Transport
 }

@@ -12,6 +12,7 @@ import { unwrap, problemText } from '../queries/client'
 import styles from './Media.module.css'
 import { formatBytes as size } from '../../shared/media'
 import { useMediaContent } from './media-content'
+import { useTranslation } from '../i18n'
 
 type Attachment = PublicEvent['attachments'][number]
 export function MessageAttachment({
@@ -57,6 +58,7 @@ export function MessageAttachment({
     attachment.artifact_id && attachment.version
       ? { artifactId: attachment.artifact_id, version: attachment.version }
       : source
+  const { t } = useTranslation(['media', 'errors'])
   const content = useMediaContent(id, resource, image && visible),
     url = content.data?.preview?.url
   const [menuError, setMenuError] = useState('')
@@ -79,7 +81,7 @@ export function MessageAttachment({
         click.stopPropagation()
         void window.yuki.client
           .contextMenu({
-            text: attachment.filename ?? '附件',
+            text: attachment.filename ?? t('media:attachment'),
             save: true,
           })
           .then(unwrap)
@@ -91,13 +93,15 @@ export function MessageAttachment({
                   : window.yuki.client.saveContent(id, resource)
               ).then(unwrap)
           })
-          .catch((error) => setMenuError(error instanceof Error ? error.message : '操作未完成。'))
+          .catch((error) =>
+            setMenuError(error instanceof Error ? error.message : t('errors:notCompleted')),
+          )
       }}
     >
       {image && url && (
         <img
           src={url}
-          alt={sticker ?? attachment.filename ?? '圖片附件'}
+          alt={sticker ?? attachment.filename ?? t('media:imageAttachment')}
           hidden={waiting}
           onLoad={() => setShown(url)}
         />
@@ -110,7 +114,8 @@ export function MessageAttachment({
             {image ? <ImageIcon size={20} /> : voice ? <Mic size={20} /> : <File size={20} />}
           </span>
           <span className={styles.filename}>
-            {attachment.filename ?? (image ? '圖片' : voice ? '語音訊息' : '檔案')}
+            {attachment.filename ??
+              t(image ? 'media:image' : voice ? 'media:voiceMessage' : 'media:file')}
           </span>
           {attachment.size !== null && attachment.size !== undefined && (
             <small>{size(attachment.size)}</small>
@@ -120,7 +125,7 @@ export function MessageAttachment({
       )}
       {image && status && <small>{status}</small>}
       {menuError && <small role="alert">{menuError}</small>}
-      {attachment.artifact_id && !sticker && <small>成果檔案</small>}
+      {attachment.artifact_id && !sticker && <small>{t('media:artifactFile')}</small>}
     </button>
   )
 }
@@ -133,19 +138,20 @@ export function DraftAttachments({
   items: UploadDraft[]
   refresh(): void
 }) {
+  const { t } = useTranslation(['media', 'errors'])
   const [error, setError] = useState('')
   const run = async (work: Promise<unknown>) => {
     try {
       await work
       refresh()
     } catch (error) {
-      setError(error instanceof Error ? error.message : '操作未完成。')
+      setError(error instanceof Error ? error.message : t('errors:notCompleted'))
     }
   }
   return (
     <>
       {!!items.length && (
-        <div className={styles.drafts} aria-label="待送出附件">
+        <div className={styles.drafts} aria-label={t('media:drafts')}>
           {items.map((item) => (
             <div className={styles.draft} key={item.requestId}>
               {item.kind === 'record' ? <Mic size={18} /> : <File size={18} />}
@@ -155,11 +161,13 @@ export function DraftAttachments({
                   {size(item.size)} ·{' '}
                   {item.problem
                     ? problemText(item.problem)
-                    : item.state === 'ready'
-                      ? '可送出'
-                      : item.state === 'draft'
-                        ? '等待上傳'
-                        : '上傳狀態未確認'}
+                    : t(
+                        item.state === 'ready'
+                          ? 'media:upload.ready'
+                          : item.state === 'draft'
+                            ? 'media:upload.draft'
+                            : 'media:upload.unknown',
+                      )}
                 </small>
               </span>
               {item.state !== 'ready' && (
@@ -169,11 +177,11 @@ export function DraftAttachments({
                     void run(window.yuki.client.retryUpload(id, item.requestId).then(unwrap))
                   }
                 >
-                  {item.state === 'failed' ? '查證' : '查證並重試'}
+                  {t(item.state === 'failed' ? 'media:verify' : 'media:verifyAndRetry')}
                 </Button>
               )}
               <IconButton
-                label={`移除 ${item.filename}`}
+                label={t('media:removeItem', { name: item.filename })}
                 onClick={() =>
                   void run(window.yuki.client.removeUpload(id, item.requestId).then(unwrap))
                 }
@@ -197,19 +205,20 @@ export function AttachmentPreview({
   source: AttachmentSource
   close(): void
 }) {
+  const { t } = useTranslation(['media'])
   const content = useMediaContent(id, source),
     data = content.error ? undefined : content.data,
     [problem, setProblem] = useState('')
   return (
     <div className={styles.preview}>
       <header>
-        <strong>{data?.filename ?? '附件預覽'}</strong>
-        <IconButton label="關閉預覽" onClick={close}>
+        <strong>{data?.filename ?? t('media:preview')}</strong>
+        <IconButton label={t('media:closePreview')} onClick={close}>
           <X size={16} />
         </IconButton>
       </header>
       {content.error && <Banner status="failed">{content.error.message}</Banner>}
-      {content.isPending && <p role="status">正在讀取附件…</p>}
+      {content.isPending && <p role="status">{t('media:readingAttachment')}</p>}
       {data && (
         <>
           {data.preview ? (
@@ -219,7 +228,7 @@ export function AttachmentPreview({
               /\.(txt|md|json|csv|py|js|ts|yaml|yml|log)$/i.test(data.filename)) ? (
             <pre>{new TextDecoder().decode(data.bytes)}</pre>
           ) : (
-            <p>此類型的附件可存成檔案後開啟。</p>
+            <p>{t('media:saveToOpen')}</p>
           )}
           <Button
             onClick={() => {
@@ -230,7 +239,7 @@ export function AttachmentPreview({
             }}
           >
             <Download size={16} />
-            存成檔案
+            {t('media:saveAsFile')}
           </Button>
         </>
       )}
@@ -241,6 +250,7 @@ export function AttachmentPreview({
 
 /** Both event attachments and versioned artifacts use the same player. */
 export function MediaBody({ content }: { content: CachedContent }) {
+  const { t } = useTranslation(['media'])
   const [failed, setFailed] = useState(false),
     url = content.preview?.url
   useEffect(() => setFailed(false), [url])
@@ -254,9 +264,9 @@ export function MediaBody({ content }: { content: CachedContent }) {
       ) : content.mime.startsWith('video/') ? (
         <video src={url} controls preload="metadata" onError={error} />
       ) : content.mime === 'application/pdf' ? (
-        <iframe src={url} title={`PDF 預覽：${content.filename}`} />
+        <iframe src={url} title={t('media:pdfPreview', { name: content.filename })} />
       ) : null}
-      {failed && <p>這台電腦無法預覽此格式，可存成檔案後開啟。</p>}
+      {failed && <p>{t('media:cannotPreview')}</p>}
     </div>
   )
 }

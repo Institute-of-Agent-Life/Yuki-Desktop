@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { BootInfo, Command, DesktopBridge } from '../shared/desktop'
 import type { ConnectorDriver } from '../shared/connector'
+import type { Language } from '../shared/locales'
 
 const bridge: DesktopBridge = {
   connector: {
@@ -47,10 +48,37 @@ const bridge: DesktopBridge = {
     start: () => ipcRenderer.invoke('yuki:local-bot-start'),
     stop: () => ipcRenderer.invoke('yuki:local-bot-stop'),
     connect: () => ipcRenderer.invoke('yuki:local-bot-connect'),
+    enableSnowLuma: (image) => ipcRenderer.invoke('yuki:local-bot-snowluma', image),
     onProgress(callback) {
       const listener = (_event: Electron.IpcRendererEvent, message: string) => callback(message)
       ipcRenderer.on('yuki:local-bot-progress', listener)
       return () => ipcRenderer.removeListener('yuki:local-bot-progress', listener)
+    },
+  },
+  ssh: {
+    probe: (host, port) => ipcRenderer.invoke('yuki:ssh-probe', host, port),
+    forgetHost: (host, port) => ipcRenderer.invoke('yuki:ssh-forget-host', host, port),
+    chooseKey: () => ipcRenderer.invoke('yuki:ssh-choose-key'),
+    pair: (input) => ipcRenderer.invoke('yuki:ssh-pair', input),
+    changeTransport: (id, change) => ipcRenderer.invoke('yuki:ssh-change-transport', id, change),
+    upgrade: (id) => ipcRenderer.invoke('yuki:ssh-upgrade', id),
+    logs: (id) => ipcRenderer.invoke('yuki:ssh-logs', id),
+    snowLuma: (id, image) => ipcRenderer.invoke('yuki:ssh-snowluma', id, image),
+  },
+  remoteDeploy: {
+    state: () => ipcRenderer.invoke('yuki:remote-deploy-state'),
+    check: (access) => ipcRenderer.invoke('yuki:remote-deploy-check', access),
+    installDocker: (access, mirror) =>
+      ipcRenderer.invoke('yuki:remote-deploy-install-docker', access, mirror),
+    prepare: (access) => ipcRenderer.invoke('yuki:remote-deploy-prepare', access),
+    deploy: (input) => ipcRenderer.invoke('yuki:remote-deploy', input),
+    onProgress(callback) {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        step: import('../shared/ssh').RemoteDeployStep,
+      ) => callback(step)
+      ipcRenderer.on('yuki:remote-deploy-progress', listener)
+      return () => ipcRenderer.removeListener('yuki:remote-deploy-progress', listener)
     },
   },
   client: {
@@ -60,6 +88,10 @@ const bridge: DesktopBridge = {
       test: (id, input) => ipcRenderer.invoke('yuki:models-test', id, input),
       discover: (id, input) => ipcRenderer.invoke('yuki:models-discover', id, input),
       stats: (id, query) => ipcRenderer.invoke('yuki:models-stats', id, query),
+    },
+    platforms: {
+      read: (id) => ipcRenderer.invoke('yuki:platforms-read', id),
+      apply: (id, input) => ipcRenderer.invoke('yuki:platforms-apply', id, input),
     },
     pendingPairings: () => ipcRenderer.invoke('yuki:pending-pairings'),
     resumePairing: (id, device) => ipcRenderer.invoke('yuki:resume-pairing', id, device),
@@ -74,7 +106,6 @@ const bridge: DesktopBridge = {
     linkCodeRequests: (id) => ipcRenderer.invoke('yuki:link-code-requests', id),
     verifyLinkCode: (id, request) => ipcRenderer.invoke('yuki:verify-link-code', id, request),
     serverInfo: (id) => ipcRenderer.invoke('yuki:server-info', id),
-    changeAddress: (id, server) => ipcRenderer.invoke('yuki:change-address', id, server),
     soulDocument: (id) => ipcRenderer.invoke('yuki:soul-document', id),
     soulEdit: (id, edit) => ipcRenderer.invoke('yuki:soul-edit', id, edit),
     soulDraft: (id) => ipcRenderer.invoke('yuki:soul-draft', id),
@@ -123,6 +154,13 @@ const bridge: DesktopBridge = {
         id,
         files.map((file) => webUtils.getPathForFile(file)).filter(Boolean),
       ),
+    pasteFiles: (id, files) =>
+      ipcRenderer.invoke(
+        'yuki:paste-files',
+        id,
+        files.map((file) => webUtils.getPathForFile(file)),
+      ),
+    pasteText: (id, text) => ipcRenderer.invoke('yuki:paste-text', id, text),
     record: (id, bytes) => ipcRenderer.invoke('yuki:record', id, bytes),
     microphone: () => ipcRenderer.invoke('yuki:microphone'),
     retryUpload: (id, request) => ipcRenderer.invoke('yuki:retry-upload', id, request),
@@ -198,6 +236,11 @@ const bridge: DesktopBridge = {
     ) => callback(theme)
     ipcRenderer.on('yuki:theme', listener)
     return () => ipcRenderer.removeListener('yuki:theme', listener)
+  },
+  onLanguage(callback) {
+    const listener = (_event: Electron.IpcRendererEvent, language: Language) => callback(language)
+    ipcRenderer.on('yuki:language', listener)
+    return () => ipcRenderer.removeListener('yuki:language', listener)
   },
   onPairLink(callback) {
     const listener = (_event: Electron.IpcRendererEvent, link: string) => callback(link)

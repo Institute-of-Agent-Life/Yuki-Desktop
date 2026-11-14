@@ -1,0 +1,80 @@
+/* Messages on the list are sentences; let them wrap instead of the toolbar banner's single line. */
+.platforms div[role='status'] {
+  height: auto;
+  min-height: 32px;
+  padding: 8px 16px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+  flex-wrap: wrap;
+}
+.mode {
+  margin-bottom: 16px;
+}
+.body {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.body > button {
+  justify-self: start;
+}
+.body > section {
+  margin-bottom: 0;
+}
+.note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+.limits {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-secondary);
+}
+.limits strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.limits ul,
+.howTo ol {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}
+.howTo {
+  font-size: 13px;
+  line-height: 20px;
+}
+.howTo ol,
+.howTo .note {
+  margin: 8px 0;
+}
+.howTo ol {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+.commands {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  min-width: 0;
+}
+/* The same code block as the Tailscale guide's command. */
+.commands code {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--fill-code);
+  font: 12px/18px var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}

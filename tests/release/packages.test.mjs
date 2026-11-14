@@ -286,7 +286,7 @@ test('real archive inspection rejects an application whose CPU differs from its 
     await assert.rejects(auditInstaller(file), /Executable architecture mismatch: darwin\/arm64/)
   }))
 
-async function packagedFixture(root) {
+async function packagedFixture(root, packed = {}) {
   const source = join(root, 'product')
   const directory = join(root, 'packaged')
   const marker = 'unique packed runtime integrity fixture'
@@ -302,6 +302,8 @@ async function packagedFixture(root) {
     'resources/icons/trayTemplate@2x.png': 'icon fixture',
     'package.json': '{"name":"integrity-fixture"}',
     LICENSE: 'unit fixture',
+    'node_modules/ssh2/lib/index.js': 'module.exports = {}',
+    ...packed,
   }
   for (const size of [16, 32, 64, 128, 256, 512, 1024])
     files[`resources/icons/app/${size}x${size}.png`] = 'icon fixture'
@@ -347,9 +349,12 @@ async function packagedFixture(root) {
     'docker-compose.yml',
     'docker-compose.local.yml',
     'config/SOUL.md',
+    'server/install.sh',
+    'server/yuki-1.2.3-deploy.tar.gz',
   ])
     extra['local-bot/' + name] = 'template fixture'
   extra['local-bot/manifest.json'] = JSON.stringify({
+    version: '1.2.3',
     revision: 'a'.repeat(40),
     image: 'fixture-image',
   })
@@ -564,6 +569,17 @@ for (const launcher of ['t64-arm.exe', 'w64-arm.exe'])
       )
       assert.equal(called, false)
     }))
+test('SSH ships as pure JavaScript: optional native ssh2 code in the package is rejected', async () => {
+  for (const path of [
+    'node_modules/cpu-features/lib/index.js',
+    'node_modules/nan/nan.h',
+    'node_modules/ssh2/lib/protocol/crypto/build/Release/sshcrypto.node',
+  ])
+    await fixture(async (root) => {
+      const { directory } = await packagedFixture(root, { [path]: 'native fixture' })
+      assert.throws(() => checkPackage(directory), /Optional native SSH code in package/)
+    })
+})
 test('local Bot resources reject an accidental private env file', async () =>
   fixture(async (root) => {
     const { directory } = await packagedFixture(root)

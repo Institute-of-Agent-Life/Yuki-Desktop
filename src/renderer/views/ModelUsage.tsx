@@ -10,50 +10,54 @@ import type {
 import { Banner, Segmented, Spinner } from '../components/Controls'
 import { unwrap } from '../queries/client'
 import { useDisplayTime } from '../state/time'
+import { useTranslation } from '../i18n'
 import { modelTaskLabel } from './model-document'
 import styles from './ModelUsage.module.css'
 
 type Field = keyof ModelUsageStats['coverage']
 type GroupBy = ModelStatsView['group_by']
-const exact = new Intl.NumberFormat('zh-Hant-TW', { maximumFractionDigits: 3 })
-const compact = new Intl.NumberFormat('zh-Hant-TW', { maximumFractionDigits: 2 })
-const percentage = new Intl.NumberFormat('zh-Hant-TW', {
-  style: 'percent',
-  maximumFractionDigits: 1,
-})
-const ranges: { value: ModelStatsQuery['range']; label: string }[] = [
-  { value: 'today', label: '今日' },
-  { value: '24h', label: '近 24 小時' },
-  { value: '7d', label: '近 7 天' },
-  { value: 'all', label: '全部留存' },
-]
 
-function quantity(value: number) {
-  for (const [size, suffix] of [
-    [1e9, 'B'],
-    [1e6, 'M'],
-    [1e3, 'K'],
-  ] as const) {
-    if (value >= size) return `${compact.format(value / size)} ${suffix}`
+// Numbers follow the interface language; a language switch re-renders through the hook.
+function useNumbers() {
+  const { t, i18n } = useTranslation(['models'])
+  const exact = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 3 })
+  const compact = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 })
+  const percentage = new Intl.NumberFormat(i18n.language, {
+    style: 'percent',
+    maximumFractionDigits: 1,
+  })
+  const quantity = (value: number) => {
+    for (const [size, suffix] of [
+      [1e9, 'B'],
+      [1e6, 'M'],
+      [1e3, 'K'],
+    ] as const) {
+      if (value >= size) return `${compact.format(value / size)} ${suffix}`
+    }
+    return exact.format(value)
   }
-  return exact.format(value)
-}
-
-function tokens(stats: ModelUsageStats, field: Field, full = false) {
-  if (stats.invocations && !stats.coverage[field]) return '未知'
-  return full ? exact.format(stats[field]) : quantity(stats[field])
+  const tokens = (stats: ModelUsageStats, field: Field, full = false) => {
+    if (stats.invocations && !stats.coverage[field]) return t('models:usage.unknown')
+    return full ? exact.format(stats[field]) : quantity(stats[field])
+  }
+  return { exact, percentage, quantity, tokens }
 }
 
 function StatsDetail({ stats }: { stats: ModelUsageStats }) {
+  const { t } = useTranslation(['models'])
+  const { exact, tokens } = useNumbers()
   const fields: [string, string][] = [
-    ['輸入 Token', tokens(stats, 'prompt_tokens', true)],
-    ['輸出 Token', tokens(stats, 'completion_tokens', true)],
-    ['快取讀取', tokens(stats, 'cached_prompt_tokens', true)],
-    ['快取建立', tokens(stats, 'cache_creation_input_tokens', true)],
-    ['呼叫次數', exact.format(stats.invocations)],
-    ['呼叫失敗', exact.format(stats.failures)],
-    ['未完整回報用量', exact.format(stats.unknown_usage)],
-    ['平均請求延遲', `${exact.format(stats.average_latency_seconds)} 秒`],
+    [t('models:usage.promptTokens'), tokens(stats, 'prompt_tokens', true)],
+    [t('models:usage.completionTokens'), tokens(stats, 'completion_tokens', true)],
+    [t('models:usage.cacheRead'), tokens(stats, 'cached_prompt_tokens', true)],
+    [t('models:usage.cacheCreation'), tokens(stats, 'cache_creation_input_tokens', true)],
+    [t('models:usage.invocations'), exact.format(stats.invocations)],
+    [t('models:usage.failures'), exact.format(stats.failures)],
+    [t('models:usage.unknownUsage'), exact.format(stats.unknown_usage)],
+    [
+      t('models:usage.averageLatency'),
+      t('models:usage.seconds', { seconds: exact.format(stats.average_latency_seconds) }),
+    ],
   ]
   return (
     <dl className={styles.detailStats}>
@@ -78,19 +82,26 @@ function UsageGroup({
   total: number
   historical?: boolean
 }) {
+  const { t } = useTranslation(['models'])
+  const { exact, percentage, tokens } = useNumbers()
+  const calls = (count: number) =>
+    t('models:usage.invocationCount', { count, value: exact.format(count) })
   const name =
     by === 'model'
-      ? group.model || '未標註模型'
+      ? group.model || t('models:usage.unlabeledModel')
       : historical
-        ? group.task || '未標註用途'
-        : modelTaskLabel(group.task!)
+        ? group.task || t('models:usage.unlabeledTask')
+        : modelTaskLabel(t, group.task!)
   const models = [...new Set(group.sources.map((source) => source.model))]
   const description =
     by === 'model'
-      ? group.provider || '未標註供應商'
+      ? group.provider || t('models:usage.unlabeledProvider')
       : models.length === 1
-        ? models[0] || '未標註模型'
-        : `${models.length} 個模型`
+        ? models[0] || t('models:usage.unlabeledModel')
+        : t('models:usage.models', {
+            count: models.length,
+            value: exact.format(models.length),
+          })
   const known = group.stats.coverage.total_tokens > 0
   const share = total && known ? group.stats.total_tokens / total : null
   return (
@@ -99,7 +110,7 @@ function UsageGroup({
         <div className={styles.groupName}>
           <strong title={name}>{name}</strong>
           <span>
-            {description} · {exact.format(group.stats.invocations)} 次呼叫
+            {description} · {calls(group.stats.invocations)}
           </span>
           {share !== null && (
             <div className={styles.shareTrack} aria-hidden="true">
@@ -118,7 +129,7 @@ function UsageGroup({
       <div className={styles.groupDetails}>
         <StatsDetail stats={group.stats} />
         <details className={styles.sources}>
-          <summary>來源資料</summary>
+          <summary>{t('models:usage.sources')}</summary>
           <ul>
             {group.sources.map((source) => (
               <li
@@ -130,15 +141,20 @@ function UsageGroup({
                 ])}
               >
                 <span>
-                  {source.model || '未標註模型'} · {source.provider || '未標註供應商'}
+                  {source.model || t('models:usage.unlabeledModel')} ·{' '}
+                  {source.provider || t('models:usage.unlabeledProvider')}
                 </span>
                 <span>
-                  原用途 <code>{source.task || '未標註'}</code> · 原配置{' '}
-                  <code>{source.profile_id || '未標註'}</code>
+                  {t('models:usage.originalTask')}{' '}
+                  <code>{source.task || t('models:usage.unlabeled')}</code> ·{' '}
+                  {t('models:usage.originalProfile')}{' '}
+                  <code>{source.profile_id || t('models:usage.unlabeled')}</code>
                 </span>
                 <span>
-                  {tokens(source.stats, 'total_tokens', true)} Token ·{' '}
-                  {exact.format(source.stats.invocations)} 次呼叫
+                  {t('models:usage.tokenAmount', {
+                    tokens: tokens(source.stats, 'total_tokens', true),
+                  })}{' '}
+                  · {calls(source.stats.invocations)}
                 </span>
               </li>
             ))}
@@ -156,7 +172,9 @@ export function ModelUsage({
   characterId: string
   tasks: readonly string[]
 }) {
+  const { t } = useTranslation(['models'])
   const display = useDisplayTime()
+  const { exact, percentage, quantity, tokens } = useNumbers()
   const timezone =
     display.zone === 'system' ? Intl.DateTimeFormat().resolvedOptions().timeZone : display.zone
   const [period, setPeriod] = useState<{ range: ModelStatsQuery['range']; end: string }>({
@@ -194,16 +212,21 @@ export function ModelUsage({
   const visible = data?.groups.filter((group) => by === 'model' || currentTask(group.task!)) ?? []
   const key = (group: ModelUsageGroup) => JSON.stringify([group.task, group.provider, group.model])
   return (
-    <section aria-label="模型用量" className={styles.usage}>
+    <section aria-label={t('models:usage.title')} className={styles.usage}>
       <header className={styles.header}>
         <div>
-          <h2>用量</h2>
-          <p>看看 Yuki 這段時間用了多少。</p>
+          <h2>{t('models:usage.heading')}</h2>
+          <p>{t('models:usage.intro')}</p>
         </div>
         <Segmented
           kind="radio"
-          label="統計時間範圍"
-          items={ranges}
+          label={t('models:usage.ranges')}
+          items={[
+            { value: 'today', label: t('models:usage.range.today') },
+            { value: '24h', label: t('models:usage.range.last24h') },
+            { value: '7d', label: t('models:usage.range.last7d') },
+            { value: 'all', label: t('models:usage.range.all') },
+          ]}
           value={period.range}
           onChange={changeRange}
         />
@@ -214,41 +237,49 @@ export function ModelUsage({
         <Spinner />
       ) : (
         <>
-          <div className={styles.hero} aria-label="用量摘要">
+          <div className={styles.hero} aria-label={t('models:usage.summary')}>
             <p className={styles.eyebrow}>
-              已回報 Token{' '}
+              {t('models:usage.reported')}{' '}
               {filter && (
                 <span>
-                  · <span>篩選結果</span>
+                  · <span>{t('models:usage.filtered')}</span>
                 </span>
               )}
             </p>
             <div className={styles.total}>
-              <output aria-label="已回報 Token" title={tokens(summary!, 'total_tokens', true)}>
+              <output
+                aria-label={t('models:usage.reported')}
+                title={tokens(summary!, 'total_tokens', true)}
+              >
                 {tokens(summary!, 'total_tokens')}
               </output>
-              <span>Token</span>
+              <span>{t('models:usage.tokenUnit')}</span>
             </div>
             <dl className={styles.metrics}>
               <div>
-                <dt>輸入</dt>
+                <dt>{t('models:usage.input')}</dt>
                 <dd title={tokens(summary!, 'prompt_tokens', true)}>
                   {tokens(summary!, 'prompt_tokens')}
                 </dd>
               </div>
               <div>
-                <dt>輸出</dt>
+                <dt>{t('models:usage.output')}</dt>
                 <dd title={tokens(summary!, 'completion_tokens', true)}>
                   {tokens(summary!, 'completion_tokens')}
                 </dd>
               </div>
               <div>
-                <dt>呼叫</dt>
-                <dd>{exact.format(summary!.invocations)} 次</dd>
+                <dt>{t('models:usage.calls')}</dt>
+                <dd>
+                  {t('models:usage.callCount', {
+                    count: summary!.invocations,
+                    value: exact.format(summary!.invocations),
+                  })}
+                </dd>
               </div>
             </dl>
             <div className={styles.cache}>
-              <span>快取讀取</span>
+              <span>{t('models:usage.cacheRead')}</span>
               <div className={styles.cacheTrack} aria-hidden="true">
                 <span
                   style={{
@@ -264,40 +295,49 @@ export function ModelUsage({
               </strong>
               <span>
                 {summary!.cache_read.ratio === null
-                  ? '比例不適用'
-                  : `${percentage.format(summary!.cache_read.ratio)} 的成對輸入`}
+                  ? t('models:usage.ratioNotApplicable')
+                  : t('models:usage.pairedInput', {
+                      percent: percentage.format(summary!.cache_read.ratio),
+                    })}
               </span>
             </div>
             {summary!.cache_read.reported_calls < summary!.invocations && (
               <p className={styles.coverage}>
-                快取比例依 {exact.format(summary!.cache_read.reported_calls)}／
-                {exact.format(summary!.invocations)} 次同時回報輸入與快取的呼叫計算。
+                {t('models:usage.coverage', {
+                  count: summary!.invocations,
+                  reported: exact.format(summary!.cache_read.reported_calls),
+                  value: exact.format(summary!.invocations),
+                })}
               </p>
             )}
           </div>
           <div className={styles.groupBar}>
             <Segmented
               kind="radio"
-              label="用量分組"
+              label={t('models:usage.groups')}
               items={[
-                { value: 'model', label: '模型' },
-                { value: 'task', label: '用途' },
+                { value: 'model', label: t('models:usage.byModel') },
+                { value: 'task', label: t('models:usage.byTask') },
               ]}
               value={by}
               onChange={changeGroup}
             />
             <label className={styles.filter}>
-              <span>{by === 'model' ? '用途' : '模型'}</span>
+              <span>{t(by === 'model' ? 'models:usage.byTask' : 'models:usage.byModel')}</span>
               <select
-                aria-label={by === 'model' ? '篩選用途' : '篩選模型'}
+                aria-label={t(
+                  by === 'model' ? 'models:usage.filterTask' : 'models:usage.filterModel',
+                )}
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
               >
-                <option value="">{by === 'model' ? '全部用途' : '全部模型'}</option>
+                <option value="">
+                  {t(by === 'model' ? 'models:usage.allTasks' : 'models:usage.allModels')}
+                </option>
                 {by === 'model'
                   ? data!.options.tasks.filter(currentTask).map((task) => (
                       <option key={task} value={task}>
-                        {modelTaskLabel(task)}
+                        {modelTaskLabel(t, task)}
                       </option>
                     ))
                   : data!.options.models.map((item) => (
@@ -305,19 +345,20 @@ export function ModelUsage({
                         key={JSON.stringify([item.provider, item.model])}
                         value={JSON.stringify([item.provider, item.model])}
                       >
-                        {item.model || '未標註模型'} · {item.provider || '未標註供應商'}
+                        {item.model || t('models:usage.unlabeledModel')} ·{' '}
+                        {item.provider || t('models:usage.unlabeledProvider')}
                       </option>
                     ))}
               </select>
             </label>
           </div>
           {summary!.invocations === 0 ? (
-            <p className={styles.empty}>這段時間與篩選條件下尚無模型呼叫。</p>
+            <p className={styles.empty}>{t('models:usage.empty')}</p>
           ) : (
             <div className={styles.groups}>
               <div className={styles.listCaption}>
-                <span>依 Token 用量排序</span>
-                <span>Token ／ 占比</span>
+                <span>{t('models:usage.sortedByTokens')}</span>
+                <span>{t('models:usage.columns')}</span>
               </div>
               {visible.map((group) => (
                 <UsageGroup key={key(group)} group={group} by={by} total={summary!.total_tokens} />
@@ -325,17 +366,18 @@ export function ModelUsage({
               {historical.length > 0 && (
                 <details className={styles.history} data-disclosure="row">
                   <summary>
-                    <span>歷史用途</span>
+                    <span>{t('models:usage.history')}</span>
                     <span>
-                      {historical.some((group) => group.stats.coverage.total_tokens > 0)
-                        ? quantity(
-                            historical.reduce(
-                              (value, group) => value + group.stats.total_tokens,
-                              0,
-                            ),
-                          )
-                        : '未知'}{' '}
-                      Token
+                      {t('models:usage.tokenAmount', {
+                        tokens: historical.some((group) => group.stats.coverage.total_tokens > 0)
+                          ? quantity(
+                              historical.reduce(
+                                (value, group) => value + group.stats.total_tokens,
+                                0,
+                              ),
+                            )
+                          : t('models:usage.unknown'),
+                      })}
                     </span>
                     <ChevronRight className={styles.chevron} size={15} aria-hidden="true" />
                   </summary>
@@ -354,25 +396,29 @@ export function ModelUsage({
           )}
           <footer className={styles.footer}>
             {summary!.unknown_usage > 0 && (
-              <p>有 {exact.format(summary!.unknown_usage)} 次呼叫未完整回報用量，合計可能偏少。</p>
+              <p>
+                {t('models:usage.incomplete', {
+                  count: summary!.unknown_usage,
+                  value: exact.format(summary!.unknown_usage),
+                })}
+              </p>
             )}
             <details>
-              <summary>統計說明</summary>
+              <summary>{t('models:usage.notes')}</summary>
+              <p>{t('models:usage.explanation')}</p>
               <p>
-                只加總目前範圍與篩選條件內已記錄、上游有回報的用量。未知欄位不代表零；快取讀取已包含在輸入中，不重複計入總
-                Token。快取比例只比較同時回報輸入與快取的樣本。這些數字不代表供應商帳單或剩餘額度；歷史用途仍計入合計。
-              </p>
-              <p>
-                快取比例樣本：{exact.format(summary!.cache_read.cached_prompt_tokens)}／
-                {exact.format(summary!.cache_read.prompt_tokens)} Token（
-                {exact.format(summary!.cache_read.reported_calls)}{' '}
-                次呼叫）。其他已回報的快取仍計入快取讀取總量。
+                {t('models:usage.sample', {
+                  count: summary!.cache_read.reported_calls,
+                  cached: exact.format(summary!.cache_read.cached_prompt_tokens),
+                  prompt: exact.format(summary!.cache_read.prompt_tokens),
+                  value: exact.format(summary!.cache_read.reported_calls),
+                })}
               </p>
             </details>
             <p className={styles.time}>
               {data!.range.start
                 ? `${display.date(data!.range.start)} — ${display.date(data!.range.end)}`
-                : `全部留存 · 截至 ${display.date(data!.range.end)}`}{' '}
+                : t('models:usage.allRetainedUntil', { date: display.date(data!.range.end) })}{' '}
               · {data!.range.timezone}
             </p>
           </footer>

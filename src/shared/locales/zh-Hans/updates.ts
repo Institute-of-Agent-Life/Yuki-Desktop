@@ -1,0 +1,41 @@
+// App updates.
+import type { Chinese } from '../types'
+
+export default {
+  // Keyed by `UpdateState['problem']`.
+  problem: {
+    'no-release': '目前还没有可用的更新发布。',
+    network: '无法检查更新，请稍后再试。',
+    integrity: '下载内容或签名未通过核对，请重新检查更新。',
+    download: '更新下载未完成，请重新检查。',
+    installation: '更新未能安装，原有数据与连接仍保留。请重新检查或到下载页安装。',
+  },
+  unreadable: '无法读取更新状态。',
+  actionFailed: '操作未完成，请重新尝试。',
+  installFailed: '更新尚未开始，请重新尝试。',
+  restart: '重新启动以更新',
+  channel: '更新通道',
+  channelDescription: '正式版本适合日常使用；测试版本会提供尚在验证的新功能。',
+  stable: '正式版本',
+  beta: '测试版本',
+  appUpdates: 'App 更新',
+  currentVersion: '当前版本 {{version}}',
+  check: '检查更新',
+  development: '开发模式',
+  developmentDescription: '开发模式不检查或安装更新。',
+  status: '更新状态',
+  upToDate: '此通道目前没有可用的更新。',
+  available: '有新版本 {{version}}',
+  manual: '这种安装方式需下载新版后手动安装。',
+  managed: '下载完成后，由你决定何时重新启动。',
+  releasePage: '前往下载页',
+  download: '下载更新',
+  downloading: '正在下载更新',
+  progress: '更新下载进度',
+  cancelDownload: '取消下载',
+  downloaded: '已下载 {{version}}',
+  downloadedDescription: '会先确认未保存的变更与电脑控制权，再结束本机操作。',
+  preparing: '正在准备更新',
+  waiting: '正在等候原本的本机操作收尾，完成后才会重新启动。',
+  restartSoon: '准备完成后会重新启动。服务器上的工作会继续保留。',
+} satisfies Chinese<'updates'>

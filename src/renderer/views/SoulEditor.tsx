@@ -10,12 +10,12 @@ import { guardNavigation, requestNavigation, type NavigationAttempt } from '../s
 import styles from './SoulEditor.module.css'
 import { useSessionActive } from '../state/workspace'
 import { useDisplayTime } from '../state/time'
+import { useTranslation } from '../i18n'
 
 const short = (revision: string) =>
   revision.replace(/^sha256:/, '').replace(/^(.{6}).*(.{4})$/, '$1…$2')
 const dirty = (draft: SoulDraft) => draft.draft !== draft.baseContent
 const conflict = (draft: SoulDraft) => dirty(draft) && draft.remote.revision !== draft.baseRevision
-const reason = () => '請確認 SOUL.md 原件及其目錄的實際寫入權限。'
 
 export function SoulEditor({
   id,
@@ -30,7 +30,8 @@ export function SoulEditor({
   name: string
   platform: string
 }) {
-  const { timeLabel } = useDisplayTime()
+  const { timeLabel, locale } = useDisplayTime()
+  const { t } = useTranslation(['soul', 'common'])
   const active = useSessionActive()
   const hintId = useId()
   const [hintDismissed, setHintDismissed] = useState(false)
@@ -72,13 +73,17 @@ export function SoulEditor({
         } catch (error) {
           writeError.current = true
           if (alive.current)
-            setError(`本機草稿未能儲存：${error instanceof Error ? error.message : '請重試。'}`)
+            setError(
+              t('soul:draftSaveFailed', {
+                reason: error instanceof Error ? error.message : t('soul:retry'),
+              }),
+            )
           return false
         }
       })
       return writes.current
     },
-    [id],
+    [id, t],
   )
   const load = useCallback(
     async (initial = false) => {
@@ -103,7 +108,7 @@ export function SoulEditor({
             return previous && !dirty(previous) && previous.baseRevision !== item.baseRevision
           })
         )
-          setNotice('已更新為最新版本')
+          setNotice(t('soul:updated'))
         change(next)
       } catch (error) {
         if (!alive.current || sequence !== loadSequence.current) return
@@ -118,12 +123,12 @@ export function SoulEditor({
           ].includes(error.code)
         )
           setDenied(true)
-        setError(error instanceof Error ? error.message : '無法讀取 SOUL.md。')
+        setError(error instanceof Error ? error.message : t('soul:readFailed'))
       }
       const items = await window.yuki.client.soulCommands(id)
       if (alive.current && sequence === loadSequence.current && items.ok) setCommands(items.value)
     },
-    [id, change],
+    [id, change, t],
   )
   useEffect(() => {
     alive.current = true
@@ -222,17 +227,17 @@ export function SoulEditor({
       change(next ? [next] : [])
       setCommands(unwrap(await window.yuki.client.soulCommands(id)))
       if (item.state !== 'result') {
-        setError('儲存結果尚未確認。內容與原請求已保留在這台電腦；請查證原請求。')
+        setError(t('soul:unconfirmed'))
         return false
       }
       if (item.problem) {
         setError(
           item.details?.written === true
-            ? '已寫入但未生效，請按重新載入。'
+            ? t('soul:writtenNotApplied')
             : item.problem === 'version_conflict'
-              ? '儲存未完成：伺服器版本已改變，請先處理差異'
+              ? t('soul:versionConflict')
               : item.problem === 'precondition_failed'
-                ? reason()
+                ? t('soul:writeAccess')
                 : problemText(item.problem),
         )
         await load()
@@ -242,7 +247,7 @@ export function SoulEditor({
       await load()
       return true
     } catch (error) {
-      if (alive.current) setError(error instanceof Error ? error.message : '儲存未完成。')
+      if (alive.current) setError(error instanceof Error ? error.message : t('soul:saveFailed'))
       return false
     } finally {
       busyRef.current = false
@@ -302,27 +307,31 @@ export function SoulEditor({
   const conflicted = !!draft && conflict(draft)
   const applied = !!documents && documents.active_revision !== documents.revision
   const returnToAbout = () => requestNavigation(back)
-  const effectExplanation = `SOUL 決定性格與表達，{{name}} 會換成目前的名稱。儲存後，${name}下一次開始新的回覆或恢復工作時採用新版；正在進行的那一段用原本的內容做完。記憶與歷史不變。`
+  const effectExplanation = t('soul:effect', { placeholder: '{{name}}', name })
   const cacheExplanation = !commands.some((item) => item.command.kind === 'save')
-    ? '修改可能影響模型的前綴快取，實際情況以上游 Provider 回報的 usage 為準。'
+    ? t('soul:cache')
     : ''
   const header = (
     <div className={styles.toolbar}>
       <Button
         variant="plain"
         className={styles.back}
-        title={`關於 ${name}`}
+        title={t('soul:aboutName', { name })}
         onClick={returnToAbout}
       >
         <ArrowLeft size={14} />
-        <span>關於 {name}</span>
+        <span>{t('soul:aboutName', { name })}</span>
       </Button>
       <strong>SOUL.md</strong>
       <span
         className={changed ? styles.unsaved : savedRecent ? styles.saved : styles.status}
         role="status"
       >
-        {changed ? '● 未儲存' : savedAt ? `已儲存 ${timeLabel(savedAt)}` : ''}
+        {changed
+          ? t('soul:unsaved')
+          : savedAt
+            ? t('soul:savedAt', { time: timeLabel(savedAt) })
+            : ''}
       </span>
       <div
         className={styles.compactHint}
@@ -332,7 +341,7 @@ export function SoulEditor({
         <Button
           variant="plain"
           className={styles.infoButton}
-          aria-label="SOUL 生效說明"
+          aria-label={t('soul:effectInfo')}
           aria-describedby={hintId}
           onFocus={() => setHintDismissed(false)}
           onKeyDown={(event) => {
@@ -359,7 +368,7 @@ export function SoulEditor({
           void persist(next)
         }}
       >
-        還原
+        {t('soul:revert')}
       </Button>
       <Button
         variant="primary"
@@ -367,7 +376,7 @@ export function SoulEditor({
         loading={busy}
         onClick={() => void save()}
       >
-        儲存
+        {t('common:action.save')}
         <kbd aria-hidden="true">{platform === 'darwin' ? '⌘S' : 'Ctrl S'}</kbd>
       </Button>
     </div>
@@ -377,55 +386,59 @@ export function SoulEditor({
     return (
       <EmptyState
         title="SOUL.md"
-        action={<Button onClick={() => void load(true)}>重新讀取</Button>}
+        action={<Button onClick={() => void load(true)}>{t('common:action.reload')}</Button>}
       >
-        {error || '正在讀取…'}
+        {error || t('common:reading')}
       </EmptyState>
     )
   return (
-    <section className={styles.editor} aria-label="SOUL 編輯器">
+    <section className={styles.editor} aria-label={t('soul:editor')}>
       {toolbar ? createPortal(header, toolbar) : header}
       <div className={styles.explanation}>
         <p>{effectExplanation}</p>
         {cacheExplanation && <p>{cacheExplanation}</p>}
       </div>
       {error && !restore && !leaving && <Banner status="failed">{error}</Banner>}
-      {!draft.remote.writable && <Banner>{reason()}</Banner>}
+      {!draft.remote.writable && <Banner>{t('soul:writeAccess')}</Banner>}
       {applied && (
         <Banner>
-          檔案版本與目前生效版本不同。
+          {t('soul:fileDiffers')}
           <Button variant="plain" loading={busy} onClick={() => void run({ kind: 'reload' })}>
-            重新載入
+            {t('soul:reloadSoul')}
           </Button>
         </Banner>
       )}
       {pending.map((item) => (
         <Banner key={item.requestId}>
-          原請求結果尚未確認。
+          {t('soul:pending')}
           <Button
             variant="plain"
             loading={busy}
             onClick={() => void run(item.command, item.requestId)}
           >
-            查證原請求
+            {t('soul:verify')}
           </Button>
         </Banner>
       ))}
       {conflicted && (
         <div className={styles.conflict} role="status">
           <span
-            title={`另一台裝置在 ${draft.remote.updated_at ? timeLabel(draft.remote.updated_at) : '稍早'} 儲存了新版本。你的草稿基於較早的版本。`}
+            title={
+              draft.remote.updated_at
+                ? t('soul:conflictAt', { time: timeLabel(draft.remote.updated_at) })
+                : t('soul:conflict')
+            }
           >
-            另一台裝置儲存了新版本。你的草稿基於較早的版本。
+            {t('soul:conflict')}
           </span>
           <Button variant="plain" onClick={() => setComparing(true)}>
-            比較差異
+            {t('soul:compare')}
           </Button>
           <Button variant="plain" disabled={readOnly} onClick={() => setOverwrite(draft)}>
-            以我的版本覆蓋…
+            {t('soul:overwriteMine')}
           </Button>
           <Button variant="plain" disabled={readOnly} onClick={() => void discard(draft)}>
-            放棄我的修改
+            {t('soul:discardMine')}
           </Button>
         </div>
       )}
@@ -440,9 +453,9 @@ export function SoulEditor({
             {(['remote', 'draft'] as const).map((side) => (
               <section
                 key={side}
-                aria-label={side === 'remote' ? '伺服器目前版本（唯讀）' : '你的草稿（唯讀預覽）'}
+                aria-label={side === 'remote' ? t('soul:remoteVersion') : t('soul:draftPreview')}
               >
-                <h3>{side === 'remote' ? '伺服器目前版本（唯讀）' : '你的草稿（唯讀預覽）'}</h3>
+                <h3>{side === 'remote' ? t('soul:remoteVersion') : t('soul:draftPreview')}</h3>
                 <pre>
                   {diffLines(draft.remote.content, draft.draft)
                     .filter((part) => (side === 'remote' ? !part.added : !part.removed))
@@ -475,15 +488,15 @@ export function SoulEditor({
                 }
               }}
             >
-              在新版上重新編輯
+              {t('soul:rebase')}
             </Button>
-            <Button onClick={() => setComparing(false)}>關閉</Button>
+            <Button onClick={() => setComparing(false)}>{t('common:action.close')}</Button>
           </footer>
         </div>
       ) : (
         <div className={styles.code} aria-label="SOUL.md">
           <SoulCode
-            label="SOUL.md 內容"
+            label={t('soul:content')}
             content={draft.draft}
             readOnly={readOnly}
             undoableChange={undoable}
@@ -500,25 +513,34 @@ export function SoulEditor({
       )}
       <footer className={styles.footer}>
         <span>
-          第 {cursor.line} 行，第 {cursor.column} 欄 ·{' '}
-          {Array.from(draft.draft).length.toLocaleString()} 字
+          {t('soul:position', cursor)} ·{' '}
+          {t('soul:characters', {
+            count: Array.from(draft.draft).length,
+            characters: Array.from(draft.draft).length.toLocaleString(locale),
+          })}
         </span>
         <span title={draft.remote.file_name}>
-          檔案 {draft.remote.file_name} · 版本 {short(draft.baseRevision)}
+          {t('soul:fileInfo', {
+            name: draft.remote.file_name,
+            revision: short(draft.baseRevision),
+          })}
         </span>
         {conflicted && (
           <span>
-            草稿基於 {short(draft.baseRevision)} · 伺服器目前 {short(draft.remote.revision)}
+            {t('soul:conflictInfo', {
+              draft: short(draft.baseRevision),
+              server: short(draft.remote.revision),
+            })}
           </span>
         )}
       </footer>
       <Sheet
-        title="要儲存變更嗎？"
+        title={t('soul:saveChanges')}
         open={!!leaving}
         onClose={cancelLeave}
         actions={
           <>
-            <Button onClick={cancelLeave}>取消</Button>
+            <Button onClick={cancelLeave}>{t('common:action.cancel')}</Button>
             <Button
               disabled={busy}
               onClick={async () => {
@@ -526,7 +548,7 @@ export function SoulEditor({
                 if (!writeError.current) finishLeave()
               }}
             >
-              不儲存
+              {t('soul:dontSave')}
             </Button>
             <Button
               variant="primary"
@@ -536,21 +558,21 @@ export function SoulEditor({
                 if (await save()) finishLeave()
               }}
             >
-              儲存
+              {t('common:action.save')}
             </Button>
           </>
         }
       >
-        <p>{draft.remote.file_name} 的修改尚未儲存。</p>
+        <p>{t('soul:unsavedFile', { name: draft.remote.file_name })}</p>
         {error && <Banner status="failed">{error}</Banner>}
       </Sheet>
       <Sheet
-        title="以我的版本覆蓋？"
+        title={t('soul:overwriteTitle')}
         open={!!overwrite}
         onClose={() => setOverwrite(undefined)}
         actions={
           <>
-            <Button onClick={() => setOverwrite(undefined)}>取消</Button>
+            <Button onClick={() => setOverwrite(undefined)}>{t('common:action.cancel')}</Button>
             <Button
               variant="destructive"
               loading={busy}
@@ -568,15 +590,15 @@ export function SoulEditor({
                 }
               }}
             >
-              覆蓋
+              {t('soul:overwrite')}
             </Button>
           </>
         }
       >
-        <p>這會用你的草稿取代另一台裝置剛儲存的版本。</p>
+        <p>{t('soul:overwriteNote')}</p>
       </Sheet>
       <Sheet
-        title="恢復未儲存的草稿？"
+        title={t('soul:restoreTitle')}
         open={restore}
         onClose={() => {
           setRestore(false)
@@ -590,22 +612,15 @@ export function SoulEditor({
                 if (!writeError.current) setRestore(false)
               }}
             >
-              不恢復
+              {t('soul:dontRestore')}
             </Button>
             <Button variant="primary" onClick={() => setRestore(false)}>
-              恢復草稿
+              {t('soul:restoreDraft')}
             </Button>
           </>
         }
       >
-        <p>
-          這台電腦保留了{' '}
-          {drafts
-            .filter(dirty)
-            .map(() => `SOUL.md`)
-            .join('、')}{' '}
-          的修改。草稿仍以當時的版本為基線。
-        </p>
+        <p>{t('soul:restoreNote')}</p>
         {error && <Banner status="failed">{error}</Banner>}
       </Sheet>
     </section>

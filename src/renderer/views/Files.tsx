@@ -16,6 +16,7 @@ import chatStyles from './Conversation.module.css'
 import { useDisplayTime } from '../state/time'
 import { useMediaContent } from './media-content'
 import { MediaBody } from './Media'
+import { useTranslation } from '../i18n'
 
 type Reference = ArtifactPage['items'][number]
 type Item = Reference & { references: Reference[] }
@@ -42,6 +43,7 @@ export function Files({
   onSelect(source: ArtifactSource): void
 }) {
   const workspace = useWorkspace()
+  const { t } = useTranslation(['files', 'common', 'errors'])
   const { date, group: dateGroup } = useDisplayTime()
   const query = useQueryClient(),
     [category, setCategory] = useState<'all' | 'image' | 'document' | 'code'>('all'),
@@ -114,7 +116,7 @@ export function Files({
     try {
       await promise
     } catch (error) {
-      setProblem(error instanceof Error ? error.message : '操作未完成。')
+      setProblem(error instanceof Error ? error.message : t('errors:notCompleted'))
     }
   }
   const openReference = (ref: Reference) => {
@@ -126,14 +128,15 @@ export function Files({
     else if (ref.work_id) {
       work(ref.work_id)
       workspace.setView('works')
-    } else setProblem('這個原入口的紀錄無法在桌面讀取。')
+    } else setProblem(t('files:unreadableEntry'))
   }
   const label = (ref: Reference) =>
     home.data?.main.conversation_id === ref.conversation_id
-      ? '桌面對話'
+      ? t('files:desktopConversation')
       : (home.data?.entries
           .find((entry) => entry.conversation_id === ref.conversation_id)
-          ?.platform.toUpperCase() ?? (ref.work_id ? '原工作結果' : '原入口'))
+          ?.platform.toUpperCase() ??
+        (ref.work_id ? t('files:originalWorkResult') : t('files:originalEntry')))
   return (
     <div className={styles.files}>
       <section
@@ -150,22 +153,20 @@ export function Files({
       >
         <header>
           <Segmented
-            label="成果類型"
+            label={t('files:category')}
             value={category}
             onChange={setCategory}
-            items={[
-              { value: 'all', label: '全部' },
-              { value: 'image', label: '圖片' },
-              { value: 'document', label: '文件' },
-              { value: 'code', label: '程式碼' },
-            ]}
+            items={(['all', 'image', 'document', 'code'] as const).map((value) => ({
+              value,
+              label: t(`files:categories.${value}`),
+            }))}
           />
         </header>
         {page.error && (
           <Banner status="failed">
             {page.error.message}
             <Button variant="plain" onClick={() => void page.refetch()}>
-              重試
+              {t('common:action.retry')}
             </Button>
           </Banner>
         )}
@@ -181,7 +182,7 @@ export function Files({
               <FileRow
                 selected={selected?.artifactId === item.artifact_id}
                 name={item.name}
-                title={`${item.name}\n按兩下放大詳情`}
+                title={t('files:rowTitle', { name: item.name })}
                 identity={item.artifact_id}
                 detail={`${date(item.created_at, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })} · ${label(item)}`}
                 size={item.size === null ? undefined : formatBytes(item.size)}
@@ -204,25 +205,27 @@ export function Files({
             loading={page.isFetchingNextPage}
             onClick={() => void page.fetchNextPage()}
           >
-            載入更早成果
+            {t('files:earlier')}
           </Button>
         )}
         {!page.isPending && !page.error && !items.length && (
-          <EmptyState title="目前沒有成果">Yuki 傳給你的成果會出現在這裡。</EmptyState>
+          <EmptyState title={t('files:empty')}>{t('files:emptyDescription')}</EmptyState>
         )}
       </section>
-      <section className={styles.stage} aria-label="成果預覽">
+      <section className={styles.stage} aria-label={t('files:preview')}>
         {problem && <Banner status="failed">{problem}</Banner>}
         {content.error && (
           <Banner status="failed">
             {content.error.message}
             <Button variant="plain" onClick={() => void content.refetch()}>
-              重新讀取
+              {t('common:action.reload')}
             </Button>
           </Banner>
         )}
-        {!selected && <EmptyState title="選擇一項成果">預覽原版本與傳送記錄。</EmptyState>}
-        {selected && content.isPending && <p role="status">正在讀取成果…</p>}
+        {!selected && (
+          <EmptyState title={t('files:selectOne')}>{t('files:selectDescription')}</EmptyState>
+        )}
+        {selected && content.isPending && <p role="status">{t('files:reading')}</p>}
         {selected && data && (
           <>
             <header className={styles.previewHeader}>
@@ -233,18 +236,21 @@ export function Files({
                 onClick={() => void act(saveArtifact(id, selected).then(() => content.refetch()))}
               >
                 <Download size={15} />
-                存到…
+                {t('files:saveTo')}
               </Button>
             </header>
             <div className={styles.stageBody}>
               <div className={styles.preview}>
                 {comparison && (
                   <header className={styles.actions}>
-                    <strong>並排比較原版本</strong>
+                    <strong>{t('files:compareTitle')}</strong>
                     <code>
                       {comparison.artifactId}@{shortVersion(comparison.version)}
                     </code>
-                    <IconButton label="結束比較" onClick={() => setComparison(undefined)}>
+                    <IconButton
+                      label={t('files:endCompare')}
+                      onClick={() => setComparison(undefined)}
+                    >
                       <X size={15} />
                     </IconButton>
                   </header>
@@ -263,35 +269,37 @@ export function Files({
                   />
                 )}
               </div>
-              <section className={styles.info} aria-label="成果資訊">
+              <section className={styles.info} aria-label={t('files:info')}>
                 <details>
-                  <summary>詳細資料</summary>
+                  <summary>{t('files:details')}</summary>
                   <p>
-                    <span>artifact ID</span> <code>{selected.artifactId}</code>
+                    <span>{t('files:artifactId')}</span> <code>{selected.artifactId}</code>
                   </p>
                   <p>
-                    <span>內容版本</span>{' '}
+                    <span>{t('files:version')}</span>{' '}
                     <code title={selected.version}>{shortVersion(selected.version)}</code>
                   </p>
                   <p>
-                    <span>發布路徑</span>{' '}
-                    {item ? (item.published_path ?? '未提供') : '尚未讀取發布資訊'}
+                    <span>{t('files:publishedPath')}</span>{' '}
+                    {item
+                      ? (item.published_path ?? t('files:notProvided'))
+                      : t('files:publishNotRead')}
                   </p>
                 </details>
                 <div className={styles.actions}>
                   <Button
                     variant="plain"
                     disabled={!data.saved}
-                    title={data.saved ? '在資料夾顯示' : '先將這個版本存到本機'}
+                    title={data.saved ? t('files:reveal') : t('files:saveFirst')}
                     onClick={() =>
                       void act(window.yuki.client.revealArtifact(id, selected).then(unwrap))
                     }
                   >
                     <FolderOpen size={15} />
-                    在資料夾顯示
+                    {t('files:reveal')}
                   </Button>
                   <IconButton
-                    label="複製成果連結文字"
+                    label={t('files:copyLink')}
                     onClick={() =>
                       void act(
                         window.yuki.client
@@ -305,7 +313,7 @@ export function Files({
                 </div>
                 {!!item?.references.length && (
                   <details>
-                    <summary>傳送過的訊息</summary>
+                    <summary>{t('files:sentMessages')}</summary>
                     {item.references.map((ref) => (
                       <button
                         key={`${ref.ref.event_id}/${ref.ref.part_index}`}
@@ -318,8 +326,8 @@ export function Files({
                   </details>
                 )}
                 <details>
-                  <summary>選擇另一項成果比較</summary>
-                  <p>選擇可讀的原版本，依成果 ID 與內容版本比較。</p>
+                  <summary>{t('files:compareOther')}</summary>
+                  <p>{t('files:compareNote')}</p>
                   {items
                     .filter(
                       (other) =>
@@ -333,7 +341,7 @@ export function Files({
                           {shortVersion(other.version)}
                         </span>
                         <Button variant="plain" onClick={() => setComparison(source(other))}>
-                          比較此版本
+                          {t('files:compareThis')}
                         </Button>
                       </div>
                     ))}
@@ -343,7 +351,7 @@ export function Files({
                       loading={page.isFetchingNextPage}
                       onClick={() => void page.fetchNextPage()}
                     >
-                      載入更早成果
+                      {t('files:earlier')}
                     </Button>
                   )}
                 </details>
@@ -365,6 +373,7 @@ export function ArtifactInspector({
   source: ArtifactSource
   library(): void
 }) {
+  const { t } = useTranslation(['files', 'errors'])
   const content = useMediaContent(id, source),
     [problem, setProblem] = useState('')
   const data = content.error ? undefined : content.data
@@ -373,7 +382,7 @@ export function ArtifactInspector({
       setProblem('')
       await promise
     } catch (error) {
-      setProblem(error instanceof Error ? error.message : '操作未完成。')
+      setProblem(error instanceof Error ? error.message : t('errors:notCompleted'))
     }
   }
   return (
@@ -387,10 +396,10 @@ export function ArtifactInspector({
             <Button
               onClick={() => void act(saveArtifact(id, source).then(() => content.refetch()))}
             >
-              存到…
+              {t('files:saveTo')}
             </Button>
             <Button variant="plain" onClick={library}>
-              在檔案與成果查看
+              {t('files:viewInLibrary')}
             </Button>
           </div>
           <Content
@@ -400,7 +409,7 @@ export function ArtifactInspector({
             open={() => void act(window.yuki.client.openArtifact(id, source).then(unwrap))}
           />
           <details>
-            <summary>詳細資料</summary>
+            <summary>{t('files:details')}</summary>
             <code title={source.version}>
               {source.artifactId} · {shortVersion(source.version)}
             </code>
@@ -411,6 +420,7 @@ export function ArtifactInspector({
   )
 }
 function Content({ id, content, open }: { id: string; content: CachedContent; open?: () => void }) {
+  const { t } = useTranslation(['files'])
   const [raw, setRaw] = useState(false)
   const [html, setHtml] = useState(''),
     [problem, setProblem] = useState('')
@@ -424,12 +434,12 @@ function Content({ id, content, open }: { id: string; content: CachedContent; op
         if (active) setHtml(html)
       })
       .catch(() => {
-        if (active) setProblem('語法色彩無法載入，可閱讀原始文字。')
+        if (active) setProblem(t('files:highlightFailed'))
       })
     return () => {
       active = false
     }
-  }, [text, content.filename, textual])
+  }, [text, content.filename, textual, t])
   if (content.preview) return <MediaBody content={content} />
   if (textual)
     return (
@@ -445,16 +455,16 @@ function Content({ id, content, open }: { id: string; content: CachedContent; op
                 .catch((error) => setProblem(error.message))
             }
           >
-            複製全文
+            {t('files:copyAll')}
           </Button>
           {content.mime === 'text/markdown' && (
             <Segmented
-              label="Markdown 顯示"
+              label={t('files:markdownView')}
               value={raw ? 'raw' : 'rendered'}
               onChange={(value) => setRaw(value === 'raw')}
               items={[
-                { value: 'rendered', label: '預覽' },
-                { value: 'raw', label: '原始碼' },
+                { value: 'rendered', label: t('files:rendered') },
+                { value: 'raw', label: t('files:source') },
               ]}
             />
           )}
@@ -470,11 +480,11 @@ function Content({ id, content, open }: { id: string; content: CachedContent; op
       </>
     )
   return (
-    <EmptyState title="以其他程式開啟">
+    <EmptyState title={t('files:openElsewhere')}>
       {open && (
         <Button onClick={open}>
           <ArrowUpRight size={16} />
-          以預設程式開啟
+          {t('files:openDefault')}
         </Button>
       )}
     </EmptyState>
@@ -489,6 +499,7 @@ export function ArtifactComparison({
   left: CachedContent
   right: CachedContent
 }) {
+  const { t } = useTranslation(['files'])
   const leftPane = useRef<HTMLElement>(null),
     rightPane = useRef<HTMLElement>(null)
   const [result, setResult] = useState<{ left: string; right: string; rows: DiffRow[] }>(),
@@ -505,7 +516,7 @@ export function ArtifactComparison({
     })
     worker.onmessage = (event: MessageEvent<DiffRow[]>) =>
       setResult({ left: left.sha256, right: right.sha256, rows: event.data })
-    worker.onerror = () => setError('無法完成文字比較。')
+    worker.onerror = () => setError(t('files:diffFailed'))
     worker.postMessage({
       left: new TextDecoder().decode(left.bytes!),
       right: new TextDecoder().decode(right.bytes!),
@@ -515,7 +526,7 @@ export function ArtifactComparison({
       worker.onerror = null
       worker.terminate()
     }
-  }, [left, right])
+  }, [left, right, t])
   if (error) return <Banner status="failed">{error}</Banner>
   if (!textual(left) || !textual(right))
     return (
@@ -524,12 +535,12 @@ export function ArtifactComparison({
         <Content id={id} key={right.sha256} content={right} />
       </div>
     )
-  if (!changes) return <p role="status">正在比較文字…</p>
+  if (!changes) return <p role="status">{t('files:comparing')}</p>
   const pane = (side: 'left' | 'right') => (
     <section
       className={styles.diffPane}
       ref={side === 'left' ? leftPane : rightPane}
-      aria-label={side === 'left' ? '目前成果原版本' : '比較的原版本'}
+      aria-label={side === 'left' ? t('files:currentVersion') : t('files:comparedVersion')}
       onScroll={(event) => {
         const other = side === 'left' ? rightPane.current : leftPane.current
         if (other) other.scrollTop = event.currentTarget.scrollTop
@@ -548,7 +559,7 @@ export function ArtifactComparison({
     </section>
   )
   return (
-    <div className={styles.diff} aria-label="文字版本差異">
+    <div className={styles.diff} aria-label={t('files:diff')}>
       {pane('left')}
       {pane('right')}
     </div>

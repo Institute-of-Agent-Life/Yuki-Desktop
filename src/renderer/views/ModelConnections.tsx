@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from 'react'
+import type { TFunction } from 'i18next'
 import type { ModelBundle, ModelProfile } from '../../shared/models'
 import { Button, Sheet, TextField } from '../components/Controls'
+import { useTranslation } from '../i18n'
 import { Row, SettingsSection } from './SettingsRow'
 import { ModelConnectionForm, type ConnectionDraft } from './ModelConnectionForm'
 import { ModelSchemaFields, schemaDefaults, type JsonSchema } from './ModelSchemaFields'
@@ -16,21 +18,17 @@ import {
 
 type Bundle = Extract<ModelBundle, { valid: true }>
 
-function references(data: Bundle, id: string) {
+function references(t: TFunction<['models']>, data: Bundle, id: string) {
   const document = data.document,
     profile = document.profiles[id]!,
     resolved = data.resolved_profiles?.[id]
   const used = Object.entries(document.routes)
     .filter(([, value]) => value === id)
-    .map(([task]) => modelTaskLabel(task))
-  if (document.search_connection === id) used.push('聯網搜尋')
+    .map(([task]) => modelTaskLabel(t, task))
+  if (document.search_connection === id) used.push(t('models:task.web_search'))
   for (const [otherId, other] of Object.entries(document.profiles))
-    if (other.search_connection === id) used.push(`${otherId} 搜尋`)
-  for (const [field, title] of [
-    ['embedding', '記憶向量'],
-    ['vision', '圖片理解'],
-    ['asr', '語音轉文字'],
-  ] as const) {
+    if (other.search_connection === id) used.push(t('models:use.searchOf', { id: otherId }))
+  for (const field of ['embedding', 'vision', 'asr'] as const) {
     const connection = document[field]
     if (
       connection &&
@@ -38,7 +36,7 @@ function references(data: Bundle, id: string) {
       connection.model === (resolved?.model ?? profile.model) &&
       connection.api_key_env === profile.api_key_env
     )
-      used.push(title)
+      used.push(t(`models:use.${field}`))
   }
   return used
 }
@@ -58,7 +56,11 @@ export function ModelConnections({
   feedback: ReactNode
   characterId: string
 }) {
+  const { t, i18n } = useTranslation(['models', 'common'])
   const schema = data.profile_schema as JsonSchema
+  const profileLabel = (id: string) => modelProfileLabel(t, i18n.language, data, id)
+  const usedBy = (used: string[]) =>
+    used.length ? t('models:usedBy', { uses: used.join(t('models:listSeparator')) }) : undefined
   const [adding, setAdding] = useState(false)
   const [preset, setPreset] = useState<number>()
   const [draft, setDraft] = useState<ConnectionDraft>({
@@ -109,8 +111,8 @@ export function ModelConnections({
   }
   return (
     <>
-      <SettingsSection title="模型連接">
-        <Row title="連接一個模型服務" description="選擇服務商，或填入相容的端點。">
+      <SettingsSection title={t('models:connections')}>
+        <Row title={t('models:connectService')} description={t('models:connectServiceDescription')}>
           <Button
             onClick={() => {
               setPreset(undefined)
@@ -118,7 +120,7 @@ export function ModelConnections({
             }}
             disabled={busy || pending}
           >
-            新增連接
+            {t('models:addConnection')}
           </Button>
         </Row>
       </SettingsSection>
@@ -143,7 +145,7 @@ export function ModelConnections({
               (preset) => preset.provider === first.provider && preset.protocol === first.protocol,
             )
           )?.display_name ?? first.provider!
-        const used = [...new Set(entries.flatMap(([id]) => references(data, id)))]
+        const used = [...new Set(entries.flatMap(([id]) => references(t, data, id)))]
         return (
           <section className={styles.card} key={group} aria-label={title}>
             <header className={styles.cardHeader}>
@@ -153,25 +155,27 @@ export function ModelConnections({
               </div>
               <div className={styles.cardActions}>
                 <span>
-                  {entries.some(([id]) => data.saved_api_key_profiles.includes(id))
-                    ? '已儲存'
-                    : !first.api_key_env
-                      ? '無需金鑰'
-                      : '來自環境變數'}
+                  {t(
+                    entries.some(([id]) => data.saved_api_key_profiles.includes(id))
+                      ? 'models:keyState.saved'
+                      : !first.api_key_env
+                        ? 'models:keyState.none'
+                        : 'models:keyState.env',
+                  )}
                 </span>
                 <Button
-                  aria-label={`刪除連接 ${title}`}
-                  title={used.length ? `仍被「${used.join('、')}」使用` : undefined}
+                  aria-label={t('models:deleteConnectionOf', { title })}
+                  title={usedBy(used)}
                   disabled={busy || pending || used.length > 0}
                   onClick={() => setDeleting(entries.map(([id]) => id))}
                 >
-                  刪除連接
+                  {t('models:deleteConnection')}
                 </Button>
               </div>
             </header>
             {entries.map(([id, profile]) => {
-              const used = references(data, id),
-                label = modelProfileLabel(data, id)
+              const used = references(t, data, id),
+                label = profileLabel(id)
               return (
                 <div className={styles.profileRow} key={id}>
                   <div className={styles.profileLabel}>
@@ -186,22 +190,22 @@ export function ModelConnections({
                       disabled={busy || pending}
                     />
                     <Button
-                      aria-label={`編輯 ${label.name} · ${label.detail}`}
+                      aria-label={t('models:editProfileOf', label)}
                       disabled={busy || pending}
                       onClick={() => {
                         setKey('')
                         setEditing({ id, profile: structuredClone(profile) })
                       }}
                     >
-                      編輯
+                      {t('models:edit')}
                     </Button>
                     <Button
-                      aria-label={`刪除 ${label.name} · ${label.detail}`}
-                      title={used.length ? `仍被「${used.join('、')}」使用` : undefined}
+                      aria-label={t('models:deleteProfileOf', label)}
+                      title={usedBy(used)}
                       disabled={busy || pending || used.length > 0}
                       onClick={() => setDeleting([id])}
                     >
-                      刪除
+                      {t('models:delete')}
                     </Button>
                   </div>
                 </div>
@@ -211,7 +215,7 @@ export function ModelConnections({
         )
       })}
       <Sheet
-        title="新增連接"
+        title={t('models:addConnection')}
         open={adding}
         width={640}
         onClose={() => {
@@ -220,11 +224,11 @@ export function ModelConnections({
         actions={
           <>
             <Button disabled={busy || pending} onClick={() => setAdding(false)}>
-              取消
+              {t('common:action.cancel')}
             </Button>
             {preset !== undefined && (
               <Button variant="primary" loading={busy} onClick={add}>
-                儲存
+                {t('common:action.save')}
               </Button>
             )}
           </>
@@ -254,7 +258,7 @@ export function ModelConnections({
         ) : (
           <>
             <Button variant="plain" disabled={busy || pending} onClick={() => setPreset(undefined)}>
-              更換預設
+              {t('models:changePreset')}
             </Button>
             <fieldset className={styles.editor} disabled={busy || pending}>
               <ModelConnectionForm
@@ -272,8 +276,12 @@ export function ModelConnections({
                 }
               >
                 <details className={styles.advanced}>
-                  <summary>進階</summary>
-                  <p>API 協定：{data.provider_presets[preset]!.protocol}</p>
+                  <summary>{t('models:advanced')}</summary>
+                  <p>
+                    {t('models:apiProtocol', {
+                      protocol: data.provider_presets[preset]!.protocol,
+                    })}
+                  </p>
                   <ModelSchemaFields
                     schema={schema}
                     value={defaults}
@@ -289,13 +297,13 @@ export function ModelConnections({
                 void window.yuki.client.external(data.provider_presets[preset]!.docs_url)
               }
             >
-              服務說明
+              {t('models:serviceDocs')}
             </Button>
           </>
         )}
       </Sheet>
       <Sheet
-        title="編輯模型"
+        title={t('models:editModel')}
         open={!!editing}
         width={640}
         onClose={() => {
@@ -304,7 +312,7 @@ export function ModelConnections({
         actions={
           <>
             <Button disabled={busy || pending} onClick={() => setEditing(undefined)}>
-              取消
+              {t('common:action.cancel')}
             </Button>
             <Button
               variant="primary"
@@ -321,7 +329,7 @@ export function ModelConnections({
                 })
               }}
             >
-              儲存
+              {t('common:action.save')}
             </Button>
           </>
         }
@@ -330,12 +338,12 @@ export function ModelConnections({
         {editing && (
           <fieldset className={`${styles.editor} ${styles.formFields}`} disabled={busy || pending}>
             <label className={styles.formField}>
-              金鑰
+              {t('models:key')}
               <TextField
                 type="password"
                 autoComplete="off"
                 value={key}
-                placeholder="留空保留原金鑰"
+                placeholder={t('models:keyKeep')}
                 onChange={(event) => setKey(event.target.value)}
               />
             </label>
@@ -347,9 +355,10 @@ export function ModelConnections({
               change={(profile) => setEditing({ ...editing, profile: profile as ModelProfile })}
             />
             <details className={styles.advanced}>
-              <summary>進階</summary>
+              <summary>{t('models:advanced')}</summary>
               <p>
-                設定 ID：<code>{editing.id}</code>
+                {t('models:profileId')}
+                <code>{editing.id}</code>
               </p>
               <ModelSchemaFields
                 schema={schema}
@@ -365,13 +374,13 @@ export function ModelConnections({
         )}
       </Sheet>
       <Sheet
-        title="刪除模型連接"
+        title={t('models:deleteConnections')}
         open={!!deleting}
         onClose={() => setDeleting(undefined)}
         actions={
           <>
             <Button disabled={busy || pending} onClick={() => setDeleting(undefined)}>
-              取消
+              {t('common:action.cancel')}
             </Button>
             <Button
               variant="destructive"
@@ -382,22 +391,24 @@ export function ModelConnections({
                 save(document, undefined, () => setDeleting(undefined))
               }}
             >
-              刪除
+              {t('models:delete')}
             </Button>
           </>
         }
       >
         {feedback}
-        <p>
-          確定刪除{' '}
-          {deleting
-            ?.map((id) => {
-              const label = modelProfileLabel(data, id)
-              return `${label.name} · ${label.detail}`
-            })
-            .join('、')}
-          ？
-        </p>
+        {deleting && (
+          <p>
+            {t('models:confirmDelete', {
+              names: deleting
+                .map((id) => {
+                  const label = profileLabel(id)
+                  return `${label.name} · ${label.detail}`
+                })
+                .join(t('models:listSeparator')),
+            })}
+          </p>
+        )}
       </Sheet>
     </>
   )

@@ -294,6 +294,7 @@ function operationPage(id: string, cursor = 0): ConnectorOperation {
 window.yuki = {
   localBot: {
     presets: async () => ({ ok: false, code: 'fixture_only' }),
+    enableSnowLuma: async () => ({ ok: false, code: 'fixture_only' }),
     state: async () => ({
       ok: true,
       value: {
@@ -309,6 +310,24 @@ window.yuki = {
     start: async () => ({ ok: false, code: 'fixture_only' }),
     stop: async () => ({ ok: false, code: 'fixture_only' }),
     connect: async () => ({ ok: false, code: 'fixture_only' }),
+    onProgress: () => () => {},
+  },
+  ssh: {
+    probe: async () => ({ ok: false, code: 'fixture_only' }),
+    forgetHost: async () => ({ ok: false, code: 'fixture_only' }),
+    chooseKey: async () => ({ ok: true, value: null }),
+    pair: async () => ({ ok: false, code: 'fixture_only' }),
+    changeTransport: async () => ({ ok: false, code: 'fixture_only' }),
+    upgrade: async () => ({ ok: false, code: 'fixture_only' }),
+    logs: async () => ({ ok: false, code: 'fixture_only' }),
+    snowLuma: async () => ({ ok: false, code: 'fixture_only' }),
+  },
+  remoteDeploy: {
+    state: async () => ({ ok: true, value: { bundled: false } }),
+    check: async () => ({ ok: false, code: 'fixture_only' }),
+    installDocker: async () => ({ ok: false, code: 'fixture_only' }),
+    prepare: async () => ({ ok: false, code: 'fixture_only' }),
+    deploy: async () => ({ ok: false, code: 'fixture_only' }),
     onProgress: () => () => {},
   },
   connector: {
@@ -621,6 +640,10 @@ window.yuki = {
       discover: async () => ({ ok: false, code: 'fixture_only' }),
       stats: async () => ({ ok: false, code: 'fixture_only' }),
     },
+    platforms: {
+      read: async () => ({ ok: false, code: 'fixture_only' }),
+      apply: async () => ({ ok: false, code: 'fixture_only' }),
+    },
     pendingPairings: async () => ({ ok: true, value: [] }),
     resumePairing: async () => ({ ok: false, code: 'fixture_only' }),
     forgetPairing: async () => ({ ok: true, value: undefined }),
@@ -633,7 +656,6 @@ window.yuki = {
     linkCodeRequests: async () => ({ ok: true, value: [] }),
     verifyLinkCode: async () => ({ ok: false, code: 'fixture_only' }),
     serverInfo: async () => ({ ok: false, code: 'fixture_only' }),
-    changeAddress: async () => ({ ok: false, code: 'fixture_only' }),
     soulDocument: async () => ({ ok: false, code: 'fixture_only' }),
     soulEdit: async () => ({ ok: false, code: 'fixture_only' }),
     soulDraft: async () => ({ ok: true, value: null }),
@@ -673,6 +695,8 @@ window.yuki = {
     uploads: async () => ({ ok: true, value: [] }),
     attach: async () => ({ ok: true, value: [] }),
     drop: async () => ({ ok: true, value: [] }),
+    pasteFiles: async () => ({ ok: true, value: [] }),
+    pasteText: async () => ({ ok: true, value: [] }),
     record: async () => ({ ok: false, code: 'fixture_only' }),
     microphone: async () => ({ ok: false, code: 'fixture_only' }),
     retryUpload: async () => ({ ok: false, code: 'fixture_only' }),
@@ -713,6 +737,7 @@ window.yuki = {
   onLeaveRequest: () => () => {},
   leaveResponse: () => {},
   onTheme: () => () => {},
+  onLanguage: () => () => {},
   onPairLink: () => () => {},
   onOpenTarget: () => () => {},
 }

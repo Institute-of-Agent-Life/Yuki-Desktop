@@ -1,0 +1,62 @@
+// The workspace shell: sidebar, toolbar, command palette, Yuki switcher and menus.
+import type { English } from '../types'
+
+export default {
+  view: {
+    chat: 'Desktop Conversation',
+    works: 'Work',
+    files: 'Files & Results',
+    computer: 'Computer',
+    local: 'This Computer',
+    about: 'About',
+    settings: 'Settings',
+  },
+  computerOf: "{{name}}'s Computer",
+  aboutOf: 'About {{name}}',
+  group: {
+    chat: 'Conversations',
+    workspace: 'Workspace',
+  },
+  navigation: 'Main Navigation',
+  sidebar: 'Sidebar',
+  resizeSidebar: 'Resize Sidebar',
+  resizeInspector: 'Resize Details',
+  search: 'Search Loaded Content',
+  inspector: 'Details',
+  inspectorContent: 'Details Content',
+  inspectorTab: {
+    work: 'Work',
+    computer: 'Computer',
+    files: 'Files',
+  },
+  restoreLayout: 'Restore Layout',
+  expandInspector: 'Expand Details',
+  closeInspector: 'Close Details',
+  palette: {
+    label: 'Command Palette',
+    group: {
+      message: 'Messages',
+      work: 'Work',
+      file: 'Files',
+      command: 'Commands',
+    },
+    search: 'Search loaded conversations, work, and files',
+    results: 'Search Results',
+    empty: 'Nothing loaded matches.',
+    scope: 'Searches only what this computer has loaded',
+    stale: 'The selected item changed. Choose it again.',
+    openFailed: 'This item can’t be opened.',
+  },
+  switcher: {
+    label: 'Switch Yuki',
+    needsPairing: 'Needs pairing again',
+    logoutPending: 'Sign-out not finished',
+    add: 'Connect Another Yuki',
+    deploy: 'Set Up Yuki on This Computer',
+  },
+  moreCommands: 'More Commands',
+  menuFailed: 'The menu can’t open right now. Try again.',
+  connectionRemoved: 'The connection to that Yuki was removed.',
+  logoutResolved: 'The old connection is already taken care of. You can pair again.',
+  bootFailed: 'Local data can’t be opened. Restart Yuki.',
+} satisfies English<'workspace'>

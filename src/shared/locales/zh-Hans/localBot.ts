@@ -1,0 +1,41 @@
+import type { Chinese } from '../types'
+
+// Deploying Yuki on this computer: the page, and the steps Main reports while it sets Yuki up.
+export default {
+  image: '准备本机 Yuki 镜像',
+  configure: '保存模型与本机设置',
+  initialize: '初始化 Yuki 与数据库',
+  start: '启动本机 Yuki',
+  snowluma: '以 SnowLuma 重新启动本机 Yuki',
+  connect: '创建本人入口并连接桌面',
+  title: '在本机部署 Yuki',
+  description:
+    '需要先安装 Docker（macOS 可用 Docker Desktop、OrbStack 或 Colima）。Yuki 和数据保存在你选的目录。模型可以使用远程服务或你已有的本机服务；这里不附带模型，也不要求先接 QQ 或其他聊天平台。',
+  failed: '本机部署未完成。',
+  dockerMissing: '请先安装或启动 Docker，并使用 Linux 容器。',
+  dockerHelp: '安装说明',
+  notBundled: '这份开发构建尚未准备配套的本机部署资源，请使用完整测试包。',
+  directory: '数据与部署目录',
+  chooseDirectory: '选择目录',
+  characterName: 'Yuki 的名称',
+  personName: '你的名称',
+  preset: '服务预设',
+  presetNeedsDocker: '需要 Docker 读取部署镜像的预设',
+  localhost: '同机模型的 localhost 会转为容器可达的 host.docker.internal；服务本身须允许这个来源。',
+  sandbox: 'Yuki 的电脑',
+  sandboxProfile: {
+    desktop: '完整桌面：可观看与接管（约 3 GiB 内存）',
+    headless: '无头浏览器（约 1 GiB）',
+    lite: '只有终端与文件（约 512 MiB）',
+  },
+  port: '本机端口',
+  configuredRunning: '已有设置与数据，继续使用原 Yuki 和本人入口。服务正在运行。',
+  configuredStopped: '已有设置与数据，继续使用原 Yuki 和本人入口。服务尚未启动。',
+  later: '返回／稍后设置',
+  recheck: '重新检测',
+  startAndConnect: '启动并连接',
+  begin: '开始部署',
+  repair: '重新获取配对并连接',
+  stop: '停止本机服务',
+  footnote: '关闭桌面窗口不会删除数据。Yuki 的电脑（终端、浏览器与桌面）会一起安装。',
+} satisfies Chinese<'localBot'>

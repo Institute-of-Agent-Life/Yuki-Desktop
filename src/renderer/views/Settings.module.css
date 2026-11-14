@@ -32,9 +32,12 @@
     calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 12px)
   );
 }
+/* The category column ends after the header's title with room to spare: on macOS the header
+   gives 92px to the traffic lights, then Back, 12px and the title. Its width follows the longest
+   language (English: Back, Settings) and serves every platform. */
 .layout {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: 252px minmax(0, 1fr);
   flex: 1;
   min-height: 0;
 }
@@ -193,6 +196,18 @@
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 18px;
+}
+/* A dialog's description, its choice and the chosen side's fields, one rhythm apart. */
+.sheetStack {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.sheetStack > p {
+  margin: 0;
+}
+.sheetStack > [role='radiogroup'] {
+  justify-self: start;
 }
 .nativePath {
   flex: 1 1 220px;

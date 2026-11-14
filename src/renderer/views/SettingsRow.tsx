@@ -1,18 +1,27 @@
 import type { ReactNode } from 'react'
 import { Button } from '../components/Controls'
+import { useTranslation } from '../i18n'
 import styles from './Settings.module.css'
 
 export function Row({
   title,
   description,
+  group = false,
   children,
 }: {
   title: string
   description?: string
+  /** A row that stands for one thing (a platform) is named by its title. */
+  group?: boolean
   children?: ReactNode
 }) {
   return (
-    <div className={styles.row} data-settings-row>
+    <div
+      className={styles.row}
+      data-settings-row
+      role={group ? 'group' : undefined}
+      aria-label={group ? title : undefined}
+    >
       <div className={styles.label}>
         {title}
         {description && <small>{description}</small>}
@@ -51,10 +60,11 @@ export function PendingRequest({
   busy: boolean
   onVerify(): void
 }) {
+  const { t } = useTranslation(['connection'])
   return (
-    <Row title={text} description="結果尚未確認，會以原請求查詢，不會建立新請求。">
+    <Row title={text} description={t('connection:pending.description')}>
       <Button loading={busy} onClick={onVerify}>
-        重新確認
+        {t('connection:pending.verify')}
       </Button>
     </Row>
   )

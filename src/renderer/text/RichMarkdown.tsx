@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type HTMLAttributes } from 'react'
 import type { CachedContent } from '../../shared/api'
 import { unwrap } from '../queries/client'
+import { useTranslation } from '../i18n'
 import { internalImage, useMarkdown } from './markdown'
 import { useSessionActive } from '../state/workspace'
 
@@ -34,6 +35,7 @@ export function Markdown({
   hydrate?: boolean
   onProblem?(message: string): void
 }) {
+  const { t } = useTranslation(['media', 'errors'])
   const markdown = useMarkdown(text),
     html = rendered ?? markdown,
     root = useRef<HTMLDivElement>(null)
@@ -78,7 +80,7 @@ export function Markdown({
                 node.replaceChildren(document.importNode(parsed.documentElement, true))
               })
               .catch(() => {
-                if (active) node.dataset.renderError = '無法繪製，以下保留原始碼。'
+                if (active) node.dataset.renderError = t('media:diagramFailed')
               })
           } else {
             const source = internalImage(node.dataset.mediaRef!)
@@ -100,7 +102,7 @@ export function Markdown({
                 node.replaceChildren(image)
               })
               .catch(() => {
-                if (active) node.append('（圖片無法讀取）')
+                if (active) node.append(t('media:imageUnreadable'))
               })
           }
         }
@@ -133,7 +135,7 @@ export function Markdown({
       unsubscribe()
       resources.forEach(release)
     }
-  }, [html, id, activeSession, revision, hydrate])
+  }, [html, id, activeSession, revision, hydrate, t])
   return (
     <div
       {...props}
@@ -154,7 +156,9 @@ export function Markdown({
         click.stopPropagation()
         void work
           .then(unwrap)
-          .catch((error) => onProblem?.(error instanceof Error ? error.message : '操作未完成。'))
+          .catch((error) =>
+            onProblem?.(error instanceof Error ? error.message : t('errors:notCompleted')),
+          )
       }}
       dangerouslySetInnerHTML={{ __html: html }}
     />

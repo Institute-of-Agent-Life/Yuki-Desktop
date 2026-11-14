@@ -24,6 +24,8 @@ import {
 import { unwrap, problemText, ClientProblem, useMe, hidesPrivateData } from '../queries/client'
 import styles from './Computer.module.css'
 import { useGlass } from '../materials/glass'
+import { useWorkspace } from '../state/workspace'
+import { useTranslation } from '../i18n'
 
 function useComputer(id: string) {
   const client = useQueryClient()
@@ -59,10 +61,18 @@ export function Computer({
   compact?: { expand(): void }
   toolbar?: HTMLElement | null
 }) {
+  const { t } = useTranslation(['computer', 'platforms', 'common', 'errors'])
   const id = connection.characterId,
     query = useComputer(id),
     client = useQueryClient()
   const [screen, setScreen] = useState<ComputerScreen>('sandbox')
+  const requested = useWorkspace((state) => state.computerScreen),
+    patch = useWorkspace((state) => state.patch)
+  useEffect(() => {
+    if (compact || !requested) return
+    setScreen(requested)
+    patch({ computerScreen: undefined })
+  }, [compact, requested, patch])
   const me = useMe(id)
   const administrator = me.data?.is_superuser === true && !hidesPrivateData(me.error)
   const state = query.error ? undefined : query.data
@@ -92,9 +102,7 @@ export function Computer({
       ])
       if (result.problem)
         setProblem(
-          result.state === 'submitted'
-            ? '操作結果尚未確認，已保留原請求供查證。'
-            : problemText(result.problem),
+          result.state === 'submitted' ? t('computer:unconfirmed') : problemText(result.problem),
         )
       else {
         setSheet(null)
@@ -105,7 +113,7 @@ export function Computer({
           compact?.expand()
       }
     } catch (error) {
-      setProblem(error instanceof Error ? error.message : '操作未完成。')
+      setProblem(error instanceof Error ? error.message : t('errors:notCompleted'))
     } finally {
       setBusy(false)
       void client.invalidateQueries({ queryKey: [id, 'computer'] })
@@ -119,34 +127,43 @@ export function Computer({
     }
   }
   if (me.data?.is_superuser === false)
-    return <EmptyState title={`${name} 的電腦`}>只有 Yuki 的管理員可以使用這個共享電腦</EmptyState>
+    return (
+      <EmptyState title={t('computer:computerOf', { name })}>{t('computer:adminOnly')}</EmptyState>
+    )
   if (query.isPending || me.isPending)
     return (
-      <EmptyState title="正在讀取電腦狀態">
+      <EmptyState title={t('computer:reading')}>
         <Spinner />
       </EmptyState>
     )
   if (!state || !administrator)
     return (
-      <EmptyState title={`${name} 的電腦`}>
+      <EmptyState title={t('computer:computerOf', { name })}>
         <Banner status="failed">{query.error?.message}</Banner>
-        <Button onClick={() => void query.refetch()}>重新讀取</Button>
+        <Button onClick={() => void query.refetch()}>{t('common:action.reload')}</Button>
       </EmptyState>
     )
   const sources = !compact && state.snowluma_display && (
     <Segmented
       kind="radio"
-      label="顯示器"
+      label={t('computer:display')}
       value={screen === 'sandbox' ? 'sandbox' : 'qq-view'}
       onChange={setScreen}
       items={[
-        { value: 'sandbox', label: `${name} 的沙箱` },
-        { value: 'qq-view', label: 'QQ 登入' },
+        { value: 'sandbox', label: t('computer:sandboxOf', { name }) },
+        { value: 'qq-view', label: t('platforms:qqLogin') },
       ]}
     />
   )
   const showQQ = sources && screen !== 'sandbox'
   const help = state.help_requests.filter((item) => item.kind === 'help')
+  const helpText = t('computer:needsHelp', {
+    name,
+    notes: help
+      .map((item) => item.note)
+      .filter(Boolean)
+      .join(t('computer:helpSeparator')),
+  })
   const controls =
     control?.holder === 'human' ? (
       <>
@@ -155,12 +172,12 @@ export function Computer({
             disabled={blocked}
             onClick={() => setSheet({ kind: 'transfer', snapshot: state })}
           >
-            改由這台控制
+            {t('computer:takeHere')}
           </Button>
         )}
         <Button variant={held ? 'primary' : 'secondary'} disabled={blocked} onClick={release}>
-          <span className={styles.returnLabel} title={`交回給 ${name}`}>
-            交回給 {name}
+          <span className={styles.returnLabel} title={t('computer:returnTo', { name })}>
+            {t('computer:returnTo', { name })}
           </span>
         </Button>
       </>
@@ -170,7 +187,7 @@ export function Computer({
         disabled={blocked || state.display !== 'running' || !control}
         onClick={() => void act({ action: 'take' })}
       >
-        接手
+        {t('computer:take')}
       </Button>
     )
   const header = (
@@ -178,40 +195,43 @@ export function Computer({
       className={`${styles.header} ${toolbar ? styles.toolbarHeader : ''}`}
       data-computer-toolbar={toolbar ? '' : undefined}
       role="group"
-      aria-label="電腦狀態與控制"
+      aria-label={t('computer:controls')}
     >
-      <div>{sources || <h2>{name} 的電腦</h2>}</div>
+      <div>{sources || <h2>{t('computer:computerOf', { name })}</h2>}</div>
       {/* The state sits beside the controls, so switching displays leaves the toolbar still. */}
       {!showQQ && (
         <span className={styles.state}>
-          {state.display === 'running'
-            ? '運作中'
-            : state.display === 'starting'
-              ? '正在啟動桌面'
-              : state.display === 'stopped'
-                ? '休息中'
-                : '目前無法讀取'}{' '}
-          · 控制：
-          {control?.holder === 'human'
-            ? held
-              ? '你'
-              : control.device_label
-            : control?.holder === 'agent'
-              ? name
-              : '無'}
-          {query.isFetching && !query.isPending ? ' · 正在確認最新狀態' : ''}
+          {t(query.isFetching && !query.isPending ? 'computer:statusChecking' : 'computer:status', {
+            state: t(
+              state.display === 'running'
+                ? 'computer:state.running'
+                : state.display === 'starting'
+                  ? 'computer:state.starting'
+                  : state.display === 'stopped'
+                    ? 'computer:state.stopped'
+                    : 'computer:state.unavailable',
+            ),
+            holder:
+              control?.holder === 'human'
+                ? held
+                  ? t('computer:holderYou')
+                  : (control.device_label ?? '')
+                : control?.holder === 'agent'
+                  ? name
+                  : t('computer:holderNone'),
+          })}
         </span>
       )}
       {showQQ ? (
         <Button onClick={() => setScreen(screen === 'qq-control' ? 'qq-view' : 'qq-control')}>
-          {screen === 'qq-control' ? '結束 QQ 控制' : '接手 QQ'}
+          {t(screen === 'qq-control' ? 'computer:endQQ' : 'computer:takeQQ')}
         </Button>
       ) : (
         !compact && (
           <>
             {controls}
             <IconButton
-              label="讓電腦休息"
+              label={t('computer:sleep')}
               disabled={blocked || state.display !== 'running'}
               onClick={() => setSheet({ kind: 'sleep', snapshot: state })}
             >
@@ -225,7 +245,7 @@ export function Computer({
   const displayHeader = toolbar ? createPortal(header, toolbar) : header
   if (showQQ)
     return (
-      <section className={styles.computer} aria-label="QQ 登入">
+      <section className={styles.computer} aria-label={t('platforms:qqLogin')}>
         {displayHeader}
         <RemoteScreen key={id + screen} id={id} held={screen === 'qq-control'} screen={screen} />
       </section>
@@ -233,34 +253,24 @@ export function Computer({
   return (
     <section
       className={`${styles.computer} ${compact ? styles.compact : ''}`}
-      aria-label={`${name} 的電腦${compact ? '預覽' : ''}`}
+      aria-label={t(compact ? 'computer:computerPreviewOf' : 'computer:computerOf', { name })}
     >
       {displayHeader}
       {help.length > 0 &&
         (compact ? (
           <p className={styles.previewHelp} role="status">
-            {name} 需要你幫忙：
-            {help
-              .map((item) => item.note)
-              .filter(Boolean)
-              .join('；')}
+            {helpText}
           </p>
         ) : (
           <Banner status="waiting">
-            <span className={styles.helpText}>
-              {name} 需要你幫忙：
-              {help
-                .map((item) => item.note)
-                .filter(Boolean)
-                .join('；')}
-            </span>
+            <span className={styles.helpText}>{helpText}</span>
             {control?.holder !== 'human' && (
               <Button
                 variant="primary"
                 disabled={blocked}
                 onClick={() => void act({ action: 'take' })}
               >
-                接手
+                {t('computer:take')}
               </Button>
             )}
           </Banner>
@@ -273,12 +283,12 @@ export function Computer({
           {state.display === 'starting' ? <Spinner /> : <Moon size={40} strokeWidth={1} />}
           <h3>
             {state.display === 'starting'
-              ? '正在啟動桌面'
+              ? t('computer:state.starting')
               : state.display === 'stopped'
-                ? `${name} 的電腦正在休息`
-                : '主機的環境管理程式或顯示服務沒有回應'}
+                ? t('computer:resting', { name })
+                : t('computer:noResponse')}
           </h3>
-          <p>檔案、已安裝的軟體和瀏覽器登入都保存在她的電腦裡。</p>
+          <p>{t('computer:keptOnComputer')}</p>
           {state.environment === 'running' && state.display === 'stopped' && (
             <Button
               variant="primary"
@@ -286,7 +296,7 @@ export function Computer({
               disabled={unresolved}
               onClick={() => void act({ action: 'wake' })}
             >
-              喚醒
+              {t('computer:wake')}
             </Button>
           )}
           {state.environment === 'stopped' && (
@@ -296,7 +306,7 @@ export function Computer({
               disabled={unresolved}
               onClick={() => void act({ action: 'wake' })}
             >
-              啟動環境
+              {t('computer:startEnvironment')}
             </Button>
           )}
         </div>
@@ -306,23 +316,26 @@ export function Computer({
           {controls}
           <Button onClick={compact.expand}>
             <Maximize2 size={14} />
-            開啟完整畫面
+            {t('computer:openFull')}
           </Button>
         </div>
       )}
       <footer className={styles.status}>
         {held
-          ? compact
-            ? '預覽僅供觀看，請在完整畫面操作。'
-            : '按 Ctrl＋Alt 釋放鍵盤 · 只有這台裝置的輸入會送出'
+          ? t(compact ? 'computer:previewOnly' : 'computer:releaseKeyboard')
           : control?.holder === 'human'
-            ? `${control.device_label}（${control.device_online == null ? '連線狀態待確認' : control.device_online ? '在線' : '離線'}）正在控制；這台裝置只能觀看。`
-            : compact
-              ? '只能觀看；接手後在完整畫面操作。'
-              : '只能觀看；接手後才能操作。'}
+            ? t(
+                control.device_online == null
+                  ? 'computer:controlledUnknown'
+                  : control.device_online
+                    ? 'computer:controlledOnline'
+                    : 'computer:controlledOffline',
+                { device: control.device_label ?? '' },
+              )
+            : t(compact ? 'computer:watchOnlyPreview' : 'computer:watchOnly')}
         {state.control?.work_id && (
           <Button variant="plain" onClick={() => work(state.control!.work_id!)}>
-            正在使用此電腦的工作
+            {t('computer:currentWork')}
           </Button>
         )}
       </footer>
@@ -330,7 +343,7 @@ export function Computer({
         .filter((item) => item.state === 'submitted')
         .map((item) => (
           <Banner key={item.requestId} status="unknown">
-            原操作結果尚未確認。
+            {t('computer:originalUnconfirmed')}
             <Button
               variant="plain"
               onClick={() =>
@@ -344,7 +357,7 @@ export function Computer({
                   .catch((error) => setProblem(error.message))
               }
             >
-              查證原請求
+              {t('computer:verifyOriginal')}
             </Button>
           </Banner>
         ))}
@@ -352,16 +365,16 @@ export function Computer({
         open={sheet !== null}
         title={
           sheet?.kind === 'sleep'
-            ? '讓電腦休息？'
+            ? t('computer:sheet.sleep')
             : sheet?.kind === 'transfer'
-              ? '改由這台裝置控制？'
-              : `交回給 ${name}`
+              ? t('computer:sheet.transfer')
+              : t('computer:returnTo', { name })
         }
         onClose={() => !busy && setSheet(null)}
         actions={
           <>
             <Button disabled={busy} onClick={() => setSheet(null)}>
-              {sheet?.kind === 'sleep' ? '保持執行' : '取消'}
+              {t(sheet?.kind === 'sleep' ? 'computer:sheet.keepRunning' : 'common:action.cancel')}
             </Button>
             <Button
               variant="primary"
@@ -375,18 +388,20 @@ export function Computer({
                   void act({ action: sheet.kind, leaseId: sheet.snapshot.control.lease_id, note })
               }}
             >
-              {sheet?.kind === 'sleep'
-                ? '仍然休息'
-                : sheet?.kind === 'transfer'
-                  ? '改由這台控制'
-                  : '交回'}
+              {t(
+                sheet?.kind === 'sleep'
+                  ? 'computer:sheet.sleepAnyway'
+                  : sheet?.kind === 'transfer'
+                    ? 'computer:takeHere'
+                    : 'computer:sheet.return',
+              )}
             </Button>
           </>
         }
       >
         {sheet?.kind === 'sleep' ? (
           <>
-            <p>這會停止桌面與瀏覽器。已存檔案、軟體和瀏覽器登入會保留。</p>
+            <p>{t('computer:sleepDescription')}</p>
             {sheet.snapshot.tabs
               .filter(
                 (tab) =>
@@ -395,25 +410,32 @@ export function Computer({
               )
               .map((tab) => (
                 <p key={tab.target_id}>
-                  {tab.title} · 工作 {tab.work_id} · {tab.work_state}
+                  {t('computer:workTab', {
+                    title: tab.title,
+                    work: tab.work_id ?? '',
+                    state: tab.work_state ?? '',
+                  })}
                 </p>
               ))}
             {sheet.snapshot.tabs.some((tab) => tab.ownership === 'unknown') && (
               <p>
-                另有 {sheet.snapshot.tabs.filter((tab) => tab.ownership === 'unknown').length}{' '}
-                個分頁無法確認屬於哪項工作。
+                {t('computer:unknownTabs', {
+                  count: sheet.snapshot.tabs.filter((tab) => tab.ownership === 'unknown').length,
+                })}
               </p>
             )}
           </>
         ) : (
           <>
             <p>
-              {sheet?.kind === 'transfer'
-                ? '目前裝置會停止輸入，之後只有這台裝置可以操作畫面。'
-                : '她會收到你的說明、重新看一次畫面，再從原來的工作繼續。說明只是參考，不會被當成工作發起人的回答。'}
+              {t(
+                sheet?.kind === 'transfer'
+                  ? 'computer:transferDescription'
+                  : 'computer:returnDescription',
+              )}
             </p>
             <label className={styles.note}>
-              說明
+              {t('computer:note')}
               <textarea value={note} onChange={(event) => setNote(event.target.value)} />
             </label>
           </>
@@ -434,6 +456,8 @@ function RemoteScreen({
   held: boolean
   preview?: boolean
 }) {
+  // The connection reads its messages through `i18n`, which a language switch keeps, so it stays.
+  const { t, i18n } = useTranslation(['computer', 'errors'])
   const controls = useGlass<HTMLDivElement>('toolbar')
   const target = useRef<HTMLDivElement>(null),
     rfb = useRef<RFB>(null),
@@ -483,9 +507,7 @@ function RemoteScreen({
             setClipboardReady(false)
             if (rfb.current === instance) rfb.current = null
             setProblem(
-              screen === 'qq-control'
-                ? 'QQ 控制連線已中斷，請重新接手。'
-                : '畫面連線已中斷，正在重新連線。',
+              i18n.t(screen === 'qq-control' ? 'computer:qqDisconnected' : 'computer:disconnected'),
             )
             if (!preview) void window.yuki.client.keyboardCapture(false)
             if (screen !== 'qq-control')
@@ -511,7 +533,7 @@ function RemoteScreen({
       rfb.current = null
       if (!preview) void window.yuki.client.keyboardCapture(false)
     }
-  }, [id, attempt, preview, screen])
+  }, [id, attempt, preview, screen, i18n])
   useEffect(() => {
     if (rfb.current) {
       rfb.current.viewOnly = !held
@@ -531,7 +553,7 @@ function RemoteScreen({
     try {
       await run()
     } catch (error) {
-      setProblem(error instanceof Error ? error.message : '操作未完成。')
+      setProblem(error instanceof Error ? error.message : t('errors:notCompleted'))
     }
   }
   return (
@@ -557,7 +579,7 @@ function RemoteScreen({
             : undefined
         }
         role={preview ? 'img' : 'application'}
-        aria-label={preview ? '遠端電腦預覽' : '遠端電腦畫面'}
+        aria-label={t(preview ? 'computer:remotePreview' : 'computer:remoteScreen')}
         ref={target}
         onPointerDown={() => {
           if (held) {
@@ -572,8 +594,11 @@ function RemoteScreen({
       {!connected && (
         <div className={styles.connecting}>
           <Monitor size={32} strokeWidth={1} />
-          <span>{problem || '正在連接畫面'}</span>
-          <IconButton label="重新連接畫面" onClick={() => setAttempt((value) => value + 1)}>
+          <span>{problem || t('computer:connectingScreen')}</span>
+          <IconButton
+            label={t('computer:reconnectScreen')}
+            onClick={() => setAttempt((value) => value + 1)}
+          >
             <RefreshCw size={16} />
           </IconButton>
         </div>
@@ -583,13 +608,13 @@ function RemoteScreen({
           ref={controls.ref}
           data-glass="toolbar"
           className={styles.floating}
-          aria-label="電腦畫面控制列"
+          aria-label={t('computer:toolbar')}
         >
           <Button variant="plain" aria-pressed={!fit} onClick={() => setFit((value) => !value)}>
-            {fit ? '縮放：適合' : '縮放：100%'}
+            {t(fit ? 'computer:zoomFit' : 'computer:zoomActual')}
           </Button>
           <IconButton
-            label="貼上文字到遠端畫面"
+            label={t('computer:pasteText')}
             disabled={!held || !connected || !clipboardReady}
             onClick={() =>
               void action(async () => {
@@ -600,7 +625,7 @@ function RemoteScreen({
                   instance.viewOnly ||
                   instance.capabilities.clipboard !== true
                 )
-                  throw Error('畫面尚未準備好貼上文字。')
+                  throw Error(t('computer:pasteNotReady'))
                 const text = unwrap(await window.yuki.client.paste())
                 if (
                   rfb.current !== instance ||
@@ -608,7 +633,7 @@ function RemoteScreen({
                   instance.viewOnly ||
                   instance.capabilities.clipboard !== true
                 )
-                  throw Error('畫面狀態或控制權已變更，文字未送出。')
+                  throw Error(t('computer:pasteChanged'))
                 instance.clipboardPasteFrom(text)
               })
             }
@@ -616,14 +641,14 @@ function RemoteScreen({
             <ClipboardPaste size={16} />
           </IconButton>
           <IconButton
-            label="傳送 Ctrl Alt Delete"
+            label={t('computer:ctrlAltDelete')}
             disabled={!held || !connected}
             onClick={() => rfb.current?.sendCtrlAltDel()}
           >
             <Keyboard size={16} />
           </IconButton>
           <IconButton
-            label="截圖存檔"
+            label={t('computer:screenshot')}
             disabled={!connected}
             onClick={() =>
               void action(async () => {
@@ -656,6 +681,7 @@ export function ComputerInspector({
   work(id: string): void
   preview?: ReactNode
 }) {
+  const { t } = useTranslation(['computer'])
   const computer = useComputer(id),
     [path, setPath] = useState('')
   const [problem, setProblem] = useState('')
@@ -682,32 +708,32 @@ export function ComputerInspector({
   return (
     <aside className={styles.inspector}>
       {preview}
-      <h3>瀏覽器分頁</h3>
+      <h3>{t('computer:browserTabs')}</h3>
       {computer.error ? (
         <Banner status="failed">{computer.error.message}</Banner>
       ) : computer.data?.tabs_available === false ? (
-        <p>目前無法讀取分頁。</p>
+        <p>{t('computer:tabsUnavailable')}</p>
       ) : (
         computer.data?.tabs.map((tab) => (
           <div key={tab.target_id} className={styles.tab}>
-            <strong>{tab.title || '未命名分頁'}</strong>
+            <strong>{tab.title || t('computer:untitledTab')}</strong>
             <small>{tab.url_host}</small>
             {tab.work_id ? (
               <Button variant="plain" onClick={() => work(tab.work_id!)}>
                 {workTitle.data?.works.find((item) => item.work_id === tab.work_id)?.goal ??
-                  '查看所屬工作'}
+                  t('computer:viewWork')}
               </Button>
             ) : (
-              <small>歸屬不明</small>
+              <small>{t('computer:unknownOwner')}</small>
             )}
           </div>
         ))
       )}
-      <h3>目前工作區檔案</h3>
-      <p>這裡顯示讀取當下的檔案，內容可能隨工作變更；與已發布成果的固定版本不同。</p>
+      <h3>{t('computer:workspaceFiles')}</h3>
+      <p>{t('computer:workspaceFilesDescription')}</p>
       {path && (
         <Button variant="plain" onClick={() => setPath(path.split('/').slice(0, -1).join('/'))}>
-          上一層
+          {t('computer:up')}
         </Button>
       )}
       {files.error && <Banner status="failed">{files.error.message}</Banner>}
@@ -727,7 +753,7 @@ export function ComputerInspector({
               ) : (
                 <span>{file.name}</span>
               )}
-              <small>{file.size} bytes</small>
+              <small>{t('computer:bytes', { count: file.size })}</small>
               {file.kind === 'file' && (
                 <Button
                   variant="plain"
@@ -739,14 +765,14 @@ export function ComputerInspector({
                       .catch((error) => setProblem(error.message))
                   }}
                 >
-                  儲存目前內容
+                  {t('computer:saveCurrent')}
                 </Button>
               )}
             </div>
           ))}
       {!files.error && files.hasNextPage && (
         <Button variant="plain" onClick={() => void files.fetchNextPage()}>
-          載入更多
+          {t('computer:loadMore')}
         </Button>
       )}
     </aside>

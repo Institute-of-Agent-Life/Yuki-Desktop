@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button, Banner } from '../components/Controls'
 import { unwrap } from '../queries/client'
 import styles from './VoiceRecorder.module.css'
+import { useTranslation } from '../i18n'
 
 export function VoiceRecorder({
   id,
@@ -15,6 +16,8 @@ export function VoiceRecorder({
   cancel(): void
   finish: { current: (() => void) | undefined }
 }) {
+  // The recording reads its messages through `i18n`, which a language switch keeps, so it goes on.
+  const { t, i18n } = useTranslation(['media'])
   const active = useSessionActive()
   const visible = useRef(active)
   visible.current = active
@@ -71,8 +74,7 @@ export function VoiceRecorder({
       }
       draw()
       const mimeType = 'audio/webm;codecs=opus'
-      if (!MediaRecorder.isTypeSupported(mimeType))
-        throw new Error('這台電腦目前無法錄製 Opus 語音。')
+      if (!MediaRecorder.isTypeSupported(mimeType)) throw new Error(i18n.t('media:noOpus'))
       recorder = new MediaRecorder(stream, { mimeType })
       const chunks: BlobPart[] = []
       recorder.ondataavailable = (event) => {
@@ -91,7 +93,7 @@ export function VoiceRecorder({
             .catch((error) => setError(error.message))
       }
       recorder.onerror = () => {
-        setError('錄音中斷，請重新開始。')
+        setError(i18n.t('media:recordingInterrupted'))
         abort()
       }
       recorder.start()
@@ -101,7 +103,7 @@ export function VoiceRecorder({
     })().catch((error) => {
       stream?.getTracks().forEach((track) => track.stop())
       void context?.close()
-      setError(error instanceof Error ? error.message : '無法使用麥克風。')
+      setError(error instanceof Error ? error.message : i18n.t('media:noMicrophone'))
     })
     return () => {
       disposed = true
@@ -113,7 +115,7 @@ export function VoiceRecorder({
       stream?.getTracks().forEach((track) => track.stop())
       if (context?.state !== 'closed') void context?.close()
     }
-  }, [id, done, cancel, finish])
+  }, [id, done, cancel, finish, i18n])
   return (
     <div className={styles.recording}>
       {error ? (
@@ -121,9 +123,11 @@ export function VoiceRecorder({
       ) : (
         <>
           <span role="status">
-            錄音 {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
+            {t('media:recording', {
+              time: `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`,
+            })}
           </span>
-          <div className={styles.wave} aria-label="麥克風音量">
+          <div className={styles.wave} aria-label={t('media:microphoneLevel')}>
             {levels.map((value, index) => (
               <i key={index} style={{ height: `${Math.max(2, value * 32)}px` }} />
             ))}
@@ -137,9 +141,9 @@ export function VoiceRecorder({
           cancel()
         }}
       >
-        取消錄音
+        {t('media:cancelRecording')}
       </Button>
-      {!error && <Button onClick={() => finish.current?.()}>結束錄音</Button>}
+      {!error && <Button onClick={() => finish.current?.()}>{t('media:finishRecording')}</Button>}
     </div>
   )
 }

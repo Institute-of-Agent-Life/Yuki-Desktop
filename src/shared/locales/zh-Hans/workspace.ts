@@ -1,0 +1,62 @@
+import type { Chinese } from '../types'
+
+// The workspace shell: sidebar, toolbar, command palette, Yuki switcher and menus.
+export default {
+  view: {
+    chat: '桌面对话',
+    works: '工作',
+    files: '文件与成果',
+    computer: '电脑',
+    local: '这台电脑',
+    about: '关于',
+    settings: '设置',
+  },
+  computerOf: '{{name}} 的电脑',
+  aboutOf: '关于 {{name}}',
+  group: {
+    chat: '对话',
+    workspace: '工作区',
+  },
+  navigation: '主导航',
+  sidebar: '侧边栏',
+  resizeSidebar: '调整侧边栏',
+  resizeInspector: '调整详情宽度',
+  search: '搜索已加载内容',
+  inspector: '详情',
+  inspectorContent: '详情内容',
+  inspectorTab: {
+    work: '工作',
+    computer: '电脑',
+    files: '文件',
+  },
+  restoreLayout: '还原布局',
+  expandInspector: '放大详情',
+  closeInspector: '关闭详情',
+  palette: {
+    label: '命令面板',
+    group: {
+      message: '对话消息',
+      work: '工作',
+      file: '文件',
+      command: '命令',
+    },
+    search: '搜索已加载的对话、工作与文件',
+    results: '搜索结果',
+    empty: '已加载的内容中没有符合的项目。',
+    scope: '只搜索这台电脑已加载的内容',
+    stale: '所选项目已更新，请重新选择。',
+    openFailed: '无法打开这个项目。',
+  },
+  switcher: {
+    label: '切换 Yuki',
+    needsPairing: '需要重新配对',
+    logoutPending: '退出登录尚未完成',
+    add: '连接另一个 Yuki',
+    deploy: '在这台电脑部署 Yuki',
+  },
+  moreCommands: '更多命令',
+  menuFailed: '菜单暂时无法打开，请再试一次。',
+  connectionRemoved: '原 Yuki 的连接已移除。',
+  logoutResolved: '原连接已处理完成，可以重新配对。',
+  bootFailed: '无法打开本机数据，请重新启动 Yuki。',
+} satisfies Chinese<'workspace'>

@@ -1,4 +1,5 @@
 import type { ConversationBridge } from './api'
+import type { Language, LanguagePreference } from './locales'
 
 export type Theme = 'system' | 'light' | 'dark'
 // The pattern laid over the conversation, behind its glass; chosen in Appearance and kept.
@@ -25,6 +26,8 @@ export type Command =
   | 'next-character'
 
 export interface Preferences {
+  /** The interface language; independent of the display time zone. */
+  language: LanguagePreference
   theme: Theme
   backdrop: Backdrop
   timeZone: DisplayTimeZone
@@ -43,6 +46,7 @@ export interface Preferences {
 }
 
 export const defaultPreferences: Preferences = {
+  language: 'system',
   theme: 'system',
   backdrop: 'lens',
   timeZone: 'Asia/Taipei',
@@ -77,12 +81,16 @@ export interface BootInfo {
   reducedTransparency: boolean
   highContrast: boolean
   preferences: Preferences
+  /** The language shown now: the preference, or the system's when it follows the system. */
+  language: Language
   pairLink: string | null
   openTarget: NavigationTarget | null
 }
 
 export interface DesktopBridge {
   localBot: import('./local-bot').LocalBotBridge
+  ssh: import('./ssh').SshBridge
+  remoteDeploy: import('./ssh').RemoteDeployBridge
   connector: import('./connector').ConnectorBridge
   client: ConversationBridge
   updates: {
@@ -104,6 +112,7 @@ export interface DesktopBridge {
   onTheme(
     callback: (theme: Pick<BootInfo, 'dark' | 'reducedTransparency' | 'highContrast'>) => void,
   ): () => void
+  onLanguage(callback: (language: Language) => void): () => void
   onPairLink(callback: (link: string) => void): () => void
   onOpenTarget(callback: (target: NavigationTarget) => void): () => void
 }

@@ -20,7 +20,7 @@ const original: Connection = {
 }
 const merged = '00000000-0000-4000-8000-000000000005'
 const meta: Meta = {
-  api_revision: 9,
+  api_revision: 11,
   capabilities: ['character', 'soul'],
   server_version: 'test',
   character: {
@@ -420,6 +420,8 @@ it.each([
   [{ ...meta, api_revision: 3 }, 'server_upgrade_required'],
   [{ ...meta, api_revision: 4 }, 'server_upgrade_required'],
   [{ ...meta, api_revision: 7 }, 'server_upgrade_required'],
+  [{ ...meta, api_revision: 9 }, 'server_upgrade_required'],
+  [{ ...meta, api_revision: 10 }, 'server_upgrade_required'],
   [{ ...meta, min_client: { desktop: '2.0.0', android: null } }, 'client_upgrade_required'],
 ] as const)(
   'checks instance identity and compatibility before sending credentials or changing outbox',
@@ -566,6 +568,7 @@ it('a verified new address preserves the same request UUID and body when its ori
   expect(connections.connection(original.characterId)).toEqual({
     ...original,
     baseUrl: 'https://new.test/role',
+    transport: { kind: 'direct' },
   })
   expect((await connections.verify(original.characterId, item.requestId)).requestId).toBe(
     item.requestId,

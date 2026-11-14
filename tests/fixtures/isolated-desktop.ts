@@ -31,6 +31,9 @@ if (process.platform === 'linux') process.env.APPIMAGE = path.join(process.env.Y
     : ''
 }
 app.setAsDefaultProtocolClient = () => false;
+// The specs find controls by their Traditional Chinese text: run as a zh-TW system, in Chromium too.
+app.getPreferredSystemLanguages = () => ['zh-Hant-TW'];
+app.commandLine.appendSwitch('lang', 'zh-TW');
 ${
   options.nativeShell
     ? ''

@@ -1,4 +1,6 @@
+import type { TFunction } from 'i18next'
 import type { ModelBundle, ModelDocument } from '../../shared/models'
+import source from '../../shared/locales/zh-Hant/models'
 
 export type ModelSave = (
   document: ModelDocument,
@@ -34,18 +36,15 @@ export function newKeyAlias(document: ModelDocument, name: string) {
   return alias
 }
 
-const tasks: Record<string, string> = {
-  chat_agent: '對話與工作',
-  memory_extraction: '記憶擷取',
-  memory_self_reflection: '記憶反思',
-  memory_dream: '記憶整理',
-  plugin_agent_session: '插件會話',
-  utility_structured: '結構化處理',
-  web_search: '聯網搜尋',
-}
-export const modelTaskLabel = (task: string) => tasks[task] ?? task
+export const modelTaskLabel = (t: TFunction<['models']>, task: string) =>
+  Object.hasOwn(source.task, task) ? t(`models:task.${task as keyof typeof source.task}`) : task
 
-export function modelProfileLabel(data: Extract<ModelBundle, { valid: true }>, id: string) {
+export function modelProfileLabel(
+  t: TFunction<['models']>,
+  locale: string,
+  data: Extract<ModelBundle, { valid: true }>,
+  id: string,
+) {
   const profile = data.document.profiles[id]!,
     resolved = data.resolved_profiles?.[id],
     name = String(resolved?.model ?? profile.model),
@@ -67,7 +66,8 @@ export function modelProfileLabel(data: Extract<ModelBundle, { valid: true }>, i
     peers.some(([, other]) => other.default_max_output_tokens !== profile.default_max_output_tokens)
   ) {
     const tokens = profile.default_max_output_tokens
-    if (tokens !== undefined) detail.push(`輸出 ${tokens.toLocaleString()} tokens`)
+    if (tokens !== undefined)
+      detail.push(t('models:outputTokens', { count: tokens, value: tokens.toLocaleString(locale) }))
   }
   if (
     peers.filter(
@@ -78,7 +78,7 @@ export function modelProfileLabel(data: Extract<ModelBundle, { valid: true }>, i
   ) {
     const uses = Object.entries(data.document.routes)
       .filter(([, value]) => value === id)
-      .map(([task]) => modelTaskLabel(task))
+      .map(([task]) => modelTaskLabel(t, task))
     detail.push(...uses)
   }
   return { name, detail: detail.join(' · ') }

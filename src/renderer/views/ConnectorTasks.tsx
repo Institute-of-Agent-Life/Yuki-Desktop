@@ -15,6 +15,7 @@ import styles from './Settings.module.css'
 import { NativeRequest } from './NativeRequest'
 import { ConnectorTerminals } from './ConnectorTerminals'
 import activityStyles from './LocalComputer.module.css'
+import { useTranslation } from '../i18n'
 
 export function ConnectorTasks({
   connection,
@@ -24,6 +25,7 @@ export function ConnectorTasks({
   state: Extract<ConnectorState, { available: true }>
 }) {
   const query = useQueryClient()
+  const { t } = useTranslation(['connector', 'common'])
   const instances = (state.admission?.instances ?? []).filter((item) =>
     state.instances.some((local) => local.id === item.localId),
   )
@@ -102,7 +104,7 @@ export function ConnectorTasks({
     try {
       await action()
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : '操作未確認，請重新查詢原紀錄。')
+      setError(failure instanceof Error ? failure.message : t('connector:tasks.unconfirmed'))
     } finally {
       setBusy(false)
     }
@@ -117,12 +119,12 @@ export function ConnectorTasks({
       setText('')
     setMessage(
       result.state === 'draft'
-        ? `要求只保存在本機（${result.requestId}），尚未提交。`
+        ? t('connector:tasks.draft', { id: result.requestId })
         : result.state === 'submitted'
-          ? `要求已送出，接納尚待查證（${result.requestId}）。`
+          ? t('connector:tasks.submitted', { id: result.requestId })
           : result.problem
-            ? `原請求已結束（${result.requestId}）：${result.problem}`
-            : `要求已交給 ${connection.name}（請求 ${result.requestId}）；原生執行結果請查看原操作回執。`,
+            ? t('connector:tasks.ended', { id: result.requestId, problem: result.problem })
+            : t('connector:tasks.accepted', { id: result.requestId, name: connection.name }),
     )
   }
   const verify = () =>
@@ -213,7 +215,7 @@ export function ConnectorTasks({
       )}
       {receipt && (receipt.state === 'draft' || receipt.state === 'submitted') && (
         <Button disabled={busy} onClick={() => void verify()}>
-          查證原請求
+          {t('connector:tasks.verify')}
         </Button>
       )}
     </>
@@ -221,17 +223,21 @@ export function ConnectorTasks({
   return (
     <>
       <Segmented
-        label="這台電腦的活動"
+        label={t('connector:tasks.activity')}
         items={[
-          { value: 'native', label: '原生 Agent 任務' },
-          { value: 'terminals', label: '終端執行' },
+          { value: 'native', label: t('connector:tasks.native') },
+          { value: 'terminals', label: t('connector:tasks.terminals') },
         ]}
         value={activity}
         onChange={setActivity}
       />
-      <section role="tabpanel" hidden={activity !== 'native'} aria-label="原生 Agent 任務">
+      <section
+        role="tabpanel"
+        hidden={activity !== 'native'}
+        aria-label={t('connector:tasks.native')}
+      >
         <div className={activityStyles.toolbar}>
-          <h3>原生任務</h3>
+          <h3>{t('connector:tasks.heading')}</h3>
           <Button
             variant="plain"
             disabled={busy || operations.isFetching || detail.isFetching}
@@ -240,22 +246,22 @@ export function ConnectorTasks({
               if (selectedId) void detail.refetch()
             }}
           >
-            重新整理
+            {t('connector:refresh')}
           </Button>
         </div>
         <p className={styles.notice}>
           {instances.length
-            ? '直接交代任務，或選擇已有會話繼續處理。工作位置可以省略，權限沿用原生設定。停止觀察會保留原任務；取消會向原生 Agent 請求中止本次執行，已啟動的獨立背景程式可能繼續運行。結果以原生回執為準。'
+            ? t('connector:tasks.intro')
             : catalogKnown
-              ? '尚未設定原生 Agent，可在設定的「這台電腦」選配 Codex、Claude 或 ACP。這不影響已開啟完整訪問的 Shell、檔案與本機程式操作；原有操作回執仍保留在下方。'
-              : '目前無法確認 Agent 目錄，原設定與所選會話保留；原有操作回執仍可查詢。'}
+              ? t('connector:tasks.noAgents')
+              : t('connector:tasks.catalogUnknown')}
         </p>
         {!selectedId && outcome}
         {instances.length > 0 && (
           <>
-            <Row title="伺服器已接納的 Agent">
+            <Row title={t('connector:tasks.admittedAgents')}>
               <select
-                aria-label="任務 Agent"
+                aria-label={t('connector:tasks.agent')}
                 value={instance}
                 onChange={(event) => {
                   currentInstance.current = event.target.value
@@ -267,7 +273,7 @@ export function ConnectorTasks({
                   setCwd('')
                 }}
               >
-                <option value="">選擇 Agent</option>
+                <option value="">{t('connector:tasks.chooseAgent')}</option>
                 {instances.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.label} · {item.driver}
@@ -277,21 +283,21 @@ export function ConnectorTasks({
             </Row>
             <div className={styles.actions}>
               <Button disabled={busy || !instance} onClick={() => void loadSessions()}>
-                讀取原生會話
+                {t('connector:tasks.loadSessions')}
               </Button>
               {cursor && (
                 <Button disabled={busy} onClick={() => void loadSessions(true)}>
-                  更多會話
+                  {t('connector:tasks.moreSessions')}
                 </Button>
               )}
             </div>
-            <Row title="會話">
+            <Row title={t('connector:tasks.session')}>
               <select
-                aria-label="原生會話"
+                aria-label={t('connector:tasks.sessionLabel')}
                 value={session}
                 onChange={(event) => setSession(event.target.value)}
               >
-                <option value="">建立新會話（使用原生預設）</option>
+                <option value="">{t('connector:tasks.newSession')}</option>
                 {sessions.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.label ?? item.id}
@@ -302,16 +308,14 @@ export function ConnectorTasks({
             </Row>
             {!session && (
               <details>
-                <summary>工作位置（可選）</summary>
-                <p className={styles.notice}>
-                  省略時使用原生預設。選擇已有會話時，保留該會話原本的工作位置。
-                </p>
-                <Row title="本次任務工作位置">
+                <summary>{t('connector:tasks.cwdSummary')}</summary>
+                <p className={styles.notice}>{t('connector:tasks.cwdHint')}</p>
+                <Row title={t('connector:tasks.cwd')}>
                   <TextField
-                    aria-label="本次任務工作位置"
+                    aria-label={t('connector:tasks.cwd')}
                     value={cwd}
                     onChange={(event) => setCwd(event.target.value)}
-                    placeholder="可省略"
+                    placeholder={t('connector:tasks.cwdPlaceholder')}
                   />
                   <Button
                     disabled={busy}
@@ -322,14 +326,14 @@ export function ConnectorTasks({
                       })
                     }
                   >
-                    選擇資料夾
+                    {t('connector:tasks.chooseFolder')}
                   </Button>
                 </Row>
               </details>
             )}
-            <Row title="給 Yuki 的要求">
+            <Row title={t('connector:tasks.request')}>
               <TextField
-                aria-label="原生任務要求"
+                aria-label={t('connector:tasks.requestLabel')}
                 value={text}
                 onChange={(event) => setText(event.target.value)}
               />
@@ -339,18 +343,20 @@ export function ConnectorTasks({
                 disabled={busy || !instance || !text.trim()}
                 onClick={() => void perform(() => submit('prompt'))}
               >
-                交給 Yuki 執行
+                {t('connector:tasks.run')}
               </Button>
               <Button
                 disabled={busy || !instance || !session}
                 onClick={() => void perform(() => submit('watch'))}
               >
-                接續觀察此會話
+                {t('connector:tasks.watch')}
               </Button>
             </div>
           </>
         )}
-        {operations.isError && <Banner status="unknown">原操作目錄暫時無法讀取。</Banner>}
+        {operations.isError && (
+          <Banner status="unknown">{t('connector:tasks.operationsUnavailable')}</Banner>
+        )}
         <div className={styles.group}>
           {!hidesPrivateData(operations.error) &&
             operations.data?.pages
@@ -359,10 +365,13 @@ export function ConnectorTasks({
                 <Row
                   key={operation.id}
                   title={operation.action ?? operation.id}
-                  description={`Work ${operation.work_id ?? '—'} · ${operation.status}`}
+                  description={t('connector:tasks.operationDescription', {
+                    work: operation.work_id ?? '—',
+                    status: operation.status,
+                  })}
                 >
                   <Button disabled={busy} onClick={() => setSelectedId(operation.id)}>
-                    查看原回執
+                    {t('connector:tasks.viewReceipt')}
                   </Button>
                 </Row>
               ))}
@@ -372,12 +381,12 @@ export function ConnectorTasks({
             disabled={busy || operations.isFetching}
             onClick={() => void operations.fetchNextPage()}
           >
-            更多原操作
+            {t('connector:tasks.moreOperations')}
           </Button>
         )}
         {/* The original receipt opens over the list, where it was asked for. */}
         <Sheet
-          title={`原操作 ${selectedId ?? ''}`}
+          title={t('connector:tasks.operation', { id: selectedId ?? '' })}
           open={!!selectedId}
           width={640}
           onClose={() => setSelectedId(undefined)}
@@ -389,63 +398,72 @@ export function ConnectorTasks({
                     disabled={busy || !text.trim()}
                     onClick={() => void perform(() => submit('queue', selected))}
                   >
-                    排入原會話
+                    {t('connector:tasks.queue')}
                   </Button>
                   <Button
                     disabled={busy || !text.trim()}
                     onClick={() => void perform(() => submit('steer', selected))}
                   >
-                    調整原任務
+                    {t('connector:tasks.steer')}
                   </Button>
                   <Button
                     disabled={busy}
                     onClick={() => void perform(() => submit('detach', selected))}
                   >
-                    停止觀察
+                    {t('connector:tasks.detach')}
                   </Button>
                   <Button
                     disabled={busy}
                     variant="destructive"
                     onClick={() => void perform(() => submit('cancel', selected))}
                   >
-                    請求取消原生執行
+                    {t('connector:tasks.cancel')}
                   </Button>
                 </>
               )}
               <Button disabled={detail.isFetching} onClick={() => void detail.refetch()}>
-                重新整理原回執
+                {t('connector:tasks.refreshReceipt')}
               </Button>
               <Button variant="primary" onClick={() => setSelectedId(undefined)}>
-                關閉
+                {t('common:action.close')}
               </Button>
             </>
           }
         >
-          {detail.isPending && <p role="status">正在讀取原回執…</p>}
-          {detail.isError && <Banner status="unknown">原回執尚未讀取完成，請重新整理。</Banner>}
+          {detail.isPending && <p role="status">{t('connector:tasks.readingReceipt')}</p>}
+          {detail.isError && (
+            <Banner status="unknown">{t('connector:tasks.receiptUnavailable')}</Banner>
+          )}
           {outcome}
           {selected && (
             <>
               <p className={styles.notice}>
-                狀態：{selected.status}
-                {selected.uncertain ? '（結果尚未確認）' : ''}
-                {selected.pending ? '（等待後續回執）' : ''} · 會話 {selected.session_id ?? '未知'}{' '}
-                · 執行 {selected.execution_id ?? '未知'}
+                {t('connector:statusLine', { status: selected.status })}
+                {selected.uncertain && t('connector:tasks.resultUnconfirmed')}
+                {selected.pending && t('connector:pendingFlag')}
+                {' · '}
+                {t('connector:tasks.sessionOf', {
+                  id: selected.session_id ?? t('connector:tasks.unknownId'),
+                })}
+                {' · '}
+                {t('connector:tasks.executionOf', {
+                  id: selected.execution_id ?? t('connector:tasks.unknownId'),
+                })}
               </p>
               <p className={styles.notice}>
                 {typeof selected.result?.text === 'string' ? selected.result.text : ''}
               </p>
               {selected.result && (
                 <details>
-                  <summary>原結構化回執</summary>
+                  <summary>{t('connector:tasks.structuredReceipt')}</summary>
                   <pre className={styles.terminalOutput}>
                     {JSON.stringify(selected.result, null, 2)}
                   </pre>
                 </details>
               )}
-              <Row title="給原任務的要求">
+              <Row title={t('connector:tasks.followUp')}>
                 <TextField
-                  aria-label="給原任務的要求"
+                  aria-label={t('connector:tasks.followUp')}
                   value={text}
                   onChange={(event) => setText(event.target.value)}
                 />
@@ -463,14 +481,18 @@ export function ConnectorTasks({
                   disabled={busy || detail.isFetching}
                   onClick={() => void detail.fetchNextPage()}
                 >
-                  讀取後續進度
+                  {t('connector:tasks.moreProgress')}
                 </Button>
               )}
             </>
           )}
         </Sheet>
       </section>
-      <section role="tabpanel" hidden={activity !== 'terminals'} aria-label="終端執行">
+      <section
+        role="tabpanel"
+        hidden={activity !== 'terminals'}
+        aria-label={t('connector:tasks.terminals')}
+      >
         {state.deviceId && <ConnectorTerminals connection={connection} deviceId={state.deviceId} />}
       </section>
     </>

@@ -1,27 +1,24 @@
 import { useState } from 'react'
+import type { TFunction } from 'i18next'
 import type { ModelTestInput, ModelTestResult, ModelDiscoverResult } from '../../shared/models'
 import type { components } from '../../shared/admin-contract.gen'
 import { Banner, Button, TextField } from '../components/Controls'
 import { unwrap } from '../queries/client'
+import { useTranslation } from '../i18n'
+import source from '../../shared/locales/zh-Hant/models'
 import type { ConnectionDraft } from './ModelConnectionForm'
 import styles from './ModelSettings.module.css'
 
-const errors: Record<string, string> = {
-  authentication: '金鑰驗證失敗',
-  rate_limit: '服務暫時限流',
-  quota: '服務額度不足',
-  timeout: '連接逾時',
-  protocol: '服務回應不符合協定',
-  unavailable: '服務目前無法使用',
-  configuration: '請檢查連接設定',
-  unsupported: '這個服務不支援此操作',
+function errorText(t: TFunction<['models']>, category: string) {
+  return Object.hasOwn(source.probeError, category)
+    ? t(`models:probeError.${category as keyof typeof source.probeError}`)
+    : category
 }
-const errorText = (category: string) => errors[category] ?? category
 
 export function ModelTest({
   characterId,
   input,
-  label = '測試',
+  label,
   disabled = false,
 }: {
   characterId: string
@@ -29,6 +26,7 @@ export function ModelTest({
   label?: string
   disabled?: boolean
 }) {
+  const { t, i18n } = useTranslation(['models'])
   const [busy, setBusy] = useState(false),
     [result, setResult] = useState<ModelTestResult>(),
     [error, setError] = useState('')
@@ -50,13 +48,18 @@ export function ModelTest({
           }
         }}
       >
-        {label}
+        {label ?? t('models:test')}
       </Button>
       {result && (
-        <span role="status" aria-label="上次測試結果">
+        <span role="status" aria-label={t('models:lastTest')}>
           {result.ok
-            ? `可用 · ${result.latency_seconds.toFixed(1)} 秒`
-            : errorText(result.error_category!)}
+            ? t('models:testOk', {
+                seconds: result.latency_seconds.toLocaleString(i18n.language, {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                }),
+              })
+            : errorText(t, result.error_category!)}
         </span>
       )}
       {error && <Banner status="failed">{error}</Banner>}
@@ -79,6 +82,7 @@ export function ModelDraftProbes({
   change(value: ConnectionDraft): void
   disabled: boolean
 }) {
+  const { t } = useTranslation(['models'])
   const [busy, setBusy] = useState(false),
     [discovery, setDiscovery] = useState<ModelDiscoverResult>(),
     [error, setError] = useState(''),
@@ -98,7 +102,7 @@ export function ModelDraftProbes({
         <ModelTest
           characterId={characterId}
           input={{ draft_profile: profile, ...(draft.key ? { api_key: draft.key } : {}) }}
-          label="測試連接"
+          label={t('models:testConnection')}
           disabled={disabled || draft.models.length === 0}
         />
         <Button
@@ -130,21 +134,21 @@ export function ModelDraftProbes({
             }
           }}
         >
-          取得模型清單
+          {t('models:fetchModels')}
         </Button>
       </div>
       {error && <Banner status="failed">{error}</Banner>}
       {discovery?.error_category && (
         <Banner status="failed">
           {discovery.error_category === 'unsupported'
-            ? '這個服務不提供模型清單，請手動輸入模型 ID'
-            : errorText(discovery.error_category)}
+            ? t('models:noModelList')
+            : errorText(t, discovery.error_category)}
         </Banner>
       )}
       {discovery && !discovery.error_category && (
         <>
           <label className={styles.formField}>
-            搜尋模型 ID
+            {t('models:searchModels')}
             <TextField value={search} onChange={(event) => setSearch(event.target.value)} />
           </label>
           <div className={styles.modelList}>

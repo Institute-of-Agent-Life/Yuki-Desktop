@@ -34,6 +34,7 @@ import { requestNavigation } from '../state/navigation'
 import { useWorkspaceMotion } from '../motion/workspace'
 import { ApplicationMenu } from './ApplicationMenu'
 import { EdgeFade, useScrolledUnder } from './EdgeFade'
+import { useTranslation } from '../i18n'
 
 interface Props {
   name: string
@@ -53,19 +54,15 @@ interface Props {
   mainConversation?: boolean
 }
 const workspaceViews = [
-  ['works', '工作', BriefcaseBusiness],
-  ['files', '檔案與成果', Folder],
-  ['computer', '電腦', Monitor],
-  ['local', '這台電腦', Laptop],
+  ['works', BriefcaseBusiness],
+  ['files', Folder],
+  ['computer', Monitor],
+  ['local', Laptop],
 ] as const
-const views = [
-  ['chat', '桌面對話', MessageCircle],
-  ...workspaceViews,
-  ['about', '關於', Snowflake],
-  ['settings', '設定', Settings2],
-] as const
+const views = ['chat', ...workspaceViews.map(([view]) => view), 'about', 'settings']
 
 export function Workspace(props: Props) {
+  const { t } = useTranslation(['workspace', 'common'])
   const [main, scrolled] = useScrolledUnder<HTMLElement>()
   const state = useWorkspace()
   const active = useSessionActive()
@@ -100,7 +97,7 @@ export function Workspace(props: Props) {
       requestAnimationFrame(() => {
         const target =
           root.current?.querySelector<HTMLButtonElement>(
-            '[data-region="toolbar"] button[aria-label="詳情"]',
+            '[data-region="toolbar"] button[data-toggle="inspector"]',
           ) ?? root.current?.querySelector<HTMLButtonElement>('[data-region="toolbar"] button')
         if (target?.offsetWidth && !target.closest('[inert]')) target.focus()
       })
@@ -112,11 +109,10 @@ export function Workspace(props: Props) {
     if (inspector || focusMode) closeInspector()
     else state.toggle('inspector')
   }
-  const inspectorTabs = [
-    { value: 'work' as const, label: '工作' },
-    { value: 'computer' as const, label: '電腦' },
-    { value: 'files' as const, label: '檔案' },
-  ]
+  const inspectorTabs = (['work', 'computer', 'files'] as const).map((value) => ({
+    value,
+    label: t(`workspace:inspectorTab.${value}`),
+  }))
   const selectedTab = state.inspectorTab
   useEffect(() => {
     const resize = () => setWidth(window.innerWidth)
@@ -127,8 +123,7 @@ export function Workspace(props: Props) {
     if (command === 'sidebar') toggleSidebar()
     else if (command === 'inspector') toggleInspector()
     else if (command === 'focus-mode') state.toggle('focusMode')
-    else if (command !== 'settings' && views.some(([view]) => view === command))
-      selectView(command as View)
+    else if (command !== 'settings' && views.includes(command)) selectView(command as View)
   })
   const layout = columns(
     width,
@@ -202,7 +197,9 @@ export function Workspace(props: Props) {
       style={{ gridColumn: kind === 'sidebarWidth' ? 2 : focusMode ? 2 : 4, gridRow: 1 }}
     >
       <button
-        aria-label={kind === 'sidebarWidth' ? '調整側邊欄' : '調整詳情寬度'}
+        aria-label={
+          kind === 'sidebarWidth' ? t('workspace:resizeSidebar') : t('workspace:resizeInspector')
+        }
         role="separator"
         aria-orientation="vertical"
         aria-valuenow={kind === 'sidebarWidth' ? layout.sidebar : layout.inspector}
@@ -236,7 +233,7 @@ export function Workspace(props: Props) {
           avatar={props.avatar}
         />
       )}
-      <div className={styles.group}>對話</div>
+      <div className={styles.group}>{t('workspace:group.chat')}</div>
       <button
         className={styles.nav}
         aria-current={
@@ -245,11 +242,11 @@ export function Workspace(props: Props) {
         onClick={() => selectView('chat')}
       >
         <MessageCircle size={16} strokeWidth={1.5} />
-        桌面對話
+        {t('workspace:view.chat')}
       </button>
       {props.entries}
-      <div className={styles.group}>工作區</div>
-      {workspaceViews.map(([view, label, Icon]) => (
+      <div className={styles.group}>{t('workspace:group.workspace')}</div>
+      {workspaceViews.map(([view, Icon]) => (
         <button
           className={styles.nav}
           key={view}
@@ -257,7 +254,9 @@ export function Workspace(props: Props) {
           onClick={() => selectView(view)}
         >
           <Icon size={16} strokeWidth={1.5} />
-          {view === 'computer' ? `${props.name} 的電腦` : label}
+          {view === 'computer'
+            ? t('workspace:computerOf', { name: props.name })
+            : t(`workspace:view.${view}`)}
         </button>
       ))}
       <div className={styles.navSpacer} />
@@ -267,7 +266,7 @@ export function Workspace(props: Props) {
         onClick={() => selectView('about')}
       >
         <Snowflake size={16} strokeWidth={1.5} />
-        關於 {props.name}
+        {t('workspace:aboutOf', { name: props.name })}
       </button>
       <button
         className={styles.nav}
@@ -279,7 +278,7 @@ export function Workspace(props: Props) {
         }}
       >
         <Settings2 size={16} strokeWidth={1.5} />
-        設定
+        {t('workspace:view.settings')}
       </button>
     </>
   )
@@ -300,7 +299,7 @@ export function Workspace(props: Props) {
         if (
           layout.overlaySidebar &&
           overlaySidebar &&
-          !target.closest('[data-region="sidebar"],button[aria-label="側邊欄"]')
+          !target.closest('[data-region="sidebar"],button[data-toggle="sidebar"]')
         )
           setOverlaySidebar(false)
       }}
@@ -338,7 +337,7 @@ export function Workspace(props: Props) {
             data-region="sidebar"
             data-glass="sidebar"
             data-pane-open={sidebar}
-            aria-label="主要導覽"
+            aria-label={t('workspace:navigation')}
             inert={!sidebar}
             className={`${styles.sidebar} ${layout.overlaySidebar ? styles.sidebarOverlay : ''}`}
             onClick={(event) => {
@@ -367,7 +366,8 @@ export function Workspace(props: Props) {
         >
           <Capsule>
             <IconButton
-              label="側邊欄"
+              label={t('workspace:sidebar')}
+              data-toggle="sidebar"
               aria-expanded={!focusMode && sidebar}
               onClick={toggleSidebar}
             >
@@ -381,20 +381,21 @@ export function Workspace(props: Props) {
                   <strong>
                     {state.view === 'chat' || focusMode
                       ? props.name
-                      : views.find(([view]) => view === state.view)?.[1]}
+                      : t(`workspace:view.${state.view}`)}
                   </strong>
                   {(state.view === 'chat' || focusMode) && <small>{props.status}</small>}
                 </span>
               )}
               <Capsule>
                 <IconButton
-                  label="搜尋已載入內容"
+                  label={t('workspace:search')}
                   onClick={() => window.dispatchEvent(new Event('yuki:search'))}
                 >
                   <Search size={16} strokeWidth={1.5} />
                 </IconButton>
                 <IconButton
-                  label="詳情"
+                  label={t('workspace:inspector')}
+                  data-toggle="inspector"
                   aria-expanded={inspector || focusMode}
                   onClick={toggleInspector}
                 >
@@ -420,22 +421,26 @@ export function Workspace(props: Props) {
             ref={inspectorRef}
             style={{ gridColumn: focusMode || detailLayer ? 3 : 5, gridRow: 1 }}
             data-region="inspector"
-            aria-label="詳情"
+            aria-label={t('workspace:inspector')}
             inert={!inspector && !focusMode}
             className={`${styles.inspector} ${detailLayer ? styles.detailPage : ''}`}
           >
             <header className={styles.inspectorHeader} ref={detailHeader}>
               {detailLayer && (
-                <Button variant="plain" aria-label="關閉詳情" onClick={closeInspector}>
+                <Button
+                  variant="plain"
+                  aria-label={t('workspace:closeInspector')}
+                  onClick={closeInspector}
+                >
                   <ArrowLeft size={16} strokeWidth={1.5} />
-                  返回
+                  {t('common:action.back')}
                 </Button>
               )}
               {props.inspectorTitle ? (
                 <strong>{props.inspectorTitle}</strong>
               ) : (
                 <Segmented
-                  label="詳情內容"
+                  label={t('workspace:inspectorContent')}
                   items={inspectorTabs}
                   value={selectedTab}
                   onChange={(inspectorTab) => state.patch({ inspectorTab })}
@@ -444,7 +449,9 @@ export function Workspace(props: Props) {
               {!detailLayer && (
                 <>
                   <IconButton
-                    label={focusMode ? '還原版面' : '放大詳情'}
+                    label={
+                      focusMode ? t('workspace:restoreLayout') : t('workspace:expandInspector')
+                    }
                     onClick={() => state.toggle('focusMode')}
                   >
                     {focusMode ? (
@@ -453,7 +460,7 @@ export function Workspace(props: Props) {
                       <Maximize2 size={16} strokeWidth={1.5} />
                     )}
                   </IconButton>
-                  <IconButton label="關閉詳情" onClick={closeInspector}>
+                  <IconButton label={t('workspace:closeInspector')} onClick={closeInspector}>
                     <X size={16} strokeWidth={1.5} />
                   </IconButton>
                 </>

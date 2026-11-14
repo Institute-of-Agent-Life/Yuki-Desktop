@@ -33,7 +33,7 @@ const connection: Connection = {
   persistentCredentials: false,
 }
 const meta: Meta = {
-  api_revision: 9,
+  api_revision: 11,
   capabilities: ['character', 'soul'],
   server_version: 'test',
   character: {

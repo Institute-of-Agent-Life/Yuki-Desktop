@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { access, copyFile, mkdir, readFile, stat } from 'node:fs/promises'
+import { access, copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve, delimiter, isAbsolute } from 'node:path'
 import type {
   LocalBotConfiguration,
@@ -10,6 +10,7 @@ import type {
 import type { LocalStore } from './store'
 import type { Connections } from './connections'
 import { ApiError } from './api/client'
+import { t } from './i18n'
 import type { ProviderPreset } from '../shared/models'
 
 export type DockerRunner = (
@@ -32,40 +33,44 @@ async function dockerExecutable() {
   throw new ApiError('docker_unavailable')
 }
 export const runDocker: DockerRunner = async (args, options = {}) =>
-  new Promise((done, reject) => {
-    void dockerExecutable()
-      .then((executable) => {
-        const child = spawn(executable, args, {
-          cwd: options.cwd,
-          shell: false,
-          windowsHide: true,
-          stdio: ['pipe', 'pipe', 'pipe'],
-        })
-        let output = '',
-          diagnostic = ''
-        child.stdout.setEncoding('utf8').on('data', (chunk) => {
-          output += chunk
-        })
-        child.stderr.setEncoding('utf8').on('data', (chunk) => {
-          diagnostic += chunk
-        })
-        child.on('error', () => reject(new ApiError('docker_unavailable')))
-        child.on('close', (code) => {
-          if (code === 0) done(output)
-          else
-            reject(
-              new ApiError(
-                /port is already allocated|address already in use/i.test(diagnostic)
-                  ? 'local_port_in_use'
-                  : 'local_deployment_failed',
-              ),
-            )
-        })
-        child.stdin.on('error', () => reject(new ApiError('local_deployment_failed')))
-        child.stdin.end(options.input)
-      })
-      .catch(reject)
+  runProcess(await dockerExecutable(), args, options)
+function runProcess(
+  executable: string,
+  args: string[],
+  options: { cwd?: string; input?: string; env?: NodeJS.ProcessEnv },
+) {
+  return new Promise<string>((done, reject) => {
+    const child = spawn(executable, args, {
+      cwd: options.cwd,
+      env: options.env,
+      shell: false,
+      windowsHide: true,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    let output = '',
+      diagnostic = ''
+    child.stdout.setEncoding('utf8').on('data', (chunk) => {
+      output += chunk
+    })
+    child.stderr.setEncoding('utf8').on('data', (chunk) => {
+      diagnostic += chunk
+    })
+    child.on('error', () => reject(new ApiError('docker_unavailable')))
+    child.on('close', (code) => {
+      if (code === 0) done(output)
+      else
+        reject(
+          new ApiError(
+            /port is already allocated|address already in use/i.test(diagnostic)
+              ? 'local_port_in_use'
+              : 'local_deployment_failed',
+          ),
+        )
+    })
+    child.stdin.on('error', () => reject(new ApiError('local_deployment_failed')))
+    child.stdin.end(options.input)
   })
+}
 
 async function exists(path: string) {
   try {
@@ -91,6 +96,9 @@ export class LocalBot {
   private get run() {
     return this.options.run ?? runDocker
   }
+  private project(item: LocalBotInstallation) {
+    return 'yuki-desktop-' + createHash('sha256').update(item.directory).digest('hex').slice(0, 12)
+  }
   async presets(): Promise<ProviderPreset[]> {
     const manifest = JSON.parse(
       await readFile(join(this.options.resources, 'manifest.json'), 'utf8'),
@@ -114,15 +122,13 @@ export class LocalBot {
     return value
   }
   private compose(item: LocalBotInstallation, command: string[], input?: string) {
-    const project =
-      'yuki-desktop-' + createHash('sha256').update(item.directory).digest('hex').slice(0, 12)
     return this.run(
       [
         'compose',
         '--project-directory',
         item.directory,
         '-p',
-        project,
+        this.project(item),
         '-f',
         join(item.directory, 'docker-compose.yml'),
         '-f',
@@ -234,16 +240,15 @@ export class LocalBot {
       .replaceAll('${YUKI_LOCAL_UID:-10001}', String(process.getuid?.() ?? 10001))
       .replaceAll('${YUKI_LOCAL_GID:-10001}', String(process.getgid?.() ?? 10001))
       .replace('${YUKI_SANDBOX_PROFILE:-desktop}', item.sandboxProfile ?? 'desktop')
-    const { writeFile } = await import('node:fs/promises')
     await writeFile(join(directory, 'docker-compose.local.yml'), configuredOverride)
-    this.options.progress('準備本機 Yuki 映像')
+    this.options.progress(t('localBot:image'))
     await this.run(['image', 'inspect', item.image]).catch(() =>
       this.run(['pull', item.image]).catch(() => {
         throw new ApiError('local_image_unavailable')
       }),
     )
     if (!(await exists(join(directory, '.env')))) {
-      this.options.progress('儲存模型與本機設定')
+      this.options.progress(t('localBot:configure'))
       if (!input.model) throw new ApiError('validation_error')
       const model = { ...input.model }
       const endpoint = new URL(model.base_url)
@@ -292,7 +297,7 @@ export class LocalBot {
       await this.run(['volume', 'inspect', volume]).catch(() =>
         this.run(['volume', 'create', volume]),
       )
-    this.options.progress('初始化 Yuki 與資料庫')
+    this.options.progress(t('localBot:initialize'))
     await this.compose(item, [
       'run',
       '--rm',
@@ -309,10 +314,42 @@ export class LocalBot {
   }
   async start() {
     const item = this.installation()
-    this.options.progress('啟動本機 Yuki')
+    this.options.progress(t('localBot:start'))
     await this.compose(item, ['up', '-d', '--wait', 'bot'])
     // Yuki answers without its sandbox; the sandbox reports its own state when it is ready.
     await this.compose(item, ['up', '-d', 'manager'])
+    return this.state()
+  }
+  /**
+   * The two steps of the backend's `deploy/snowluma.sh`, in this deployment's own Compose files and
+   * project: `yuki setup snowluma` (the one place that writes SnowLuma into `.env`) as root in a
+   * one-off Bot, then the Bot and SnowLuma. No sh, so a Windows deployment runs them the same way.
+   */
+  async enableSnowLuma(image: string) {
+    const item = this.installation(),
+      value = image.trim()
+    if (!value) throw new ApiError('validation_error')
+    this.options.progress(t('localBot:snowluma'))
+    await this.compose(item, [
+      'run',
+      '--rm',
+      '--no-deps',
+      '-T',
+      '--user',
+      '0:0',
+      '--entrypoint',
+      'yuki',
+      '--volume',
+      `${item.directory}:/deploy`,
+      'bot',
+      'setup',
+      'snowluma',
+      '--deployment-root',
+      '/deploy',
+      '--image',
+      value,
+    ])
+    await this.compose(item, ['up', '-d', 'bot', 'snowluma'])
     return this.state()
   }
   async stop() {
@@ -337,7 +374,7 @@ export class LocalBot {
       item.pairRequestId = randomUUID()
       this.options.store.set('local-bot', item)
     }
-    this.options.progress('建立本人入口並連接桌面')
+    this.options.progress(t('localBot:connect'))
     const result = JSON.parse(
       await this.compose(
         item,

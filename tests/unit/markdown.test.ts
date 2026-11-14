@@ -1,8 +1,10 @@
 import { expect, it } from 'vitest'
 import { internalImage, renderMarkdown } from '../../src/renderer/text/markdown'
 
+const words = { copy: 'Copy', copyCode: 'Copy Code', image: 'Image' }
+
 it('highlights real fenced code for four themes while preserving escaped code and the copy affordance', async () => {
-  const html = await renderMarkdown('```javascript\nconst text = "<script>"\n```')
+  const html = await renderMarkdown('```javascript\nconst text = "<script>"\n```', words)
   expect(html).toContain('--shiki-light:')
   expect(html).toContain('--shiki-contrast-dark:')
   expect(html).toContain('data-code-copy')
@@ -13,6 +15,7 @@ it('renders local mathematics, leaves code literal and resolves only explicit im
   const source = 'artifact:00000000-0000-5000-8000-000000000001@' + 'a'.repeat(64)
   const html = await renderMarkdown(
     `An equation $x^2 + 1$.\n\n\`$literal$\`\n\n![diagram](${source})\n\n\`\`\`mermaid\ngraph LR\nA-->B\n\`\`\``,
+    words,
   )
   expect(html).toContain('class="katex"')
   expect(html).toContain('<code>$literal$</code>')
@@ -28,6 +31,7 @@ it('renders local mathematics, leaves code literal and resolves only explicit im
 it('keeps unknown code languages readable and blocks raw HTML, external image loads and script links', async () => {
   const html = await renderMarkdown(
     '```unknown\n<svg onload="bad()">\n```\n<script>bad()</script>\n![image](https://example.invalid/x)\n[run](javascript:bad())',
+    words,
   )
   expect(html).not.toContain('<script>')
   expect(html).not.toContain('<svg ')

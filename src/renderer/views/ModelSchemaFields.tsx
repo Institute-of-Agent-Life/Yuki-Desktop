@@ -1,5 +1,8 @@
 import { useId } from 'react'
+import type { TFunction } from 'i18next'
 import { Button, TextField, Toggle } from '../components/Controls'
+import { useTranslation } from '../i18n'
+import source from '../../shared/locales/zh-Hant/models'
 import styles from './ModelSettings.module.css'
 
 export interface JsonSchema {
@@ -16,44 +19,11 @@ export interface JsonSchema {
   items?: JsonSchema
 }
 
-const labels: Record<string, string> = {
-  provider: 'Provider',
-  protocol: '協定',
-  base_url: '服務位址',
-  api_key_env: '金鑰環境變數',
-  model: '模型 ID',
-  timeout_seconds: '逾時（秒）',
-  max_retries: '重試次數',
-  default_temperature: '溫度',
-  default_max_output_tokens: '預設輸出 token',
-  max_output_tokens_limit: '輸出 token 上限',
-  max_input_tokens: '輸入 token 上限',
-  context_window_tokens: '上下文 token',
-  thinking_enabled: '啟用思考',
-  reasoning_effort: '思考程度',
-  structured_output_mode: '結構化輸出方式',
-  search_mode: '搜尋方式',
-  search_connection: '搜尋連接',
-  capabilities: '能力',
-  thinking_mode: '思考模式',
-  wire_options: '協定選項',
-  enabled: '啟用',
-  dimensions: '維度',
-  output_type: '輸出類型',
-  document_template_version: '文件範本版本',
-  query_instruct: '搜尋指令',
-  tools: '對話',
-  image_input: '圖片',
-  reasoning: '思考',
-  structured_output: '結構化',
-  native_web_search: '原生搜尋',
-  long_context: '長上下文',
-  request_model: '請求模型',
-  response_model: '回應模型',
-  endpoint: '服務位址',
-  route: '使用的連接',
+function modelLabel(t: TFunction<['models']>, name: string) {
+  return Object.hasOwn(source.field, name)
+    ? t(`models:field.${name as keyof typeof source.field}`)
+    : name
 }
-export const modelLabel = (name: string) => labels[name] ?? name
 
 export function schemaDefaults(schema: JsonSchema): Record<string, unknown> {
   return Object.fromEntries(
@@ -78,13 +48,14 @@ function Field({
   change(value: unknown): void
   required: boolean
 }) {
+  const { t } = useTranslation(['models'])
   const id = useId()
   const resolved = source.$ref ? root.$defs![source.$ref.split('/').at(-1)!]! : source
   const nullable = resolved.anyOf?.some((field) => field.type === 'null') === true
   const nonNull = resolved.anyOf ? resolved.anyOf.find((field) => field.type !== 'null')! : resolved
   const schema = nonNull.$ref ? root.$defs![nonNull.$ref.split('/').at(-1)!]! : nonNull
   const current = value === undefined ? resolved.default : value
-  const title = modelLabel(name)
+  const title = modelLabel(t, name)
   if (schema.type === 'array') {
     const item = schema.items!.$ref
       ? root.$defs![schema.items!.$ref.split('/').at(-1)!]!
@@ -106,7 +77,7 @@ function Field({
                   )
                 }
               />
-              {modelLabel(String(option))}
+              {modelLabel(t, String(option))}
             </label>
           ))}
         </div>
@@ -119,7 +90,7 @@ function Field({
         <summary>{title}</summary>
         {nullable && (
           <Button onClick={() => change(current == null ? schemaDefaults(schema) : null)}>
-            {current == null ? '設定' : '未設定'}
+            {t(current == null ? 'models:set' : 'models:unset')}
           </Button>
         )}
         {current != null && (
@@ -143,7 +114,7 @@ function Field({
     <label className={styles.formField} htmlFor={id}>
       <span>
         {title}
-        {required && <small aria-hidden="true">必填</small>}
+        {required && <small aria-hidden="true">{t('models:required')}</small>}
       </span>
       {schema.enum || schema.const !== undefined || schema.type === 'boolean' ? (
         <select
@@ -160,7 +131,7 @@ function Field({
             )
           }
         >
-          {(nullable || current == null) && <option value="">未設定</option>}
+          {(nullable || current == null) && <option value="">{t('models:unset')}</option>}
           {(schema.enum ?? (schema.const !== undefined ? [schema.const] : ['true', 'false'])).map(
             (option) => (
               <option key={String(option)} value={String(option)}>

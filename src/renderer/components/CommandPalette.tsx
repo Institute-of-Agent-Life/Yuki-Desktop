@@ -5,6 +5,7 @@ import { loadedItems, type LoadedItem } from '../state/loaded'
 import styles from './CommandPalette.module.css'
 import { useGlass } from '../materials/glass'
 import { emerge, withdraw } from '../motion/emerge'
+import { useTranslation } from '../i18n'
 
 export interface PaletteCommand {
   id: string
@@ -13,7 +14,7 @@ export interface PaletteCommand {
   run(stage: boolean): Promise<void> | void
 }
 type Item = LoadedItem | ({ kind: 'command'; at: number; detail: string } & PaletteCommand)
-const labels = { message: '對話訊息', work: '工作', file: '檔案', command: '指令' }
+const kinds = ['message', 'work', 'file', 'command'] as const
 const icons = { message: MessageCircle, work: BriefcaseBusiness, file: File, command: Command }
 export function CommandPalette({
   character,
@@ -26,8 +27,10 @@ export function CommandPalette({
   pick(item: LoadedItem, stage: boolean): Promise<void>
   close(): void
 }) {
+  const { t } = useTranslation(['workspace'])
+  const { t: itemText } = useTranslation(['conversation'])
   const query = useQueryClient(),
-    [cached, setCached] = useState(() => loadedItems(query, character))
+    [cached, setCached] = useState(() => loadedItems(query, character, itemText))
   const [text, setText] = useState(''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false)
@@ -47,9 +50,7 @@ export function CommandPalette({
         .includes(value.trim().toLocaleLowerCase()),
     )
   const visible = filter(text),
-    grouped = (Object.keys(labels) as Item['kind'][]).flatMap((kind) =>
-      visible.filter((item) => item.kind === kind),
-    )
+    grouped = kinds.flatMap((kind) => visible.filter((item) => item.kind === kind))
   const [selected, setSelected] = useState<string | null>(() => grouped[0]?.id ?? null)
   const active = grouped.findIndex((item) => item.id === selected),
     ref = useRef<HTMLDialogElement>(null),
@@ -63,9 +64,9 @@ export function CommandPalette({
           ['updated', 'removed', 'added'].includes(event.type) &&
           event.query.queryKey[0] === character
         )
-          setCached(loadedItems(query, character))
+          setCached(loadedItems(query, character, itemText))
       }),
-    [query, character],
+    [query, character, itemText],
   )
   // A layout effect, so the closing pane is still in the document when it shrinks away; declared
   // before the glass, so it withdraws before its glass is taken down.
@@ -90,7 +91,7 @@ export function CommandPalette({
   const execute = async (item: Item | undefined, stage: boolean) => {
     if (busy) return
     if (!item) {
-      setError('所選項目已更新，請重新選擇。')
+      setError(t('workspace:palette.stale'))
       return
     }
     setBusy(true)
@@ -99,7 +100,8 @@ export function CommandPalette({
       if (item.kind === 'command') await item.run(stage)
       else await pick(item, stage)
     } catch (error) {
-      if (live.current) setError(error instanceof Error ? error.message : '無法開啟這個項目。')
+      if (live.current)
+        setError(error instanceof Error ? error.message : t('workspace:palette.openFailed'))
     } finally {
       if (live.current) setBusy(false)
     }
@@ -112,7 +114,7 @@ export function CommandPalette({
       }}
       data-glass="sheet"
       className={styles.palette}
-      aria-label="指令面板"
+      aria-label={t('workspace:palette.label')}
       onCancel={(event) => {
         event.preventDefault()
         close()
@@ -135,8 +137,8 @@ export function CommandPalette({
           ref={input}
           className={styles.input}
           role="combobox"
-          aria-label="搜尋已載入的對話、工作與檔案"
-          placeholder="搜尋已載入的對話、工作與檔案"
+          aria-label={t('workspace:palette.search')}
+          placeholder={t('workspace:palette.search')}
           aria-expanded="true"
           aria-controls={`${prefix}-results`}
           aria-activedescendant={active >= 0 ? `${prefix}-${active}` : undefined}
@@ -147,9 +149,7 @@ export function CommandPalette({
             setText(value)
             setError('')
             const result = filter(value)
-            const first = (Object.keys(labels) as Item['kind'][]).flatMap((kind) =>
-              result.filter((item) => item.kind === kind),
-            )[0]
+            const first = kinds.flatMap((kind) => result.filter((item) => item.kind === kind))[0]
             setSelected(first?.id ?? null)
           }}
           onKeyDown={(event) => {
@@ -180,18 +180,18 @@ export function CommandPalette({
           className={styles.results}
           id={`${prefix}-results`}
           role="listbox"
-          aria-label="搜尋結果"
+          aria-label={t('workspace:palette.results')}
           aria-busy={busy}
         >
-          {!grouped.length && <p className={styles.empty}>已載入的內容中沒有符合的項目。</p>}
-          {(Object.keys(labels) as Item['kind'][]).map((kind) => {
+          {!grouped.length && <p className={styles.empty}>{t('workspace:palette.empty')}</p>}
+          {kinds.map((kind) => {
             const rows = grouped.filter((item) => item.kind === kind)
             const Icon = icons[kind]
             return (
               rows.length > 0 && (
                 <div role="group" aria-labelledby={`${prefix}-group-${kind}`} key={kind}>
                   <h3 className={styles.group} id={`${prefix}-group-${kind}`}>
-                    {labels[kind]}
+                    {t(`workspace:palette.group.${kind}`)}
                   </h3>
                   {rows.map((item) => {
                     const index = grouped.indexOf(item)
@@ -223,7 +223,7 @@ export function CommandPalette({
             )
           })}
         </div>
-        <p className={styles.foot}>只搜尋這台電腦已載入的內容</p>
+        <p className={styles.foot}>{t('workspace:palette.scope')}</p>
       </div>
     </dialog>
   )

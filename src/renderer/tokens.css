@@ -12,11 +12,16 @@
 }
 :root {
   color-scheme: light;
+  /* After PingFang, families with the kana and dingbats in kaomoji ( ｰ̀֊ｰ́ )✧: otherwise Chromium
+     follows the system font's fallback to a font that paints boxes. Latin text keeps the system
+     font and Han keeps PingFang; only glyphs neither has reach these. */
   --font-ui:
-    -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Segoe UI Variable Text', 'Segoe UI',
-    'Microsoft JhengHei UI', system-ui, 'Noto Sans CJK TC', 'Noto Sans TC', sans-serif;
+    -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
+    'Zapf Dingbats', 'Apple Symbols', 'Segoe UI Variable Text', 'Segoe UI', 'Microsoft JhengHei UI',
+    system-ui, 'Noto Sans CJK TC', 'Noto Sans TC', sans-serif;
   --font-mono:
     'SF Mono', ui-monospace, Menlo, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'PingFang TC',
+    'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Zapf Dingbats', 'Apple Symbols',
     'Microsoft JhengHei UI', 'Noto Sans CJK TC', monospace;
   --bg-window: #e9edf3;
   --bg-content: #ffffff;
@@ -153,6 +158,17 @@
   --track: rgba(20, 34, 64, 0.14);
   --toggle-off: rgba(20, 34, 64, 0.16);
   --seg-thumb: #ffffff;
+}
+/* Simplified Chinese uses SC glyphs; the html lang follows the interface language. */
+:root:lang(zh-Hans) {
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
+    'Zapf Dingbats', 'Apple Symbols', 'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei UI',
+    'Microsoft YaHei', system-ui, 'Noto Sans CJK SC', 'Noto Sans SC', sans-serif;
+  --font-mono:
+    'SF Mono', ui-monospace, Menlo, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'PingFang SC',
+    'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Zapf Dingbats', 'Apple Symbols',
+    'Microsoft YaHei UI', 'Noto Sans CJK SC', monospace;
 }
 :root[data-theme='dark'] {
   color-scheme: dark;

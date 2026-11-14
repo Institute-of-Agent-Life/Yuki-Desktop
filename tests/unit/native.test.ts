@@ -134,6 +134,7 @@ it.each(['darwin', 'win32', 'linux'] as const)(
   },
 )
 import { NativeShell } from '../../src/main/native'
+import { setLanguage } from '../../src/main/i18n'
 interface FakeTray extends EventEmitter {
   tooltip: string
   destroyed: boolean
@@ -302,4 +303,44 @@ it('shows Yuki operating or stopped in the tray with one action that asks the Co
   }
   expect(control).toHaveBeenCalledTimes(2)
   shell.close()
+})
+
+/*
+ * Language switch (task book 2026-11-13 §4 item 26), written before the code: after the
+ * language changes, the tray (its open/show/quit items and the Connector line already shown)
+ * keeps the old language until something else rebuilds it, or needs a restart.
+ */
+it('rebuilds the existing tray menu, Connector line included, in the new language', () => {
+  os.trays.length = 0
+  const shell = new NativeShell(
+    () => undefined,
+    () => {},
+    () => {},
+  )
+  shell.characterName('mika-id', 'Mika')
+  shell.connectorOperation(
+    { restarts: 0, restartPending: false, activity: { tool: 'browser', background: true } },
+    () => {},
+  )
+  shell.update(defaultPreferences)
+  const tray = os.trays[0] as FakeTray
+  const labels = () => tray.menu.map((item) => item.label).filter(Boolean)
+  expect(labels()).toEqual(['Yuki 正在背景操作瀏覽器', '停止', '開啟 Mika', '顯示視窗', '結束'])
+  try {
+    setLanguage('en')
+    shell.relocalize()
+    expect(labels()).toEqual([
+      'Yuki is using the browser in the background',
+      'Stop',
+      'Open Mika',
+      'Show Window',
+      'Quit',
+    ])
+    setLanguage('zh-Hans')
+    shell.relocalize()
+    expect(labels()).toEqual(['Yuki 正在后台操作浏览器', '停止', '打开 Mika', '显示窗口', '退出'])
+  } finally {
+    setLanguage('zh-Hant')
+    shell.close()
+  }
 })

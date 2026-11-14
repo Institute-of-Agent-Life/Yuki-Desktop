@@ -87,8 +87,15 @@ export class ApiClient {
   }
   async get<T>(path: string): Promise<T> {
     const response = await this.response(path)
+    let text: string
     try {
-      const body = (await response.json()) as { data?: T }
+      text = await response.text()
+    } catch {
+      // The path went away while the reply arrived: a lost request, not a server that is not Yuki.
+      throw new ApiError('transport_unknown')
+    }
+    try {
+      const body = JSON.parse(text) as { data?: T }
       if (!Object.hasOwn(body, 'data')) throw new Error('missing_envelope')
       return body.data as T
     } catch {

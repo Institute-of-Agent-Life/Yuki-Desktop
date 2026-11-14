@@ -234,11 +234,12 @@ const showcaseWorks: Work[] = [
   updated_at: showcaseTime - hours * 3600,
   results: [],
 }))
+// Categories this app has no words for, so the showcase keeps its descriptive labels.
 const showcaseSteps = [
-  ['terminal', '讀取 workspace/interviews 裡的 6 份訪談筆記'],
-  ['terminal', '按主題分組：上手難度、價格、團隊協作'],
-  ['terminal', '標出三個值得回訪的問題，附上原始段落'],
-  ['terminal', '寫入 workspace/interviews/summary.md'],
+  ['original', '讀取 workspace/interviews 裡的 6 份訪談筆記'],
+  ['original', '按主題分組：上手難度、價格、團隊協作'],
+  ['original', '標出三個值得回訪的問題，附上原始段落'],
+  ['original', '寫入 workspace/interviews/summary.md'],
 ].map(([category, label], index) => ({
   step_id: `showcase-step-${index}`,
   category,
@@ -493,7 +494,8 @@ Object.assign(window, {
                 : [{ step_id: 'original-first-step', label: 'Original first page step' }]
               ).map((step) => ({
                 ...step,
-                category: 'terminal',
+                // A category this app has no words for shows the backend's own label.
+                category: 'original',
                 record: 'committed',
                 status: 'succeeded',
                 created_at: '2026-10-24T00:00:00Z',
@@ -651,7 +653,8 @@ Object.assign(window, {
               steps: [
                 {
                   step_id: 'original-public-step',
-                  category: 'terminal',
+                  // A category this app has no words for shows the backend's own label.
+                  category: 'original',
                   label: 'Original terminal step',
                   record: 'committed',
                   status: 'succeeded',
@@ -881,6 +884,7 @@ function Case() {
         reducedTransparency: false,
         highContrast: false,
         preferences,
+        language: 'zh-Hant',
         pairLink: null,
         openTarget: null,
       }}
@@ -899,6 +903,8 @@ function Case() {
       onLoggedOut={async () => {}}
       onAddCharacter={() => setSelected('connect')}
       onDeployLocal={() => setSelected('deploy')}
+      onQQLogin={() => {}}
+      onDeployRemote={() => setSelected('deploy')}
     />
   )
   if (mode === 'settings-transition')

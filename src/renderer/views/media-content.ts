@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import type { ArtifactSource, AttachmentSource, CachedContent } from '../../shared/api'
 import { unwrap } from '../queries/client'
 import { useSessionActive } from '../state/workspace'
+import { useTranslation } from '../i18n'
 
 export type MediaSource = ArtifactSource | AttachmentSource
 
 /** The renderer owns a preview, rather than retaining a live resource in Query's cache. */
 export function useMediaContent(id: string, source?: MediaSource, enabled = true) {
   const activeSession = useSessionActive()
+  const { t } = useTranslation(['media'])
   const key = JSON.stringify(source),
     // A reload replaces what shows; a check (after a sync) reads again and keeps what shows when
     // the content is the same, so the picture is not reloaded and nothing around it moves.
@@ -73,9 +75,9 @@ export function useMediaContent(id: string, source?: MediaSource, enabled = true
         if (result.data?.preview?.id === previewId) setRevision((revision) => revision + 1)
       }
       if (kind === 'connection' && (data as { code?: string }).code === 'unauthenticated')
-        setResult({ error: new Error('連接已失效，請重新配對。'), isPending: false })
+        setResult({ error: new Error(t('media:connectionExpired')), isPending: false })
       if (kind === 'sync' || kind === 'artifacts') setCheck((value) => value + 1)
     })
-  }, [id, key, enabled, activeSession, result.data?.preview?.id])
+  }, [id, key, enabled, activeSession, result.data?.preview?.id, t])
   return { ...result, refetch: () => setRevision((value) => value + 1) }
 }

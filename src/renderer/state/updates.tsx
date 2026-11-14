@@ -9,14 +9,14 @@ import {
 } from 'react'
 import type { UpdateState } from '../../shared/updates'
 import { unwrap } from '../queries/client'
-const context = createContext<{ state?: UpdateState; error: string; reload(): Promise<void> }>({
-  error: '',
+const context = createContext<{ state?: UpdateState; failed: boolean; reload(): Promise<void> }>({
+  failed: false,
   reload: async () => {},
 })
 export const useUpdates = () => useContext(context)
 export function UpdateProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<UpdateState>()
-  const [error, setError] = useState('')
+  const [failed, setFailed] = useState(false)
   const sequence = useRef(0)
   const reload = useCallback(async () => {
     const request = ++sequence.current
@@ -24,17 +24,17 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
       const value = unwrap(await window.yuki.updates.state())
       if (request === sequence.current) {
         setState(value)
-        setError('')
+        setFailed(false)
       }
     } catch {
-      if (request === sequence.current) setError('無法讀取更新狀態。')
+      if (request === sequence.current) setFailed(true)
     }
   }, [])
   useEffect(() => {
     const unsubscribe = window.yuki.updates.onChange((value) => {
       sequence.current++
       setState(value)
-      setError('')
+      setFailed(false)
     })
     void reload()
     return () => {
@@ -42,5 +42,5 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
       unsubscribe()
     }
   }, [reload])
-  return <context.Provider value={{ state, error, reload }}>{children}</context.Provider>
+  return <context.Provider value={{ state, failed, reload }}>{children}</context.Provider>
 }

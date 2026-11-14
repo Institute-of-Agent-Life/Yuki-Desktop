@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Connection, Me, ProactiveRoute, CharacterCommandItem } from '../../shared/api'
-import { Banner, Button, Sheet, TextField } from '../components/Controls'
+import { Banner, Button } from '../components/Controls'
 import { unwrap, problemText, hidesPrivateData } from '../queries/client'
+import { useTranslation } from '../i18n'
 import { PendingRequest, Row, SettingsSection } from './SettingsRow'
 import { LogoutFlow } from './LogoutFlow'
-import { TailscaleGuide } from './TailscaleGuide'
+import { ServerManagement, TransportSettings } from './TransportSettings'
 import styles from './Settings.module.css'
 
 export function ServerSettings({
@@ -19,6 +20,7 @@ export function ServerSettings({
   onLoggedOut(): Promise<void>
   about(): void
 }) {
+  const { t } = useTranslation(['connection', 'errors', 'common'])
   const id = connection.characterId,
     query = useQueryClient()
   const info = useQuery({
@@ -41,8 +43,6 @@ export function ServerSettings({
     queryKey: [id, 'character-commands'],
     queryFn: () => window.yuki.client.characterCommands(id).then(unwrap),
   })
-  const [address, setAddress] = useState<string>(),
-    [addressError, setAddressError] = useState('')
   const [draft, setDraft] = useState<{ binding: string; revision: number }>(),
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
@@ -86,14 +86,14 @@ export function ServerSettings({
       setDraft(undefined)
       setError(
         item.details?.reason === 'route_unavailable'
-          ? '這個入口目前沒有可用的接收連線。請選擇其他入口。'
+          ? t('connection:routeUnavailable')
           : item.details?.reason === 'route_ambiguous'
-            ? '這個入口有多個接收連線，需要先在伺服器確認目的地。'
+            ? t('connection:routeAmbiguous')
             : problemText(item.problem),
       )
     } else {
       setDraft(undefined)
-      setNotice('主動訊息目的地已更新。')
+      setNotice(t('connection:routeUpdated'))
     }
   }
   const run = async (requestId: string) => {
@@ -103,7 +103,7 @@ export function ServerSettings({
     try {
       await outcome(unwrap(await window.yuki.client.verifyCharacterCommand(id, requestId)))
     } catch (error) {
-      setError(error instanceof Error ? error.message : '操作未完成。')
+      setError(error instanceof Error ? error.message : t('errors:notCompleted'))
     } finally {
       setBusy(false)
     }
@@ -124,7 +124,7 @@ export function ServerSettings({
       )
     } catch (error) {
       setDraft(undefined)
-      setError(error instanceof Error ? error.message : '操作未完成。')
+      setError(error instanceof Error ? error.message : t('errors:notCompleted'))
     } finally {
       setBusy(false)
     }
@@ -136,27 +136,18 @@ export function ServerSettings({
         <Banner status="failed">{(me.error ?? route.error)?.message}</Banner>
       ) : (
         <>
-          <SettingsSection title="伺服器">
+          <SettingsSection title={t('connection:server')}>
             {(info.error || me.error) && (
               <Banner status="failed">{(info.error ?? me.error)?.message}</Banner>
             )}
-            <Row title="伺服器位址" description={connection.baseUrl}>
-              <Button
-                onClick={() => {
-                  setAddress(connection.baseUrl)
-                  setAddressError('')
-                }}
-              >
-                更改…
-              </Button>
-            </Row>
-            <Row title="狀態">
+            <TransportSettings connection={connection} onConnection={onConnection} />
+            <Row title={t('connection:status')}>
               <span role="status">
                 {info.isFetching || me.isFetching
-                  ? '正在確認…'
+                  ? t('connection:checking')
                   : info.isError || me.isError
-                    ? '無法連線'
-                    : '已連線'}
+                    ? t('connection:unreachable')
+                    : t('connection:connected')}
               </span>
               {(info.isError || me.isError) && (
                 <Button
@@ -165,18 +156,13 @@ export function ServerSettings({
                     void refresh()
                   }}
                 >
-                  重新檢查
+                  {t('connection:recheck')}
                 </Button>
               )}
             </Row>
+            {connection.transport?.kind === 'ssh' && <ServerManagement connection={connection} />}
           </SettingsSection>
-          <div className={styles.section}>
-            <TailscaleGuide onError={setAddressError} />
-            {address === undefined && addressError && (
-              <Banner status="failed">{addressError}</Banner>
-            )}
-          </div>
-          <SettingsSection title="主動訊息">
+          <SettingsSection title={t('connection:proactive')}>
             {route.isError && <Banner status="failed">{route.error.message}</Banner>}
             {error && <Banner status="failed">{error}</Banner>}
             {notice && (
@@ -185,12 +171,12 @@ export function ServerSettings({
               </p>
             )}
             <Row
-              title={`${connection.name} 主動找你時傳到`}
-              description={route.data?.paused ? '目前已暫停；選擇可用入口即可恢復。' : undefined}
+              title={t('connection:proactiveTo', { name: connection.name })}
+              description={route.data?.paused ? t('connection:paused') : undefined}
             >
-              {busy && draft && <span role="status">正在更新…</span>}
+              {busy && draft && <span role="status">{t('connection:updating')}</span>}
               <select
-                aria-label="主動訊息接收入口"
+                aria-label={t('connection:entryLabel')}
                 disabled={!route.data || !me.data || busy || pending.length > 0}
                 value={draft?.binding ?? route.data?.binding_id ?? ''}
                 onChange={(event) => {
@@ -204,14 +190,21 @@ export function ServerSettings({
                 }}
               >
                 <option value="" disabled>
-                  選擇入口
+                  {t('connection:chooseEntry')}
                 </option>
                 {me.data?.bindings
                   .filter((item) => item.status === 'active')
                   .map((item) => (
                     <option key={item.binding_id} value={item.binding_id}>
-                      {item.platform.toUpperCase()} · {item.display_name || '本人入口'}
-                      {item.binding_id === connection.bindingId ? '（此 App）' : ''}
+                      {t(
+                        item.binding_id === connection.bindingId
+                          ? 'connection:entryThisApp'
+                          : 'connection:entry',
+                        {
+                          platform: item.platform.toUpperCase(),
+                          name: item.display_name || t('connection:ownEntry'),
+                        },
+                      )}
                     </option>
                   ))}
               </select>
@@ -219,76 +212,29 @@ export function ServerSettings({
             {pending.map((item) => (
               <PendingRequest
                 key={item.requestId}
-                text="主動路由變更：結果尚未確認。"
+                text={t('connection:routePending')}
                 busy={busy}
                 onVerify={() => void run(item.requestId)}
               />
             ))}
           </SettingsSection>
-          <SettingsSection title="資料">
-            <Row title={`${connection.name} 的名稱、頭像與人格`}>
-              <Button onClick={about}>開啟</Button>
+          <SettingsSection title={t('connection:data')}>
+            <Row title={t('connection:about', { name: connection.name })}>
+              <Button onClick={about}>{t('common:action.open')}</Button>
             </Row>
           </SettingsSection>
           <details className={styles.section}>
-            <summary>技術資訊</summary>
-            <Row title="伺服器版本">
+            <summary>{t('connection:technical')}</summary>
+            <Row title={t('connection:serverVersion')}>
               <span>{info.data?.server_version ?? '—'}</span>
             </Row>
-            <Row title="API 版本">
+            <Row title={t('connection:apiVersion')}>
               <span>{info.data?.api_revision ?? '—'}</span>
             </Row>
           </details>
-          <Sheet
-            title="更改伺服器位址"
-            open={address !== undefined}
-            onClose={() => {
-              if (!busy) setAddress(undefined)
-            }}
-            actions={
-              <>
-                <Button disabled={busy} onClick={() => setAddress(undefined)}>
-                  取消
-                </Button>
-                <Button
-                  variant="primary"
-                  disabled={!address?.trim()}
-                  loading={busy}
-                  onClick={async () => {
-                    setBusy(true)
-                    setAddressError('')
-                    try {
-                      const updated = unwrap(await window.yuki.client.changeAddress(id, address!))
-                      onConnection(updated)
-                      await query.invalidateQueries({ queryKey: [id] })
-                      setAddress(undefined)
-                    } catch (error) {
-                      setAddressError(error instanceof Error ? error.message : '位址尚未變更。')
-                    } finally {
-                      setBusy(false)
-                    }
-                  }}
-                >
-                  確認並連線
-                </Button>
-              </>
-            }
-          >
-            <p>
-              先確認這是同一個 Yuki 與原本的本人入口，再更新連線位址。待確認內容會以原請求繼續查證。
-            </p>
-            <TextField
-              aria-label="新伺服器位址"
-              value={address ?? ''}
-              onChange={(event) => setAddress(event.target.value)}
-              disabled={busy}
-              autoFocus
-            />
-            {addressError && <Banner status="failed">{addressError}</Banner>}
-          </Sheet>
         </>
       )}
-      <SettingsSection title="登出" danger>
+      <SettingsSection title={t('connection:logout.title')} danger>
         <LogoutFlow connection={connection} onConnection={onConnection} onLoggedOut={onLoggedOut} />
       </SettingsSection>
     </>

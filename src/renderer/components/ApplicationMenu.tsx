@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Ellipsis } from 'lucide-react'
 import { Capsule, IconButton } from './Controls'
 import styles from './ApplicationMenu.module.css'
+import { useTranslation } from '../i18n'
 
 export function ApplicationMenu({
   platform,
@@ -12,6 +13,7 @@ export function ApplicationMenu({
   overlay?: boolean
   className?: string
 }) {
+  const { t } = useTranslation(['workspace'])
   const [open, setOpen] = useState(false)
   const [error, setError] = useState(false)
   if (platform === 'darwin') return null
@@ -37,7 +39,7 @@ export function ApplicationMenu({
       <Capsule>
         <IconButton
           type="button"
-          label="更多命令"
+          label={t('workspace:moreCommands')}
           aria-haspopup="menu"
           aria-expanded={open}
           onClick={(event) => void show(event.currentTarget)}
@@ -54,7 +56,7 @@ export function ApplicationMenu({
       </Capsule>
       {error && (
         <span role="alert" className={styles.error}>
-          選單暫時無法開啟，請再試一次。
+          {t('workspace:menuFailed')}
         </span>
       )}
     </span>

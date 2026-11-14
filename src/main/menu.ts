@@ -7,31 +7,37 @@ import {
   type MenuItemConstructorOptions,
 } from 'electron'
 import type { Command } from '../shared/desktop'
+import { t } from './i18n'
 
 export function installMenu(window: () => BrowserWindow | undefined) {
   app.setAboutPanelOptions({ applicationName: 'Yuki', applicationVersion: app.getVersion() })
+  const guide = 'https://github.com/Institute-of-Agent-Life/Yuki-Desktop'
   const send = (command: Command) => () => window()?.webContents.send('yuki:command', command)
   const view: MenuItemConstructorOptions[] = [
-    { label: '上一個 Yuki', accelerator: 'CmdOrCtrl+Shift+[', click: send('previous-character') },
-    { label: '下一個 Yuki', accelerator: 'CmdOrCtrl+Shift+]', click: send('next-character') },
+    {
+      label: t('menu:previousYuki'),
+      accelerator: 'CmdOrCtrl+Shift+[',
+      click: send('previous-character'),
+    },
+    { label: t('menu:nextYuki'), accelerator: 'CmdOrCtrl+Shift+]', click: send('next-character') },
     { type: 'separator' },
-    { label: '對話', accelerator: 'CmdOrCtrl+1', click: send('chat') },
-    { label: '工作', accelerator: 'CmdOrCtrl+2', click: send('works') },
-    { label: 'Yuki 的電腦', accelerator: 'CmdOrCtrl+3', click: send('computer') },
-    { label: '這台電腦', accelerator: 'CmdOrCtrl+6', click: send('local') },
-    { label: '檔案與成果', accelerator: 'CmdOrCtrl+4', click: send('files') },
-    { label: '關於目前的 Yuki', accelerator: 'CmdOrCtrl+5', click: send('about') },
+    { label: t('menu:chat'), accelerator: 'CmdOrCtrl+1', click: send('chat') },
+    { label: t('menu:works'), accelerator: 'CmdOrCtrl+2', click: send('works') },
+    { label: t('menu:computer'), accelerator: 'CmdOrCtrl+3', click: send('computer') },
+    { label: t('menu:local'), accelerator: 'CmdOrCtrl+6', click: send('local') },
+    { label: t('menu:files'), accelerator: 'CmdOrCtrl+4', click: send('files') },
+    { label: t('menu:about'), accelerator: 'CmdOrCtrl+5', click: send('about') },
     { type: 'separator' },
     {
-      label: '側邊欄',
+      label: t('menu:sidebar'),
       accelerator: process.platform === 'darwin' ? 'Ctrl+Cmd+S' : 'Ctrl+Shift+S',
       click: send('sidebar'),
     },
-    { label: '詳情面板', accelerator: 'Alt+CmdOrCtrl+I', click: send('inspector') },
-    { label: '放大詳情', accelerator: 'CmdOrCtrl+Shift+E', click: send('focus-mode') },
-    { label: '指令面板', accelerator: 'CmdOrCtrl+K', click: send('search') },
-    { label: '尋找', accelerator: 'CmdOrCtrl+F', click: send('find') },
-    { label: '切換全螢幕', role: 'togglefullscreen' },
+    { label: t('menu:inspector'), accelerator: 'Alt+CmdOrCtrl+I', click: send('inspector') },
+    { label: t('menu:focusMode'), accelerator: 'CmdOrCtrl+Shift+E', click: send('focus-mode') },
+    { label: t('menu:commandPalette'), accelerator: 'CmdOrCtrl+K', click: send('search') },
+    { label: t('menu:find'), accelerator: 'CmdOrCtrl+F', click: send('find') },
+    { label: t('menu:fullScreen'), role: 'togglefullscreen' },
   ]
   const template: MenuItemConstructorOptions[] = [
     ...(process.platform === 'darwin'
@@ -39,52 +45,52 @@ export function installMenu(window: () => BrowserWindow | undefined) {
           {
             label: 'Yuki',
             submenu: [
-              { label: '關於 Yuki Desktop', role: 'about' as const },
-              { label: '設定…', accelerator: 'CmdOrCtrl+,', click: send('settings') },
+              { label: t('menu:aboutApp'), role: 'about' as const },
+              { label: t('menu:settings'), accelerator: 'CmdOrCtrl+,', click: send('settings') },
               { type: 'separator' as const },
-              { label: '隱藏 Yuki', role: 'hide' as const },
-              { label: '隱藏其他', role: 'hideOthers' as const },
-              { label: '結束 Yuki', role: 'quit' as const },
+              { label: t('menu:hide'), role: 'hide' as const },
+              { label: t('menu:hideOthers'), role: 'hideOthers' as const },
+              { label: t('menu:quitApp'), role: 'quit' as const },
             ],
           },
         ]
       : []),
     {
-      label: '檔案',
+      label: t('menu:file'),
       submenu: [
-        { label: '新訊息', accelerator: 'CmdOrCtrl+N', click: send('focus-composer') },
-        { label: '設定…', accelerator: 'CmdOrCtrl+,', click: send('settings') },
-        { label: '關閉視窗', role: 'close' },
+        { label: t('menu:newMessage'), accelerator: 'CmdOrCtrl+N', click: send('focus-composer') },
+        { label: t('menu:settings'), accelerator: 'CmdOrCtrl+,', click: send('settings') },
+        { label: t('menu:closeWindow'), role: 'close' },
         ...(process.platform === 'darwin'
           ? []
-          : [{ type: 'separator' as const }, { label: '結束', role: 'quit' as const }]),
+          : [{ type: 'separator' as const }, { label: t('menu:quit'), role: 'quit' as const }]),
       ],
     },
     {
-      label: '編輯',
+      label: t('menu:edit'),
       submenu: [
-        { label: '復原', role: 'undo' },
-        { label: '重做', role: 'redo' },
+        { label: t('common:edit.undo'), role: 'undo' },
+        { label: t('common:edit.redo'), role: 'redo' },
         { type: 'separator' },
-        { label: '剪下', role: 'cut' },
-        { label: '複製', role: 'copy' },
-        { label: '貼上', role: 'paste' },
-        { label: '全選', role: 'selectAll' },
+        { label: t('common:edit.cut'), role: 'cut' },
+        { label: t('common:edit.copy'), role: 'copy' },
+        { label: t('common:edit.paste'), role: 'paste' },
+        { label: t('common:edit.selectAll'), role: 'selectAll' },
       ],
     },
-    { label: '顯示', submenu: view },
+    { label: t('menu:view'), submenu: view },
     {
-      label: '視窗',
+      label: t('menu:window'),
       submenu: [
-        { label: '最小化', role: 'minimize' },
+        { label: t('menu:minimize'), role: 'minimize' },
         ...(process.platform === 'darwin'
           ? [
-              { label: '縮放', role: 'zoom' as const },
-              { label: '全部移到最前', role: 'front' as const },
+              { label: t('menu:zoom'), role: 'zoom' as const },
+              { label: t('menu:front'), role: 'front' as const },
             ]
           : [
               {
-                label: '最大化／還原',
+                label: t('menu:maximize'),
                 click: () => {
                   const target = window()
                   if (!target || target.isDestroyed() || !target.isMaximizable()) return
@@ -96,25 +102,23 @@ export function installMenu(window: () => BrowserWindow | undefined) {
       ],
     },
     {
-      label: '說明',
+      label: t('menu:help'),
       role: 'help',
       submenu: [
         {
-          label: '使用說明',
+          label: t('menu:guide'),
           click: () => {
-            void shell
-              .openExternal('https://github.com/Institute-of-Agent-Life/Yuki-Desktop')
-              .catch(() => {
-                dialog.showErrorBox(
-                  '無法開啟使用說明',
-                  '請在瀏覽器開啟 https://github.com/Institute-of-Agent-Life/Yuki-Desktop',
-                )
-              })
+            void shell.openExternal(guide).catch(() => {
+              dialog.showErrorBox(
+                t('menu:guideFailed'),
+                t('menu:guideFailedDetail', { url: guide }),
+              )
+            })
           },
         },
         ...(process.platform === 'darwin'
           ? []
-          : [{ label: '關於 Yuki Desktop', click: () => app.showAboutPanel() }]),
+          : [{ label: t('menu:aboutApp'), click: () => app.showAboutPanel() }]),
       ],
     },
   ]

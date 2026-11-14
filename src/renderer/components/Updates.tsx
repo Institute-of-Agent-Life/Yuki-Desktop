@@ -4,15 +4,10 @@ import { useUpdates } from '../state/updates'
 import { unwrap } from '../queries/client'
 import { Banner, Button, Capsule, Segmented, Sheet, Spinner } from './Controls'
 import { Row } from '../views/SettingsRow'
+import { useTranslation } from '../i18n'
 
-const failures = {
-  'no-release': '目前還沒有可用的更新發布。',
-  network: '無法檢查更新，請稍後再試。',
-  integrity: '下載內容或簽章未通過核對，請重新檢查更新。',
-  download: '更新下載未完成，請重新檢查。',
-  installation: '更新未能安裝，原有資料與連線仍保留。請重新檢查或到下載頁安裝。',
-}
 export function UpdateReadyButton() {
+  const { t } = useTranslation(['updates'])
   const { state } = useUpdates()
   const [error, setError] = useState('')
   if (state?.phase !== 'downloaded') return null
@@ -27,10 +22,10 @@ export function UpdateReadyButton() {
             void window.yuki.updates
               .install()
               .then(unwrap)
-              .catch(() => setError('更新尚未開始，請重新嘗試。'))
+              .catch(() => setError(t('updates:installFailed')))
           }}
         >
-          重新啟動以更新
+          {t('updates:restart')}
         </Button>
       </Capsule>
     </>
@@ -43,7 +38,8 @@ export function UpdatePanel({
   preferences: Preferences
   save(patch: Partial<Preferences>): Promise<void>
 }) {
-  const { state, error: loadError, reload } = useUpdates()
+  const { t } = useTranslation(['updates', 'common'])
+  const { state, failed: loadFailed, reload } = useUpdates()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const run = async (action: () => Promise<unknown>) => {
@@ -52,7 +48,7 @@ export function UpdatePanel({
     try {
       await action()
     } catch {
-      setError('操作未完成，請重新嘗試。')
+      setError(t('updates:actionFailed'))
     } finally {
       setBusy(false)
     }
@@ -61,23 +57,28 @@ export function UpdatePanel({
     downloading = state?.phase === 'downloading'
   return (
     <>
-      <Row title="更新通道" description="一般版本適合日常使用；測試版本會提供尚在驗證的新功能。">
+      <Row title={t('updates:channel')} description={t('updates:channelDescription')}>
         <Segmented
           kind="radio"
           disabled={busy || state?.phase === 'installing' || state?.phase === 'preparing'}
-          label="更新通道"
+          label={t('updates:channel')}
           value={preferences.updateChannel}
           items={[
-            { value: 'stable' as const, label: '一般版本' },
-            { value: 'beta' as const, label: '測試版本' },
+            { value: 'stable' as const, label: t('updates:stable') },
+            { value: 'beta' as const, label: t('updates:beta') },
           ]}
           onChange={(updateChannel) => void run(() => save({ updateChannel }))}
         />
       </Row>
-      <Row title="App 更新" description={state ? `目前版本 ${state.currentVersion}` : undefined}>
+      <Row
+        title={t('updates:appUpdates')}
+        description={
+          state ? t('updates:currentVersion', { version: state.currentVersion }) : undefined
+        }
+      >
         {!state ? (
-          loadError ? (
-            <Button onClick={() => void reload()}>重新讀取</Button>
+          loadFailed ? (
+            <Button onClick={() => void reload()}>{t('common:action.reload')}</Button>
           ) : (
             <Spinner />
           )
@@ -87,26 +88,22 @@ export function UpdatePanel({
             loading={checking}
             onClick={() => void run(() => window.yuki.updates.check().then(unwrap))}
           >
-            檢查更新
+            {t('updates:check')}
           </Button>
         )}
       </Row>
       {state?.mode === 'development' && (
-        <Row title="開發模式" description="開發模式不檢查或安裝更新。" />
+        <Row title={t('updates:development')} description={t('updates:developmentDescription')} />
       )}
       {state?.phase === 'current' && (
-        <Row title="更新狀態">
-          <span role="status">此通道目前沒有可用的更新。</span>
+        <Row title={t('updates:status')}>
+          <span role="status">{t('updates:upToDate')}</span>
         </Row>
       )}
       {state?.phase === 'available' && (
         <Row
-          title={`有新版本 ${state.version}`}
-          description={
-            state.mode === 'manual'
-              ? '這種安裝方式需下載新版後手動安裝。'
-              : '下載完成後，由你決定何時重新啟動。'
-          }
+          title={t('updates:available', { version: state.version! })}
+          description={state.mode === 'manual' ? t('updates:manual') : t('updates:managed')}
         >
           {state.mode === 'manual' ? (
             <Button
@@ -114,7 +111,7 @@ export function UpdatePanel({
                 void run(() => window.yuki.client.external(state.releaseUrl).then(unwrap))
               }
             >
-              前往下載頁
+              {t('updates:releasePage')}
             </Button>
           ) : (
             <Button
@@ -122,34 +119,37 @@ export function UpdatePanel({
               disabled={busy}
               onClick={() => void run(() => window.yuki.updates.download().then(unwrap))}
             >
-              下載更新
+              {t('updates:download')}
             </Button>
           )}
         </Row>
       )}
       {downloading && (
-        <Row title="正在下載更新">
+        <Row title={t('updates:downloading')}>
           <progress
-            aria-label="更新下載進度"
+            aria-label={t('updates:progress')}
             max={100}
             value={state.progress?.total ? state.progress.percent : undefined}
           />
           <Button onClick={() => void run(() => window.yuki.updates.cancel().then(unwrap))}>
-            取消下載
+            {t('updates:cancelDownload')}
           </Button>
         </Row>
       )}
       {state?.phase === 'downloaded' && (
         <Row
-          title={`已下載 ${state.version}`}
-          description="會先確認未儲存的變更與電腦控制權，再結束本機操作。"
+          title={t('updates:downloaded', { version: state.version! })}
+          description={t('updates:downloadedDescription')}
         >
           <UpdateReadyButton />
         </Row>
       )}
-      {(error || loadError || state?.problem) && (
+      {(error || loadFailed || state?.problem) && (
         <Banner status="failed">
-          {error || loadError || (state?.problem && failures[state.problem])}
+          {error ||
+            (loadFailed
+              ? t('updates:unreadable')
+              : state?.problem && t(`updates:problem.${state.problem}`))}
         </Banner>
       )}
     </>
@@ -157,19 +157,16 @@ export function UpdatePanel({
 }
 
 export function UpdatePending() {
+  const { t } = useTranslation(['updates'])
   const { state } = useUpdates()
   return (
     <Sheet
-      title="正在準備更新"
+      title={t('updates:preparing')}
       open={state?.phase === 'installing' || state?.phase === 'preparing'}
       onClose={() => {}}
       actions={<Spinner />}
     >
-      <p>
-        {state?.phase === 'preparing'
-          ? '正在等候原本的本機操作收尾，完成後才會重新啟動。'
-          : '準備完成後會重新啟動。伺服器上的工作會繼續保留。'}
-      </p>
+      <p>{state?.phase === 'preparing' ? t('updates:waiting') : t('updates:restartSoon')}</p>
     </Sheet>
   )
 }

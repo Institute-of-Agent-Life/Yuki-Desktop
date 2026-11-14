@@ -7,6 +7,7 @@ import type { Connection } from '../shared/api'
 import { Pairing } from './views/Pairing'
 import { DisconnectedHome } from './views/DisconnectedHome'
 import { LocalBot } from './views/LocalBot'
+import { RemoteDeploy } from './views/RemoteDeploy'
 import { Conversation } from './views/Conversation'
 import { WorkspaceSession, workspaceFor, workspaceScope, forgetWorkspace } from './state/workspace'
 import { problemText, unwrap } from './queries/client'
@@ -19,11 +20,13 @@ import { UpdateProvider } from './state/updates'
 import { RoleSwitcher } from './components/RoleSwitcher'
 import { ApplicationMenu } from './components/ApplicationMenu'
 import { useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from './i18n'
 
 export function App({ boot }: { boot: BootInfo }) {
+  const { t } = useTranslation(['workspace'])
   const query = useQueryClient()
   const selection = useRef<string | undefined>(undefined)
-  const [step, setStep] = useState<'welcome' | 'adding' | 'local'>(
+  const [step, setStep] = useState<'welcome' | 'adding' | 'local' | 'remote'>(
     boot.pairLink ? 'adding' : 'welcome',
   )
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -91,7 +94,7 @@ export function App({ boot }: { boot: BootInfo }) {
         ? result.value.find((item) => item.characterId === target.characterId)
         : (available.find((item) => item.characterId === selection.current) ?? available[0])
       if (!first && target) {
-        setNavigationError('原 Yuki 的連線已移除。')
+        setNavigationError(t('workspace:connectionRemoved'))
         return
       }
       if (first) {
@@ -201,6 +204,11 @@ export function App({ boot }: { boot: BootInfo }) {
       setSettingsOpen(false)
       setStep('local')
     })
+  const deployRemote = () =>
+    requestNavigation(() => {
+      setSettingsOpen(false)
+      setStep('remote')
+    })
   const workspace = workspaceFor(connection ? workspaceScope(connection) : 'desktop').getState()
   useCommands((command) => {
     if (command === 'settings')
@@ -236,6 +244,7 @@ export function App({ boot }: { boot: BootInfo }) {
       [value.characterId],
       ['desktop', 'models', value.characterId],
       ['desktop', 'model-stats', value.characterId],
+      ['desktop', 'platforms', value.characterId],
     ]) {
       void query.cancelQueries({ queryKey })
       query.removeQueries({ queryKey })
@@ -275,12 +284,20 @@ export function App({ boot }: { boot: BootInfo }) {
       onConnection={updateConnection}
       onAddCharacter={adding}
       onDeployLocal={deployLocal}
+      onQQLogin={() => {
+        workspace.patch({ computerScreen: 'qq-view' })
+        workspace.setView('computer')
+        setSettingsOpen(false)
+        setStep('welcome')
+      }}
+      onDeployRemote={deployRemote}
       onLoggedOut={async () => {
         const previous = connection!
         const keys = [
           [previous.characterId],
           ['desktop', 'models', previous.characterId],
           ['desktop', 'model-stats', previous.characterId],
+          ['desktop', 'platforms', previous.characterId],
         ]
         await Promise.all(keys.map((queryKey) => query.cancelQueries({ queryKey })))
         for (const queryKey of keys) query.removeQueries({ queryKey })
@@ -320,6 +337,7 @@ export function App({ boot }: { boot: BootInfo }) {
                 item.characterId === connection?.characterId &&
                 !pairing &&
                 step !== 'local' &&
+                step !== 'remote' &&
                 !showingSettings
               const scope = workspaceScope(item)
               return (
@@ -390,13 +408,24 @@ export function App({ boot }: { boot: BootInfo }) {
               />
             </div>
           )}
-          {!pairing && !connection && step !== 'local' && (
+          {step === 'remote' && (
+            <div className={styles.roleSession} hidden={showingSettings} inert={showingSettings}>
+              <RemoteDeploy
+                active={!showingSettings}
+                label={boot.deviceLabel}
+                back={() => setStep('welcome')}
+                done={complete}
+              />
+            </div>
+          )}
+          {!pairing && !connection && step !== 'local' && step !== 'remote' && (
             <div className={styles.roleSession} hidden={showingSettings} inert={showingSettings}>
               <WorkspaceSession scope="desktop" active={!showingSettings}>
                 <DisconnectedHome
                   platform={boot.platform}
                   connect={adding}
                   deploy={deployLocal}
+                  deployRemote={deployRemote}
                   onSettings={openSettings}
                   roleSwitcher={(trigger) => (
                     <RoleSwitcher
@@ -419,12 +448,12 @@ export function App({ boot }: { boot: BootInfo }) {
           )}
           {pairing && (
             <div
-              hidden={showingSettings || step === 'local'}
-              inert={showingSettings || step === 'local'}
+              hidden={showingSettings || step === 'local' || step === 'remote'}
+              inert={showingSettings || step === 'local' || step === 'remote'}
             >
               <Pairing
                 key={pairingTarget?.characterId ?? 'new'}
-                active={!showingSettings && step !== 'local'}
+                active={!showingSettings && step !== 'local' && step !== 'remote'}
                 label={boot.deviceLabel}
                 onUpdate={() => openSettings('updates')}
                 initialLink={pairLink}
@@ -446,7 +475,7 @@ export function App({ boot }: { boot: BootInfo }) {
                   const candidate = unwrap(await window.yuki.client.connections()).find(
                     (item) => item.characterId === id,
                   )
-                  if (!candidate) throw new Error('原連線已處理完成，可以重新配對。')
+                  if (!candidate) throw new Error(t('workspace:logoutResolved'))
                   setPairLink(null)
                   setPairingTarget(undefined)
                   updateConnection(candidate)
@@ -458,7 +487,7 @@ export function App({ boot }: { boot: BootInfo }) {
               />
             </div>
           )}
-          {(pairing || step === 'local') && !showingSettings && (
+          {(pairing || step === 'local' || step === 'remote') && !showingSettings && (
             <ApplicationMenu platform={boot.platform} overlay />
           )}
         </main>

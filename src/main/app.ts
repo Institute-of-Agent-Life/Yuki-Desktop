@@ -22,14 +22,16 @@ import {
   systemPreferences,
 } from 'electron'
 import { heldComputers } from './computer-exit'
-import { hostname } from 'node:os'
+import { hostname, tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
-import { mkdir, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createWindow, setWindowMode, setKeyboardCapture } from './windows'
 import { applyWindowAppearance, platformMaterial } from './window-appearance'
 import { installMenu } from './menu'
+import { language, setLanguage, t } from './i18n'
+import { displayLanguage, languagePreferences, listNames } from '../shared/locales'
 import { LocalStore } from './store'
 import {
   backdrops,
@@ -78,7 +80,10 @@ import type {
 } from '../shared/connector'
 import type { components } from '../shared/contract.gen'
 import { LocalBot } from './local-bot'
+import { RemoteYuki } from './remote'
+import type { RemoteDeployInput, SshAccess, TransportChange } from '../shared/ssh'
 import type { LocalBotConfiguration } from '../shared/local-bot'
+import type { PlatformApplyInput } from '../shared/platforms'
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -115,6 +120,9 @@ else {
   void app.whenReady().then(() => {
     const store = new LocalStore(join(app.getPath('userData'), 'desktop.sqlite3'))
     nativeTheme.themeSource = store.preferences().theme
+    const shownLanguage = (preferences: Preferences) =>
+      displayLanguage(preferences.language, app.getPreferredSystemLanguages())
+    setLanguage(shownLanguage(store.preferences()))
     app.setAsDefaultProtocolClient('yuki')
     const renderer = resolve(import.meta.dirname, '../renderer')
     protocol.handle('app', (request) => {
@@ -284,12 +292,18 @@ else {
         const held = await heldComputers(connections)
         if (!held.length) return true
         reveal?.()
+        const offline = held.some((item) => item.offline)
         const options = {
           type: 'question' as const,
-          title: '你正在控制 Yuki 的電腦',
-          message: `${held.some((item) => item.offline) ? '你上次仍在控制' : '你正在控制'} ${held.map((item) => item.connection.name).join('、')} 的電腦`,
-          detail: `${held.some((item) => item.offline) ? '目前無法連線確認；交回時會核對伺服器目前的控制權。' : ''}保持控制時，需要用電腦的步驟會一直等待交回；其他步驟照常進行。`,
-          buttons: ['交回並結束', '保持控制並結束', '取消'],
+          title: t('dialogs:quitControlTitle'),
+          message: t(offline ? 'dialogs:quitControlMessageOffline' : 'dialogs:quitControlMessage', {
+            names: listNames(
+              language(),
+              held.map((item) => item.connection.name),
+            ),
+          }),
+          detail: t(offline ? 'dialogs:quitControlDetailOffline' : 'dialogs:quitControlDetail'),
+          buttons: [t('dialogs:returnAndQuit'), t('dialogs:keepAndQuit'), t('dialogs:cancel')],
           defaultId: 0,
           cancelId: 2,
         }
@@ -302,13 +316,14 @@ else {
           const result = await connections.computerCommand(item.connection.characterId, {
             action: 'return',
             leaseId: item.leaseId,
+            // The receipt note is data kept by the server, not interface text.
             note: '使用者交回控制並結束 App。',
           })
           if (result.state !== 'result' || result.problem) {
             const failure = {
               type: 'warning' as const,
-              message: '尚未確認交回，App 會保持開啟。',
-              detail: '請確認目前控制權或查證原請求，再決定是否結束。',
+              message: t('dialogs:returnUnconfirmed'),
+              detail: t('dialogs:returnUnconfirmedDetail'),
             }
             if (win) await dialog.showMessageBox(win, failure)
             else await dialog.showMessageBox(failure)
@@ -355,6 +370,7 @@ else {
             ok: false,
             code: error instanceof ApiError ? error.code : 'unknown',
             ...(error instanceof ApiError && error.reason ? { reason: error.reason } : {}),
+            ...(error instanceof ApiError && error.details ? { details: error.details } : {}),
           }
         }
       })
@@ -484,9 +500,9 @@ else {
     action('connector-export-diagnostics', async () => {
       const summary = await connector.diagnostics()
       const result = await dialog.showSaveDialog(win!, {
-        title: '匯出連接器診斷',
+        title: t('dialogs:exportConnectorDiagnostics'),
         defaultPath: `Yuki-connector-diagnostics-${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
-        filters: [{ name: '診斷記錄', extensions: ['json'] }],
+        filters: [{ name: t('dialogs:diagnostics'), extensions: ['json'] }],
       })
       if (result.canceled || !result.filePath) return false
       await writeFile(result.filePath, JSON.stringify(summary, null, 2) + '\n', {
@@ -613,6 +629,29 @@ else {
     action('local-bot-start', () => localBot.start())
     action('local-bot-stop', () => localBot.stop())
     action('local-bot-connect', () => localBot.connect())
+    action('local-bot-snowluma', (image: string) => localBot.enableSnowLuma(image))
+    const remote = new RemoteYuki({
+      resources: join(resourceRoot, 'local-bot'),
+      connections,
+      connector,
+      progress: (step) => win?.webContents.send('yuki:remote-deploy-progress', step),
+    })
+    action('ssh-probe', (host: string, port: number) => remote.probe(host, port))
+    action('ssh-forget-host', (host: string, port: number) => remote.forgetHost(host, port))
+    action('ssh-choose-key', () => choosePath(false))
+    action('ssh-pair', (input: { access: SshAccess; directory: string; label: string }) =>
+      remote.pair(input),
+    )
+    action('ssh-upgrade', (id: string) => remote.upgrade(id))
+    action('ssh-logs', (id: string) => remote.logs(id))
+    action('ssh-snowluma', (id: string, image: string) => remote.snowLuma(id, image))
+    action('remote-deploy-state', () => remote.state())
+    action('remote-deploy-check', (access: SshAccess) => remote.check(access))
+    action('remote-deploy-install-docker', (access: SshAccess, mirror: boolean) =>
+      remote.installDocker(access, mirror),
+    )
+    action('remote-deploy-prepare', (access: SshAccess) => remote.prepare(access))
+    action('remote-deploy', (input: RemoteDeployInput) => remote.deploy(input))
     action('update-check', () => updates.check())
     action('update-download', () => updates.download())
     action('update-cancel', () => updates.cancel())
@@ -643,9 +682,9 @@ else {
     clientAction('retired-history', (id: string) => connections.retiredHistory(id))
     clientAction('export-retired-history', async (id: string) => {
       const result = await dialog.showSaveDialog(win!, {
-        title: '匯出舊版操作記錄',
+        title: t('dialogs:exportRetiredHistory'),
         defaultPath: 'Yuki-retired-history.json',
-        filters: [{ name: '舊版操作記錄', extensions: ['json'] }],
+        filters: [{ name: t('dialogs:retiredHistory'), extensions: ['json'] }],
       })
       if (result.canceled || !result.filePath) return false
       await writeFile(result.filePath, connections.exportRetiredHistory(id), {
@@ -666,14 +705,14 @@ else {
       connections.verifyLinkCode(id, request),
     )
     clientAction('server-info', (id: string) => connections.serverInfo(id))
-    clientAction('change-address', (id: string, server: string) =>
-      connections.changeAddress(id, server),
+    clientAction('ssh-change-transport', (id: string, change: TransportChange) =>
+      remote.changeTransport(id, change),
     )
     action('export-diagnostics', async () => {
       const result = await dialog.showSaveDialog(win!, {
-        title: '匯出診斷記錄',
+        title: t('dialogs:exportDiagnostics'),
         defaultPath: `Yuki-diagnostics-${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
-        filters: [{ name: '診斷記錄', extensions: ['json'] }],
+        filters: [{ name: t('dialogs:diagnostics'), extensions: ['json'] }],
       })
       if (result.canceled || !result.filePath) return false
       const summary = diagnostics(
@@ -741,10 +780,10 @@ else {
         throw new ApiError('validation_error')
       const result = await dialog.showMessageBox(win!, {
         type: 'question',
-        title: '開啟外部連結',
-        message: `在瀏覽器開啟 ${url.hostname}？`,
+        title: t('dialogs:openLinkTitle'),
+        message: t('dialogs:openLinkMessage', { host: url.hostname }),
         detail: url.toString(),
-        buttons: ['取消', '開啟'],
+        buttons: [t('dialogs:cancel'), t('dialogs:open')],
         defaultId: 0,
         cancelId: 0,
       })
@@ -755,7 +794,7 @@ else {
       ...(['https:', 'http:'].includes(new URL(link).protocol)
         ? [
             {
-              label: '開啟連結',
+              label: t('menu:context.openLink'),
               click: () => {
                 void openExternal(link)
                 done()
@@ -764,7 +803,7 @@ else {
           ]
         : []),
       {
-        label: '複製連結',
+        label: t('menu:context.copyLink'),
         click: () => {
           clipboard.writeText(link)
           done()
@@ -780,14 +819,16 @@ else {
       return new Promise<'save' | null>((resolve) => {
         const menu = Menu.buildFromTemplate([
           {
-            label: '複製',
+            label: t('common:edit.copy'),
             click: () => {
               clipboard.writeText(options.text)
               resolve(null)
             },
           },
           ...(options.link ? linkMenu(options.link, () => resolve(null)) : []),
-          ...(options.save ? [{ label: '存成檔案', click: () => resolve('save') }] : []),
+          ...(options.save
+            ? [{ label: t('menu:context.saveAsFile'), click: () => resolve('save') }]
+            : []),
         ])
         menu.popup({ window: win!, callback: () => resolve(null) })
       })
@@ -829,6 +870,10 @@ else {
     clientAction('models-stats', (id: string, query: ModelStatsQuery) =>
       connections.modelStats(id, query),
     )
+    clientAction('platforms-read', (id: string) => connections.platforms(id))
+    clientAction('platforms-apply', (id: string, input: PlatformApplyInput) =>
+      connections.applyPlatform(id, input),
+    )
     clientAction('soul-document', (id: string) => connections.soulDocument(id))
     clientAction('soul-edit', (id: string, edit: SoulEdit) => connections.soulEdit(id, edit))
     clientAction('soul-draft', (id: string) => connections.soul(id).draft())
@@ -866,11 +911,11 @@ else {
     action('preview-avatar', (server: string) => connections.previewAvatar(server))
     action('pick-avatar', async () => {
       const picked = await dialog.showOpenDialog(win!, {
-        title: '選擇頭像圖片',
+        title: t('dialogs:chooseAvatar'),
         properties: ['openFile'],
         filters: [
           {
-            name: '圖片',
+            name: t('dialogs:images'),
             extensions: [
               'png',
               'jpg',
@@ -887,6 +932,7 @@ else {
     action('paste-avatar', () => {
       const image = clipboard.readImage()
       if (image.isEmpty()) throw new ApiError('unsupported_image')
+      // Default file names are data and do not follow the interface language.
       return { filename: '剪貼簿圖片.png', bytes: new Uint8Array(image.toPNG()) }
     })
     clientAction('avatar-command', (id: string, revision: number, bytes?: Uint8Array) =>
@@ -928,7 +974,7 @@ else {
       if (image.isEmpty()) throw new ApiError('validation_error')
       const result = await dialog.showSaveDialog(win!, {
         defaultPath: `${connection.name} 電腦截圖.png`,
-        filters: [{ name: 'PNG 圖片', extensions: ['png'] }],
+        filters: [{ name: t('dialogs:pngImages'), extensions: ['png'] }],
       })
       if (result.canceled || !result.filePath) return false
       await writeFile(result.filePath, image.toPNG())
@@ -955,7 +1001,7 @@ else {
     )
     clientAction('attach', async (id: string) => {
       const picked = await dialog.showOpenDialog(win!, {
-        title: '附加檔案',
+        title: t('dialogs:attachFiles'),
         properties: ['openFile', 'multiSelections'],
       })
       return picked.canceled
@@ -963,6 +1009,39 @@ else {
         : connections.stage(id, picked.filePaths)
     })
     clientAction('drop', (id: string, paths: string[]) => connections.stage(id, paths))
+    // Pasted content without a file of its own is written out under its name and staged with
+    // the other paths, as dropped files are; the staged copy is the upload's, so this one goes.
+    const stagePasted = async (
+      id: string,
+      paths: string[],
+      filename: string,
+      bytes: Uint8Array,
+    ) => {
+      const folder = await mkdtemp(join(tmpdir(), 'yuki-paste-'))
+      try {
+        const path = join(folder, filename)
+        await writeFile(path, bytes, { mode: 0o600 })
+        return await connections.stage(id, [...paths, path])
+      } finally {
+        await rm(folder, { recursive: true, force: true })
+      }
+    }
+    clientAction('paste-files', (id: string, paths: string[]) => {
+      // Copied files carry their paths. A screenshot is picture data without one (an empty path),
+      // and some sources give no file at all: the clipboard's image is staged as a PNG.
+      const named = paths.filter(Boolean)
+      const image = named.length < paths.length || !paths.length ? clipboard.readImage() : null
+      // Default file names are data and do not follow the interface language.
+      return image && !image.isEmpty()
+        ? stagePasted(id, named, '剪貼簿圖片.png', image.toPNG())
+        : connections.stage(id, named)
+    })
+    clientAction('paste-text', (id: string, text: string) => {
+      const now = new Date(),
+        two = (value: number) => String(value).padStart(2, '0'),
+        stamp = `${now.getFullYear()}${two(now.getMonth() + 1)}${two(now.getDate())}-${two(now.getHours())}${two(now.getMinutes())}${two(now.getSeconds())}`
+      return stagePasted(id, [], `粘貼內容-${stamp}.md`, Buffer.from(text))
+    })
     clientAction('record', (id: string, bytes: Uint8Array) => connections.record(id, bytes))
     clientAction('retry-upload', (id: string, request: string) =>
       connections.retryUpload(id, request),
@@ -982,7 +1061,7 @@ else {
     clientAction('save-artifact', async (id: string, source: ArtifactSource) => {
       const content = await connections.artifact(id, source)
       const picked = await dialog.showSaveDialog(win!, {
-        title: '存到…',
+        title: t('dialogs:saveTo'),
         defaultPath: basename(content.filename),
       })
       if (picked.canceled || !picked.filePath) return false
@@ -1022,7 +1101,7 @@ else {
     clientAction('save-content', async (id: string, source: AttachmentSource) => {
       const content = await connections.attachment(id, source)
       const picked = await dialog.showSaveDialog(win!, {
-        title: '存成檔案',
+        title: t('dialogs:saveAsFile'),
         defaultPath: basename(content.filename),
       })
       if (picked.canceled || !picked.filePath) return false
@@ -1059,6 +1138,7 @@ else {
         deviceLabel: hostname(),
         ...appearance(),
         preferences: store.preferences(),
+        language: language(),
         pairLink,
         openTarget,
       }
@@ -1082,6 +1162,7 @@ else {
       if (backdrops.includes(patch.backdrop!)) current.backdrop = patch.backdrop!
       if (patch.timeZone === 'Asia/Taipei' || patch.timeZone === 'system')
         current.timeZone = patch.timeZone
+      if (languagePreferences.includes(patch.language!)) current.language = patch.language!
       if (
         (patch.updateChannel === 'stable' || patch.updateChannel === 'beta') &&
         !['preparing', 'installing'].includes(updates.state().phase)
@@ -1099,6 +1180,13 @@ else {
       native.update(current)
       nativeTheme.themeSource = current.theme
       if (win) applyWindowAppearance(win, current)
+      // Everything built from now on (menus, tray, notifications, dialogs) uses the new language.
+      if (shownLanguage(current) !== language()) {
+        setLanguage(shownLanguage(current))
+        installMenu(() => win)
+        native.relocalize()
+        win?.webContents.send('yuki:language', language())
+      }
       return current
     })
     nativeTheme.on('updated', () => win?.webContents.send('yuki:theme', appearance()))
@@ -1119,16 +1207,16 @@ else {
           ? [
               ...suggestions,
               ...(suggestions.length ? [{ type: 'separator' as const }] : []),
-              { label: '復原', role: 'undo', enabled: can.canUndo },
-              { label: '重做', role: 'redo', enabled: can.canRedo },
+              { label: t('common:edit.undo'), role: 'undo', enabled: can.canUndo },
+              { label: t('common:edit.redo'), role: 'redo', enabled: can.canRedo },
               { type: 'separator' },
-              { label: '剪下', role: 'cut', enabled: can.canCut },
-              { label: '複製', role: 'copy', enabled: can.canCopy },
-              { label: '貼上', role: 'paste', enabled: can.canPaste },
-              { label: '全選', role: 'selectAll', enabled: can.canSelectAll },
+              { label: t('common:edit.cut'), role: 'cut', enabled: can.canCut },
+              { label: t('common:edit.copy'), role: 'copy', enabled: can.canCopy },
+              { label: t('common:edit.paste'), role: 'paste', enabled: can.canPaste },
+              { label: t('common:edit.selectAll'), role: 'selectAll', enabled: can.canSelectAll },
             ]
           : params.selectionText
-            ? [{ label: '複製', role: 'copy' }]
+            ? [{ label: t('common:edit.copy'), role: 'copy' }]
             : []
         if (params.linkURL)
           items.push(
@@ -1206,7 +1294,7 @@ else {
           closing = undefined
           void dialog.showMessageBox({
             type: 'error',
-            message: '本機資料尚未完成關閉，請重新嘗試結束 App。',
+            message: t('dialogs:closeFailed'),
           })
         })
     })

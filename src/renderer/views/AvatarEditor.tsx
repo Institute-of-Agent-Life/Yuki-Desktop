@@ -2,6 +2,7 @@ import { capturePointer } from '../motion/hooks'
 import { useCallback, useContext, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ImagePlus, RotateCcw } from 'lucide-react'
+import type { TFunction } from 'i18next'
 import type {
   AvatarCommandItem,
   AvatarInput,
@@ -22,9 +23,10 @@ import {
 } from '../images/avatar'
 import { ClientProblem, problemText, unwrap } from '../queries/client'
 import styles from './AvatarEditor.module.css'
+import { useTranslation } from '../i18n'
 
-function avatarItem(item: CharacterCommandItem): AvatarCommandItem {
-  if (item.command.kind !== 'avatar') throw new Error('原請求不是頭像更新。')
+function avatarItem(item: CharacterCommandItem, t: TFunction<['avatar']>): AvatarCommandItem {
+  if (item.command.kind !== 'avatar') throw new Error(t('avatar:notAvatarRequest'))
   return {
     requestId: item.requestId,
     action: item.command.action,
@@ -42,6 +44,7 @@ export function AvatarPending({
   id: string
   open: (item: AvatarCommandItem) => void
 }) {
+  const { t } = useTranslation(['avatar'])
   const query = useQueryClient()
   const commands = useQuery({
     queryKey: [id, 'character-commands'],
@@ -55,7 +58,7 @@ export function AvatarPending({
         ?.filter((item) => item.command.kind === 'avatar' && item.state === 'submitted')
         .map((item) => (
           <div className={styles.pending} key={item.requestId} role="status">
-            <span>頭像更新：結果尚未確認</span>
+            <span>{t('avatar:pending')}</span>
             <Button
               loading={busy}
               onClick={async () => {
@@ -68,16 +71,16 @@ export function AvatarPending({
                   await query.invalidateQueries({ queryKey: [id, 'character-commands'] })
                   await query.invalidateQueries({ queryKey: [id, 'character'] })
                 } catch (error) {
-                  setError(error instanceof Error ? error.message : '無法查證原請求。')
+                  setError(error instanceof Error ? error.message : t('avatar:verifyFailed'))
                 } finally {
                   setBusy(false)
                 }
               }}
             >
-              查證頭像更新
+              {t('avatar:verify')}
             </Button>
-            <Button disabled={busy} onClick={() => open(avatarItem(item))}>
-              查看這次更新
+            <Button disabled={busy} onClick={() => open(avatarItem(item, t))}>
+              {t('avatar:viewUpdate')}
             </Button>
           </div>
         ))}
@@ -97,6 +100,7 @@ export function AvatarEditor({
   close: () => void
   restore?: AvatarCommandItem
 }) {
+  const { t } = useTranslation(['avatar', 'common'])
   const query = useQueryClient()
   const visuals = useContext(CharacterVisuals)
   const pixels = Math.round(280 * usePixelRatio())
@@ -128,38 +132,37 @@ export function AvatarEditor({
     if (busy || unknown) cancelDrag.current?.()
     return () => cancelDrag.current?.()
   }, [busy, unknown])
-  const load = useCallback(async (input: Promise<AvatarInput | null>, current = false) => {
-    const turn = ++generation.current
-    setBusy(true)
-    setError('')
-    let decoded: AvatarImage | undefined
-    try {
-      const source = await input
-      if (!source) return false
-      decoded = await decodeAvatar(source)
-      if (turn !== generation.current) {
-        decoded.bitmap.close()
+  const load = useCallback(
+    async (input: Promise<AvatarInput | null>, current = false) => {
+      const turn = ++generation.current
+      setBusy(true)
+      setError('')
+      let decoded: AvatarImage | undefined
+      try {
+        const source = await input
+        if (!source) return false
+        decoded = await decodeAvatar(source)
+        if (turn !== generation.current) {
+          decoded.bitmap.close()
+          return false
+        }
+        imageRef.current?.bitmap.close()
+        imageRef.current = decoded
+        setImage(decoded)
+        setFromCurrent(current)
+        setTransform({ zoom: 1, pan: { x: 0, y: 0 } })
+        setConflict(undefined)
+        return true
+      } catch (error) {
+        if (turn === generation.current)
+          setError(error instanceof ClientProblem ? error.message : t('avatar:unreadable'))
         return false
+      } finally {
+        if (turn === generation.current) setBusy(false)
       }
-      imageRef.current?.bitmap.close()
-      imageRef.current = decoded
-      setImage(decoded)
-      setFromCurrent(current)
-      setTransform({ zoom: 1, pan: { x: 0, y: 0 } })
-      setConflict(undefined)
-      return true
-    } catch (error) {
-      if (turn === generation.current)
-        setError(
-          error instanceof ClientProblem
-            ? error.message
-            : '無法讀取這張圖片，請改用 PNG、JPEG 或 WebP。',
-        )
-      return false
-    } finally {
-      if (turn === generation.current) setBusy(false)
-    }
-  }, [])
+    },
+    [t],
+  )
   useEffect(() => {
     if (restore?.action === 'set')
       void load(window.yuki.client.avatarDraft(id, restore.requestId).then(unwrap), true)
@@ -215,7 +218,7 @@ export function AvatarEditor({
     if (session !== generation.current) return
     if (item.state === 'submitted') {
       setUnknown(item)
-      setError('更新結果尚未確認，裁切已保留。請查證原請求。')
+      setError(t('avatar:unconfirmed'))
       return
     }
     setUnknown(undefined)
@@ -223,7 +226,7 @@ export function AvatarEditor({
       const current =
         item.current ?? unwrap(await window.yuki.client.read<Profile>(id, { kind: 'character' }))
       setConflict({ current, action: item.action })
-      setError('頭像剛被另一台裝置更新。')
+      setError(t('avatar:conflict'))
     } else if (item.problem) setError(problemText(item.problem))
     else {
       close()
@@ -237,14 +240,14 @@ export function AvatarEditor({
     try {
       const bytes =
         action === 'set' && image
-          ? await croppedAvatar(image, transform.zoom, transform.pan)
+          ? await croppedAvatar(image, transform.zoom, transform.pan, t)
           : undefined
       if (action === 'set' && !bytes) return
       const item = unwrap(await window.yuki.client.avatarCommand(id, revision, bytes))
-      await refreshed(avatarItem(item), session)
+      await refreshed(avatarItem(item, t), session)
     } catch (error) {
       if (session === generation.current)
-        setError(error instanceof Error ? error.message : '頭像更新未完成。')
+        setError(error instanceof Error ? error.message : t('avatar:failed'))
     } finally {
       if (session === generation.current) {
         submitting.current = false
@@ -256,7 +259,7 @@ export function AvatarEditor({
   return (
     <>
       <Sheet
-        title={`更換 ${profile.display_name} 的頭像`}
+        title={t('avatar:title', { name: profile.display_name })}
         width={600}
         onKeyDown={(event) => {
           if (
@@ -293,18 +296,18 @@ export function AvatarEditor({
           <>
             <div className={styles.leftActions}>
               <Button disabled={submitting.current || !!unknown} onClick={pick}>
-                {image ? '選擇其他圖片…' : '選擇圖片…'}
+                {image ? t('avatar:chooseOther') : t('avatar:choose')}
               </Button>
               <Button
                 variant="plain"
                 disabled={busy || !!unknown}
                 onClick={() => void save('reset')}
               >
-                還原預設
+                {t('avatar:reset')}
               </Button>
             </div>
             <Button disabled={submitting.current} onClick={close}>
-              取消
+              {t('common:action.cancel')}
             </Button>
             <Button
               variant="primary"
@@ -312,13 +315,13 @@ export function AvatarEditor({
               disabled={!image || !!unknown || !!conflict}
               onClick={() => void save('set')}
             >
-              儲存
+              {t('common:action.save')}
             </Button>
           </>
         }
       >
         <p className={styles.description}>
-          只改變大家看到的頭像，不會改變 {profile.display_name} 的身份、記憶或歷史。
+          {t('avatar:description', { name: profile.display_name })}
         </p>
         <div className={styles.editor}>
           <div>
@@ -327,7 +330,7 @@ export function AvatarEditor({
               ref={crop}
               tabIndex={0}
               role="application"
-              aria-label="頭像裁切區，方向鍵移動，加減鍵縮放"
+              aria-label={t('avatar:cropArea')}
               aria-disabled={busy || !!unknown}
               onPointerDown={(event) => {
                 if (!image || busy || unknown || event.button !== 0 || !event.isPrimary) return
@@ -382,8 +385,8 @@ export function AvatarEditor({
               ) : (
                 <div className={styles.choose}>
                   <ImagePlus size={32} strokeWidth={1.5} />
-                  <span>選擇或拖入圖片</span>
-                  <small>也可貼上剪貼簿圖片</small>
+                  <span>{t('avatar:chooseOrDrop')}</span>
+                  <small>{t('avatar:pasteHint')}</small>
                 </div>
               )}
               {busy && (
@@ -394,7 +397,7 @@ export function AvatarEditor({
             </div>
             <div className={styles.zoom}>
               <Slider
-                label="頭像縮放"
+                label={t('avatar:zoom')}
                 value={transform.zoom * 100}
                 min={100}
                 max={400}
@@ -408,7 +411,7 @@ export function AvatarEditor({
                 onClick={() => setTransform((previous) => ({ ...previous, pan: { x: 0, y: 0 } }))}
               >
                 <RotateCcw size={14} />
-                置中
+                {t('avatar:center')}
               </Button>
             </div>
             {image && (
@@ -418,7 +421,7 @@ export function AvatarEditor({
             )}
           </div>
           <div className={styles.previews}>
-            <small>預覽</small>
+            <small>{t('avatar:preview')}</small>
             {(['light', 'dark'] as const).map((theme) => (
               <div
                 className={`${styles.preview} ${styles[theme]}`}
@@ -428,14 +431,14 @@ export function AvatarEditor({
                 {[20, 28, 36].map((size) => (
                   <Avatar name={profile.display_name} size={size} src={preview} key={size} />
                 ))}
-                <small>{theme === 'light' ? '淺色' : '深色'}</small>
+                <small>{t(`avatar:${theme}`)}</small>
               </div>
             ))}
-            <small>側邊欄</small>
+            <small>{t('avatar:sidebar')}</small>
             <div className={styles.card}>
               <PresenceCard
                 name={profile.display_name}
-                status={visuals.presence?.text ?? '頭像預覽'}
+                status={visuals.presence?.text ?? t('avatar:previewStatus')}
                 color={visuals.presence?.color}
                 avatar={<Avatar name={profile.display_name} size={36} src={preview} />}
               />
@@ -445,15 +448,14 @@ export function AvatarEditor({
               disabled={submitting.current || !!unknown}
               onClick={() => void load(window.yuki.client.pasteAvatar().then(unwrap))}
             >
-              貼上圖片
+              {t('avatar:paste')}
             </Button>
           </div>
         </div>
-        {fromCurrent && <p className={styles.description}>重新選擇原圖可以得到更大範圍。</p>}
+        {fromCurrent && <p className={styles.description}>{t('avatar:fromCurrent')}</p>}
         {image && Math.min(image.width, image.height) < 1024 && (
           <Banner status="waiting">
-            這張圖片只有 {image.width}×{image.height}
-            ，放在關於頁等大尺寸位置可能不夠清晰。仍然可以儲存。
+            {t('avatar:small', { width: image.width, height: image.height })}
           </Banner>
         )}
         {error && <Banner status="failed">{error}</Banner>}
@@ -467,28 +469,29 @@ export function AvatarEditor({
                 await refreshed(
                   avatarItem(
                     unwrap(await window.yuki.client.verifyCharacterCommand(id, unknown.requestId)),
+                    t,
                   ),
                   session,
                 )
               } catch (error) {
                 if (session === generation.current)
-                  setError(error instanceof Error ? error.message : '無法查證原請求。')
+                  setError(error instanceof Error ? error.message : t('avatar:verifyFailed'))
               } finally {
                 if (session === generation.current) setBusy(false)
               }
             }}
           >
-            查證頭像更新
+            {t('avatar:verify')}
           </Button>
         )}
         {conflict && (
           <div className={styles.conflict}>
             <div>
-              <span>目前頭像</span>
+              <span>{t('avatar:current')}</span>
               <CharacterAvatar size={64} avatar={conflict.current.avatar} />
             </div>
             <div>
-              <span>你的選擇</span>
+              <span>{t('avatar:yours')}</span>
               {conflict.action === 'set' ? (
                 <Avatar name={profile.display_name} size={64} src={preview} />
               ) : (
@@ -497,7 +500,7 @@ export function AvatarEditor({
             </div>
             <div className={styles.conflictActions}>
               <Button disabled={busy} onClick={close}>
-                保留目前的
+                {t('avatar:keepCurrent')}
               </Button>
               <Button
                 variant="primary"
@@ -508,7 +511,7 @@ export function AvatarEditor({
                   void save(conflict.action, conflict.current.avatar_revision)
                 }}
               >
-                用我的
+                {t('avatar:useMine')}
               </Button>
             </div>
           </div>
