@@ -163,7 +163,7 @@ test('switching language relocalizes the running app and keeps time zone, receip
     await composer.fill('切換到英文後開始的工作')
     await composer.press('Enter')
     await expect
-      .poll(async () => (await recorded(app)).notices, { timeout: 30000 })
+      .poll(async () => (await recorded(app)).notices)
       .toContainEqual({ title: `${name} · Waiting for your reply`, body: '需要你提供城市' })
 
     // Data keeps its own words: default file names do not follow the interface.

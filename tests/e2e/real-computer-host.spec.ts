@@ -139,7 +139,7 @@ test('isolated real computer accepts desktop input and resumes its original work
     await sheet.getByRole('button', { name: '交回', exact: true }).click()
     await expect.poll(async () => (await facts()).phase, { timeout: 45000 }).toBe(7)
     await page.keyboard.press('ControlOrMeta+1')
-    await expect(waiting().getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
+    await expect(waiting().getByText('已完成', { exact: true })).toBeVisible()
     const final = await facts()
     expect(final.run_id).toBe(initial.run_id)
     expect(final.manager_jobs.find((run) => run.run_id === initial.run_id)?.status).toBe(

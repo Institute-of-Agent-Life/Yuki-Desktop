@@ -31,7 +31,7 @@ test('continues the original work through an actual reply and confirms cancellat
     const card = page
       .getByRole('article')
       .filter({ has: page.getByRole('heading', { name: '原工作整合測試', exact: true }) })
-    await expect(card.getByText('等你回覆', { exact: true })).toBeVisible({ timeout: 20000 })
+    await expect(card.getByText('等你回覆', { exact: true })).toBeVisible()
     expect(await card.innerText()).not.toMatch(/\d+ 個步驟|\d+ 個子工作/)
     await page.screenshot({ path: test.info().outputPath('work-card-waiting-question.png') })
     const original = await page.evaluate(async () => {
@@ -49,7 +49,7 @@ test('continues the original work through an actual reply and confirms cancellat
     await reply.getByRole('textbox').fill('台北，請接續原工作')
     await fetch(`${rig.base}/__test/lose-next-work-response/inputs`, { method: 'POST' })
     await reply.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(card.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
+    await expect(card.getByText('已完成', { exact: true })).toBeVisible()
     const finished = await page.evaluate(async ({ characterId, work }) => {
       const value = await window.yuki.client.read<Work>(characterId, {
         kind: 'work',
@@ -80,7 +80,7 @@ test('continues the original work through an actual reply and confirms cancellat
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await navigate(page, '工作')
     const row = page.getByRole('button', { name: /等你回覆.*原工作整合測試/ })
-    await expect(row).toBeVisible({ timeout: 20000 })
+    await expect(row).toBeVisible()
     await row.click()
     await detail.getByRole('button', { name: '取消工作', exact: true }).click()
     await page.getByRole('button', { name: '保持執行', exact: true }).click()
@@ -88,7 +88,7 @@ test('continues the original work through an actual reply and confirms cancellat
     await detail.getByRole('button', { name: '取消工作', exact: true }).click()
     await fetch(`${rig.base}/__test/lose-next-work-response/cancel`, { method: 'POST' })
     await page.getByRole('button', { name: '仍然取消', exact: true }).click()
-    await expect(detail.getByText('已取消', { exact: true })).toBeVisible({ timeout: 20000 })
+    await expect(detail.getByText('已取消', { exact: true })).toBeVisible()
     const cancellation = await page.evaluate(async (id) => {
       const commands = await window.yuki.client.workCommands(id)
       if (!commands.ok) throw Error(commands.code)
@@ -222,7 +222,7 @@ test('rejects the original stale cancellation after another device completes the
       JSON.stringify(third, null, 2),
     )
     const row = page.getByRole('button', { name: /等你回覆.*原工作整合測試/ })
-    await expect(row).toBeVisible({ timeout: 20000 })
+    await expect(row).toBeVisible()
     await row.click()
     const detail = page.getByRole('complementary', { name: '詳情' })
     await detail.getByRole('button', { name: '取消工作', exact: true }).click()
@@ -255,7 +255,7 @@ test('rejects the original stale cancellation after another device completes the
       JSON.stringify({ identity: third, ...thirdInput }, null, 2),
     )
     await waitForWorkState(page, third.characterId, third.workId, 'completed')
-    await expect(otherDetail.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
+    await expect(otherDetail.getByText('已完成', { exact: true })).toBeVisible()
     // The original confirmation keeps the revision observed before the other device's reply.
     await page.getByRole('button', { name: '仍然取消', exact: true }).click()
     await expect(
