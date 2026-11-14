@@ -92,3 +92,26 @@ it.each([
   )
   await expect(client.get(path)).rejects.toMatchObject({ code })
 })
+it('tells a body cut off on the way from a reply that is not Yuki', async () => {
+  const cut = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('{"data": {"charac'))
+      controller.error(new TypeError('terminated'))
+    },
+  })
+  const through = (body: BodyInit) =>
+    new ApiClient(
+      'http://localhost',
+      'test-only',
+      undefined,
+      '1.0.0-beta.1',
+      async () => new Response(body, { headers: { 'Content-Type': 'application/json' } }),
+    )
+  // The path (an SSH tunnel, the network) went away mid-reply: a lost request, not a strange server.
+  await expect(through(cut).get('meta')).rejects.toMatchObject({ code: 'transport_unknown' })
+  // A whole reply that is not Yuki's envelope still says so.
+  await expect(through('<html>').get('meta')).rejects.toMatchObject({ code: 'invalid_response' })
+  await expect(through('{"ok": true}').get('meta')).rejects.toMatchObject({
+    code: 'invalid_response',
+  })
+})
