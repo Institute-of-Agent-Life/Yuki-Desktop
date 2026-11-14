@@ -3,6 +3,21 @@ import type { BootInfo, Command, DesktopBridge } from '../shared/desktop'
 import type { ConnectorDriver } from '../shared/connector'
 import type { Language } from '../shared/locales'
 
+// The window is created hidden; its show, hide, minimize and restore keep this current.
+let shown = false,
+  changed = false
+const shownListeners = new Set<(shown: boolean) => void>()
+const setShown = (value: boolean) => {
+  shown = value
+  for (const listener of shownListeners) listener(value)
+}
+ipcRenderer.on('yuki:window-shown', (_event, value: boolean) => {
+  changed = true
+  setShown(value)
+})
+// For a page loaded into an already shown window; a show or hide since then is newer.
+void ipcRenderer.invoke('yuki:window-shown').then((value: boolean) => changed || setShown(value))
+
 const bridge: DesktopBridge = {
   connector: {
     state: (id) => ipcRenderer.invoke('yuki:connector-state', id),
@@ -228,6 +243,11 @@ const bridge: DesktopBridge = {
     const listener = (_event: Electron.IpcRendererEvent, command: Command) => callback(command)
     ipcRenderer.on('yuki:command', listener)
     return () => ipcRenderer.removeListener('yuki:command', listener)
+  },
+  windowShown: () => shown,
+  onWindowShown(callback) {
+    shownListeners.add(callback)
+    return () => shownListeners.delete(callback)
   },
   onTheme(callback) {
     const listener = (

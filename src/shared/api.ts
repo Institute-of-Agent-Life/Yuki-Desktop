@@ -121,6 +121,8 @@ export type ComputerCommand =
   | { action: 'return' | 'transfer'; leaseId: string; note?: string }
   | { action: 'wake' }
   | { action: 'sleep'; confirmActiveWorkTabs: boolean }
+  | { action: 'snapshot'; note?: string }
+  | { action: 'restore'; snapshotId: string; confirmActiveWork: boolean }
 export interface ComputerCommandItem {
   requestId: string
   command: ComputerCommand
@@ -128,6 +130,7 @@ export interface ComputerCommandItem {
   state: 'submitted' | 'result'
   problem: string | null
   result: ComputerResult | null
+  details: Record<string, components['schemas']['JsonValue']> | null
 }
 export type WorkCommand =
   | {

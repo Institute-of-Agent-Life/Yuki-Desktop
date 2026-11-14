@@ -36,7 +36,9 @@ export const formatBytes = (bytes: number) =>
     ? `${bytes} B`
     : bytes < 1024 * 1024
       ? `${(bytes / 1024).toFixed(1)} KB`
-      : `${(bytes / 1024 / 1024).toFixed(1)} MB`
+      : bytes < 1024 * 1024 * 1024
+        ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+        : `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`
 export function previewMime(filename: string, declared?: string | null, kind?: string) {
   return (
     (declared && declared !== 'application/octet-stream' ? declared : undefined) ??

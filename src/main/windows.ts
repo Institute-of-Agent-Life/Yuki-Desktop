@@ -18,6 +18,10 @@ export function setKeyboardCapture(window: BrowserWindow, captured: boolean) {
   else captures.delete(window)
   window.webContents.setIgnoreMenuShortcuts(captured)
 }
+/** Shown and not minimized; on macOS a window fully covered by others also counts as hidden. */
+export function windowShown(window: BrowserWindow) {
+  return window.isVisible() && !window.isMinimized()
+}
 export function setWindowMode(window: BrowserWindow, pairing: boolean) {
   modes.get(window)?.(pairing)
 }
@@ -143,6 +147,14 @@ export function createWindow(store: LocalStore, pairing = false) {
   win.on('move', moved)
   win.on('resize', moved)
   win.on('close', save)
+  // Remote screens are watched only while the person can see this window (windowShown).
+  const shown = (value: boolean) => {
+    if (!win.isDestroyed()) win.webContents.send('yuki:window-shown', value)
+  }
+  win.on('show', () => shown(true))
+  win.on('restore', () => shown(true))
+  win.on('hide', () => shown(false))
+  win.on('minimize', () => shown(false))
   win.once('closed', () => {
     nativeTheme.removeListener('updated', updateAppearance)
     cancelMove()
@@ -171,6 +183,8 @@ export function createWindow(store: LocalStore, pairing = false) {
       adjusting = false
     }
     win.show()
+    // macOS reports the first show through occlusion, which may come late or not at all.
+    shown(true)
     save()
   })
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL)

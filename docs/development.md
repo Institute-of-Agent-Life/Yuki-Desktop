@@ -30,7 +30,7 @@ npm run check:package
 
 ## 後端契約與聯調
 
-目前 main 需要提供 **Client API revision 11** 與相應實際服務的配套 Yuki 後端，固定來源與 OpenAPI 內容雜湊見 [contracts/source.json](../contracts/source.json)。桌面與後端應使用同一組配套版本；僅更新桌面不會升級後端。以下介紹產品入口及驗證安排，各平台原生操作、安裝包、簽章與部署結果以對應的實際運行記錄為準。
+目前 main 需要提供 **Client API revision 11** 以上與相應實際服務的配套 Yuki 後端（契約固定在 revision 12；revision 11 的後端沒有電腦快照與閒置休眠說明），固定來源與 OpenAPI 內容雜湊見 [contracts/source.json](../contracts/source.json)。桌面與後端應使用同一組配套版本；僅更新桌面不會升級後端。以下介紹產品入口及驗證安排，各平台原生操作、安裝包、簽章與部署結果以對應的實際運行記錄為準。
 
 `contracts/` 保存固定版本的 OpenAPI 與來源提交、內容雜湊。`npm run check:contract` 核對快照及生成型別，建置不讀取其他本機倉庫。需要與後端聯調時，可明確指定隔離的測試 checkout 與 Python 環境：
 

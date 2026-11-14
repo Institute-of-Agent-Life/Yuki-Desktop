@@ -35,12 +35,20 @@ export function computerRequest(command: ComputerCommand) {
     }
   }
   return {
-    path: `computer/${command.action}`,
+    path: command.action === 'snapshot' ? 'computer/snapshots' : `computer/${command.action}`,
     operation: `client.computer.${command.action}`,
     payload:
       command.action === 'sleep'
         ? { action: 'sleep', confirm_active_work_tabs: command.confirmActiveWorkTabs }
-        : { action: 'wake' },
+        : command.action === 'snapshot'
+          ? { action: 'snapshot', note: command.note ?? null }
+          : command.action === 'restore'
+            ? {
+                action: 'restore',
+                snapshot_id: command.snapshotId,
+                confirm_active_work: command.confirmActiveWork,
+              }
+            : { action: 'wake' },
   }
 }
 const terminal = new Set([
@@ -53,6 +61,8 @@ const terminal = new Set([
   'precondition_failed',
   'validation_error',
   'control_held',
+  'snapshot_in_progress',
+  'restore_in_progress',
 ])
 export class ComputerCommands {
   private pending = new Map<string, Promise<ComputerCommandItem>>()
@@ -60,6 +70,12 @@ export class ComputerCommands {
     box.db.exec(`CREATE TABLE IF NOT EXISTS computer_commands(
       request_id TEXT PRIMARY KEY, command TEXT NOT NULL, hash TEXT NOT NULL,
       state TEXT NOT NULL, problem TEXT, result TEXT)`)
+    // A refused restore lists the work it would interrupt (the problem's details).
+    const columns = box.db.prepare('PRAGMA table_info(computer_commands)').all() as {
+      name: string
+    }[]
+    if (!columns.some((column) => column.name === 'details'))
+      box.db.exec('ALTER TABLE computer_commands ADD COLUMN details TEXT')
   }
   list(): ComputerCommandItem[] {
     return (
@@ -79,6 +95,7 @@ export class ComputerCommands {
           state: ComputerCommandItem['state']
           problem: string | null
           result: string | null
+          details: string | null
         }
       | undefined
     if (!row) throw new ApiError('not_found')
@@ -89,11 +106,14 @@ export class ComputerCommands {
       state: row.state,
       problem: row.problem,
       result: row.result ? JSON.parse(row.result) : null,
+      details: row.details ? JSON.parse(row.details) : null,
     }
   }
   prepare(command: ComputerCommand) {
     if (
-      !['take', 'return', 'transfer', 'wake', 'sleep'].includes(command.action) ||
+      !['take', 'return', 'transfer', 'wake', 'sleep', 'snapshot', 'restore'].includes(
+        command.action,
+      ) ||
       ('leaseId' in command && !/^[a-f0-9-]{36}$/i.test(command.leaseId))
     )
       throw new ApiError('validation_error')
@@ -107,7 +127,9 @@ export class ComputerCommands {
     if (previous) return this.get(previous.request_id)
     const id = randomUUID()
     this.box.db
-      .prepare("INSERT INTO computer_commands VALUES(?,?,?,'submitted',NULL,NULL)")
+      .prepare(
+        "INSERT INTO computer_commands(request_id,command,hash,state) VALUES(?,?,?,'submitted')",
+      )
       .run(id, JSON.stringify(command), hash)
     return this.get(id)
   }
@@ -116,10 +138,19 @@ export class ComputerCommands {
     state: ComputerCommandItem['state'],
     problem: string | null,
     result: ComputerResult | null = null,
+    details: ComputerCommandItem['details'] = null,
   ) {
     this.box.db
-      .prepare('UPDATE computer_commands SET state=?,problem=?,result=? WHERE request_id=?')
-      .run(state, problem, result === null ? null : JSON.stringify(result), id)
+      .prepare(
+        'UPDATE computer_commands SET state=?,problem=?,result=?,details=? WHERE request_id=?',
+      )
+      .run(
+        state,
+        problem,
+        result === null ? null : JSON.stringify(result),
+        details === null ? null : JSON.stringify(details),
+        id,
+      )
     return this.get(id)
   }
   run(client: ApiClient, id: string, verify = true) {
@@ -166,7 +197,13 @@ export class ComputerCommands {
       return this.update(id, 'result', null, result)
     } catch (error) {
       const code = error instanceof ApiError ? error.code : 'transport_unknown'
-      return this.update(id, terminal.has(code) ? 'result' : 'submitted', code)
+      return this.update(
+        id,
+        terminal.has(code) ? 'result' : 'submitted',
+        code,
+        null,
+        error instanceof ApiError ? (error.details ?? null) : null,
+      )
     }
   }
 }

@@ -758,6 +758,8 @@ Object.assign(window, {
       releasePreview: async () => ({ ok: true, value: undefined }),
     },
     onCommand: () => () => {},
+    windowShown: () => true,
+    onWindowShown: () => () => {},
     loginItem: async () => ({
       ok: true,
       value: { enabled: false, available: false, reason: 'install-required' },

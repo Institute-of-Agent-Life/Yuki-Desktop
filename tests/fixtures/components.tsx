@@ -736,6 +736,8 @@ window.yuki = {
   }),
   onLeaveRequest: () => () => {},
   leaveResponse: () => {},
+  windowShown: () => true,
+  onWindowShown: () => () => {},
   onTheme: () => () => {},
   onLanguage: () => () => {},
   onPairLink: () => () => {},

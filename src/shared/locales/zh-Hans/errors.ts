@@ -46,6 +46,8 @@ export default {
   client_upgrade_required: '这个服务器需要新版桌面 App，请先更新。',
   validation_error: '请检查输入内容。',
   control_held: '电脑目前由另一台设备接手。',
+  snapshot_in_progress: '另一份快照正在创建，请等它完成。',
+  restore_in_progress: '电脑正在还原，请等它完成。',
   media_unavailable: '附件内容目前无法获取。',
   upload_pending: '附件尚未完成上传，内容仍保存在这台电脑。',
   content_hash_mismatch: '附件内容核对失败，尚未显示或保存。',

@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type ReactNode,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import RFB from '@novnc/novnc'
@@ -26,6 +33,7 @@ import { unwrap, problemText, ClientProblem, useMe, hidesPrivateData } from '../
 import styles from './Computer.module.css'
 import { useWorkspace } from '../state/workspace'
 import { useTranslation } from '../i18n'
+import { ComputerSnapshots, RestoreNotice, snapshotOutcome } from './ComputerSnapshots'
 
 function useComputer(id: string) {
   const client = useQueryClient()
@@ -80,6 +88,7 @@ export function Computer({
   const administrator = me.data?.is_superuser === true && !hidesPrivateData(me.error)
   const state = query.error ? undefined : query.data
   const [problem, setProblem] = useState(''),
+    [notice, setNotice] = useState(''),
     [busy, setBusy] = useState(false)
   const [sheet, setSheet] = useState<{
     kind: 'return' | 'transfer' | 'sleep'
@@ -233,6 +242,16 @@ export function Computer({
         !compact && (
           <>
             {controls}
+            {/* The Manager lists restore points (Client API revision 12). */}
+            {state.snapshots && (
+              <ComputerSnapshots
+                id={id}
+                name={name}
+                state={state}
+                snapshots={state.snapshots}
+                blocked={blocked}
+              />
+            )}
             <IconButton
               label={t('computer:sleep')}
               disabled={blocked || state.display !== 'running'}
@@ -286,6 +305,8 @@ export function Computer({
           </Banner>
         ))}
       {problem && <Banner status="failed">{problem}</Banner>}
+      {notice && <Banner status="done">{notice}</Banner>}
+      {!compact && <RestoreNotice state={state} />}
       {state.display === 'running' ? (
         <RemoteScreen
           key={id}
@@ -349,6 +370,9 @@ export function Computer({
                 { device: control.device_label ?? '' },
               )
             : t(compact ? 'computer:watchOnlyPreview' : 'computer:watchOnly')}
+        {!compact && state.display === 'running' && !!state.idle_sleep_minutes && (
+          <span>{t('computer:idleSleep', { count: state.idle_sleep_minutes })}</span>
+        )}
         {state.control?.work_id && (
           <Button variant="plain" onClick={() => work(state.control!.work_id!)}>
             {t('computer:currentWork')}
@@ -367,7 +391,10 @@ export function Computer({
                 void window.yuki.client
                   .verifyComputerCommand(id, item.requestId)
                   .then(unwrap)
-                  .then(() => {
+                  .then((checked) => {
+                    const outcome = snapshotOutcome(checked)
+                    if (outcome === 'rotated') setNotice(t('computer:snapshots.rotated'))
+                    else if (outcome === 'gone') setProblem(t('computer:snapshots.gone'))
                     void query.refetch()
                     void commands.refetch()
                   })
@@ -490,12 +517,16 @@ function RemoteScreen({
   fitting.current = fit
   const [attempt, setAttempt] = useState(0)
   holder.current = held
+  // Watched only while the person can see the window: hiding it closes the stream, showing it
+  // reconnects; holding control is a separate fact and stays.
+  const shown = useSyncExternalStore(window.yuki.onWindowShown, window.yuki.windowShown)
   useEffect(() => {
     let active = true,
       instance: RFB | undefined,
       retry: ReturnType<typeof setTimeout> | undefined
     setConnected(false)
     setClipboardReady(false)
+    if (!shown) return
     void window.yuki.client
       .computerTicket(id, screen)
       .then(unwrap)
@@ -552,7 +583,7 @@ function RemoteScreen({
       rfb.current = null
       if (!preview) void window.yuki.client.keyboardCapture(false)
     }
-  }, [id, attempt, preview, screen, i18n])
+  }, [id, attempt, preview, screen, i18n, shown])
   useEffect(() => {
     if (rfb.current) {
       rfb.current.viewOnly = !held

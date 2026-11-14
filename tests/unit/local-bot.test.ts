@@ -114,7 +114,12 @@ it.skipIf(process.env.YUKI_TEST_DOCKER !== '1')(
     expect(override).toContain('YUKI_SANDBOX_PROFILE: lite')
     expect(override).not.toContain('${YUKI_LOCAL_IMAGE')
     expect(override).not.toContain('${YUKI_LOCAL_GID')
-    for (const volume of ['yuki-sandbox-state', 'yuki-sandbox-home', 'yuki-media-cache'])
+    for (const volume of [
+      'yuki-sandbox-state',
+      'yuki-sandbox-home',
+      'yuki-sandbox-snapshots',
+      'yuki-media-cache',
+    ])
       await runDocker(['volume', 'inspect', volume])
 
     // Failures: reconnect must not revive a revoked grant, and the old

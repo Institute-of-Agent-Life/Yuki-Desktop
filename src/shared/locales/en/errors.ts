@@ -55,6 +55,8 @@ export default {
   client_upgrade_required: 'This server needs a newer desktop app. Update first.',
   validation_error: 'Check what you entered.',
   control_held: 'Another device has taken over the computer.',
+  snapshot_in_progress: 'Another snapshot is being taken. Wait for it to finish.',
+  restore_in_progress: 'The computer is being restored. Wait for it to finish.',
   media_unavailable: "The attachment's content isn't available right now.",
   upload_pending:
     "The attachment hasn't finished uploading; its content is still on this computer.",
