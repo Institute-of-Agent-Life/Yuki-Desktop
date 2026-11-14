@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readFile, writeFile } from 'node:fs/promises'
-import { pairUI, yukiFixture } from '../fixtures/backend'
+import { pairUI, systemOpaque, yukiFixture } from '../fixtures/backend'
 
 // The SSH entry, "Deploy to my server" and the connection-method dialog are the same welcome
 // card, form fields, settings rows and dialog as deploying on this computer. Screenshots in light
@@ -52,6 +52,13 @@ for (const value of looks) {
     try {
       const page = await app.firstWindow()
       await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
+      if (!value.opaque && (await systemOpaque(page))) {
+        success = true
+        test.skip(
+          true,
+          'The system reduces transparency or raises contrast: frosted is opaque here.',
+        )
+      }
       await look(page, value)
       await page.getByRole('button', { name: '在本機部署 Yuki', exact: true }).click()
       await expect(page.getByRole('heading', { name: '在本機部署 Yuki' })).toBeVisible()

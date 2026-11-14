@@ -508,3 +508,16 @@ export async function pairUI(
       .catch(() => {})
   }
 }
+
+/** The system's Reduce Transparency or high contrast keeps every material opaque (App.tsx). */
+export async function systemOpaque(page: Page) {
+  return page.evaluate(async () => {
+    const boot = await window.yuki.boot()
+    return (
+      boot.reducedTransparency ||
+      boot.highContrast ||
+      matchMedia('(prefers-reduced-transparency: reduce)').matches ||
+      matchMedia('(prefers-contrast: more)').matches
+    )
+  })
+}
