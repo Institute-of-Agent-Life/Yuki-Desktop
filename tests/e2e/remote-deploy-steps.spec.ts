@@ -134,7 +134,7 @@ test('deploy to my server: Docker install, image pull and installer failures eac
         return {}
       }
       if (command.includes('install.sh')) {
-        // As install.sh since 7094d76a: a first run records the owner's name in .env; any run
+        // As install.sh since 2a67bd7f: a first run records the owner's name in .env; any run
         // that finds the name and no owner creates the owner, under the request ID it recorded.
         if (!server.env) server.ownerName = /--owner-name '([^']*)'/.exec(command)?.[1] ?? ''
         server.env = true
