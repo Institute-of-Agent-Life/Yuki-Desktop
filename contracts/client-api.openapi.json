@@ -1265,6 +1265,98 @@
         "title": "ComputerResources",
         "type": "object"
       },
+      "ComputerRestore": {
+        "properties": {
+          "by": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "accepted",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_id",
+          "state",
+          "started_at",
+          "finished_at",
+          "by"
+        ],
+        "title": "ComputerRestore",
+        "type": "object"
+      },
+      "ComputerRestoreBody": {
+        "additionalProperties": false,
+        "properties": {
+          "confirm_active_work": {
+            "default": false,
+            "title": "Confirm Active Work",
+            "type": "boolean"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "format": "uuid4",
+            "title": "Snapshot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "snapshot_id"
+        ],
+        "title": "ComputerRestoreBody",
+        "type": "object"
+      },
       "ComputerResult": {
         "properties": {
           "at": {
@@ -1343,6 +1435,26 @@
               }
             ],
             "title": "Replay"
+          },
+          "restore": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComputerRestore"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "snapshot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComputerSnapshot"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "ComputerResult",
@@ -1366,6 +1478,121 @@
           "request_id"
         ],
         "title": "ComputerSleepBody",
+        "type": "object"
+      },
+      "ComputerSnapshot": {
+        "properties": {
+          "by": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "source": {
+            "enum": [
+              "daily",
+              "yuki",
+              "person"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "creating",
+              "ready",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "created_at",
+          "source",
+          "note",
+          "by",
+          "size_bytes"
+        ],
+        "title": "ComputerSnapshot",
+        "type": "object"
+      },
+      "ComputerSnapshotBody": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id"
+        ],
+        "title": "ComputerSnapshotBody",
         "type": "object"
       },
       "ComputerTab": {
@@ -1462,6 +1689,27 @@
             "title": "Help Requests",
             "type": "array"
           },
+          "idle_sleep_minutes": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idle Sleep Minutes"
+          },
+          "last_restore": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComputerRestore"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "resources": {
             "anyOf": [
               {
@@ -1475,6 +1723,42 @@
           "revision": {
             "title": "Revision",
             "type": "integer"
+          },
+          "session": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session"
+          },
+          "snapshot_keep": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Keep"
+          },
+          "snapshots": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ComputerSnapshot"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshots"
           },
           "snowluma_display": {
             "default": false,
@@ -5114,7 +5398,7 @@
   "info": {
     "title": "Yuki personal API",
     "version": "4.0.2",
-    "x-yuki-api-revision": 11
+    "x-yuki-api-revision": 12
   },
   "openapi": "3.1.0",
   "paths": {
@@ -7859,6 +8143,94 @@
         "summary": "Computer File Content"
       }
     },
+    "/client/v1/computer/restore": {
+      "post": {
+        "operationId": "restore_computer_client_v1_computer_restore_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-yuki-entry",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Yuki-Entry"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-yuki-conversation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Yuki-Conversation"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComputerRestoreBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ComputerResult_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Computer"
+      }
+    },
     "/client/v1/computer/sleep": {
       "post": {
         "operationId": "sleep_computer_client_v1_computer_sleep_post",
@@ -7945,6 +8317,94 @@
           }
         },
         "summary": "Sleep Computer"
+      }
+    },
+    "/client/v1/computer/snapshots": {
+      "post": {
+        "operationId": "snapshot_computer_client_v1_computer_snapshots_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-yuki-entry",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Yuki-Entry"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-yuki-conversation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Yuki-Conversation"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComputerSnapshotBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ComputerResult_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Snapshot Computer"
       }
     },
     "/client/v1/computer/snowluma/display-tickets": {

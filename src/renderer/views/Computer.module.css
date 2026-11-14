@@ -37,6 +37,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Beside the status text; anything after it stays at the far end. */
+.idle {
+  margin-inline-end: auto;
+}
 .helpText {
   flex: 1;
   min-width: 0;
