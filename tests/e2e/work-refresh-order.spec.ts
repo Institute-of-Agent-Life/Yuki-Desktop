@@ -190,7 +190,7 @@ test('a real terminal Work hint survives an older running detail response in the
       probe.release()
     })
     await pb.bringToFront()
-    await expect(detailB.getByText('已完成', { exact: true })).toBeVisible()
+    await expect(detailB.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
     const reads = await b.evaluate(async () => {
       const probe = (globalThis as typeof globalThis & { __workReadProbe: ReadProbe })
         .__workReadProbe

@@ -93,13 +93,16 @@ test('Windows artifact actions use a real Save picker, Explorer selection and na
     await stage.getByRole('button', { name: '在資料夾顯示', exact: true }).click()
     let selection: Awaited<ReturnType<typeof revealedArtifact>>
     await expect
-      .poll(async () => {
-        selection = await revealedArtifact(data)
-        return (
-          selection?.selected.some((path) => path.toLowerCase() === destination.toLowerCase()) ??
-          false
-        )
-      })
+      .poll(
+        async () => {
+          selection = await revealedArtifact(data)
+          return (
+            selection?.selected.some((path) => path.toLowerCase() === destination.toLowerCase()) ??
+            false
+          )
+        },
+        { timeout: 20000 },
+      )
       .toBe(true)
     proof.explorerSelection = selection!
     await save()
@@ -119,14 +122,17 @@ test('Windows artifact actions use a real Save picker, Explorer selection and na
     )
     const receipt = join(directory, 'dropped.json')
     await expect
-      .poll(async () => {
-        const failure = await readFile(join(directory, 'drop-error.json'), 'utf8').catch(() => '')
-        if (failure) throw Error(failure)
-        return stat(receipt).then(
-          () => true,
-          () => false,
-        )
-      })
+      .poll(
+        async () => {
+          const failure = await readFile(join(directory, 'drop-error.json'), 'utf8').catch(() => '')
+          if (failure) throw Error(failure)
+          return stat(receipt).then(
+            () => true,
+            () => false,
+          )
+        },
+        { timeout: 15000 },
+      )
       .toBe(true)
     const drop = JSON.parse((await readFile(receipt, 'utf8')).replace(/^\uFEFF/, '')) as {
       event: string

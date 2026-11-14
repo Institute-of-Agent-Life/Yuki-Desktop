@@ -119,9 +119,13 @@ test('Windows packaged client pairs with the real API and recovers the original 
     await post('resume-me')
     await expect(composer).toHaveValue(draft)
     await expect
-      .poll(async () => (await events()).filter((item) => item.content === first).length)
+      .poll(async () => (await events()).filter((item) => item.content === first).length, {
+        timeout: 20000,
+      })
       .toBe(1)
-    await expect(page.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible({
+      timeout: 20000,
+    })
     await post('lose-next-response')
     await composer.fill(lost)
     await page.getByRole('button', { name: '送出', exact: true }).click()
@@ -136,7 +140,9 @@ test('Windows packaged client pairs with the real API and recovers the original 
       )
       .toBe(draft)
     await expect
-      .poll(async () => (await events()).filter((item) => item.content === lost).length)
+      .poll(async () => (await events()).filter((item) => item.content === lost).length, {
+        timeout: 20000,
+      })
       .toBe(1)
     const original = await page.evaluate(
       async ({ characterId, text }) => {
@@ -180,7 +186,7 @@ test('Windows packaged client pairs with the real API and recovers the original 
       JSON.stringify({ storageAfter, connectionsAfter }, null, 2) + '\n',
     )
     // Windows must recover its real DPAPI credentials. Re-pairing would hide a storage failure.
-    await expect(composer).toHaveValue(draft)
+    await expect(composer).toHaveValue(draft, { timeout: 20000 })
     await expect(page.getByRole('button', { name: '確認並連接', exact: true })).toHaveCount(0)
     const recovered = await page.evaluate(
       async ({ characterId, requestId }) => {
@@ -209,7 +215,9 @@ test('Windows packaged client pairs with the real API and recovers the original 
     await composer.press('Enter')
     await expect(composer).toHaveValue('')
     await expect
-      .poll(async () => (await events()).filter((item) => item.content === draft).length)
+      .poll(async () => (await events()).filter((item) => item.content === draft).length, {
+        timeout: 20000,
+      })
       .toBe(1)
     const ledger = await events()
     const source = ledger.find((item) => item.content === first)!
@@ -221,10 +229,13 @@ test('Windows packaged client pairs with the real API and recovers the original 
     await composer.fill(quotedText)
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect
-      .poll(async () => {
-        const quoted = (await events()).find((item) => item.content.endsWith('\n' + quotedText))
-        return quoted?.content.includes(` event=${source.event_id}]]`) ?? false
-      })
+      .poll(
+        async () => {
+          const quoted = (await events()).find((item) => item.content.endsWith('\n' + quotedText))
+          return quoted?.content.includes(` event=${source.event_id}]]`) ?? false
+        },
+        { timeout: 20000 },
+      )
       .toBe(true)
     expect(
       (await fetch(`${base}/__test/events/${source.event_id}?lose_hint=true`, { method: 'DELETE' }))

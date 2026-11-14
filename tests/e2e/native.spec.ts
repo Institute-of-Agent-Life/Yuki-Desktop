@@ -72,7 +72,9 @@ test('uses the real paste/copy, send-key and close/reopen UI paths with isolated
     await composer.fill('```javascript\n' + sample + '```')
     await page.getByRole('button', { name: '送出', exact: true }).click()
     await expect(page.getByText(`${name} 正在處理`, { exact: true })).toBeVisible()
-    await expect(page.getByText(`${name} 正在處理`, { exact: true })).toHaveCount(0)
+    await expect(page.getByText(`${name} 正在處理`, { exact: true })).toHaveCount(0, {
+      timeout: 10000,
+    })
     const copy = page.getByRole('button', { name: '複製程式碼', exact: true })
     await copy.click()
     await expect

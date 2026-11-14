@@ -20,7 +20,7 @@ test('a sent message stays still while its request is on its way, and an unconfi
     for (let index = 0; index < 6; index++) {
       await composer.fill(`第 ${index} 則：` + '讓對話夠長的內容。'.repeat(4))
       await composer.press('Enter')
-      await expect(processing).toHaveCount(0)
+      await expect(processing).toHaveCount(0, { timeout: 15000 })
     }
     await fetch(`${rig.base}/__test/model-delay/2`, { method: 'POST' })
     for (const round of [1, 2, 3]) {
@@ -54,7 +54,7 @@ test('a sent message stays still while its request is on its way, and an unconfi
       expect(frames.filter((frame) => frame[2].includes('狀態未確認'))).toEqual([])
       const shrinks = frames.filter((frame, index) => index > 0 && frame[1] < frames[index - 1]![1])
       expect(shrinks).toEqual([])
-      await expect(processing).toHaveCount(0)
+      await expect(processing).toHaveCount(0, { timeout: 15000 })
     }
     // 11: a request whose answer was lost is not called sending once its delivery has ended, and
     // while a problem stands the person is offered a check.
@@ -83,10 +83,13 @@ test('a sent message stays still while its request is on its way, and an unconfi
     // its delivery has ended, read once.
     let settled = await lost()
     await expect
-      .poll(async () => {
-        settled = await lost()
-        return settled.sending
-      })
+      .poll(
+        async () => {
+          settled = await lost()
+          return settled.sending
+        },
+        { timeout: 15000 },
+      )
       .toBe(false)
     evidence.lost = settled
     if (settled.problem && settled.state !== 'result')

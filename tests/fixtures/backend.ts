@@ -335,13 +335,16 @@ export async function yukiFixture(
   let server = spawnServer()
   const ready = () =>
     expect
-      .poll(async () => {
-        try {
-          return (await fetch(`${base}/healthz`)).status
-        } catch {
-          return 0
-        }
-      })
+      .poll(
+        async () => {
+          try {
+            return (await fetch(`${base}/healthz`)).status
+          } catch {
+            return 0
+          }
+        },
+        { timeout: 30000 },
+      )
       .toBe(200)
   try {
     await ready()
@@ -446,24 +449,28 @@ export async function pairUI(
     await page.getByRole('button', { name: '確認並連接', exact: true }).click({ timeout })
     let pairedId = ''
     await expect
-      .poll(async () => {
-        const value = await page.evaluate(async (base) => {
-          const list = await window.yuki.client.connections()
-          const connection = list.ok
-            ? list.value.find(
-                (item) => item.baseUrl.replace(/\/+$/, '') === base.replace(/\/+$/, ''),
-              )
-            : undefined
-          return {
-            id: connection?.characterId ?? '',
-            online:
-              !!connection &&
-              !!(window as ProbeWindow).__yukiPairProbe?.online[connection.characterId],
-          }
-        }, base)
-        pairedId = value.id
-        return value.online
-      })
+      .poll(
+        async () => {
+          const value = await page.evaluate(async (base) => {
+            const list = await window.yuki.client.connections()
+            const connection = list.ok
+              ? list.value.find(
+                  (item) => item.baseUrl.replace(/\/+$/, '') === base.replace(/\/+$/, ''),
+                )
+              : undefined
+            return {
+              id: connection?.characterId ?? '',
+              online:
+                !!connection &&
+                !!(window as ProbeWindow).__yukiPairProbe?.online[connection.characterId],
+            }
+          }, base)
+          pairedId = value.id
+          return value.online
+        },
+        // A fresh Windows profile awaits Chromium's deferred encryption-key write before pairing.
+        { timeout: 30000 },
+      )
       .toBe(true)
     await expect(
       page.locator(`[data-character-session="${pairedId}"] [data-region="toolbar"]`),

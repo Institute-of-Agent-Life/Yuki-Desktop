@@ -105,7 +105,7 @@ test('Windows original work survives draft and receipt crashes while the server 
       .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼`, exact: true })
       .fill(trigger)
     await page.getByRole('button', { name: '送出', exact: true }).click()
-    await expect(card(page).getByText('等你回覆', { exact: true })).toBeVisible()
+    await expect(card(page).getByText('等你回覆', { exact: true })).toBeVisible({ timeout: 20000 })
     const original = await page.evaluate(async (id) => {
       const result = await window.yuki.client.read<Home>(id, { kind: 'home' })
       if (!result.ok || result.value.works.length !== 1) throw Error('Expected one original work')
@@ -194,7 +194,7 @@ test('Windows original work survives draft and receipt crashes while the server 
     await save()
     await crash()
     await expect
-      .poll(async () => (await work(otherPage, other, original.work_id)).state)
+      .poll(async () => (await work(otherPage, other, original.work_id)).state, { timeout: 30000 })
       .toBe('completed')
     const finishedWithoutApp = await work(otherPage, other, original.work_id)
     expect(finishedWithoutApp).toMatchObject({

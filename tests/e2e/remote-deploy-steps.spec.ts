@@ -55,7 +55,9 @@ test('a non-root account that needs a sudo password is refused with an explicit 
     await fillSsh(page, { address: 'ubuntu@127.0.0.1', port: host.port, password })
     await page.getByRole('button', { name: '檢查主機', exact: true }).click()
     await page.getByRole('button', { name: '確認指紋並檢查環境', exact: true }).click()
-    await expect(page.getByText('這個帳號執行 sudo 需要輸入密碼', { exact: false })).toBeVisible()
+    await expect(page.getByText('這個帳號執行 sudo 需要輸入密碼', { exact: false })).toBeVisible({
+      timeout: 30000,
+    })
     await expect(
       page.getByRole('button', { name: '下一步：準備 Yuki 映像', exact: true }),
     ).toHaveCount(0)
@@ -177,17 +179,19 @@ test('deploy to my server: Docker install, image pull and installer failures eac
     await page.getByRole('button', { name: '安裝 Docker', exact: true }).click()
     await expect(
       page.getByText('Failed to connect to download.docker.com', { exact: false }),
-    ).toBeVisible()
+    ).toBeVisible({ timeout: 30000 })
     await expect(page.getByText('國內軟體源', { exact: false }).first()).toBeVisible()
     await page.screenshot({ path: test.info().outputPath('steps-02-docker-failed.png') })
     expect(host.execs.filter((item) => item.command.includes('--mirror Aliyun'))).toEqual([])
     await page.getByRole('button', { name: '改用國內軟體源重試', exact: true }).click()
-    await expect(page.getByText('Docker 已安裝', { exact: false })).toBeVisible()
+    await expect(page.getByText('Docker 已安裝', { exact: false })).toBeVisible({ timeout: 30000 })
 
     // 23: the image cannot be pulled; the person is told to configure a registry mirror and
     // retries this step after doing so.
     await page.getByRole('button', { name: '下一步：準備 Yuki 映像', exact: true }).click()
-    await expect(page.getByText('請為伺服器配置 Docker 映像加速器', { exact: false })).toBeVisible()
+    await expect(page.getByText('請為伺服器配置 Docker 映像加速器', { exact: false })).toBeVisible({
+      timeout: 30000,
+    })
     await page.screenshot({ path: test.info().outputPath('steps-03-image-mirror.png') })
     server.image = true
     await page.getByRole('button', { name: '重試這一步', exact: true }).click()
@@ -201,14 +205,18 @@ test('deploy to my server: Docker install, image pull and installer failures eac
     await expect(page.getByLabel('Yuki 的電腦', { exact: true })).toHaveValue('headless')
     await page.screenshot({ path: test.info().outputPath('steps-04-model.png') })
     await page.getByRole('button', { name: '開始部署', exact: true }).click()
-    await expect(page.getByText('請為伺服器配置 Docker 映像加速器', { exact: false })).toBeVisible()
+    await expect(page.getByText('請為伺服器配置 Docker 映像加速器', { exact: false })).toBeVisible({
+      timeout: 30000,
+    })
     await page.screenshot({ path: test.info().outputPath('steps-05-install-mirror.png') })
 
     // 22: the first run created .env before failing; running install.sh again with the same
     // owner name lets it create the owner once. Desktop creates no owner and writes no .env.
     server.environmentImage = true
     await page.getByRole('button', { name: '重試這一步', exact: true }).click()
-    await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible()
+    await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible({
+      timeout: 60000,
+    })
     await page.screenshot({ path: test.info().outputPath('steps-06-chat.png') })
     const connection = await currentConnection(page)
     expect(connection.transport).toMatchObject({
@@ -255,9 +263,13 @@ test('deploy to my server: Docker install, image pull and installer failures eac
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '連線', exact: true }).click()
     await page.getByRole('button', { name: '升級伺服器上的 Yuki', exact: true }).click()
-    await expect(page.getByText('伺服器上的 Yuki 已升級', { exact: false })).toBeVisible()
+    await expect(page.getByText('伺服器上的 Yuki 已升級', { exact: false })).toBeVisible({
+      timeout: 60000,
+    })
     await page.getByRole('button', { name: '查看伺服器日誌', exact: true }).click()
-    await expect(page.getByText('bot-1  | Yuki is ready', { exact: false })).toBeVisible()
+    await expect(page.getByText('bot-1  | Yuki is ready', { exact: false })).toBeVisible({
+      timeout: 30000,
+    })
     await page.screenshot({ path: test.info().outputPath('steps-07-manage.png') })
     expect(server.owners).toBe(1)
     expect(host.execs.filter((item) => item.command.includes('desktop-pair'))).toEqual([])

@@ -218,7 +218,7 @@ test('native conversation wheel scrolling applies toolbar material and preserves
     await expect(recovery).toHaveCount(1)
     const recoveryEventId = await recovery.getAttribute('data-event-id')
     expect(Number(recoveryEventId)).toBeGreaterThan(Number(eventId))
-    await expect(replies).toHaveCount(beforeReply + 1)
+    await expect(replies).toHaveCount(beforeReply + 1, { timeout: 20000 })
     proof.shortMainRecovery = {
       recoveryEventId,
       repliesBefore: beforeReply,

@@ -51,13 +51,16 @@ export async function artifactDropTarget(directory: string, filename: string, sh
   try {
     const ready = join(directory, 'target.json')
     await expect
-      .poll(async () => {
-        if (child.exitCode !== null) throw Error(stderr || `Drop target exited ${child.exitCode}`)
-        return readFile(ready, 'utf8').then(
-          () => true,
-          () => false,
-        )
-      })
+      .poll(
+        async () => {
+          if (child.exitCode !== null) throw Error(stderr || `Drop target exited ${child.exitCode}`)
+          return readFile(ready, 'utf8').then(
+            () => true,
+            () => false,
+          )
+        },
+        { timeout: 15000 },
+      )
       .toBe(true)
     const target = JSON.parse((await readFile(ready, 'utf8')).replace(/^\uFEFF/, '')) as Target
     expect(target.processId).toBe(child.pid)

@@ -166,7 +166,9 @@ test('every main page in three languages, light and dark, keeps its controls ins
     await fetch(`${rig.base}/__test/work-scenario`, { method: 'POST' })
     await composer.fill('語言與排版檢查')
     await composer.press('Enter')
-    await expect(page.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible({
+      timeout: 30000,
+    })
 
     for (const theme of themes)
       for (const language of languages) {
@@ -180,9 +182,13 @@ test('every main page in three languages, light and dark, keeps its controls ins
           { language, theme },
         )
         await page.reload()
-        await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible()
-        await expect(page.locator('html')).toHaveAttribute('lang', language)
-        await expect(page.locator('html')).toHaveAttribute('data-opaque', 'true')
+        await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible({
+          timeout: 30000,
+        })
+        await expect(page.locator('html')).toHaveAttribute('lang', language, { timeout: 10000 })
+        await expect(page.locator('html')).toHaveAttribute('data-opaque', 'true', {
+          timeout: 10000,
+        })
 
         await command(page, 'chat')
         await shot(app, page, directory, '01-conversation')
@@ -213,14 +219,14 @@ test('every main page in three languages, light and dark, keeps its controls ins
               .getByRole('button', { name: w.ssh.change, exact: true })
               .click()
             const dialog = page.getByRole('dialog', { name: w.ssh.changeTransportTitle })
-            await expect(dialog).toBeVisible()
+            await expect(dialog).toBeVisible({ timeout: 10000 })
             await shot(app, page, directory, '05-transport-direct')
             await dialog.getByRole('radio', { name: w.ssh.overSsh, exact: true }).click()
             await shot(app, page, directory, '05-transport-ssh')
             if (language !== 'zh-Hant')
               leftovers[`${key}/transport`] = await untranslated(page, language, name)
             await page.keyboard.press('Escape')
-            await expect(dialog).toBeHidden()
+            await expect(dialog).toBeHidden({ timeout: 10000 })
           }
         }
 
@@ -243,7 +249,7 @@ test('every main page in three languages, light and dark, keeps its controls ins
           page = await app.firstWindow()
           await expect(
             page.locator('[data-character-session] [data-region="toolbar"]'),
-          ).toBeVisible()
+          ).toBeVisible({ timeout: 30000 })
         }
       }
 

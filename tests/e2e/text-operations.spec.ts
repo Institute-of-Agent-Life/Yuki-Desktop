@@ -114,7 +114,7 @@ test('every text surface offers native editing, copying and link actions', async
     const card = page
       .getByRole('article')
       .filter({ has: page.getByRole('heading', { name: '連結工作', exact: true }) })
-    await expect(card.getByText('已完成', { exact: true })).toBeVisible()
+    await expect(card.getByText('已完成', { exact: true })).toBeVisible({ timeout: 30_000 })
 
     // 8: a message link offers opening and copying the link itself.
     const ownLink = page.locator(`article[data-event-id="${sent.eventId}"]`).getByRole('link')

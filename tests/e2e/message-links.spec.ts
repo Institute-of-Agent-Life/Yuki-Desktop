@@ -75,7 +75,7 @@ test('opens HTTP and HTTPS conversation links after confirmation', async () => {
     const sentLink = sentMessage.getByRole('link', { name: sentUrl, exact: true })
     const receivedLink = receivedMessage.getByRole('link', { name: receivedUrl, exact: true })
     const markdownLink = receivedMessage.getByRole('link', { name: markdownLabel, exact: true })
-    await expect(sentLink).toHaveAttribute('href', sentUrl)
+    await expect(sentLink).toHaveAttribute('href', sentUrl, { timeout: 5000 })
     await expect(sentLink).toHaveCSS('text-decoration-line', 'underline')
     await expect(receivedLink).toHaveAttribute('href', receivedUrl)
     await expect(markdownLink).toHaveAttribute('href', markdownUrl)

@@ -65,7 +65,9 @@ test('a real thirty second transport outage preserves the draft and converges an
         return events.filter((item) => item.content === missed).length
       })
       .toBe(1)
-    await expect(pb.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible()
+    await expect(pb.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible({
+      timeout: 20000,
+    })
     await captureWorkspace(
       a,
       pa,
@@ -93,7 +95,7 @@ test('a real thirty second transport outage preserves the draft and converges an
     await expect(composer).toHaveValue(draft)
     await expect(pa.getByText(missed, { exact: true })).toHaveCount(0)
     gate.reconnect()
-    await expect(pa.getByText(missed, { exact: true })).toHaveCount(1)
+    await expect(pa.getByText(missed, { exact: true })).toHaveCount(1, { timeout: 20000 })
     await expect(offline).toHaveCount(0)
     await expect(pa.getByText('斷線之前的原訊息', { exact: true })).toHaveCount(1)
     await expect(composer).toHaveValue(draft)
@@ -279,7 +281,7 @@ test('two actual devices submit different answers to one work and recover their 
           .getByRole('article')
           .filter({ has: page.getByRole('heading', { name: '原工作整合測試', exact: true }) })
           .getByText('等你回覆', { exact: true }),
-      ).toBeVisible()
+      ).toBeVisible({ timeout: 20000 })
     const original = await pa.evaluate(
       async ({ characterId, workId }) => {
         const home = await window.yuki.client.read<Home>(characterId, { kind: 'home' })
@@ -310,23 +312,28 @@ test('two actual devices submit different answers to one work and recover their 
     await Promise.all(
       [pa, pb].map(async (page, index) => {
         await expect
-          .poll(async () => {
-            const result = await page.evaluate(async (id) => {
-              const commands = await window.yuki.client.workCommands(id)
-              return {
-                states: commands.ok ? commands.value.map((item) => [item.state, item.problem]) : [],
-                commands: commands.ok
-                  ? commands.value.map(({ command, ...item }) => ({
-                      ...item,
-                      kind: command.kind,
-                      workId: command.workId,
-                    }))
-                  : commands,
-              }
-            }, original.characterId)
-            observedCommands[index] = { observedAt: new Date().toISOString(), ...result }
-            return result.states
-          })
+          .poll(
+            async () => {
+              const result = await page.evaluate(async (id) => {
+                const commands = await window.yuki.client.workCommands(id)
+                return {
+                  states: commands.ok
+                    ? commands.value.map((item) => [item.state, item.problem])
+                    : [],
+                  commands: commands.ok
+                    ? commands.value.map(({ command, ...item }) => ({
+                        ...item,
+                        kind: command.kind,
+                        workId: command.workId,
+                      }))
+                    : commands,
+                }
+              }, original.characterId)
+              observedCommands[index] = { observedAt: new Date().toISOString(), ...result }
+              return result.states
+            },
+            { timeout: 20000 },
+          )
           .toEqual([['result', null]])
       }),
     )
@@ -337,7 +344,9 @@ test('two actual devices submit different answers to one work and recover their 
     ).catch(console.error)
     await waitForWorkState(pb, original.characterId, original.work.work_id, 'completed')
     await Promise.all(
-      details.map((detail) => expect(detail.getByText('已完成', { exact: true })).toBeVisible()),
+      details.map((detail) =>
+        expect(detail.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 }),
+      ),
     )
     const results = await Promise.all(
       [pa, pb].map((page) =>

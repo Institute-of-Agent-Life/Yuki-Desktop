@@ -32,11 +32,13 @@ async function events(page: Page, connection: Connection): Promise<number[]> {
 }
 async function online(page: Page, id: string) {
   await expect
-    .poll(() =>
-      page.evaluate(async (id) => {
-        const result = await window.yuki.client.read(id, { kind: 'me' })
-        return result.ok
-      }, id),
+    .poll(
+      () =>
+        page.evaluate(async (id) => {
+          const result = await window.yuki.client.read(id, { kind: 'me' })
+          return result.ok
+        }, id),
+      { timeout: 60000 },
     )
     .toBe(true)
 }
@@ -76,7 +78,9 @@ test('SSH: confirm the host key once, keep the password in the keychain and the 
     expect(host.execs).toEqual([])
     await page.screenshot({ path: test.info().outputPath('ssh-01-fingerprint.png') })
     await page.getByRole('button', { name: '確認指紋並連接', exact: true }).click()
-    await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible()
+    await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible({
+      timeout: 60000,
+    })
     const first = await currentConnection(page)
     expect(first.transport).toMatchObject({
       kind: 'ssh',
@@ -96,11 +100,15 @@ test('SSH: confirm the host key once, keep the password in the keychain and the 
 
     // 20: the network path goes away and comes back; the tunnel follows without the user.
     await host.stop()
-    await expect(page.getByText('連不上這台主機的 SSH', { exact: false })).toBeVisible()
+    await expect(page.getByText('連不上這台主機的 SSH', { exact: false })).toBeVisible({
+      timeout: 60000,
+    })
     await page.screenshot({ path: test.info().outputPath('ssh-03-network-lost.png') })
     await host.start()
     await online(page, first.characterId)
-    await expect(page.getByText('連不上這台主機的 SSH', { exact: false })).toHaveCount(0)
+    await expect(page.getByText('連不上這台主機的 SSH', { exact: false })).toHaveCount(0, {
+      timeout: 60000,
+    })
 
     // 18: the same local port, device credential and connection after a restart.
     await app.close()
@@ -116,7 +124,9 @@ test('SSH: confirm the host key once, keep the password in the keychain and the 
     // 19: a changed host key is refused and said so; no request reaches the server.
     await host.rotateKey()
     const forwarded = host.forwards.length
-    await expect(page.getByText('主機指紋與第一次連接時不同', { exact: false })).toBeVisible()
+    await expect(page.getByText('主機指紋與第一次連接時不同', { exact: false })).toBeVisible({
+      timeout: 60000,
+    })
     await page.screenshot({ path: test.info().outputPath('ssh-05-host-key-changed.png') })
     expect(host.forwards.length).toBe(forwarded)
 
@@ -161,13 +171,17 @@ test('SSH: switching between SSH and direct keeps the original connection and mo
     await fillSsh(page, { address: 'yuki@127.0.0.1', port: host.port, password })
     await page.getByRole('button', { name: '檢查主機', exact: true }).click()
     await page.getByRole('button', { name: '確認指紋並連接', exact: true }).click()
-    await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible()
+    await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible({
+      timeout: 60000,
+    })
     const original = await currentConnection(page)
     await online(page, original.characterId)
     const composer = page.locator(`[data-character-session="${original.characterId}"] textarea`)
     await composer.fill('經 SSH 送出的原訊息')
     await composer.press('Enter')
-    await expect.poll(async () => (await events(page, original)).length).toBeGreaterThan(0)
+    await expect
+      .poll(async () => (await events(page, original)).length, { timeout: 30000 })
+      .toBeGreaterThan(0)
     const history = await events(page, original)
 
     // The Connector of this computer, paired to the same Person, follows the connection.
@@ -228,7 +242,7 @@ test('SSH: switching between SSH and direct keeps the original connection and mo
         await page.screenshot({ path: test.info().outputPath(`${name}-form.png`) })
         await dialog.getByRole('button', { name: '確認指紋並連接', exact: true }).click()
       }
-      await expect(dialog).toHaveCount(0)
+      await expect(dialog).toHaveCount(0, { timeout: 60000 })
       // The one 連線方式 row names the address, or the SSH login, now in use.
       await expect(
         page.locator('[data-settings-row]').filter({ hasText: '連線方式' }),

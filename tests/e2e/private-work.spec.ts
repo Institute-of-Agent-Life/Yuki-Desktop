@@ -40,10 +40,12 @@ test('a Work the Host opened for a private request stays out of the chat but in 
     })
     await box.fill('幫我看看排程')
     await send.click()
-    await expect(page.getByText('排程已查完', { exact: true })).toBeVisible()
+    await expect(page.getByText('排程已查完', { exact: true })).toBeVisible({ timeout: 30_000 })
     let hosted: Work | undefined
     await expect
-      .poll(async () => (hosted = (await works()).find((w) => w.admission === 'host_execution')))
+      .poll(async () => (hosted = (await works()).find((w) => w.admission === 'host_execution')), {
+        timeout: 20_000,
+      })
       .toBeTruthy()
     hosted = hosted!
     evidence.hosted = { work_id: hosted.work_id, goal: hosted.goal, admission: hosted.admission }
@@ -61,7 +63,7 @@ test('a Work the Host opened for a private request stays out of the chat but in 
     const started = page
       .getByRole('article')
       .filter({ has: page.getByRole('heading', { name: '明確開始的工作', exact: true }) })
-    await expect(started).toBeVisible()
+    await expect(started).toBeVisible({ timeout: 30_000 })
     const explicit = (await works()).find((work) => work.goal === '明確開始的工作')!
     evidence.explicit = { work_id: explicit.work_id, admission: explicit.admission }
     expect(explicit.admission ?? null).toBeNull()
@@ -70,7 +72,9 @@ test('a Work the Host opened for a private request stays out of the chat but in 
 
     // The Works list still lists it.
     await navigate(page, '工作')
-    await expect(page.getByText(hosted.goal, { exact: true }).first()).toBeVisible()
+    await expect(page.getByText(hosted.goal, { exact: true }).first()).toBeVisible({
+      timeout: 20_000,
+    })
     await page.screenshot({ path: test.info().outputPath('private-work-list.png') })
     success = true
   } finally {

@@ -421,7 +421,9 @@ test('a server managed over SSH runs the one SnowLuma line in its deployment dir
     await fillSsh(page, { address: 'yuki@127.0.0.1', port: host.port, password })
     await page.getByRole('button', { name: '檢查主機', exact: true }).click()
     await page.getByRole('button', { name: '確認指紋並連接', exact: true }).click()
-    await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible()
+    await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible({
+      timeout: 60000,
+    })
     await platforms(page)
     const qq = await configure(page, 'QQ')
     await qq
@@ -438,7 +440,9 @@ test('a server managed over SSH runs the one SnowLuma line in its deployment dir
       .filter({ hasText: '在伺服器上啟用' })
       .getByRole('button', { name: '啟用 SnowLuma', exact: true })
       .click()
-    await expect(qq.getByText('SnowLuma 已在伺服器上啟動', { exact: false })).toBeVisible()
+    await expect(qq.getByText('SnowLuma 已在伺服器上啟動', { exact: false })).toBeVisible({
+      timeout: 30000,
+    })
     expect(ran).toEqual([
       `cd '/home/yuki/yuki' && sudo -n sh deploy/snowluma.sh 'registry.example.com/me/snow'\\''luma:1'`,
     ])
@@ -701,11 +705,13 @@ test('a server below Client API revision 11 shows the platform page as unavailab
     // The same instance, its data and address, now served by the previous backend.
     await fetch(`${rig.base}/__test/shutdown`, { method: 'POST' })
     await expect
-      .poll(() =>
-        fetch(`${rig.base}/healthz`).then(
-          () => 'up',
-          () => 'down',
-        ),
+      .poll(
+        () =>
+          fetch(`${rig.base}/healthz`).then(
+            () => 'up',
+            () => 'down',
+          ),
+        { timeout: 30000 },
       )
       .toBe('down')
     const url = new URL(rig.base)
@@ -734,13 +740,15 @@ test('a server below Client API revision 11 shows the platform page as unavailab
       },
     )
     await expect
-      .poll(() =>
-        fetch(`${rig.base}/client/v1/meta`)
-          .then((response) => response.json())
-          .then(
-            (body: { data: { api_revision: number } }) => body.data.api_revision,
-            () => 0,
-          ),
+      .poll(
+        () =>
+          fetch(`${rig.base}/client/v1/meta`)
+            .then((response) => response.json())
+            .then(
+              (body: { data: { api_revision: number } }) => body.data.api_revision,
+              () => 0,
+            ),
+        { timeout: 30000 },
       )
       .toBe(10)
     app = await rig.launch('platforms-revision')

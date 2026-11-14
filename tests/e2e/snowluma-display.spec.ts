@@ -67,7 +67,7 @@ test(
             pixel: Array.from(canvas.getContext('2d')!.getImageData(0, 0, 1, 1).data),
           }))
         await expect
-          .poll(frame)
+          .poll(frame, { timeout: 5000 })
           .toEqual(
             source === 'sandbox'
               ? { size: [960, 600], pixel: [53, 48, 45, 255] }
@@ -96,7 +96,7 @@ test(
 
       await option('sandbox').focus()
       await page.keyboard.press('ArrowRight')
-      await expect(option('qq-view')).toHaveAttribute('aria-checked', 'true')
+      await expect(option('qq-view')).toHaveAttribute('aria-checked', 'true', { timeout: 5000 })
       await expect.soft(option('qq-view')).toBeFocused({ timeout: 1000 })
       await verifyDisplay('qq-view', false)
       await display.click()

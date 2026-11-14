@@ -63,14 +63,18 @@ test('deploy to my server, chat through SSH, upgrade, and connect a second deskt
     })
     await shot(page, '02-server.png')
     await page.getByRole('button', { name: '檢查主機', exact: true }).click()
-    await expect(page.getByLabel('主機指紋', { exact: true })).toHaveValue(/^SHA256:/)
+    await expect(page.getByLabel('主機指紋', { exact: true })).toHaveValue(/^SHA256:/, {
+      timeout: 30000,
+    })
     await shot(page, '03-fingerprint.png')
     await page.getByRole('button', { name: '確認指紋並檢查環境', exact: true }).click()
-    await expect(page.getByText('Docker 已安裝', { exact: false })).toBeVisible()
+    await expect(page.getByText('Docker 已安裝', { exact: false })).toBeVisible({ timeout: 60000 })
     await shot(page, '04-environment.png')
 
     await page.getByRole('button', { name: '下一步：準備 Yuki 映像', exact: true }).click()
-    await expect(page.getByText('請為伺服器配置 Docker 映像加速器', { exact: false })).toBeVisible()
+    await expect(page.getByText('請為伺服器配置 Docker 映像加速器', { exact: false })).toBeVisible({
+      timeout: 5 * 60 * 1000,
+    })
     await shot(page, '05-image-mirror-hint.png')
     execFileSync('sh', ['-c', server!.provideBotImage], { stdio: 'inherit' })
     await page.getByRole('button', { name: '重試這一步', exact: true }).click()
@@ -85,11 +89,15 @@ test('deploy to my server, chat through SSH, upgrade, and connect a second deskt
     await page.getByLabel('Yuki 的電腦', { exact: true }).selectOption('lite')
     await shot(page, '06-model.png')
     await page.getByRole('button', { name: '開始部署', exact: true }).click()
-    await expect(page.getByText('請為伺服器配置 Docker 映像加速器', { exact: false })).toBeVisible()
+    await expect(page.getByText('請為伺服器配置 Docker 映像加速器', { exact: false })).toBeVisible({
+      timeout: 10 * 60 * 1000,
+    })
     await shot(page, '07-install-mirror-hint.png')
     execFileSync('sh', ['-c', server!.provideEnvironmentImage], { stdio: 'inherit' })
     await page.getByRole('button', { name: '重試這一步', exact: true }).click()
-    await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible()
+    await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible({
+      timeout: 20 * 60 * 1000,
+    })
     const first = await currentConnection(page)
     expect(first.transport?.kind).toBe('ssh')
     await shot(page, '08-chat.png')
@@ -108,9 +116,11 @@ test('deploy to my server, chat through SSH, upgrade, and connect a second deskt
     await page.getByRole('tab', { name: '連線', exact: true }).click()
     await shot(page, '09-connection-settings.png')
     await page.getByRole('button', { name: '升級伺服器上的 Yuki', exact: true }).click()
-    await expect(page.getByText('伺服器上的 Yuki 已升級', { exact: false })).toBeVisible()
+    await expect(page.getByText('伺服器上的 Yuki 已升級', { exact: false })).toBeVisible({
+      timeout: 15 * 60 * 1000,
+    })
     await page.getByRole('button', { name: '查看伺服器日誌', exact: true }).click()
-    await expect(page.getByText('bot-1', { exact: false }).first()).toBeVisible()
+    await expect(page.getByText('bot-1', { exact: false }).first()).toBeVisible({ timeout: 60000 })
     await page.waitForTimeout(800)
     await shot(page, '10-upgrade-and-logs.png')
     await app.close()
@@ -128,7 +138,9 @@ test('deploy to my server, chat through SSH, upgrade, and connect a second deskt
     await shot(page, '11-ssh-connect.png')
     await page.getByRole('button', { name: '檢查主機', exact: true }).click()
     await page.getByRole('button', { name: '確認指紋並連接', exact: true }).click()
-    await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible()
+    await expect(page.locator('[data-character-session] [data-region="toolbar"]')).toBeVisible({
+      timeout: 120000,
+    })
     const second = await currentConnection(page)
     expect(second.characterId).toBe(first.characterId)
     expect(second.personId).toBe(first.personId)

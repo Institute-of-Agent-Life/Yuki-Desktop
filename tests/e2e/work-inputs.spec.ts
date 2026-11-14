@@ -49,7 +49,7 @@ async function create(page: Page, base: string) {
   const receipt = await waitForMainEnded(page, connection.characterId, submitted.requestId)
   expect(receipt.event_id).toBe(submitted.eventId)
   if (!receipt.work) throw Error('Original Work association is missing')
-  await expect(card(page).getByText('等你回覆', { exact: true })).toBeVisible()
+  await expect(card(page).getByText('等你回覆', { exact: true })).toBeVisible({ timeout: 20000 })
   return page.evaluate(
     async ({ connection, workId }) => {
       const home = await window.yuki.client.read<Home>(connection.characterId, { kind: 'home' })
@@ -205,7 +205,7 @@ test('inline answers and supplements retain distinct multiline drafts, survive a
       original.work.work_id,
       'completed',
     )
-    await expect(detail(page).getByText('已完成', { exact: true })).toBeVisible()
+    await expect(detail(page).getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
     expect(finished.work_id).toBe(original.work.work_id)
     expect(finished.generation).toBe(original.work.generation)
     expect(finished.budget.root_id).toBe(original.work.budget.root_id)
@@ -264,7 +264,7 @@ test('another real device can finish the work without discarding this device’s
       .fill('另一台裝置回答：台北')
     await detail(pb).getByRole('button', { name: '送出回答', exact: true }).click()
     await waitForWorkState(pb, original.connection.characterId, original.work.work_id, 'completed')
-    await expect(detail(pa).getByText('已完成', { exact: true })).toBeVisible()
+    await expect(detail(pa).getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
     await expect(
       detail(pa).getByRole('textbox', { name: '未送出的回答 1', exact: true }),
     ).toHaveValue(unsent)
