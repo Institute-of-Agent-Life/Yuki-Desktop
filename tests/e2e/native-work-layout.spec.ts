@@ -70,7 +70,7 @@ test('native work list and inspector preserve step layout, keyboard focus and or
     const card = page
       .getByRole('article')
       .filter({ has: page.getByRole('heading', { name: '原工作整合測試', exact: true }) })
-    await expect(card.getByText('等你回覆', { exact: true })).toBeVisible({ timeout: 20000 })
+    await expect(card.getByText('等你回覆', { exact: true })).toBeVisible()
     const original = await page.evaluate(async () => {
       const connections = await window.yuki.client.connections()
       if (!connections.ok || !connections.value[0]) throw Error('Original identity missing')
@@ -287,7 +287,7 @@ test('native work list and inspector preserve step layout, keyboard focus and or
     const answer = detail.getByRole('textbox', { name: '回答這個問題', exact: true })
     await expect(answer).toHaveValue('台北，沿原工作繼續。')
     await detail.getByRole('button', { name: '送出回答', exact: true }).click()
-    await expect(detail.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
+    await expect(detail.getByText('已完成', { exact: true })).toBeVisible()
     const result = await page.evaluate(async ({ connection, work }) => {
       const result = await window.yuki.client.read<Work>(connection.characterId, {
         kind: 'work',

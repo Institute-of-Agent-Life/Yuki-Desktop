@@ -345,7 +345,7 @@ test('two actual devices submit different answers to one work and recover their 
     await waitForWorkState(pb, original.characterId, original.work.work_id, 'completed')
     await Promise.all(
       details.map((detail) =>
-        expect(detail.getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 }),
+        expect(detail.getByText('已完成', { exact: true })).toBeVisible(),
       ),
     )
     const results = await Promise.all(

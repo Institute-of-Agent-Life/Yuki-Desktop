@@ -175,7 +175,7 @@ test(
       await sheet.getByRole('button', { name: '交回', exact: true }).click()
       await expect.poll(async () => (await facts()).phase, { timeout: 30000 }).toBe(6)
       await page.keyboard.press('ControlOrMeta+1')
-      await expect(waiting().getByText('已完成', { exact: true })).toBeVisible({ timeout: 20000 })
+      await expect(waiting().getByText('已完成', { exact: true })).toBeVisible()
       const final = await facts()
       expect(final.work_ids).toEqual(initial.work_ids)
       expect(final.run_id).toBe(initial.run_id)
