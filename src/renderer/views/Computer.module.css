@@ -41,6 +41,7 @@
   flex: 1;
   min-width: 0;
 }
+/* Only lays out the screen; around the picture is the page itself, not a dark frame. */
 .remote {
   container-type: size;
   display: flex;
@@ -48,25 +49,25 @@
   justify-content: center;
   flex: 1;
   min-height: 140px;
-  overflow: hidden;
-  border-radius: 12px;
-  background: #171719;
   position: relative;
-  border: 2px solid transparent;
 }
-.held {
-  border-color: var(--accent);
-}
+/* Sizes are the picture's own (content box); the border is the held ring around it. */
 .screen {
-  width: 100%;
-  height: 100%;
+  box-sizing: content-box;
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
   max-width: calc(var(--remote-width) * 1px);
   max-height: calc(var(--remote-height) * 1px);
   overflow: auto;
+  border: 2px solid transparent;
+  border-radius: 12px;
+}
+.held .screen {
+  border-color: var(--accent);
 }
 /* Scaled to fit, the screen keeps the remote proportions instead of a letterbox around them. */
 .fitted {
-  width: min(100%, 100cqh * var(--remote-width) / var(--remote-height));
+  width: min(100% - 4px, (100cqh - 4px) * var(--remote-width) / var(--remote-height));
   height: auto;
   aspect-ratio: var(--remote-width) / var(--remote-height);
 }
@@ -74,7 +75,8 @@
   outline: none;
 }
 .screenControls {
-  align-self: center;
+  display: flex;
+  margin-left: auto;
 }
 .screenControls small {
   font-size: 11px;
@@ -91,6 +93,7 @@
   gap: 16px;
   color: #eee;
   background: #1c1c1e;
+  border-radius: 12px;
   font-size: 13px;
 }
 .status {

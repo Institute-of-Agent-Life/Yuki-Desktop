@@ -38,16 +38,52 @@ test(
       ).toBeVisible()
       const fit = pa.getByRole('button', { name: '縮放：適合', exact: true })
       await expect(fit).toHaveAttribute('aria-pressed', 'false')
-      // The screen controls sit below the remote screen, never over its bottom edge (where a
-      // dock lives), in the same refracting toolbar glass as the composer, or solid when the
-      // system asks for less transparency.
+      // The screen controls sit in the status row, on the line of its text, below the remote
+      // screen and never over its bottom edge (where a dock lives), in the same refracting
+      // toolbar glass as the composer, or solid when the system asks for less transparency.
       const floating = pa.getByRole('toolbar', { name: '電腦畫面控制列', exact: true })
       const remote = pa.getByRole('application', { name: '遠端電腦畫面', exact: true })
-      const below = async () => {
+      const layout = async (fitted: boolean) => {
+        // Measured on the connected picture.
+        await expect(pa.getByRole('button', { name: '截圖存檔', exact: true })).toBeEnabled()
         const [screenBox, controlsBox] = [await remote.boundingBox(), await floating.boundingBox()]
         expect(controlsBox!.y).toBeGreaterThanOrEqual(screenBox!.y + screenBox!.height)
+        const row = await floating.evaluate((controls) => {
+          const footer = controls.closest('footer')!,
+            text = footer.firstChild!
+          if (text.nodeType !== Node.TEXT_NODE) throw Error('the status text leads the row')
+          const range = document.createRange()
+          range.selectNodeContents(text)
+          const box = range.getBoundingClientRect()
+          return { center: box.y + box.height / 2, right: box.right }
+        })
+        expect(Math.abs(row.center - (controlsBox!.y + controlsBox!.height / 2))).toBeLessThan(1)
+        expect(controlsBox!.x).toBeGreaterThan(row.right)
+        // No dark frame around the picture; scaled to fit, the screen is exactly the canvas.
+        expect(
+          await remote.evaluate(
+            (screen) => getComputedStyle(screen.parentElement!).backgroundColor,
+          ),
+        ).toBe('rgba(0, 0, 0, 0)')
+        if (fitted)
+          await expect
+            .poll(() =>
+              remote.evaluate((screen) => {
+                const outer = screen.getBoundingClientRect(),
+                  canvas = screen.querySelector('canvas')!.getBoundingClientRect(),
+                  left = outer.left + screen.clientLeft,
+                  top = outer.top + screen.clientTop
+                return [
+                  canvas.left - left,
+                  canvas.top - top,
+                  left + screen.clientWidth - canvas.right,
+                  top + screen.clientHeight - canvas.bottom,
+                ].map((gap) => Math.abs(gap) <= 1)
+              }),
+            )
+            .toEqual([true, true, true, true])
       }
-      await below()
+      await layout(true)
       if (await pa.evaluate(() => document.documentElement.dataset.opaque === 'true'))
         await expect(floating).toHaveCSS('backdrop-filter', 'none')
       else {
@@ -58,7 +94,7 @@ test(
       await fit.click()
       const originalSize = pa.getByRole('button', { name: '縮放：100%', exact: true })
       await expect(originalSize).toHaveAttribute('aria-pressed', 'true')
-      await below()
+      await layout(false)
       await captureViewport(a, pa, test.info().outputPath('computer-zoom-100.png'))
       const zoom = {
         originalSize: {
@@ -87,6 +123,7 @@ test(
             const box = await toolbar.boundingBox()
             expect(box?.height).toBe(52)
             await expect(fit).toHaveAttribute('aria-pressed', 'false')
+            await layout(true)
             await expect(
               controls.getByRole('button', { name: '接手', exact: true }),
             ).toBeInViewport({
@@ -113,6 +150,7 @@ test(
       ).toBeEnabled()
       const first = (await facts()).control
       expect(first.holder).toBe('human')
+      await layout(true)
       await navigate(pb, `${name} 的電腦`)
       const other = pb
         .locator('[data-region="toolbar"]')
@@ -150,7 +188,7 @@ test(
       await expect(pa.getByRole('heading', { name: longName, exact: true })).toBeVisible()
       await navigate(pa, `${longName} 的電腦`)
       await contentSize(a, pa, 960, 492)
-      await below()
+      await layout(true)
       await controls.getByRole('button', { name: '接手', exact: true }).click()
       const longReturn = controls.getByRole('button', { name: `交回給 ${longName}`, exact: true })
       await expect(longReturn).toBeInViewport({ ratio: 1 })
