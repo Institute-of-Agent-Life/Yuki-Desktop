@@ -1451,7 +1451,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "creating" | "ready" | "failed";
+            state: "creating" | "ready" | "failed" | "rotated";
         };
         /** ComputerSnapshotBody */
         ComputerSnapshotBody: {

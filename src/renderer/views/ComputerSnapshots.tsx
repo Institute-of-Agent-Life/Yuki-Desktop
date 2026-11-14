@@ -29,6 +29,18 @@ const activeTabs = (tabs: ComputerState['tabs']) =>
       !['completed', 'failed', 'cancelled'].includes(tab.work_state ?? ''),
   )
 
+/**
+ * What an original snapshot or restore request came to, when a retry or check finds it changed:
+ * the snapshot was taken and has since been replaced by newer ones (rotated), or the snapshot to
+ * restore no longer exists.
+ */
+export function snapshotOutcome(item: ComputerCommandItem): 'rotated' | 'gone' | null {
+  if (item.command.action === 'restore' && item.problem === 'not_found') return 'gone'
+  if (item.command.action === 'snapshot' && item.result?.snapshot?.state === 'rotated')
+    return 'rotated'
+  return null
+}
+
 /** The whole computer's restore points: the list, "建立快照" and each one's "還原到此". */
 export function ComputerSnapshots({
   id,
@@ -50,6 +62,7 @@ export function ComputerSnapshots({
     [note, setNote] = useState(''),
     [busy, setBusy] = useState(false),
     [problem, setProblem] = useState(''),
+    [notice, setNotice] = useState(''),
     [restoring, setRestoring] = useState<Snapshot | null>(null),
     [interrupted, setInterrupted] = useState<Interrupted | null>(null)
   // One snapshot or restore at a time: the Manager answers another with the one in progress.
@@ -59,13 +72,17 @@ export function ComputerSnapshots({
   const run = async (command: ComputerCommand) => {
     setBusy(true)
     setProblem('')
+    setNotice('')
     try {
       const result = unwrap(await window.yuki.client.computerCommand(id, command))
       client.setQueryData<ComputerCommandItem[]>([id, 'computer-commands'], (previous) => [
         ...(previous ?? []).filter((item) => item.requestId !== result.requestId),
         result,
       ])
-      if (result.problem)
+      const outcome = snapshotOutcome(result)
+      if (outcome === 'rotated') setNotice(t('computer:snapshots.rotated'))
+      else if (outcome === 'gone') setProblem(t('computer:snapshots.gone'))
+      else if (result.problem)
         setProblem(
           result.state === 'submitted' ? t('computer:unconfirmed') : problemText(result.problem),
         )
@@ -116,6 +133,8 @@ export function ComputerSnapshots({
     ]
       .filter(Boolean)
       .join(' · ')
+  // A rotated snapshot has been replaced by newer ones: it can no longer be restored.
+  const listed = snapshots.filter((snapshot) => snapshot.state !== 'rotated')
   const tabs = activeTabs(interrupted?.tabs ?? state.tabs)
   const runs = interrupted?.runs ?? []
   const agent = interrupted?.control?.holder === 'agent' ? interrupted.control : null
@@ -126,6 +145,7 @@ export function ComputerSnapshots({
         disabled={blocked}
         onClick={() => {
           setProblem('')
+          setNotice('')
           setOpen(true)
         }}
       >
@@ -155,9 +175,10 @@ export function ComputerSnapshots({
         <div className={settings.sheetStack}>
           <p>{t('computer:snapshots.description', { count: state.snapshot_keep ?? 0 })}</p>
           {problem && <Banner status="failed">{problem}</Banner>}
+          {notice && <Banner status="done">{notice}</Banner>}
           <SettingsSection>
-            {snapshots.length ? (
-              snapshots.map((snapshot) => (
+            {listed.length ? (
+              listed.map((snapshot) => (
                 <Row
                   key={snapshot.id}
                   group

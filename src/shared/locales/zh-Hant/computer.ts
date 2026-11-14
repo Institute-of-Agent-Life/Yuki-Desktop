@@ -107,6 +107,8 @@ export default {
     interruptedControl: '{{name}} 正在操作畫面',
     restoreNow: '還原',
     restoreAnyway: '仍然還原',
+    rotated: '這份快照已經建立，之後因保留份數已滿，被較新的快照取代。',
+    gone: '這份快照已被較新的快照取代，無法還原；請從目前的列表選一份。',
     restoring: '正在把電腦還原到 {{time}} 的快照',
     restoreFailed: '還原到 {{time}} 的快照沒有完成。',
   },

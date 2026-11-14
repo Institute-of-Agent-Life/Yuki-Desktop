@@ -109,6 +109,8 @@ export default {
     interruptedControl: '{{name}} 正在操作画面',
     restoreNow: '还原',
     restoreAnyway: '仍然还原',
+    rotated: '这份快照已经创建，之后因保留份数已满，被较新的快照取代。',
+    gone: '这份快照已被较新的快照取代，无法还原；请从当前的列表选一份。',
     restoring: '正在把电脑还原到 {{time}} 的快照',
     restoreFailed: '还原到 {{time}} 的快照没有完成。',
   },

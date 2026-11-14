@@ -117,6 +117,9 @@ export default {
     interruptedControl: '{{name}} is operating the screen',
     restoreNow: 'Restore',
     restoreAnyway: 'Restore Anyway',
+    rotated:
+      'This snapshot was taken, then replaced by newer ones once the kept number was reached.',
+    gone: 'This snapshot was replaced by newer ones and can’t be restored. Choose one from the list.',
     restoring: 'Restoring the computer to the snapshot from {{time}}',
     restoreFailed: 'Restoring to the snapshot from {{time}} didn’t finish.',
   },

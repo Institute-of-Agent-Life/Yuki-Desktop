@@ -19,6 +19,8 @@ import { navigate } from '../fixtures/navigation'
  * P5 A fourth snapshot is listed beside the three kept instead of replacing the oldest.
  * P6 The status line keeps saying nothing about resting after the idle minutes, or says it
  *    while the display is already resting.
+ * P8 A snapshot rotated away while its restore is being confirmed is still offered, or the
+ *    refused restore says only "not found".
  * P7 The copy is missing or falls back to another language in zh-Hans or English, or the
  *    sheets lose contrast in the dark appearance.
  */
@@ -178,8 +180,44 @@ test(
         kept.snapshots.filter((item) => item.state === 'ready').map((item) => item.note),
       ).toEqual(expect.arrayContaining(['第二份', '第三份', '第四份']))
       expect(kept.snapshots.filter((item) => item.state === 'ready')).toHaveLength(3)
-      await sheet.getByRole('button', { name: '關閉', exact: true }).click()
       evidence.kept = kept
+
+      // P8: the chosen snapshot is rotated away by a newer one before "還原" (as from another
+      // device): the restore names that, and a rotated snapshot is never listed to restore.
+      const oldest = sheet.getByRole('group').filter({ hasText: '第二份' })
+      await oldest.getByRole('button', { name: '還原到此', exact: true }).click()
+      const late = page.getByRole('dialog', { name: /^把電腦還原到 .+？$/ })
+      await expect(late).toBeVisible()
+      const other = await page.evaluate(
+        (id) => window.yuki.client.computerCommand(id, { action: 'snapshot', note: '第五份' }),
+        characterId,
+      )
+      expect(other.ok && other.value.problem).toBeNull()
+      await expect
+        .poll(async () =>
+          (await facts()).snapshots
+            .filter((item) => ['第二份', '第五份'].includes(item.note ?? ''))
+            .map((item) => [item.note, item.state]),
+        )
+        .toEqual(
+          expect.arrayContaining([
+            ['第二份', 'rotated'],
+            ['第五份', 'ready'],
+          ]),
+        )
+      await late.getByRole('button', { name: '還原', exact: true }).click()
+      await expect(
+        late.getByText('這份快照已被較新的快照取代，無法還原；請從目前的列表選一份。', {
+          exact: true,
+        }),
+      ).toBeVisible()
+      await settled(page)
+      await page.screenshot({ path: test.info().outputPath('restore-gone-zh-Hant-light.png') })
+      await late.getByRole('button', { name: '取消', exact: true }).click()
+      await expect(sheet.getByRole('group')).toHaveCount(3)
+      await expect(sheet.getByText('第二份', { exact: false })).toHaveCount(0)
+      await expect(sheet.getByText('第五份', { exact: false })).toBeVisible()
+      await sheet.getByRole('button', { name: '關閉', exact: true }).click()
 
       // P7: the panel and the confirmation in each language, light and dark.
       for (const language of ['zh-Hant', 'zh-Hans', 'en'] as const) {

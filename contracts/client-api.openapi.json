@@ -1550,7 +1550,8 @@
             "enum": [
               "creating",
               "ready",
-              "failed"
+              "failed",
+              "rotated"
             ],
             "title": "State",
             "type": "string"

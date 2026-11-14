@@ -33,7 +33,7 @@ import { unwrap, problemText, ClientProblem, useMe, hidesPrivateData } from '../
 import styles from './Computer.module.css'
 import { useWorkspace } from '../state/workspace'
 import { useTranslation } from '../i18n'
-import { ComputerSnapshots, RestoreNotice } from './ComputerSnapshots'
+import { ComputerSnapshots, RestoreNotice, snapshotOutcome } from './ComputerSnapshots'
 
 function useComputer(id: string) {
   const client = useQueryClient()
@@ -88,6 +88,7 @@ export function Computer({
   const administrator = me.data?.is_superuser === true && !hidesPrivateData(me.error)
   const state = query.error ? undefined : query.data
   const [problem, setProblem] = useState(''),
+    [notice, setNotice] = useState(''),
     [busy, setBusy] = useState(false)
   const [sheet, setSheet] = useState<{
     kind: 'return' | 'transfer' | 'sleep'
@@ -304,6 +305,7 @@ export function Computer({
           </Banner>
         ))}
       {problem && <Banner status="failed">{problem}</Banner>}
+      {notice && <Banner status="done">{notice}</Banner>}
       {!compact && <RestoreNotice state={state} />}
       {state.display === 'running' ? (
         <RemoteScreen
@@ -389,7 +391,10 @@ export function Computer({
                 void window.yuki.client
                   .verifyComputerCommand(id, item.requestId)
                   .then(unwrap)
-                  .then(() => {
+                  .then((checked) => {
+                    const outcome = snapshotOutcome(checked)
+                    if (outcome === 'rotated') setNotice(t('computer:snapshots.rotated'))
+                    else if (outcome === 'gone') setProblem(t('computer:snapshots.gone'))
                     void query.refetch()
                     void commands.refetch()
                   })
