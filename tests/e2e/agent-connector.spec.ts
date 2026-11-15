@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
+import { resources } from '../../src/shared/locales'
 
 async function installationDetails(page: Page) {
   for (const label of ['疑難排解', '進階：安裝與原有連接']) {
@@ -979,4 +980,61 @@ test('an old Connector shows no owner-control or permission UI, and Windows has 
     }
     await page.screenshot({ path: test.info().outputPath(`${mode}.png`) })
   }
+})
+
+/*
+ * Connector 0.7 for the computer-use contract (task book 2026-11-15 §9–10), failure cases written
+ * before the code:
+ * O1 The 這台電腦 page says nothing while the running Connector is older than the bundled one, so
+ *    Yuki's newer screen actions fail as connector_outdated without the person knowing why.
+ * O2 The page names the wrong versions, or leads anywhere but Settings' 「更新連接器，保留原資料」.
+ * O3 The update re-pairs or drops the original device instead of keeping it.
+ * O4 The copy is missing in zh-Hans or English, or loses contrast in the dark appearance.
+ */
+test('an older running Connector is named on 這台電腦 and updated in Settings keeping its identity', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 720, height: 650 })
+  await page.goto('http://127.0.0.1:4178/components.html?connector=control-outdated&view=local')
+  const local = page.locator('[data-fixture-view="local"]')
+  for (const language of ['zh-Hant', 'zh-Hans', 'en'] as const) {
+    const words = resources[language].connector
+    await page.evaluate((language) => {
+      ;(window as Window & { __applyLanguage?: (value: string) => void }).__applyLanguage!(language)
+    }, language)
+    const banner = local.getByText(
+      words.local.updateForComputer
+        .replace('{{current}}', '0.6.2')
+        .replace('{{bundled}}', '0.7.0')
+        .replace('{{name}}', 'Fixture Yuki'),
+      { exact: false },
+    )
+    for (const theme of ['light', 'dark'] as const) {
+      await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme)
+      await expect(banner).toBeVisible()
+      await page.screenshot({
+        path: test.info().outputPath(`connector-outdated-local-${language}-${theme}.png`),
+      })
+    }
+  }
+  await page.evaluate(() => {
+    ;(window as Window & { __applyLanguage?: (value: string) => void }).__applyLanguage!('zh-Hant')
+    document.documentElement.dataset.theme = 'light'
+  })
+  await local.getByRole('button', { name: '前往更新', exact: true }).click()
+  const settings = page.locator('[data-fixture-view="settings"]')
+  await expect(settings.getByText('需要更新', { exact: true })).toBeVisible()
+  await expect(
+    settings.getByText('目前連接器 0.6.2，桌面隨附 0.7.0。', { exact: false }),
+  ).toBeVisible()
+  await page.screenshot({ path: test.info().outputPath('connector-outdated-settings.png') })
+  await settings.getByRole('button', { name: '更新連接器，保留原資料', exact: true }).click()
+  await expect(settings.getByText('需要更新', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: '顯示本機活動', exact: true }).click()
+  await expect(local.getByText(/連接器是 0\.6\.2/)).toHaveCount(0)
+  const calls = await page.evaluate(
+    () => (window as Window & { __connectorCalls?: unknown[] }).__connectorCalls,
+  )
+  expect(calls).toEqual([{ method: 'install' }])
+  await writeFile(test.info().outputPath('connector-outdated.json'), JSON.stringify({ calls }))
 })

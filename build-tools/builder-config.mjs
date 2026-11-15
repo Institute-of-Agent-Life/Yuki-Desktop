@@ -4,7 +4,11 @@ import { prerelease, valid } from 'semver'
 import { load } from 'js-yaml'
 import { checkNativePrebuild } from './native-prebuild.mjs'
 import { installLinuxLauncher } from './linux-launcher.mjs'
-import { checkConnectorSource, finalizeWindowsConnector } from './connector-signing.mjs'
+import {
+  checkConnectorPin,
+  checkConnectorSource,
+  finalizeWindowsConnector,
+} from './connector-signing.mjs'
 
 export function releaseChannel(version) {
   if (!valid(version) || (prerelease(version) && prerelease(version)[0] !== 'beta'))
@@ -18,6 +22,7 @@ const base = load(readFileSync(new URL('../electron-builder.yml', import.meta.ur
 export default {
   ...base,
   async beforePack(context) {
+    checkConnectorPin(context.packager.projectDir)
     checkConnectorSource(context)
     await checkNativePrebuild(context)
   },

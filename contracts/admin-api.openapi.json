@@ -311,6 +311,40 @@
             ],
             "title": "Token Field",
             "type": "string"
+          },
+          "tool_image_detail": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "high",
+                  "auto",
+                  "original"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Image Detail"
+          },
+          "tool_image_media_resolution": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "ultra_high"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Image Media Resolution"
           }
         },
         "title": "ChatWireOptions",

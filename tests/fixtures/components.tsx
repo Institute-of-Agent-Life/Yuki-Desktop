@@ -8,6 +8,7 @@ import { WorkspaceSession } from '../../src/renderer/state/workspace'
 import type { ConnectorOperation, ConnectorState } from '../../src/shared/connector'
 import type { Connection } from '../../src/shared/api'
 import { defaultPreferences } from '../../src/shared/desktop'
+import { applyLanguage } from '../../src/renderer/i18n'
 import {
   Avatar,
   Banner,
@@ -35,7 +36,8 @@ const connectorConnection: Connection = {
   persistentCredentials: false,
 }
 const connectorCalls: { method: string; input?: unknown; start?: boolean }[] = []
-Object.assign(window, { __connectorCalls: connectorCalls })
+// The interface language, switched as Main's broadcast does in the app.
+Object.assign(window, { __connectorCalls: connectorCalls, __applyLanguage: applyLanguage })
 const preparedConnector = (): Extract<ConnectorState, { available: true }> => ({
   available: true,
   managed: true,
@@ -165,6 +167,14 @@ if (connectorMode?.startsWith('control-'))
             permissions: { screen: false, input: true },
           }),
     },
+  }
+// A running 0.6 Connector older than the bundled 0.7: Yuki's newer screen actions need the update.
+if (connectorMode === 'control-outdated' && connectorState.available)
+  connectorState = {
+    ...connectorState,
+    version: '0.6.2',
+    bundledVersion: '0.7.0',
+    updateAvailable: true,
   }
 if (connectorMode === 'paired' || connectorMode === 'terminal-detail')
   connectorState = {
@@ -343,7 +353,11 @@ window.yuki = {
     },
     install: async (separate) => {
       connectorCalls.push({ method: 'install', input: separate })
-      connectorState = preparedConnector()
+      // Updating the managed installation keeps its identity and pairing, as the real one does.
+      connectorState =
+        connectorState.available && connectorState.updateAvailable && !separate
+          ? { ...connectorState, version: connectorState.bundledVersion, updateAvailable: false }
+          : preparedConnector()
       return { ok: true, value: connectorState }
     },
     adopt: async () => {

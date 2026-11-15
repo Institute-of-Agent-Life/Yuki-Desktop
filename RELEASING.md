@@ -4,7 +4,7 @@
 
 ## 本地產物
 
-使用 Node.js 22.12+、uv、`npm ci` 與已提交的 lockfile。`npm ci` 已安裝 Electron；不需另外下載名為 install-electron 的 npm 套件。先檢出 `contracts/source.json` 指定的後端提交，準備本建置主機架構的 Connector 與同一提交的本地 Bot 資源：
+使用 Node.js 22.12+、uv、`npm ci` 與已提交的 lockfile。`npm ci` 已安裝 Electron；不需另外下載名為 install-electron 的 npm 套件。先檢出 `contracts/source.json` 指定的後端提交，準備本建置主機架構的 Connector 與同一提交的本地 Bot 資源（打包前會核對 Connector 確實由該提交建置，見 [開發與驗證](docs/development.md)）：
 
 ```sh
 node build-tools/prepare-connector.mjs --backend /absolute/path/to/pinned-Yuki

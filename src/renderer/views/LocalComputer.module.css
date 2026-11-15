@@ -4,6 +4,13 @@
   padding-top: calc(24px + var(--toolbar-inset, 0px));
   max-width: 880px;
 }
+/* A notice longer than the page is wide wraps instead of running under its button. */
+.page [role='status'] {
+  height: auto;
+  min-height: 32px;
+  padding-block: 6px;
+  flex-wrap: wrap;
+}
 .toolbar {
   display: flex;
   align-items: center;

@@ -916,6 +916,10 @@ export interface components {
              * @enum {string}
              */
             token_field: "max_tokens" | "max_completion_tokens";
+            /** Tool Image Detail */
+            tool_image_detail?: ("low" | "high" | "auto" | "original") | null;
+            /** Tool Image Media Resolution */
+            tool_image_media_resolution?: ("low" | "medium" | "high" | "ultra_high") | null;
         };
         /** CommandBody */
         CommandBody: {

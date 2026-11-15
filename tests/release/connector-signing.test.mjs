@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { signConnectorApp } from '../../build-tools/sign-mac.mjs'
 import { checkConnectorRuntime } from '../../build-tools/product-resources.mjs'
 import {
+  checkConnectorPin,
   checkConnectorSource,
   finalizeWindowsConnector,
 } from '../../build-tools/connector-signing.mjs'
@@ -115,6 +116,37 @@ test('Windows copy-time signatures update only the original builder signable fil
     cpSync(source, target, { recursive: true })
     writeFileSync(join(target, 'python/module.py'), 'not signed, changed')
     assert.throws(() => finalizeWindowsConnector(context), /Changed Connector file/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+/*
+ * A package bundles the Connector built from the backend contracts/source.json pins. Failure
+ * cases, written before the check:
+ * K1 No record of which backend built .cache/connector-runtime (an older prepare, or none).
+ * K2 The runtime was built from another backend commit than the pinned one (a stale cache).
+ * K3 The runtime's own manifest version differs from the version recorded when it was built.
+ */
+test('packaging refuses a Connector runtime not built from the pinned backend', () => {
+  const root = mkdtempSync(join(tmpdir(), 'yuki-connector-pin-'))
+  const runtime = join(root, '.cache/connector-runtime')
+  const pinned = 'a'.repeat(40)
+  fixture(runtime)
+  const manifest = JSON.parse(readFileSync(join(runtime, 'manifest.json'), 'utf8'))
+  writeFileSync(join(runtime, 'manifest.json'), JSON.stringify({ ...manifest, version: '0.7.0' }))
+  mkdirSync(join(root, 'contracts'))
+  writeFileSync(join(root, 'contracts/source.json'), JSON.stringify({ commit: pinned }))
+  const built = (value) =>
+    writeFileSync(join(root, '.cache/connector-runtime.source.json'), JSON.stringify(value))
+  try {
+    assert.throws(() => checkConnectorPin(root), /prepare-connector/)
+    built({ commit: 'b'.repeat(40), version: '0.7.0' })
+    assert.throws(() => checkConnectorPin(root), /prepare-connector/)
+    built({ commit: pinned, version: '0.6.2' })
+    assert.throws(() => checkConnectorPin(root), /prepare-connector/)
+    built({ commit: pinned, version: '0.7.0' })
+    assert.deepEqual(checkConnectorPin(root), { commit: pinned, version: '0.7.0' })
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

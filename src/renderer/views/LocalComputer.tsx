@@ -91,6 +91,16 @@ export function LocalComputer({
           <Button onClick={openSettings}>{t('connector:local.viewDiagnostics')}</Button>
         </Banner>
       )}
+      {available.updateAvailable && (
+        <Banner status="waiting">
+          {t('connector:local.updateForComputer', {
+            name: connection.name,
+            current: available.version ?? t('connector:currentVersionMissing'),
+            bundled: available.bundledVersion ?? t('connector:bundledVersionMissing'),
+          })}
+          <Button onClick={openSettings}>{t('connector:goUpdate')}</Button>
+        </Banner>
+      )}
       {control.error && <Banner status="failed">{control.error.message}</Banner>}
       {supervision?.control?.holder === 'owner' ? (
         <Banner status="waiting">
