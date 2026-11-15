@@ -613,7 +613,9 @@ export function Conversation({
           offset: index / last,
           translate: `0 ${((before - now) * (1 - value)).toFixed(2)}px`,
         })),
-        { duration: (last * 1000) / 60, easing: 'linear', composite: 'add' },
+        // Held at its first frame until it starts: a compositor that starts it a frame late
+        // would otherwise show the row at its new place for that frame, then jump back.
+        { duration: (last * 1000) / 60, easing: 'linear', composite: 'add', fill: 'backwards' },
       )
     }
   })
@@ -642,7 +644,8 @@ export function Conversation({
         const opacity = Math.min(1, Math.max(0, from + (to - from) * value))
         return { offset: index / last, opacity, transform: `translateY(${(1 - opacity) * 6}px)` }
       }),
-      { duration: (last * 1000) / 60, easing: 'linear', fill: 'forwards' },
+      // 'both': before it starts it holds its first frame, so the note never flashes opaque.
+      { duration: (last * 1000) / 60, easing: 'linear', fill: 'both' },
     )
     if (!processing)
       void fade.finished.then(
