@@ -424,6 +424,8 @@ export default {
     background:
       'Yuki is working in a window in the background without touching your mouse or front window; it pauses while you use the same app.',
     computer: 'Yuki is using the computer; it pauses while you do and resumes when you stop.',
+    updateForComputer:
+      'Connector {{current}} is older than the bundled {{bundled}}; update it for {{name}}’s newer screen actions here. Its identity and records are kept.',
     stop: 'Stop',
   },
 } satisfies English<'connector'>

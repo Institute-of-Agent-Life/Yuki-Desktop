@@ -24,6 +24,8 @@ npm run package:dir
 npm run check:package
 ```
 
+打包隨附的 Connector 來自 `.cache/connector-runtime`，由 `node build-tools/prepare-connector.mjs --backend <後端 checkout>` 建置；`package`／`package:dir` 不會重建它。建置時另寫 `.cache/connector-runtime.source.json`，記下後端提交與 Connector 版本；打包前（beforePack）核對它與 `contracts/source.json` 固定的提交及執行環境 manifest 版本一致，舊快取或其他提交建出的 Connector 會直接失敗並提示重新準備。CI 與發行都從固定提交的 `.cache/backend` 建置。
+
 `npm run package` 產生目前平台的安裝檔，設定涵蓋 macOS DMG／zip、Windows NSIS、Linux AppImage／deb／rpm。打包成功、原生平台驗收及簽章發行分別驗證。建置命令預設不發布。
 
 指定架構、產物檢查與正式簽章程序見 [RELEASING.md](../RELEASING.md)。一般打包不公證；正式 macOS／Windows 設定另行要求簽章，缺少憑證時會失敗。

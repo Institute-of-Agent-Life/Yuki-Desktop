@@ -381,6 +381,8 @@ export default {
     background:
       'Yuki 正在背景操作一個視窗，不動你的滑鼠和前台視窗；你在同一個 App 裡操作時它會暫停。',
     computer: 'Yuki 正在操作電腦；你操作時它會暫停，停手後繼續。',
+    updateForComputer:
+      '連接器 {{current}} 比桌面隨附的 {{bundled}} 舊，{{name}} 在這台電腦的新畫面操作需要更新；原身份與記錄會保留。',
     stop: '停止',
   },
 } as const

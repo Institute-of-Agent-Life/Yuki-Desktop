@@ -383,6 +383,8 @@ export default {
     background:
       'Yuki 正在后台操作一个窗口，不动你的鼠标和前台窗口；你在同一个 App 里操作时它会暂停。',
     computer: 'Yuki 正在操作电脑；你操作时它会暂停，停手后继续。',
+    updateForComputer:
+      '连接器 {{current}} 比桌面随附的 {{bundled}} 旧，{{name}} 在这台电脑的新画面操作需要更新；原身份与记录会保留。',
     stop: '停止',
   },
 } satisfies Chinese<'connector'>

@@ -1,4 +1,5 @@
-import { spawnSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { parseArgs } from 'node:util'
 const { values } = parseArgs({
@@ -26,4 +27,15 @@ const result = spawnSync(
   { stdio: 'inherit', shell: false, windowsHide: true },
 )
 if (result.error) throw result.error
-process.exit(result.status ?? 1)
+if (result.status !== 0) process.exit(result.status ?? 1)
+// Which backend built this runtime: packaging checks it against contracts/source.json.
+const output = resolve(values.output)
+writeFileSync(
+  output + '.source.json',
+  JSON.stringify({
+    commit: execFileSync('git', ['-C', resolve(values.backend), 'rev-parse', 'HEAD'], {
+      encoding: 'utf8',
+    }).trim(),
+    version: JSON.parse(readFileSync(join(output, 'manifest.json'), 'utf8')).version,
+  }) + '\n',
+)
