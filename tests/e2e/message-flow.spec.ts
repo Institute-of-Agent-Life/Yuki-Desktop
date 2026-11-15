@@ -134,6 +134,61 @@ test('a message and its reply move the conversation on one spring, without a sin
   await log.evaluate(() => {})
 })
 
+/*
+ * A slow compositor (the macOS CI runner) can start an animation a frame after the frame it was
+ * created for: for that frame the animation is before its start. Failure cases, written first:
+ * J1 The processing note, created at full opacity, shows fully opaque for that frame before
+ *    fading in (sampled on CI as 0, 0, 1, 0.05, 0.14 …).
+ * J2 A row pushed down by the reply shows at its new place for that frame and then jumps back
+ *    to slide there (sampled on CI as the note moving +80 px, then -92 px).
+ * Every conversation motion therefore holds its first frame until it starts.
+ */
+test('a conversation motion that starts a frame late holds its first frame instead of jumping', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await openConversation(page)
+  await page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true }).fill('晚一幀開始')
+  await page.getByRole('button', { name: '送出', exact: true }).click()
+  await page.waitForTimeout(400)
+  // Every animation in the list, moved to start later than now, as the slow compositor does.
+  const late = () =>
+    page.evaluate(() => {
+      const log = document.querySelector<HTMLElement>('[role="log"]')!
+      const now = document.timeline.currentTime as number
+      // The waiting dots' own CSS loop is not a motion that starts once.
+      const motions = log
+        .getAnimations({ subtree: true })
+        .filter((animation) => !(animation instanceof CSSAnimation))
+      return motions.map((animation) => {
+        animation.startTime = now + 200
+        const effect = animation.effect as KeyframeEffect
+        return {
+          target: (effect.target as HTMLElement).dataset.processing !== undefined ? 'note' : 'row',
+          progress: effect.getComputedTiming().progress,
+        }
+      })
+    })
+  await page.evaluate(() => (window as unknown as FlowWindow).regression.confirmGlassSend())
+  await expect(page.locator('[role="log"] [data-processing]')).toBeVisible()
+  // J1: the note's fade, before it starts, is at its first frame (progress 0), not absent.
+  const fading = await late()
+  expect(fading.filter((item) => item.target === 'note')).toEqual([{ target: 'note', progress: 0 }])
+  expect(
+    await page
+      .locator('[role="log"] [data-processing]')
+      .evaluate((note) => getComputedStyle(note).opacity),
+  ).toBe('0')
+  await page.waitForTimeout(900)
+  await page.evaluate(() =>
+    (window as unknown as FlowWindow).regression.receiveGlassReply('晚一幀開始的回覆。'),
+  )
+  // J2: rows pushed by the reply, before their slide starts, stay where they were pushed from.
+  const pushed = await late()
+  expect(pushed.length).toBeGreaterThan(0)
+  expect(pushed.filter((item) => item.progress !== 0)).toEqual([])
+})
+
 test('the person scrolling during a glide takes the list back at once', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   const log = await openConversation(page)
