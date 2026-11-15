@@ -245,6 +245,10 @@ test(
           await restore
             .getByRole('button', { name: resources[language].common.action.cancel })
             .click()
+          // The panel comes back as the confirmation leaves: close it once it is back in place.
+          await expect(restore).toHaveCount(0)
+          await expect(panel).toBeVisible()
+          await settled(page)
           await panel
             .getByRole('button', { name: resources[language].common.action.close, exact: true })
             .click()
