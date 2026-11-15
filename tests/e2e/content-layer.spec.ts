@@ -80,7 +80,12 @@ test('settings draw every field, check box and disclosure one way', async () => 
     await pairUI(page, rig.base, await rig.code())
     await page.keyboard.press('ControlOrMeta+,')
     const tabs = page.getByRole('tablist', { name: '設定分類', exact: true }).getByRole('tab')
-    for (const label of (await tabs.allInnerTexts()).map((text) => text.trim())) {
+    // Settings open on the shortcut's round trip through Main; read its tabs once they are there,
+    // or a fast reader surveys none of them (seen on the macOS CI runner).
+    await expect(tabs.first()).toBeVisible()
+    const labels = (await tabs.allInnerTexts()).map((text) => text.trim())
+    expect(labels.length).toBeGreaterThan(5)
+    for (const label of labels) {
       if (!(await tabs.first().isVisible())) await page.keyboard.press('ControlOrMeta+,')
       await tabs.filter({ hasText: label }).first().click()
       await page.waitForTimeout(400)

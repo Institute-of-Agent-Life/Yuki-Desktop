@@ -1,0 +1,21 @@
+diff --git a/node_modules/ssh2/lib/keygen.js b/node_modules/ssh2/lib/keygen.js
+index 570c90e..43ddbeb 100644
+--- a/node_modules/ssh2/lib/keygen.js
++++ b/node_modules/ssh2/lib/keygen.js
+@@ -287,14 +287,8 @@ function parseDERs(keyType, pub, priv) {
+         throw new Error('Bad ED25519 public OID');
+       // - Attributes (absent for ED25519)
+ 
+-      let pubBin = reader.readString(Ber.BitString, true);
+-      {
+-        // Remove leading zero bytes
+-        let i = 0;
+-        for (; i < pubBin.length && pubBin[i] === 0x00; ++i);
+-        if (i > 0)
+-          pubBin = pubBin.slice(i);
+-      }
++      // The BIT STRING's unused-bits octet only: the key itself may start with zero bytes.
++      let pubBin = reader.readString(Ber.BitString, true).slice(1);
+ 
+       // Parse private key
+       reader = new Ber.Reader(priv);
