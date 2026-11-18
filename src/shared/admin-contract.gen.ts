@@ -1244,7 +1244,7 @@ export interface components {
          * @description Features a profile must explicitly advertise.
          * @enum {string}
          */
-        ModelCapability: "tools" | "structured_output" | "reasoning" | "long_context" | "native_web_search" | "image_input";
+        ModelCapability: "tools" | "structured_output" | "reasoning" | "long_context" | "native_web_search" | "image_input" | "prompt_cache_breakpoints";
         /** @enum {string} */
         ModelConnectionError: "authentication" | "rate_limit" | "quota" | "timeout" | "protocol" | "unavailable" | "configuration" | "unsupported";
         /** ModelControlResult */
