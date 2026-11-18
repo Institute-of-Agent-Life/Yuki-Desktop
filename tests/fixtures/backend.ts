@@ -333,6 +333,13 @@ export async function yukiFixture(
       ),
     base = `http://127.0.0.1:${port}${basePath}`
   let server = spawnServer()
+  /** Shut the server down and wait for its process to exit, not only for its port to close. */
+  const stop = async () => {
+    if (server.exitCode !== null || server.signalCode !== null) return
+    const stopped = new Promise<void>((resolve) => server.once('exit', () => resolve()))
+    await fetch(`${base}/__test/shutdown`, { method: 'POST' })
+    await stopped
+  }
   const ready = () =>
     expect
       .poll(
@@ -380,12 +387,9 @@ export async function yukiFixture(
         }
       ).code
     },
+    stop,
     async restart() {
-      if (server.exitCode === null && server.signalCode === null) {
-        const stopped = new Promise<void>((resolve) => server.once('exit', () => resolve()))
-        await fetch(`${base}/__test/shutdown`, { method: 'POST' })
-        await stopped
-      }
+      await stop()
       server = spawnServer()
       await ready()
     },
@@ -397,11 +401,7 @@ export async function yukiFixture(
       await ready()
     },
     async close(success: boolean) {
-      if (server.exitCode === null && server.signalCode === null) {
-        const stopped = new Promise<void>((resolve) => server.once('exit', () => resolve()))
-        await fetch(`${base}/__test/shutdown`, { method: 'POST' })
-        await stopped
-      }
+      await stop()
       closeSync(log)
       if (success) await rm(root, { recursive: true, force: true })
       else {
