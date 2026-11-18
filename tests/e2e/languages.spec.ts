@@ -2,7 +2,14 @@ import { expect, test, type ElectronApplication, type Page } from '@playwright/t
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { activeCharacterName } from '../fixtures/active-character'
-import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
+import {
+  currentConnection,
+  currentEvents,
+  pairUI,
+  waitForAcceptedMessage,
+  waitForMainEnded,
+  yukiFixture,
+} from '../fixtures/backend'
 import { resources } from '../../src/shared/locales'
 
 /*
@@ -99,7 +106,14 @@ test('switching language relocalizes the running app and keeps time zone, receip
     })
     await composer.fill('語言切換前的訊息')
     await composer.press('Enter')
-    await expect(page.getByText('Desktop reference reply', { exact: true })).toBeVisible()
+    // The fixture's earlier reply is already in the conversation; wait for this message's own
+    // turn to end, so the work started later begins from its own message and the time shown is
+    // the accepted event's, not the instant one drawn before the server confirmed it.
+    const accepted = await waitForAcceptedMessage(page, connection.characterId, '語言切換前的訊息')
+    await waitForMainEnded(page, connection.characterId, accepted.requestId)
+    const timestamp = (await currentEvents(page)).items.find(
+      (event) => event.event_id === accepted.eventId,
+    )!.created_at
     const cdp = await app.context().newCDPSession(page)
     await cdp.send('Emulation.setTimezoneOverride', { timezoneId: 'America/Los_Angeles' })
     const time = page
@@ -107,7 +121,7 @@ test('switching language relocalizes the running app and keeps time zone, receip
       .filter({ hasText: '語言切換前的訊息' })
       .locator('time')
       .first()
-    const timestamp = (await time.getAttribute('datetime'))!
+    await expect(time).toHaveAttribute('datetime', timestamp)
     const taipei = (locale: string) =>
       page.evaluate(
         ({ timestamp, locale }) =>
