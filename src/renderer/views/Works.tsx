@@ -556,9 +556,11 @@ export function WorkDetail({
                   }
                   time={time(step.updated_at, zone, locale)}
                 />
-                {(step.detail?.subtask_id || step.detail?.operation_id) && (
+                {/* A step managing this Work itself (e.g. manage_task finish) links nowhere. */}
+                {((step.detail?.subtask_id && step.detail.subtask_id !== workId) ||
+                  step.detail?.operation_id) && (
                   <div className={styles.stepLinks}>
-                    {step.detail.subtask_id && (
+                    {step.detail.subtask_id && step.detail.subtask_id !== workId && (
                       <SubtaskState id={id} workId={step.detail.subtask_id} open={open} />
                     )}
                     {step.detail.operation_id && (
