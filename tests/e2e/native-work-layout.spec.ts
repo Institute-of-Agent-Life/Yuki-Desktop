@@ -192,6 +192,7 @@ test('native work list and inspector preserve step layout, keyboard focus and or
               timeRight: t.right,
               right: r.right,
               label: label.textContent,
+              detail: label.querySelector('[data-step-detail]')?.textContent ?? null,
               title: label.getAttribute('title'),
               labelFont: getComputedStyle(label).fontSize,
               timeFont: getComputedStyle(time).fontSize,
@@ -227,7 +228,9 @@ test('native work list and inspector preserve step layout, keyboard focus and or
           expect(step.labelFont).toBe('13px')
           expect(step.timeFont).toBe('12px')
           expect(step.timeLine).toBe('16px')
-          expect(step.title).toBe(step.label)
+          // The tooltip names the step and puts its public facts on their own line.
+          const name = step.detail ? step.label!.slice(0, -step.detail.length - 1) : step.label
+          expect(step.title).toBe(step.detail ? `${name}\n${step.detail}` : name)
           expect(step.status).toBeTruthy()
           expect(step.animations).toBe(0)
           expect(step.overflow).toBe(false)

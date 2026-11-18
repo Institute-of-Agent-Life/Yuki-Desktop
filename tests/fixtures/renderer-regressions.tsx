@@ -438,6 +438,7 @@ Object.assign(window, {
               work_revision: historicalWork.revision,
               steps_token: 'showcase',
               next_after: null,
+              // An older server (API revision 11/12): steps carry no kind/tool/detail.
             } as WorkSteps,
           }
         if (route.kind === 'events' && route.limit !== 1) mainHistoryReads++
@@ -507,6 +508,7 @@ Object.assign(window, {
               work_revision: historicalWork.revision,
               steps_token: token,
               next_after: route.after ? null : 'original-second-page',
+              // An older server (API revision 11/12): steps carry no kind/tool/detail.
             } satisfies WorkSteps
             if (route.after && holdNextSecondPage) {
               holdNextSecondPage = false

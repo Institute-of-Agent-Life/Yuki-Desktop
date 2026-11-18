@@ -39,6 +39,7 @@ export default {
     query_instruct: '搜尋指令',
     tools: '對話',
     image_input: '圖片',
+    prompt_cache_breakpoints: '提示快取斷點',
     reasoning: '思考',
     structured_output: '結構化',
     native_web_search: '原生搜尋',

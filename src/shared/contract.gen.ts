@@ -2299,12 +2299,20 @@ export interface components {
         };
         /** PublicStep */
         PublicStep: {
+            /** Action */
+            action: string | null;
             /** Artifacts */
             artifacts: components["schemas"]["StepArtifact"][];
             /** Category */
             category: string;
             /** Created At */
             created_at: string;
+            detail: components["schemas"]["StepDetail"];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "terminal" | "computer" | "browser" | "message" | "chat" | "search" | "web" | "file" | "agent_read" | "agent_control" | "memory" | "schedule" | "task" | "wait" | "environment" | "device_legacy" | "tool";
             /** Label */
             label: string;
             /** Record */
@@ -2313,6 +2321,8 @@ export interface components {
             status: string;
             /** Step Id */
             step_id: string;
+            /** Tool */
+            tool: string;
             /** Updated At */
             updated_at: string;
         };
@@ -2407,6 +2417,26 @@ export interface components {
             artifact_id: string;
             /** Version */
             version: string;
+        };
+        /**
+         * StepDetail
+         * @description Structured public facts of one original call; never arguments or result text.
+         */
+        StepDetail: {
+            /** Exit Code */
+            exit_code?: number | null;
+            /** Operation Id */
+            operation_id?: string | null;
+            /** Output Lost */
+            output_lost?: boolean | null;
+            /** Record Seconds */
+            record_seconds: number;
+            /** Target Kind */
+            target_kind?: ("group" | "private" | "channel") | null;
+            /** Text Delivered */
+            text_delivered?: boolean | null;
+            /** Where */
+            where?: ("yuki" | "device") | null;
         };
         /** TerminalControl */
         TerminalControl: {

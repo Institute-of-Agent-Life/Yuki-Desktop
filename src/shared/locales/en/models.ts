@@ -38,6 +38,7 @@ export default {
     query_instruct: 'Query Instruction',
     tools: 'Chat',
     image_input: 'Images',
+    prompt_cache_breakpoints: 'Prompt Cache Breakpoints',
     reasoning: 'Thinking',
     structured_output: 'Structured',
     native_web_search: 'Native Search',
