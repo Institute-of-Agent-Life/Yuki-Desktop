@@ -30,6 +30,7 @@ import chatStyles from './Conversation.module.css'
 import { Markdown } from '../text/RichMarkdown'
 import { formatDateTime } from '../../shared/time'
 import type { Language } from '../../shared/locales'
+import type { Source } from '../../shared/locales/types'
 import type { DisplayTimeZone } from '../../shared/desktop'
 import { useDisplayTime } from '../state/time'
 import type { TFunction } from 'i18next'
@@ -56,8 +57,10 @@ const workState = (t: T, work: Work): [Status, string] => [
   states[work.state]![0],
   stateLabel(t, work.state),
 ]
-// Backend step categories this app has words for; any other shows the backend's own label.
-const stepCategories = [
+type Step = WorkSteps['steps'][number]
+type Action = keyof Source['works']['action']
+// Servers before step kinds (API revision 11/12) only send these legacy categories.
+const legacyCategories = [
   'terminal',
   'search',
   'web',
@@ -70,11 +73,36 @@ const stepCategories = [
   'browser',
   'other',
 ] as const
-const stepLabel = (t: T, step: WorkSteps['steps'][number]) => {
-  const label = (stepCategories as readonly string[]).includes(step.category)
-    ? t(`works:step.${step.category as (typeof stepCategories)[number]}`)
-    : step.label
+const stepLabel = (t: T, step: Step) => {
+  let label: string
+  if (step.kind) {
+    // The server classifies the original call; a kind newer than this app names its tool.
+    const named = t('works:kind.tool', { tool: step.tool })
+    label = step.kind === 'tool' ? named : t(`works:kind.${step.kind}`, { defaultValue: named })
+    if (step.action)
+      label += ` · ${t(`works:action.${step.action as Action}`, { defaultValue: step.action })}`
+  } else {
+    label = (legacyCategories as readonly string[]).includes(step.category)
+      ? t(`works:step.${step.category as (typeof legacyCategories)[number]}`)
+      : step.label
+  }
   return step.status === 'recorded' ? t('works:step.recorded', { label }) : label
+}
+/** Structured facts only (never arguments or results); absent on older servers. */
+const stepDetail = (t: T, step: Step) => {
+  const detail = step.detail
+  if (!detail) return undefined
+  const parts: string[] = []
+  if (detail.where)
+    parts.push(t(detail.where === 'yuki' ? 'works:detail.whereYuki' : 'works:detail.whereDevice'))
+  if (detail.exit_code != null) parts.push(t('works:detail.exitCode', { code: detail.exit_code }))
+  if (detail.output_lost) parts.push(t('works:detail.outputLost'))
+  if (detail.target_kind) parts.push(t(`works:detail.${detail.target_kind}`))
+  if (detail.text_delivered != null)
+    parts.push(t(detail.text_delivered ? 'works:detail.delivered' : 'works:detail.notDelivered'))
+  if (detail.record_seconds >= 1)
+    parts.push(t('works:detail.seconds', { seconds: Math.round(detail.record_seconds) }))
+  return parts.length ? parts.join(' · ') : undefined
 }
 const time = formatDateTime
 const source = (t: T, work: Work) =>
@@ -433,6 +461,7 @@ export function WorkDetail({
               <StepRow
                 key={step.step_id}
                 label={stepLabel(t, step)}
+                detail={stepDetail(t, step)}
                 status={
                   step.status === 'succeeded'
                     ? 'done'

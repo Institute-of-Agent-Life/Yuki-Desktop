@@ -62,7 +62,17 @@ export function WorkCard({
     </article>
   )
 }
-export function StepRow({ label, status, time }: { label: string; status: Status; time?: string }) {
+export function StepRow({
+  label,
+  status,
+  time,
+  detail,
+}: {
+  label: string
+  status: Status
+  time?: string
+  detail?: string
+}) {
   const { t } = useTranslation(['conversation'])
   const Icon =
     status === 'done' ? Check : status === 'failed' ? X : status === 'unknown' ? CircleHelp : Circle
@@ -76,7 +86,10 @@ export function StepRow({ label, status, time }: { label: string; status: Status
         role="img"
         aria-label={t(`conversation:step.${status}`)}
       />
-      <span title={label}>{label}</span>
+      <span title={detail ? `${label}\n${detail}` : label}>
+        {label}
+        {detail && <small className={styles.stepDetail}>{detail}</small>}
+      </span>
       {time && <time>{time}</time>}
     </div>
   )

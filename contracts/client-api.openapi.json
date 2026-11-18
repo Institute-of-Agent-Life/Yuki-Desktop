@@ -4044,6 +4044,17 @@
       },
       "PublicStep": {
         "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
           "artifacts": {
             "items": {
               "$ref": "#/components/schemas/StepArtifact"
@@ -4057,6 +4068,32 @@
           },
           "created_at": {
             "title": "Created At",
+            "type": "string"
+          },
+          "detail": {
+            "$ref": "#/components/schemas/StepDetail"
+          },
+          "kind": {
+            "enum": [
+              "terminal",
+              "computer",
+              "browser",
+              "message",
+              "chat",
+              "search",
+              "web",
+              "file",
+              "agent_read",
+              "agent_control",
+              "memory",
+              "schedule",
+              "task",
+              "wait",
+              "environment",
+              "device_legacy",
+              "tool"
+            ],
+            "title": "Kind",
             "type": "string"
           },
           "label": {
@@ -4075,6 +4112,10 @@
             "title": "Step Id",
             "type": "string"
           },
+          "tool": {
+            "title": "Tool",
+            "type": "string"
+          },
           "updated_at": {
             "title": "Updated At",
             "type": "string"
@@ -4088,7 +4129,11 @@
           "status",
           "created_at",
           "updated_at",
-          "artifacts"
+          "artifacts",
+          "kind",
+          "tool",
+          "action",
+          "detail"
         ],
         "title": "PublicStep",
         "type": "object"
@@ -4411,6 +4456,95 @@
           "version"
         ],
         "title": "StepArtifact",
+        "type": "object"
+      },
+      "StepDetail": {
+        "description": "Structured public facts of one original call; never arguments or result text.",
+        "properties": {
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Id"
+          },
+          "output_lost": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Lost"
+          },
+          "record_seconds": {
+            "title": "Record Seconds",
+            "type": "number"
+          },
+          "target_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "group",
+                  "private",
+                  "channel"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Kind"
+          },
+          "text_delivered": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Delivered"
+          },
+          "where": {
+            "anyOf": [
+              {
+                "enum": [
+                  "yuki",
+                  "device"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Where"
+          }
+        },
+        "required": [
+          "record_seconds"
+        ],
+        "title": "StepDetail",
         "type": "object"
       },
       "TerminalControl": {

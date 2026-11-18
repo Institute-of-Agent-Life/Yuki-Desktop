@@ -51,6 +51,11 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+.stepDetail {
+  margin-left: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
 .step time {
   margin-left: auto;
   flex-shrink: 0;

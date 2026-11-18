@@ -438,7 +438,8 @@ Object.assign(window, {
               work_revision: historicalWork.revision,
               steps_token: 'showcase',
               next_after: null,
-            } as WorkSteps,
+              // An older server (API revision 11/12): steps carry no kind/tool/detail.
+            } as unknown as WorkSteps,
           }
         if (route.kind === 'events' && route.limit !== 1) mainHistoryReads++
         const mode = scene()
@@ -507,7 +508,8 @@ Object.assign(window, {
               work_revision: historicalWork.revision,
               steps_token: token,
               next_after: route.after ? null : 'original-second-page',
-            } satisfies WorkSteps
+              // An older server (API revision 11/12): steps carry no kind/tool/detail.
+            } as unknown as WorkSteps
             if (route.after && holdNextSecondPage) {
               holdNextSecondPage = false
               await new Promise<void>((resolve) => {

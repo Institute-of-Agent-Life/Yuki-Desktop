@@ -44,6 +44,17 @@ test('continues the original work through an actual reply and confirms cancellat
     await card.getByRole('button', { name: '查看詳情', exact: true }).click()
     const detail = page.getByRole('complementary', { name: '詳情' })
     await expect(detail.getByText('需要你提供城市', { exact: true }).first()).toBeVisible()
+    // The actual Main calls (manage_task, send, wait) are named by their own kind,
+    // never lumped into "其他"; this needs a backend that reports step kinds.
+    const stepList = detail.getByRole('heading', { name: '步驟', exact: true }).locator('..')
+    for (const kind of ['任務管理', '傳送訊息', '等待'])
+      await expect(stepList.locator('span', { hasText: kind }).first()).toBeVisible()
+    await expect(stepList.locator('span', { hasText: /^其他/ })).toHaveCount(0)
+    await detail.screenshot({ path: test.info().outputPath('work-steps-by-kind.png') })
+    await writeFile(
+      test.info().outputPath('work-steps-by-kind.json'),
+      JSON.stringify(await stepList.locator('span').allInnerTexts(), null, 2),
+    )
     await detail.getByRole('button', { name: '在對話中回答', exact: true }).click()
     const reply = page.locator('[data-region="content"] [data-work-reply]')
     await reply.getByRole('textbox').fill('台北，請接續原工作')
