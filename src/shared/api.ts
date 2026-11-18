@@ -109,7 +109,11 @@ export type PublicEvent = components['schemas']['Event']
 export type OriginalRequest = components['schemas']['RequestReceipt']
 export type MessageResult = components['schemas']['MessageReceipt']
 export type Work = components['schemas']['Work']
-export type WorkSteps = components['schemas']['WorkSteps']
+type PublicStep = components['schemas']['PublicStep']
+type StepKindFields = 'kind' | 'tool' | 'action' | 'detail'
+/** A step as servers actually send it: before API revision 13 there is no kind, tool, action or detail. */
+export type WorkStep = Omit<PublicStep, StepKindFields> & Partial<Pick<PublicStep, StepKindFields>>
+export type WorkSteps = Omit<components['schemas']['WorkSteps'], 'steps'> & { steps: WorkStep[] }
 export type WorkPage = components['schemas']['WorkPage']
 export type ArtifactPage = components['schemas']['ArtifactPage']
 export type ComputerScreen = 'sandbox' | 'qq-view' | 'qq-control'

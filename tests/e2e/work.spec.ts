@@ -50,6 +50,11 @@ test('continues the original work through an actual reply and confirms cancellat
     for (const kind of ['任務管理', '傳送訊息', '等待'])
       await expect(stepList.locator('span', { hasText: kind }).first()).toBeVisible()
     await expect(stepList.locator('span', { hasText: /^其他/ })).toHaveCount(0)
+    // Public facts only: the send step says it was delivered, never what it said.
+    await expect(
+      stepList.locator('[data-step-detail]', { hasText: '已送出' }).first(),
+    ).toBeVisible()
+    await expect(stepList).not.toContainText('需要你提供城市')
     await detail.screenshot({ path: test.info().outputPath('work-steps-by-kind.png') })
     await writeFile(
       test.info().outputPath('work-steps-by-kind.json'),

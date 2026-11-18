@@ -88,7 +88,14 @@ export function StepRow({
       />
       <span title={detail ? `${label}\n${detail}` : label}>
         {label}
-        {detail && <small className={styles.stepDetail}>{detail}</small>}
+        {detail && (
+          <>
+            {' '}
+            <small className={styles.stepDetail} data-step-detail="">
+              {detail}
+            </small>
+          </>
+        )}
       </span>
       {time && <time>{time}</time>}
     </div>

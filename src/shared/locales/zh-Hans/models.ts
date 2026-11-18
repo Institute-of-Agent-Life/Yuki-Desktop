@@ -41,6 +41,7 @@ export default {
     query_instruct: '搜索指令',
     tools: '对话',
     image_input: '图片',
+    prompt_cache_breakpoints: '提示缓存断点',
     reasoning: '思考',
     structured_output: '结构化',
     native_web_search: '原生搜索',

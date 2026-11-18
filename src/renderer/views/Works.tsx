@@ -77,10 +77,17 @@ const stepLabel = (t: T, step: Step) => {
   let label: string
   if (step.kind) {
     // The server classifies the original call; a kind newer than this app names its tool.
-    const named = t('works:kind.tool', { tool: step.tool })
-    label = step.kind === 'tool' ? named : t(`works:kind.${step.kind}`, { defaultValue: named })
+    // Fallbacks carry server strings, so they are never interpolated or nested again.
+    const named = step.tool ? t('works:kind.tool', { tool: step.tool }) : t('works:step.other')
+    label =
+      step.kind === 'tool'
+        ? named
+        : t(`works:kind.${step.kind}`, { defaultValue: named, skipInterpolation: true })
     if (step.action)
-      label += ` · ${t(`works:action.${step.action as Action}`, { defaultValue: step.action })}`
+      label += ` · ${t(`works:action.${step.action as Action}`, {
+        defaultValue: step.action,
+        skipInterpolation: true,
+      })}`
   } else {
     label = (legacyCategories as readonly string[]).includes(step.category)
       ? t(`works:step.${step.category as (typeof legacyCategories)[number]}`)
@@ -100,8 +107,16 @@ const stepDetail = (t: T, step: Step) => {
   if (detail.target_kind) parts.push(t(`works:detail.${detail.target_kind}`))
   if (detail.text_delivered != null)
     parts.push(t(detail.text_delivered ? 'works:detail.delivered' : 'works:detail.notDelivered'))
-  if (detail.record_seconds >= 1)
-    parts.push(t('works:detail.seconds', { seconds: Math.round(detail.record_seconds) }))
+  // The record span is a duration only once the call has its result.
+  const seconds = Math.round(detail.record_seconds)
+  if (['succeeded', 'failed'].includes(step.status) && seconds >= 1)
+    parts.push(
+      seconds < 60
+        ? t('works:detail.seconds', { seconds })
+        : seconds < 3600
+          ? t('works:detail.minutes', { minutes: Math.round(seconds / 60) })
+          : t('works:detail.hours', { hours: Math.round(seconds / 360) / 10 }),
+    )
   return parts.length ? parts.join(' · ') : undefined
 }
 const time = formatDateTime
@@ -452,7 +467,9 @@ export function WorkDetail({
             <h3>{t('works:steps')}</h3>
             {computer &&
               (data.help_requested ||
-                allSteps.some((step) => ['browser', 'computer'].includes(step.category))) && (
+                allSteps.some((step) =>
+                  ['browser', 'computer'].includes(step.kind ?? step.category),
+                )) && (
                 <Button variant="plain" onClick={computer}>
                   {t('works:viewOnComputer')}
                 </Button>
