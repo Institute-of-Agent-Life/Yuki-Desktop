@@ -305,14 +305,17 @@ export function WorkList({
           </Button>
         </Banner>
       )}
-      {delegations.error && !hidesPrivateData(delegations.error) && (
-        <Banner status="failed">
-          {t('works:delegation.unreadable', { problem: delegations.error.message })}
-          <Button variant="plain" onClick={() => void delegations.refetch()}>
-            {t('works:delegation.reload')}
-          </Button>
-        </Banner>
-      )}
+      {/* One cause (say the SSH path is gone) is said once, by the list's own banner. */}
+      {delegations.error &&
+        !hidesPrivateData(delegations.error) &&
+        delegations.error.message !== failed?.message && (
+          <Banner status="failed">
+            {t('works:delegation.unreadable', { problem: delegations.error.message })}
+            <Button variant="plain" onClick={() => void delegations.refetch()}>
+              {t('works:delegation.reload')}
+            </Button>
+          </Banner>
+        )}
       {(!!activeWorks.filter(needs).length || !!asking.length || answered) && (
         <section aria-label={t('works:needsYou')}>
           <h3>{t('works:needsYou')}</h3>
