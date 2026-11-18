@@ -83,6 +83,8 @@ test('「需要你」 offers a delegation request its own native options, while 
   await expect(delegated.getByText('npm test -- login', { exact: true })).toBeVisible()
   await expect(delegated.getByRole('button', { name: 'allow', exact: true })).toBeEnabled()
   await expect(delegated.getByRole('button', { name: 'deny', exact: true })).toBeEnabled()
+  // Answers are one-time: a persistent option is never offered (the server says one_time_only).
+  await expect(delegated.getByRole('button', { name: 'allow_always' })).toHaveCount(0)
   // F2: an observation's request is never answerable from Desktop, not even with deny.
   await expect(observed.getByText('rm -rf build', { exact: true })).toBeVisible()
   await expect(
@@ -98,6 +100,23 @@ test('「需要你」 offers a delegation request its own native options, while 
   await expect(elsewhere.getByRole('button')).toHaveCount(0)
   await evidence(page, 'needs-you')
   expect((await calls(page)).answers).toEqual([])
+  // A wait no operation received: only its metadata reached Yuki, and it can only be denied.
+  const unowned = needs.locator('[data-native-request="801"]')
+  await expect(
+    unowned.getByText(
+      '沒有任何操作接收這個等待：只有工具名等基本資訊傳到 Yuki，請求內容沒有離開那台電腦，只能拒絕。',
+      { exact: true },
+    ),
+  ).toBeVisible()
+  await expect(unowned.getByRole('button')).toHaveCount(1)
+  await unowned.getByRole('button', { name: '拒絕', exact: true }).click()
+  expect((await calls(page)).answers).toEqual([
+    {
+      workId: 'deleg-acp',
+      permissionId: '801',
+      answer: expect.objectContaining({ optionId: 'deny' }),
+    },
+  ])
 })
 
 test('one native request shown in two places sends a single answer however often and wherever it is pressed', async ({

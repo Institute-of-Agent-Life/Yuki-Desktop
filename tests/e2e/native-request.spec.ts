@@ -80,8 +80,23 @@ test('command approval shows its additional permissions and retains the original
   await expect(page.getByText('寫入：/isolated/native/project', { exact: true })).toBeVisible()
   await expect(page.getByText('網路：允許連線', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '允許本回合', exact: true })).toHaveCount(0)
+  // One-time decisions only: a session-wide one would widen later requests.
+  await expect(page.getByRole('button', { name: 'acceptForSession', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'accept', exact: true }).click()
   expect((await recorded(page)).responses).toEqual([
     { permission_id: '71', response: { decision: 'accept' } },
+  ])
+})
+
+test('an ACP permission offers only its one-time options', async ({ page }) => {
+  await page.goto('http://127.0.0.1:4178/native-request.html?mode=acp')
+  await expect(page.getByText('修改原檔案', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Always allow', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Always reject', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Allow once', exact: true }).click()
+  await page.getByRole('button', { name: 'Reject once', exact: true }).click()
+  expect((await recorded(page)).responses).toEqual([
+    { permission_id: '72', option_id: 'once' },
+    { permission_id: '72', option_id: 'reject' },
   ])
 })

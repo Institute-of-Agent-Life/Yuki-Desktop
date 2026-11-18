@@ -154,6 +154,9 @@ export default {
   subtask: 'Open Sub-Work: {{name}} ({{state}})',
   operation: 'Native Operation {{id}}',
   delegation: {
+    denyOnly:
+      'No operation received this wait: only basic facts such as the tool name reached Yuki, the request itself never left that computer, and it can only be denied.',
+    deny: 'Deny',
     status: {
       running: '{{agent}} is running',
       waiting: '{{agent}} is waiting for you',

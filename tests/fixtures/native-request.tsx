@@ -31,6 +31,22 @@ const permissions =
       }
 const responses: Partial<ConnectorTarget>[] = []
 Object.assign(window, { __nativeRequestedPermissions: permissions, __nativeResponses: responses })
+// An ACP permission with persistent options next to the one-time ones.
+const acp: NonNullable<ConnectorOperation['events']>[number] = {
+  cursor: 72,
+  kind: 'permission',
+  permission_id: '72',
+  payload: {
+    tool: 'edit',
+    native_request: { message: '修改原檔案' },
+    options: [
+      { optionId: 'once', name: 'Allow once', kind: 'allow_once' },
+      { optionId: 'always', name: 'Always allow', kind: 'allow_always' },
+      { optionId: 'reject', name: 'Reject once', kind: 'reject_once' },
+      { optionId: 'never', name: 'Always reject', kind: 'reject_always' },
+    ],
+  },
+}
 const event: NonNullable<ConnectorOperation['events']>[number] = {
   cursor: 71,
   kind: 'permission',
@@ -52,7 +68,7 @@ const event: NonNullable<ConnectorOperation['events']>[number] = {
         ? {
             command: 'run original command',
             additionalPermissions: permissions,
-            availableDecisions: ['accept', 'decline'],
+            availableDecisions: ['accept', 'acceptForSession', 'decline'],
           }
         : { permissions }),
     },
@@ -62,7 +78,7 @@ const event: NonNullable<ConnectorOperation['events']>[number] = {
 createRoot(document.getElementById('root')!).render(
   <main style={{ maxWidth: 680, padding: 20 }}>
     <NativeRequest
-      event={event}
+      event={mode === 'acp' ? acp : event}
       busy={false}
       onRespond={async (response) => {
         responses.push(response)

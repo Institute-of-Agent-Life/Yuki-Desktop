@@ -14,6 +14,14 @@ function record(value: unknown): Record<string, JsonValue> {
     : {}
 }
 type Access = 'read' | 'write' | 'deny'
+// An answer applies to this one request (the connector refuses others as one_time_only):
+// persistent or session-wide choices would widen later requests, so they are not offered.
+const persistent = new Set(['allow_always', 'reject_always', 'acceptForSession'])
+const oneTimeDecisions = ['accept', 'decline', 'cancel']
+const oneTime = (option: JsonValue) =>
+  typeof option === 'string'
+    ? !persistent.has(option)
+    : ['allow_once', 'reject_once'].includes(String(record(option).kind))
 function permissionPath(t: TFunction<['connector']>, value: JsonValue) {
   const path = record(value)
   if (path.type === 'path') return String(path.path)
@@ -87,11 +95,14 @@ export function NativeRequest({
   const payload = record(event.payload)
   const request = record(payload.native_request)
   const questions = Array.isArray(request.questions) ? request.questions.map(record) : []
-  const rawOptions = Array.isArray(payload.options) ? payload.options : []
+  const offered = Array.isArray(payload.options) ? payload.options : []
+  const rawOptions = offered.filter(oneTime)
   const options = rawOptions.map(record)
   const decisions =
-    !rawOptions.length && Array.isArray(request.availableDecisions)
-      ? request.availableDecisions
+    !offered.length && Array.isArray(request.availableDecisions)
+      ? request.availableDecisions.filter(
+          (decision) => typeof decision === 'string' && oneTimeDecisions.includes(decision),
+        )
       : []
   const permission = event.permission_id
   const permissionsRequest = payload.native_method === 'item/permissions/requestApproval'

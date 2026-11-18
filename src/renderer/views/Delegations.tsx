@@ -401,6 +401,26 @@ export function PendingRequest({
           }
         />
       </div>
+      {item.answer_at === 'deny_only' && (
+        // A wait no operation received: only its metadata left that computer.
+        <>
+          <p>{t('works:delegation.denyOnly')}</p>
+          <div>
+            <Button
+              disabled={!!attempt?.sending}
+              onClick={() =>
+                void answer(
+                  query,
+                  { id, workId: work.work_id, permission: item.permission_id, agent },
+                  { optionId: 'deny' },
+                )
+              }
+            >
+              {t('works:delegation.deny')}
+            </Button>
+          </div>
+        </>
+      )}
       {attempt && <Outcome attempt={attempt} />}
     </div>
   )

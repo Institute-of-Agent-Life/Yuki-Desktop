@@ -97,7 +97,18 @@ const works: Record<string, Work> = {
       relationship: 'delegate',
       state: 'running',
       status_line: 'Gemini 正在运行',
-      pending: [],
+      // A wait no operation received, surfaced on the delegation that last held the session.
+      pending: [
+        {
+          permission_id: '801',
+          kind: 'permission',
+          tool: 'Bash',
+          options: ['allow', 'deny'],
+          operation_id: null,
+          received_at: '2026-11-18T08:03:00+00:00',
+          answer_at: 'deny_only',
+        },
+      ],
       last_event_at: '2026-11-18T08:01:00+00:00',
     },
   ),
@@ -216,7 +227,16 @@ const operations: Record<string, ConnectorOperation> = {
     session_id: 's1',
     status: 'running',
     action: 'prompt',
-    events: [permission(501, 'npm test -- login')],
+    // A persistent option is offered by the native agent; an answer applies to one request.
+    events: [
+      {
+        ...permission(501, 'npm test -- login'),
+        payload: {
+          ...permission(501, 'npm test -- login').payload,
+          options: ['allow', 'allow_always', 'deny'],
+        },
+      },
+    ],
   },
   'op-watch': {
     id: 'op-watch',

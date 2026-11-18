@@ -149,6 +149,9 @@ export default {
   subtask: '打開子工作：{{name}}（{{state}}）',
   operation: '原生操作 {{id}}',
   delegation: {
+    denyOnly:
+      '沒有任何操作接收這個等待：只有工具名等基本資訊傳到 Yuki，請求內容沒有離開那台電腦，只能拒絕。',
+    deny: '拒絕',
     status: {
       running: '{{agent}} 正在執行',
       waiting: '{{agent}} 在等你回答',
