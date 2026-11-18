@@ -606,3 +606,154 @@ it('a delayed address proof cannot replace a newer user address choice', async (
   await rejected
   expect(connections.connection(original.characterId).baseUrl).toBe('https://latest-choice.test')
 })
+
+// Client API 14: delegation records and the device person's direct answer to a native request.
+const delegationWork = '00000000-0000-4000-8000-0000000000d1'
+const delegationPage = {
+  delegations: [
+    {
+      work_id: delegationWork,
+      goal: 'Original delegated goal',
+      state: 'waiting_user',
+      revision: 2,
+      updated_at: 1792880000,
+      generation: 1,
+      child_count: 0,
+      conversation_id: original.conversationId,
+      source: {
+        binding_id: original.bindingId,
+        conversation_id: original.conversationId,
+        display_name: 'Desktop',
+        kind: 'private',
+        platform: 'app',
+        space_id: null,
+      },
+      result_delivery: {
+        binding_id: original.bindingId,
+        conversation_id: original.conversationId,
+        display_name: 'Desktop',
+        kind: 'private',
+        platform: 'app',
+        space_id: null,
+      },
+      results: [],
+      budget: { models: 0, tools: 0, root_id: delegationWork, model_limit: null, tool_limit: null },
+      waiting_kind: null,
+      waiting_question: null,
+      wait: null,
+      step_count: 0,
+      parent_work_id: '00000000-0000-4000-8000-0000000000d0',
+      delegation: {
+        id: delegationWork,
+        executor: { device_id: 'original-device', agent: 'inst', label: 'Claude', session: 's' },
+        relationship: 'delegate',
+        state: 'waiting',
+        status_line: 'Claude 在等待回答',
+        pending: [
+          {
+            permission_id: '501',
+            kind: 'permission',
+            tool: 'Bash',
+            options: ['allow', 'deny'],
+            operation_id: 'op',
+            received_at: '2026-11-18T00:00:00+00:00',
+            answer_at: 'yuki_or_user',
+          },
+        ],
+        last_event_at: null,
+      },
+    },
+  ],
+}
+it.each([13, 14])(
+  'asks only a Client API 14 server for delegation records (server revision %s)',
+  async (revision) => {
+    const connections = setup(),
+      requested: string[] = []
+    connections.credentials.set(
+      `device/${original.characterId}/${original.personId}`,
+      'fixture-only',
+    )
+    vi.stubGlobal('fetch', async (input: string) => {
+      if (input.endsWith('/meta'))
+        return data('Envelope_Meta_', { ...meta, api_revision: revision })
+      requested.push(input)
+      expect(input).toBe(`${original.baseUrl}/client/v1/delegations?group=ended`)
+      return data('Envelope_DelegationPage_', delegationPage)
+    })
+    expect(
+      await connections.read(original.characterId, { kind: 'delegations', group: 'ended' }),
+    ).toEqual(revision < 14 ? { delegations: [] } : delegationPage)
+    expect(requested).toHaveLength(revision < 14 ? 0 : 1)
+  },
+)
+it.each([
+  ['an option', { optionId: 'allow' }, { option_id: 'allow' }],
+  ['a native answer', { response: { decision: 'accept' } }, { response: { decision: 'accept' } }],
+])(
+  'answers a native request with %s in one POST of its own request ID',
+  async (_name, choice, body) => {
+    const connections = setup(),
+      posts: { url: string; body: unknown }[] = []
+    connections.credentials.set(
+      `device/${original.characterId}/${original.personId}`,
+      'fixture-only',
+    )
+    vi.stubGlobal('fetch', async (input: string, init: RequestInit) => {
+      if (input.endsWith('/meta')) return data('Envelope_Meta_', { ...meta, api_revision: 14 })
+      if (input.endsWith('/me')) return data('Envelope_Me_', me)
+      expect(init.method).toBe('POST')
+      posts.push({ url: input, body: JSON.parse(init.body as string) })
+      return data('Envelope_NativeAnswerReceipt_', {
+        work_id: delegationWork,
+        permission_id: '501',
+        operation_id: 'respond-op',
+        status: 'accepted',
+        replay: false,
+      })
+    })
+    const requestId = '00000000-0000-4000-8000-0000000000a1'
+    expect(
+      await connections.nativeAnswer(original.characterId, delegationWork, '501', {
+        requestId,
+        ...choice,
+      }),
+    ).toEqual({
+      work_id: delegationWork,
+      permission_id: '501',
+      operation_id: 'respond-op',
+      status: 'accepted',
+      replay: false,
+    })
+    expect(posts).toEqual([
+      {
+        url: `${original.baseUrl}/client/v1/works/${delegationWork}/native-requests/501/answer`,
+        body: { request_id: requestId, ...body },
+      },
+    ])
+  },
+)
+it.each(['request_already_answered', 'observe_only', 'not_found'])(
+  'reports the server’s %s for a native answer without sending it again',
+  async (code) => {
+    const connections = setup()
+    let posts = 0
+    connections.credentials.set(
+      `device/${original.characterId}/${original.personId}`,
+      'fixture-only',
+    )
+    vi.stubGlobal('fetch', async (input: string, init: RequestInit) => {
+      if (input.endsWith('/meta')) return data('Envelope_Meta_', { ...meta, api_revision: 14 })
+      if (input.endsWith('/me')) return data('Envelope_Me_', me)
+      if (init.method === 'POST') posts++
+      return Response.json({ problem: { code } }, { status: code === 'not_found' ? 404 : 409 })
+    })
+    await expect(
+      connections.nativeAnswer(original.characterId, delegationWork, '501', {
+        requestId: '00000000-0000-4000-8000-0000000000a2',
+        optionId: 'deny',
+      }),
+    ).rejects.toHaveProperty('code', code)
+    expect(posts).toBe(1)
+  },
+)

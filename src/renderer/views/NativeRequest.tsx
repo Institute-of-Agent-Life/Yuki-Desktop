@@ -71,12 +71,16 @@ function PermissionScope({ value }: { value: unknown }) {
 }
 export function NativeRequest({
   event,
-  busy,
+  busy = false,
+  observed = false,
   onRespond,
 }: {
   event: Event
-  busy: boolean
-  onRespond(extra: Partial<ConnectorTarget>): Promise<void>
+  busy?: boolean
+  /** An observed session's request: only its own terminal handles it, never Desktop or Yuki. */
+  observed?: boolean
+  /** Without it the request is shown as a record, with no answer controls. */
+  onRespond?(extra: Partial<ConnectorTarget>): Promise<void>
 }) {
   const { t } = useTranslation(['connector'])
   const [answers, setAnswers] = useState<Record<string, string>>({})
@@ -91,8 +95,6 @@ export function NativeRequest({
       : []
   const permission = event.permission_id
   const permissionsRequest = payload.native_method === 'item/permissions/requestApproval'
-  const respond = (extra: Partial<ConnectorTarget>) =>
-    onRespond({ permission_id: permission, ...extra })
   if (event.kind !== 'permission' && event.kind !== 'question') {
     const item = record(payload.item)
     const native = record(payload.native)
@@ -152,6 +154,53 @@ export function NativeRequest({
           <PermissionScope value={request.additionalPermissions} />
         </>
       )}
+      {(observed || !onRespond) && permissionsRequest && (
+        <PermissionScope value={request.permissions} />
+      )}
+      {observed && <p className={styles.notice}>{t('connector:native.terminal')}</p>}
+      {!observed && onRespond && (
+        <Controls
+          request={request}
+          questions={questions}
+          rawOptions={rawOptions}
+          options={options}
+          decisions={decisions}
+          permissionsRequest={permissionsRequest}
+          answers={answers}
+          setAnswers={setAnswers}
+          disabled={busy || !permission}
+          respond={(extra) => onRespond({ permission_id: permission, ...extra })}
+        />
+      )}
+    </div>
+  )
+}
+function Controls({
+  request,
+  questions,
+  rawOptions,
+  options,
+  decisions,
+  permissionsRequest,
+  answers,
+  setAnswers,
+  disabled,
+  respond,
+}: {
+  request: Record<string, JsonValue>
+  questions: Record<string, JsonValue>[]
+  rawOptions: JsonValue[]
+  options: Record<string, JsonValue>[]
+  decisions: JsonValue[]
+  permissionsRequest: boolean
+  answers: Record<string, string>
+  setAnswers(answers: Record<string, string>): void
+  disabled: boolean
+  respond(extra: Partial<ConnectorTarget>): Promise<void>
+}) {
+  const { t } = useTranslation(['connector'])
+  return (
+    <>
       {permissionsRequest && (
         <>
           <PermissionScope value={request.permissions} />
@@ -159,7 +208,7 @@ export function NativeRequest({
           <div className={styles.actions}>
             <Button
               variant="primary"
-              disabled={busy || !permission}
+              disabled={disabled}
               onClick={() =>
                 void respond({
                   response: { permissions: record(request.permissions), scope: 'turn' },
@@ -169,7 +218,7 @@ export function NativeRequest({
               {t('connector:native.allowTurn')}
             </Button>
             <Button
-              disabled={busy || !permission}
+              disabled={disabled}
               onClick={() => void respond({ response: { permissions: {}, scope: 'turn' } })}
             >
               {t('connector:native.deny')}
@@ -211,7 +260,7 @@ export function NativeRequest({
       })}
       {!!questions.length && (
         <Button
-          disabled={busy || !permission}
+          disabled={disabled}
           onClick={() =>
             void respond({
               response: {
@@ -236,7 +285,7 @@ export function NativeRequest({
           .map((option) => (
             <Button
               key={option}
-              disabled={busy || !permission}
+              disabled={disabled}
               onClick={() => void respond({ option_id: option })}
             >
               {option}
@@ -246,7 +295,7 @@ export function NativeRequest({
           typeof option.optionId === 'string' ? (
             <Button
               key={option.optionId}
-              disabled={busy || !permission}
+              disabled={disabled}
               onClick={() => void respond({ option_id: String(option.optionId) })}
             >
               {typeof option.name === 'string' ? option.name : option.optionId}
@@ -256,7 +305,7 @@ export function NativeRequest({
         {decisions.map((decision, index) => (
           <Button
             key={index}
-            disabled={busy || !permission}
+            disabled={disabled}
             onClick={() => void respond({ response: { decision } })}
           >
             {typeof decision === 'string' ? decision : JSON.stringify(decision)}
@@ -266,6 +315,6 @@ export function NativeRequest({
       {!permissionsRequest && !questions.length && !rawOptions.length && !decisions.length && (
         <p className={styles.notice}>{t('connector:native.noOptions')}</p>
       )}
-    </div>
+    </>
   )
 }

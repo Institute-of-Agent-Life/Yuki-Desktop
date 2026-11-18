@@ -115,6 +115,17 @@ type StepKindFields = 'kind' | 'tool' | 'action' | 'detail'
 export type WorkStep = Omit<PublicStep, StepKindFields> & Partial<Pick<PublicStep, StepKindFields>>
 export type WorkSteps = Omit<components['schemas']['WorkSteps'], 'steps'> & { steps: WorkStep[] }
 export type WorkPage = components['schemas']['WorkPage']
+/** A Work a native agent executes on a device (Client API 14); absent on older servers. */
+export type Delegation = components['schemas']['Delegation']
+/** A pending native request of a delegation, with the original `tool` and `options`. */
+export type DelegationRequest = Delegation['pending'][number]
+export type DelegationPage = components['schemas']['DelegationPage']
+export type NativeAnswerReceipt = components['schemas']['NativeAnswerReceipt']
+/** One of the original request's options, or its native answer object. */
+export type NativeAnswer = { requestId: string } & (
+  | { optionId: string; response?: never }
+  | { response: Record<string, components['schemas']['JsonValue']>; optionId?: never }
+)
 export type ArtifactPage = components['schemas']['ArtifactPage']
 export type ComputerScreen = 'sandbox' | 'qq-view' | 'qq-control'
 export type Computer = components['schemas']['ComputerView']
@@ -250,6 +261,7 @@ export type ApiRead =
       before?: string
     }
   | { kind: 'steps'; workId: string; after?: string }
+  | { kind: 'delegations'; group: 'active' | 'ended' }
   | { kind: 'artifacts'; category: 'all' | 'image' | 'document' | 'code'; cursor?: string }
   | { kind: 'activity'; conversationId: string }
 
@@ -340,6 +352,13 @@ export interface ConversationBridge {
   workCommands(characterId: string): Promise<ApiReply<WorkCommandItem[]>>
   workQuestionDrafts(characterId: string, workId: string): Promise<ApiReply<WorkQuestionDraft[]>>
   verifyWorkCommand(characterId: string, requestId: string): Promise<ApiReply<WorkCommandItem>>
+  /** The device's person answers a delegation's native request directly (Client API 14). */
+  nativeAnswer(
+    characterId: string,
+    workId: string,
+    permissionId: string,
+    answer: NativeAnswer,
+  ): Promise<ApiReply<NativeAnswerReceipt>>
   workDraft(
     characterId: string,
     workId: string,

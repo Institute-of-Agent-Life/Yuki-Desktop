@@ -23,3 +23,11 @@
   font-size: 13px;
   line-height: 20px;
 }
+.delegations {
+  margin: 16px 0;
+}
+.delegations h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 20px;
+}

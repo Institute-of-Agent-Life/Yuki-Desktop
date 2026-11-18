@@ -275,7 +275,7 @@ test('an unknown admission keeps the selected original native session until the 
   )
   expect(after).toEqual({ instance: 'fixture-server-instance', session: 'original-session' })
   await native.getByRole('textbox', { name: '原生任務要求', exact: true }).fill('繼續原會話')
-  await native.getByRole('button', { name: '交給 Yuki 執行', exact: true }).click()
+  await native.getByRole('button', { name: '請 Yuki 委派給這個 Agent', exact: true }).click()
   const calls = await page.evaluate(
     () =>
       (window as Window & { __connectorCalls?: { method: string; input?: unknown }[] })
@@ -418,7 +418,7 @@ test('a changed local device does not inherit the original operation, draft or t
   await tabs.getByRole('tab', { name: '原生 Agent 任務', exact: true }).click()
   const newPrompt = '交給新裝置的獨立要求'
   await native.getByRole('textbox', { name: '原生任務要求', exact: true }).fill(newPrompt)
-  await native.getByRole('button', { name: '交給 Yuki 執行', exact: true }).click()
+  await native.getByRole('button', { name: '請 Yuki 委派給這個 Agent', exact: true }).click()
   const calls = await page.evaluate(
     () =>
       (
