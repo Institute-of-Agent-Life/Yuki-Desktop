@@ -56,19 +56,7 @@ test('a sent message shows at once while the original request is confirmed in th
     evidence.accepted = sent
 
     // 15: with the server gone the message stays local until it can be sent.
-    await post('shutdown')
-    await expect
-      .poll(async () => {
-        try {
-          await fetch(`${rig.base}/healthz`)
-          return 'up'
-        } catch {
-          return 'down'
-        }
-      })
-      .toBe('down')
-    // The fixture notices the exit before it restarts the server.
-    await page.waitForTimeout(2000)
+    await rig.stop()
     const offline = '離線時寫下的訊息'
     await box.fill(offline)
     await send.click()
