@@ -43,10 +43,12 @@ import {
   PendingRequest,
   agentName,
   delegationState,
+  delegationStatus,
   isDelegation,
   observes,
+  pendingKeys,
   useAgentDevices,
-  useAnswerOutcomes,
+  useAnswered,
   useDelegations,
 } from './Delegations'
 
@@ -218,7 +220,8 @@ export function WorkList({
   useEffect(
     () =>
       window.yuki.client.onHint((character, kind) => {
-        if (character === id && ['sync', 'work', 'commands', 'computer'].includes(kind))
+        // Delegations are child Works: the stream announces their changes as `refresh`.
+        if (character === id && ['sync', 'refresh', 'work', 'commands', 'computer'].includes(kind))
           void query.invalidateQueries({ queryKey: [id, 'works'] })
       }),
     [id, query],
@@ -227,7 +230,6 @@ export function WorkList({
   const delegations = useDelegations(id)
   const devices = useAgentDevices(id)
   const [cancel, setCancel] = useState<Work | null>(null)
-  const { outcomes, record } = useAnswerOutcomes()
   const failed = active.error ?? ended.error
   const activeWorks = hidesPrivateData(failed)
     ? []
@@ -237,6 +239,7 @@ export function WorkList({
     : unique(ended.data?.pages.flatMap((page) => page.works) ?? [])
   const runs = hidesPrivateData(delegations.error) ? [] : (delegations.data ?? [])
   const asking = runs.filter((work) => work.delegation.pending.length)
+  const answered = useAnswered(id)
   const needs = (work: Work) => work.state === 'waiting_user' || work.help_requested
   // Observations are root Works; they are listed by their device, not again in progress.
   const progress = activeWorks.filter((work) => !needs(work) && !work.delegation)
@@ -296,9 +299,15 @@ export function WorkList({
           </Button>
         </Banner>
       )}
-      {(!!activeWorks.filter(needs).length ||
-        !!asking.length ||
-        Object.keys(outcomes).length > 0) && (
+      {delegations.error && !hidesPrivateData(delegations.error) && (
+        <Banner status="failed">
+          {t('works:delegation.unreadable', { problem: delegations.error.message })}
+          <Button variant="plain" onClick={() => void delegations.refetch()}>
+            {t('works:delegation.reload')}
+          </Button>
+        </Banner>
+      )}
+      {(!!activeWorks.filter(needs).length || !!asking.length || answered) && (
         <section aria-label={t('works:needsYou')}>
           <h3>{t('works:needsYou')}</h3>
           {rows(activeWorks.filter(needs))}
@@ -309,19 +318,10 @@ export function WorkList({
                 id={id}
                 work={work}
                 item={item}
-                outcome={outcomes[item.permission_id]}
-                record={record}
               />
             )),
           )}
-          <AnsweredRequests
-            outcomes={outcomes}
-            pending={
-              new Set(
-                asking.flatMap((work) => work.delegation.pending.map((item) => item.permission_id)),
-              )
-            }
-          />
+          <AnsweredRequests id={id} pending={pendingKeys(id, asking)} />
         </section>
       )}
       {!!runs.length && (
@@ -693,7 +693,9 @@ function SubtaskState({
       window.yuki.client.onHint((character, kind, data) => {
         if (
           character === id &&
+          // A delegation is a child Work, which the stream announces only as `refresh`.
           (kind === 'sync' ||
+            kind === 'refresh' ||
             (kind === 'work' && (data as { work_id?: string }).work_id === workId))
         )
           void query.invalidateQueries({ queryKey: [id, 'work', workId] }, { cancelRefetch: false })
@@ -704,12 +706,12 @@ function SubtaskState({
   const [status, label]: [Status, string] = data
     ? workState(t, data)
     : ['unknown', t('common:loading')]
-  const name = data?.delegation?.status_line ?? data?.goal ?? workId
+  const name = data && isDelegation(data) ? delegationStatus(t, data) : (data?.goal ?? workId)
   return (
     <button
       className={styles.subtask}
       data-subtask={workId}
-      aria-label={t('works:subtask', { name })}
+      aria-label={t('works:subtask', { name, state: label })}
       onClick={() => open(workId)}
     >
       <StatusPill status={status}>{label}</StatusPill>

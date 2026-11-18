@@ -9,14 +9,20 @@ import type {
   ConnectorSubmission,
 } from '../../shared/connector'
 import { Banner, Button, Segmented, Sheet, TextField } from '../components/Controls'
-import { hidesPrivateData, unwrap } from '../queries/client'
+import { hidesPrivateData, unwrap, useApiRevision } from '../queries/client'
 import { Row } from './SettingsRow'
 import styles from './Settings.module.css'
 import { NativeRequest } from './NativeRequest'
 import { ConnectorTerminals } from './ConnectorTerminals'
 import activityStyles from './LocalComputer.module.css'
 import { useTranslation } from '../i18n'
-import { delegationState, observes, relationshipLabel, useDelegations } from './Delegations'
+import {
+  delegationState,
+  delegationStatus,
+  observes,
+  relationshipLabel,
+  useDelegations,
+} from './Delegations'
 import { CancelWorkSheet } from './Works'
 
 export function ConnectorTasks({
@@ -80,8 +86,12 @@ export function ConnectorTasks({
   const selected = latest
     ? { ...latest, events: pages!.flatMap((page) => page.events ?? []) }
     : undefined
-  // A watched session is observed only: no input, native control or answer goes to it.
-  const watching = selected?.action === 'watch'
+  // Client API 14 makes a watched session observe-only: no input, native control or answer
+  // goes to it. Older servers never did, so their watch keeps its previous controls; while
+  // the revision is unread the stricter reading applies.
+  const revision = useApiRevision(connection.characterId)
+  const current = revision === undefined || revision >= 14
+  const watching = current && selected?.action === 'watch'
   useEffect(() => {
     if (catalogKnown && instance && !instances.some((item) => item.id === instance)) {
       setInstance('')
@@ -97,8 +107,12 @@ export function ConnectorTasks({
           character === connection.characterId &&
           ['sync', 'refresh', 'work', 'conversation'].includes(kind)
         ) {
-          for (const key of ['connector-operations', 'connector-operation', 'works']) {
-            const filter = { queryKey: [key, character] }
+          for (const filter of [
+            { queryKey: ['connector-operations', character] },
+            { queryKey: ['connector-operation', character] },
+            // This device's delegations (useDelegations), so a cancel carries the current revision.
+            { queryKey: [character, 'works'] },
+          ]) {
             const refresh = () => query.invalidateQueries(filter, { cancelRefetch: false })
             const pending = query.getQueryCache().find({ ...filter, type: 'active' })?.promise
             if (pending) void pending.then(refresh, () => {})
@@ -268,7 +282,7 @@ export function ConnectorTasks({
         </div>
         <p className={styles.notice}>
           {instances.length
-            ? t('connector:tasks.intro')
+            ? t(current ? 'connector:tasks.intro' : 'connector:tasks.introLegacy')
             : catalogKnown
               ? t('connector:tasks.noAgents')
               : t('connector:tasks.catalogUnknown')}
@@ -285,7 +299,7 @@ export function ConnectorTasks({
                   description={[
                     delegationState(works, work.delegation)[1],
                     relationshipLabel(works, work.delegation),
-                    work.delegation.status_line,
+                    delegationStatus(works, work),
                   ].join(' · ')}
                 >
                   <Button variant="destructive" onClick={() => setCancelling(work)}>
@@ -457,7 +471,13 @@ export function ConnectorTasks({
                   disabled={busy}
                   onClick={() => void perform(() => submit('detach', selected))}
                 >
-                  {t(watching ? 'connector:tasks.stopObserving' : 'connector:tasks.detach')}
+                  {t(
+                    watching
+                      ? 'connector:tasks.stopObserving'
+                      : current
+                        ? 'connector:tasks.detach'
+                        : 'connector:tasks.detachLegacy',
+                  )}
                 </Button>
               )}
               {selected && !watching && (
@@ -466,7 +486,7 @@ export function ConnectorTasks({
                   variant="destructive"
                   onClick={() => void perform(() => submit('cancel', selected))}
                 >
-                  {t('connector:tasks.cancel')}
+                  {t(current ? 'connector:tasks.cancel' : 'connector:tasks.cancelLegacy')}
                 </Button>
               )}
               <Button disabled={detail.isFetching} onClick={() => void detail.refetch()}>

@@ -31,6 +31,8 @@ async function evidence(page: Page, name: string) {
 }
 const open = (page: Page, query = '') =>
   page.goto(`http://127.0.0.1:4178/delegations.html${query}`).then(() => page)
+// The server's own status lines are in its language; the interface uses its own words.
+const serverWords = /运行|状态|会话|服务器/
 
 test('the running view groups every delegation and observation by its device, other devices and offline facts included', async ({
   page,
@@ -49,7 +51,7 @@ test('the running view groups every delegation and observation by its device, ot
   // Another device, offline, with a stuck delegation: its own facts, not this computer's.
   await expect(linux.getByText('離線', { exact: true })).toBeVisible()
   await expect(linux.getByText('執行中 1・等你回答 0・狀態未知 1', { exact: true })).toBeVisible()
-  await expect(linux.getByText('委派 · Codex 狀態未知（device_offline）')).toBeVisible()
+  await expect(linux.getByText('委派 · Codex 狀態未知：裝置離線')).toBeVisible()
   await expect(linux.getByText('狀態未知', { exact: true })).toBeVisible()
   await expect(linux.getByText('整理 API 文件', { exact: true })).toBeVisible()
   await expect(idle.getByText('沒有進行中的委派', { exact: true })).toBeVisible()
@@ -57,6 +59,7 @@ test('the running view groups every delegation and observation by its device, ot
   const progress = page.getByRole('region', { name: '進行中', exact: true })
   await expect(progress.getByText('修好登入頁並跑完測試', { exact: true })).toBeVisible()
   await expect(progress.getByText('觀察終端裡的 Claude Code')).toHaveCount(0)
+  await expect(page.getByText(serverWords)).toHaveCount(0)
   await evidence(page, 'devices')
 })
 
@@ -89,25 +92,33 @@ test('「需要你」 offers a delegation request its own native options, while 
   ).toBeVisible()
   await expect(observed.getByRole('button')).toHaveCount(0)
   await expect(observed.getByRole('textbox')).toHaveCount(0)
+  // An answer place this app does not know fails closed: shown, never answerable.
+  const elsewhere = needs.locator('[data-native-request="701"]')
+  await expect(elsewhere.getByText('Codex 要求權限：Write', { exact: true })).toBeVisible()
+  await expect(elsewhere.getByRole('button')).toHaveCount(0)
   await evidence(page, 'needs-you')
   expect((await calls(page)).answers).toEqual([])
 })
 
-test('answering a delegation request sends one answer however often it is pressed, then shows its receipt after refresh', async ({
+test('one native request shown in two places sends a single answer however often and wherever it is pressed', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1400, height: 900 })
-  await open(page)
-  const needs = page.getByRole('region', { name: '需要你', exact: true })
-  const allow = needs.locator('[data-native-request="501"]').getByRole('button', {
-    name: 'allow',
-    exact: true,
+  // The same request is in 「需要你」 and in its delegation's detail.
+  await open(page, '?work=deleg-claude')
+  const requests = page.locator('[data-native-request="501"]')
+  await expect(requests).toHaveCount(2)
+  await expect(requests.nth(1).getByText('npm test -- login', { exact: true })).toBeVisible()
+  // F19: four presses in one task, before any re-render can disable a button.
+  await page.evaluate(() => {
+    const buttons = [...document.querySelectorAll('[data-native-request="501"] button')].filter(
+      (button) => button.textContent === 'allow',
+    ) as HTMLButtonElement[]
+    if (buttons.length !== 2) throw Error('Expected the request in two places')
+    for (const button of [...buttons, ...buttons]) button.click()
   })
-  await allow.click()
-  // F19: the answer is in flight; further presses do not send another one.
-  await expect(allow).toBeDisabled()
-  await allow.dispatchEvent('click')
-  await allow.dispatchEvent('click')
+  for (const panel of [requests.first(), requests.nth(1)])
+    await expect(panel.getByRole('button', { name: 'allow', exact: true })).toBeDisabled()
   const sent = (await calls(page)).answers
   expect(sent).toHaveLength(1)
   expect(sent[0]).toMatchObject({
@@ -119,10 +130,12 @@ test('answering a delegation request sends one answer however often it is presse
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
   )
   await page.evaluate(() => (window as unknown as { __releaseAnswer(): void }).__releaseAnswer())
+  const needs = page.getByRole('region', { name: '需要你', exact: true })
+  await expect(needs.getByText('回答已交給 Claude Code。', { exact: true })).toBeVisible()
+  await expect(requests).toHaveCount(0)
   await expect(
-    needs.getByText('回答已交給 Claude Code（accepted）。', { exact: true }),
+    page.locator('[data-work-detail]').getByText('回答已交給 Claude Code。', { exact: true }),
   ).toBeVisible()
-  await expect(needs.locator('[data-native-request="501"]')).toHaveCount(0)
   await expect(
     page
       .getByRole('group', { name: 'Peter 的 MacBook', exact: true })
@@ -130,6 +143,35 @@ test('answering a delegation request sends one answer however often it is presse
   ).toBeVisible()
   expect((await calls(page)).answers).toHaveLength(1)
   await evidence(page, 'answered')
+})
+
+test('an answer whose commit is uncertain keeps its request ID and, once the request is gone, reads its real outcome', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1400, height: 900 })
+  await open(page, '?answer=unknown')
+  const needs = page.getByRole('region', { name: '需要你', exact: true })
+  await needs
+    .locator('[data-native-request="501"]')
+    .getByRole('button', { name: 'allow', exact: true })
+    .click()
+  // The request left the pending list (the server committed it); the same request ID is
+  // asked once more, and the server's original receipt replaces the uncertain one.
+  await expect(needs.getByText('回答已交給 Claude Code。', { exact: true })).toBeVisible()
+  await expect(needs.locator('[data-native-request="501"]')).toHaveCount(0)
+  const sent = (await calls(page)).answers
+  expect(sent).toHaveLength(2)
+  expect(sent[1]!.answer).toEqual(sent[0]!.answer)
+  await expect(needs.getByText(/尚未確認/)).toHaveCount(0)
+  await evidence(page, 'uncertain-answer')
+})
+
+test('a failed delegation read is shown, not an empty list', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 })
+  await open(page, '?delegations-fail=1')
+  await expect(page.getByText('委派與觀察紀錄暫時無法讀取', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: '重新讀取委派', exact: true })).toBeVisible()
+  await evidence(page, 'delegations-unreadable')
 })
 
 test('an answer that lost to an earlier one says so and shows the request is no longer pending', async ({
@@ -198,7 +240,11 @@ test('a step that started or directed a delegation shows its live state from the
   const links = detail.locator('[data-subtask="deleg-acp"]')
   await expect(links).toHaveCount(2)
   await expect(links.first().getByText('執行中', { exact: true })).toBeVisible()
-  await expect(links.first().getByText('Gemini 正在運行', { exact: true })).toBeVisible()
+  await expect(links.first().getByText('Gemini 正在執行', { exact: true })).toBeVisible()
+  // The live state is part of the button's name, not hidden behind it.
+  await expect(
+    detail.getByRole('button', { name: '打開子工作：Gemini 正在執行（執行中）', exact: true }),
+  ).toHaveCount(2)
   await expect(detail.getByText('任務管理 委派', { exact: false }).first()).toBeVisible()
   const reads = async () =>
     (await calls(page)).reads.filter((read) => read === 'work:deleg-acp').length
@@ -210,6 +256,10 @@ test('a step that started or directed a delegation shows its live state from the
   await expect(links.first().getByText('Gemini 已完成', { exact: true })).toBeVisible()
   await expect(links.first().getByText('已完成', { exact: true })).toBeVisible()
   expect(await reads()).toBe(before + 1)
+  await expect(
+    detail.getByRole('button', { name: '打開子工作：Gemini 已完成（已完成）', exact: true }),
+  ).toHaveCount(2)
+  await expect(page.getByText(serverWords)).toHaveCount(0)
   await evidence(page, 'step-live-state')
   // The historical native operation of an old agent step opens its original receipt.
   await detail.getByRole('button', { name: '原生操作 op-historic', exact: true }).click()
@@ -234,13 +284,19 @@ test('「這台電腦」 lists this device’s delegations with the right stop w
   // Only this device's records; the Linux workstation's stay in the Works view.
   await expect(here.getByText('整理 API 文件')).toHaveCount(0)
   await expect(here.getByRole('button', { name: '取消委派', exact: true })).toHaveCount(1)
+  // The records change elsewhere; the stream's `refresh` reloads them before a cancel.
+  const reads = async () =>
+    (await calls(page)).reads.filter((read) => read === 'delegations').length
+  const before = await reads()
+  await page.evaluate(() => (window as unknown as { __bumpRecords(): void }).__bumpRecords())
+  await expect.poll(reads).toBeGreaterThan(before)
   await here.getByRole('button', { name: '停止觀察', exact: true }).click()
   await page
     .getByRole('dialog', { name: '停止觀察這個會話？', exact: true })
     .getByRole('button', { name: '停止觀察', exact: true })
     .click()
   expect((await calls(page)).commands).toEqual([
-    { kind: 'cancel', workId: 'observe-claude', expectedRevision: 2 },
+    { kind: 'cancel', workId: 'observe-claude', expectedRevision: 3 },
   ])
   // DT6: the actions say what Yuki will do in the one subtask tool set.
   await expect(
@@ -275,4 +331,24 @@ test('「這台電腦」 lists this device’s delegations with the right stop w
   ).toBeVisible()
   await evidence(page, 'connector-delegate')
   expect((await calls(page)).submits).toEqual([])
+})
+
+test('「這台電腦」 on a server before Client API 14 keeps the previous watch controls and wording', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 900, height: 1000 })
+  await open(page, '?view=connector&revision=13')
+  await expect(
+    page.getByText('直接交代任務，或選擇已有會話繼續處理。', { exact: false }),
+  ).toBeVisible()
+  await expect(page.getByRole('region', { name: '這台電腦上的委派與觀察' })).toHaveCount(0)
+  await page.getByRole('button', { name: '查看原回執', exact: true }).first().click()
+  const watched = page.getByRole('dialog', { name: '原操作 op-watch', exact: true })
+  // That server never marked a watch as observe-only: its answers stay where they were.
+  await expect(watched.getByRole('button', { name: 'allow', exact: true })).toBeVisible()
+  await expect(watched.getByRole('button', { name: '排入原會話', exact: true })).toBeVisible()
+  await expect(watched.getByRole('button', { name: '停止觀察', exact: true })).toBeVisible()
+  await expect(watched.getByRole('button', { name: '請求取消原生執行', exact: true })).toBeVisible()
+  await expect(watched.getByText(/在終端處理/)).toHaveCount(0)
+  await evidence(page, 'connector-legacy')
 })

@@ -22,6 +22,8 @@ const params = new URLSearchParams(location.search)
 // `legacy=1`: a server before Client API 14 (no delegation fields, no delegation records).
 const legacy = params.has('legacy')
 const answerMode = params.get('answer')
+const revision = Number(params.get('revision') ?? 14)
+const delegationsFail = params.has('delegations-fail')
 const source = {
   binding_id: 'binding',
   conversation_id: 'conversation',
@@ -73,7 +75,7 @@ const works: Record<string, Work> = {
       executor: { device_id: 'dev-mac', agent: 'inst-claude', label: 'Claude Code', session: 's1' },
       relationship: 'delegate',
       state: 'waiting',
-      status_line: 'Claude Code 在等待回答',
+      status_line: 'Claude Code 在等待回答（服务器）',
       pending: [
         {
           permission_id: '501',
@@ -94,7 +96,7 @@ const works: Record<string, Work> = {
       executor: { device_id: 'dev-linux', agent: 'inst-gemini', label: 'Gemini', session: 's2' },
       relationship: 'delegate',
       state: 'running',
-      status_line: 'Gemini 正在運行',
+      status_line: 'Gemini 正在运行',
       pending: [],
       last_event_at: '2026-11-18T08:01:00+00:00',
     },
@@ -110,8 +112,19 @@ const works: Record<string, Work> = {
       executor: { device_id: 'dev-linux', agent: 'inst-codex', label: 'Codex', session: 's3' },
       relationship: 'delegate',
       state: 'unknown',
-      status_line: 'Codex 狀態未知（device_offline）',
-      pending: [],
+      status_line: 'Codex 状态未知（device_offline）',
+      // An answer place this app does not know: shown, never answerable (fails closed).
+      pending: [
+        {
+          permission_id: '701',
+          kind: 'permission',
+          tool: 'Write',
+          options: ['allow', 'deny'],
+          operation_id: null,
+          received_at: '2026-11-18T07:00:00+00:00',
+          answer_at: 'somewhere_else',
+        },
+      ],
       last_event_at: '2026-11-18T07:00:00+00:00',
     },
   ),
@@ -126,7 +139,7 @@ const works: Record<string, Work> = {
       executor: { device_id: 'dev-mac', agent: 'inst-claude', label: 'Claude Code', session: 's4' },
       relationship: 'observe',
       state: 'running',
-      status_line: '正在觀察 Claude Code 的會話',
+      status_line: '正在观察 Claude Code 的会话',
       pending: [
         {
           permission_id: '601',
@@ -251,10 +264,17 @@ Object.assign(window, {
       delegation: {
         ...works['deleg-acp']!.delegation!,
         state: 'completed',
-        status_line: 'Gemini 已完成',
+        status_line: 'Gemini 已完成（服务器）',
       },
     }
-    hint('work', { work_id: 'deleg-acp' })
+    // A delegation is a child Work: the server's stream says only `refresh` for it.
+    hint('refresh', {})
+  },
+  // Another device or Yuki changed this device's records; the stream says `refresh`.
+  __bumpRecords: () => {
+    for (const id of ['deleg-claude', 'observe-claude'])
+      works[id] = { ...works[id]!, revision: works[id]!.revision + 1 }
+    hint('refresh', {})
   },
   yuki: {
     connector: {
@@ -304,16 +324,19 @@ Object.assign(window, {
             value: { works: legacy ? roots.map(legacyWork) : roots, next_before: null },
           }
         }
+        if (route.kind === 'delegations' && delegationsFail)
+          return { ok: false, code: 'unavailable' }
         if (route.kind === 'delegations')
           return {
             ok: true,
             value: {
-              delegations: legacy
-                ? []
-                : Object.values(works).filter(
-                    (work) =>
-                      work.delegation && (route.group === 'active') === active().includes(work),
-                  ),
+              delegations:
+                legacy || revision < 14
+                  ? []
+                  : Object.values(works).filter(
+                      (work) =>
+                        work.delegation && (route.group === 'active') === active().includes(work),
+                    ),
             },
           }
         if (route.kind === 'work')
@@ -353,10 +376,28 @@ Object.assign(window, {
             delegation: {
               ...work.delegation!,
               state: 'running',
-              status_line: 'Claude Code 正在運行',
+              status_line: 'Claude Code 正在运行',
               pending: work.delegation!.pending.filter(
                 (item) => item.permission_id !== permissionId,
               ),
+            },
+          }
+        }
+        if (answerMode === 'unknown') {
+          // The first reply is lost after the server committed it; the same request ID
+          // then reads back the original receipt.
+          if (calls.answers.length === 1) {
+            settle()
+            return { ok: false, code: 'unknown' }
+          }
+          return {
+            ok: true,
+            value: {
+              work_id: workId,
+              permission_id: permissionId,
+              operation_id: 'op-claude',
+              status: 'accepted',
+              replay: true,
             },
           }
         }
@@ -397,6 +438,7 @@ Object.assign(window, {
       workQuestionDrafts: async () => ({ ok: true, value: [] }),
       workDraft: async () => ({ ok: true, value: '' }),
       verify: async () => ({ ok: false, code: 'fixture_only' }),
+      serverInfo: async () => ({ ok: true, value: { api_revision: revision } }),
       copy: async () => ({ ok: true, value: undefined }),
     },
   },

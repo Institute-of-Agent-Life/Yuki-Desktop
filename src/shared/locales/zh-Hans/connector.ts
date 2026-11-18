@@ -274,6 +274,9 @@ export default {
     heading: '原生任务',
     intro:
       '委派任务给这个 Agent，或选择已有会话继续处理或请 Yuki 观察。观察只看不动：Yuki 不向会话输入，也不回答或拒绝它的请求，只告诉你在哪里处理。结束委派会保留原生任务；取消会中止本次原生回合并结束委派，已启动的独立后台程序可能继续运行。结果以原生回执为准。',
+    // A server before Client API 14: watch is not observe-only there.
+    introLegacy:
+      '直接交代任务，或选择已有会话继续处理。工作位置可以省略，权限沿用原生设置。停止观察会保留原任务；取消会向原生 Agent 请求中止本次执行，已启动的独立后台程序可能继续运行。结果以原生回执为准。',
     noAgents:
       '尚未设置原生 Agent，可在设置的「这台电脑」选配 Codex、Claude 或 ACP。这不影响已开启完整访问的 Shell、文件与本机程序操作；原有操作回执仍保留在下方。',
     catalogUnknown: '目前无法确认 Agent 目录，原设置与所选会话保留；原有操作回执仍可查询。',
@@ -299,6 +302,8 @@ export default {
     viewReceipt: '查看原回执',
     moreOperations: '更多原操作',
     operation: '原操作 {{id}}',
+    detachLegacy: '停止观察',
+    cancelLegacy: '请求取消原生执行',
     stopObserving: '停止观察',
     here: '这台电脑上的委派与观察',
     queue: '排入原会话',

@@ -302,6 +302,9 @@ export default {
     heading: 'Native Tasks',
     intro:
       'Delegate a task to this Agent, or pick an existing session to continue or for Yuki to watch. Watching only looks: Yuki sends no input to the session and never answers or denies its requests; she tells you where to handle them. End Delegation keeps the native task; Cancel aborts this native turn and ends the delegation, though background programs it started may keep running. Native receipts are authoritative.',
+    // A server before Client API 14: watch is not observe-only there.
+    introLegacy:
+      'Give a task directly, or pick an existing session to continue. The working location is optional; permissions follow the native settings. Stop Watching keeps the task; Cancel asks the native Agent to abort this run, though background programs it started may keep running. Native receipts are authoritative.',
     noAgents:
       'No native Agent is set up. You can add Codex, Claude or ACP under This Computer in Settings. Shell, file and program operations with full access are unaffected; past receipts remain below.',
     catalogUnknown:
@@ -329,6 +332,8 @@ export default {
     viewReceipt: 'View Receipt',
     moreOperations: 'More Operations',
     operation: 'Operation {{id}}',
+    detachLegacy: 'Stop Watching',
+    cancelLegacy: 'Request Cancel',
     stopObserving: 'Stop Watching',
     here: 'Delegations and Watches on This Computer',
     queue: 'Queue in Session',

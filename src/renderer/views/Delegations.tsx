@@ -1,7 +1,7 @@
 // Delegations and observations (Client API 14): Works a native agent executes on one of the
 // person's devices, with no Yuki loop. They are read, cancelled and answered as Works.
-import { useRef, useState } from 'react'
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useSyncExternalStore } from 'react'
+import { useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { TFunction } from 'i18next'
 import type { DelegationPage, DelegationRequest, Work } from '../../shared/api'
 import type { ConnectorDevice, ConnectorOperation, ConnectorTarget } from '../../shared/connector'
@@ -44,6 +44,29 @@ export const relationshipLabel = (t: T, delegation: Delegation) =>
   )
 export const agentName = (delegation: Delegation) =>
   delegation.executor.label ?? delegation.executor.agent ?? ''
+const reasons = ['device_offline', 'executor_lost'] as const
+/** The record's state in this app's words; the server's own status line is its language. */
+export function delegationStatus(t: T, work: Runs) {
+  const delegation = work.delegation,
+    agent = agentName(delegation),
+    state = delegation.state
+  if (delegation.relationship === 'observe' && live[state])
+    return t('works:delegation.status.observe', { agent })
+  if (state === 'unknown') {
+    const reason = reasons.find((item) => item === work.reason)
+    return reason
+      ? t('works:delegation.status.unknownReason', {
+          agent,
+          reason: t(`works:delegation.reason.${reason}`),
+        })
+      : t('works:delegation.status.unknown', { agent })
+  }
+  const named = (['running', 'waiting', 'completed', 'failed', 'cancelled'] as const).find(
+    (item) => item === state,
+  )
+  if (named) return t(`works:delegation.status.${named}`, { agent })
+  return t('works:delegation.status.other', { agent, state })
+}
 /** Cancelling a delegation cancels its native turn; cancelling an observation only stops it. */
 export const observes = (work: Work) => work.delegation?.relationship === 'observe'
 export const isDelegation = (work: Work): work is Runs => !!work.delegation
@@ -82,7 +105,7 @@ export function DelegationRow({
   const [status, label] = delegationState(t, work.delegation)
   const line = t('works:delegation.line', {
     relationship: relationshipLabel(t, work.delegation),
-    status: work.delegation.status_line,
+    status: delegationStatus(t, work),
   })
   return (
     <div className={styles.delegation} data-delegation={work.work_id}>
@@ -170,55 +193,155 @@ export function DeviceRuns({
   )
 }
 
-export interface AnswerOutcome {
-  status: Status
-  text: string
+type Choice = { optionId: string } | { response: NonNullable<ConnectorTarget['response']> }
+type Result =
+  | 'answered'
+  | 'answeredElsewhere'
+  | 'observeOnly'
+  | 'noLongerPending'
+  | 'unconfirmed'
+  | { message: string }
+/** One answer to one native request (per Yuki, Work and request), shared by every place
+ * that shows the request: one guard, one request ID, one outcome. */
+interface Attempt {
+  id: string
+  workId: string
+  permission: string
+  agent: string
+  choice: Choice
+  requestId: string
+  sending: boolean
+  result?: Result
 }
-/** Outcomes of this view's answers, kept after a refresh removes the answered request. */
-export function useAnswerOutcomes() {
-  const [outcomes, setOutcomes] = useState<Record<string, AnswerOutcome>>({})
-  return {
-    outcomes,
-    record: (permission: string, outcome: AnswerOutcome) =>
-      setOutcomes((current) => ({ ...current, [permission]: outcome })),
+const attempts = new Map<string, Attempt>()
+const listeners = new Set<() => void>()
+let version = 0
+const attemptKey = (id: string, workId: string, permission: string) =>
+  JSON.stringify([id, workId, permission])
+function put(attempt: Attempt) {
+  attempts.set(attemptKey(attempt.id, attempt.workId, attempt.permission), attempt)
+  version++
+  listeners.forEach((listener) => listener())
+}
+function useAttempts() {
+  useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    () => version,
+  )
+  return attempts
+}
+async function answer(
+  query: QueryClient,
+  target: Pick<Attempt, 'id' | 'workId' | 'permission' | 'agent'>,
+  choice: Choice,
+) {
+  const previous = attempts.get(attemptKey(target.id, target.workId, target.permission))
+  if (previous?.sending) return
+  // An answer whose commit is unknown is asked again under its original request ID, so the
+  // server reports its own receipt instead of taking a second answer.
+  const requestId =
+    previous?.result === 'unconfirmed' && JSON.stringify(previous.choice) === JSON.stringify(choice)
+      ? previous.requestId
+      : crypto.randomUUID()
+  const attempt: Attempt = { ...target, choice, requestId, sending: true, result: previous?.result }
+  put(attempt)
+  let result: Result
+  try {
+    unwrap(
+      await window.yuki.client.nativeAnswer(target.id, target.workId, target.permission, {
+        requestId,
+        ...choice,
+      }),
+    )
+    result = 'answered'
+  } catch (error) {
+    const code = error instanceof ClientProblem ? error.code : 'unknown'
+    result =
+      code === 'transport_unknown' || code === 'unknown'
+        ? 'unconfirmed'
+        : code === 'request_already_answered'
+          ? 'answeredElsewhere'
+          : code === 'observe_only'
+            ? 'observeOnly'
+            : code === 'not_found'
+              ? 'noLongerPending'
+              : { message: error instanceof Error ? error.message : code }
   }
+  put({ ...attempt, sending: false, result })
+  void query.invalidateQueries({ queryKey: [target.id, 'works'] })
+  void query.invalidateQueries({ queryKey: [target.id, 'work', target.workId] })
 }
+function Outcome({ attempt }: { attempt: Attempt }) {
+  const { t } = useTranslation(['works', 'common'])
+  const result = attempt.result
+  if (!result) return null
+  return (
+    <Banner
+      status={result === 'answered' ? 'done' : result === 'unconfirmed' ? 'unknown' : 'failed'}
+    >
+      {typeof result === 'object'
+        ? result.message
+        : result === 'answered'
+          ? t('works:delegation.answered', { agent: attempt.agent })
+          : result === 'unconfirmed'
+            ? t('works:delegation.answerUnconfirmed')
+            : t(`works:delegation.${result}`)}
+    </Banner>
+  )
+}
+/** Answers of requests no longer pending here; an unconfirmed one reads its real outcome. */
 export function AnsweredRequests({
-  outcomes,
+  id,
+  workId,
   pending,
 }: {
-  outcomes: Record<string, AnswerOutcome>
+  id: string
+  /** Only this record's answers; all of this Yuki's when absent. */
+  workId?: string
   pending: Set<string>
 }) {
-  return Object.entries(outcomes)
-    .filter(([permission]) => !pending.has(permission))
-    .map(([permission, outcome]) => (
-      <Banner key={permission} status={outcome.status}>
-        {outcome.text}
-      </Banner>
-    ))
+  const query = useQueryClient()
+  const shown = [...useAttempts().values()].filter(
+    (attempt) =>
+      attempt.id === id &&
+      (!workId || attempt.workId === workId) &&
+      !pending.has(attemptKey(id, attempt.workId, attempt.permission)),
+  )
+  useEffect(() => {
+    for (const attempt of shown)
+      if (attempt.result === 'unconfirmed' && !attempt.sending)
+        void answer(query, attempt, attempt.choice)
+  })
+  return shown.map((attempt) => (
+    <Outcome key={attemptKey(id, attempt.workId, attempt.permission)} attempt={attempt} />
+  ))
 }
+/** Whether this view has answered a native request of this Yuki. */
+export const useAnswered = (id: string) =>
+  [...useAttempts().values()].some((attempt) => attempt.id === id)
+export const pendingKeys = (id: string, works: Runs[]) =>
+  new Set(
+    works.flatMap((work) =>
+      work.delegation.pending.map((item) => attemptKey(id, work.work_id, item.permission_id)),
+    ),
+  )
 
 /** One pending native request of a delegation: the request's own options, answered once. */
 export function PendingRequest({
   id,
   work,
   item,
-  outcome,
-  record,
 }: {
   id: string
   work: Runs
   item: DelegationRequest
-  outcome?: AnswerOutcome
-  record(permission: string, outcome: AnswerOutcome): void
 }) {
   const { t } = useTranslation(['works', 'common'])
   const query = useQueryClient()
-  const [busy, setBusy] = useState(false)
-  const sending = useRef(false)
-  // A lost reply is retried under the same request ID, so the server reports its own receipt.
-  const attempt = useRef<{ key: string; requestId: string }>(undefined)
+  const attempt = useAttempts().get(attemptKey(id, work.work_id, item.permission_id))
   const agent = agentName(work.delegation)
   // The original native event carries the full request (questions, decisions); its
   // permission ID is the event's cursor, so the page after the previous cursor starts with it.
@@ -242,53 +365,6 @@ export function PendingRequest({
     permission_id: item.permission_id,
     payload: { tool: item.tool ?? null, options: item.options ?? null },
   }
-  const answer = async (extra: Partial<ConnectorTarget>) => {
-    if (sending.current) return
-    sending.current = true
-    const choice = extra.response
-      ? { response: extra.response }
-      : { optionId: String(extra.option_id) }
-    const key = JSON.stringify(choice)
-    const requestId = attempt.current?.key === key ? attempt.current.requestId : crypto.randomUUID()
-    attempt.current = { key, requestId }
-    setBusy(true)
-    try {
-      const receipt = unwrap(
-        await window.yuki.client.nativeAnswer(id, work.work_id, item.permission_id, {
-          requestId,
-          ...choice,
-        }),
-      )
-      attempt.current = undefined
-      record(item.permission_id, {
-        status: 'done',
-        text: t('works:delegation.answered', { agent, status: receipt.status }),
-      })
-    } catch (error) {
-      const code = error instanceof ClientProblem ? error.code : 'unknown'
-      if (code !== 'transport_unknown') attempt.current = undefined
-      record(item.permission_id, {
-        status: code === 'transport_unknown' ? 'unknown' : 'failed',
-        text:
-          code === 'request_already_answered'
-            ? t('works:delegation.answeredElsewhere')
-            : code === 'observe_only'
-              ? t('works:delegation.observeOnly')
-              : code === 'not_found'
-                ? t('works:delegation.noLongerPending')
-                : code === 'transport_unknown'
-                  ? t('works:delegation.answerUnconfirmed')
-                  : error instanceof Error
-                    ? error.message
-                    : code,
-      })
-    } finally {
-      sending.current = false
-      setBusy(false)
-      void query.invalidateQueries({ queryKey: [id, 'works'] })
-      void query.invalidateQueries({ queryKey: [id, 'work', work.work_id] })
-    }
-  }
   const tool = typeof item.tool === 'string' ? item.tool : ''
   return (
     <div className={styles.request} data-native-request={item.permission_id}>
@@ -302,12 +378,24 @@ export function PendingRequest({
       <div className={styles.requestBody}>
         <NativeRequest
           event={event}
-          busy={busy}
+          busy={!!attempt?.sending}
           observed={item.answer_at === 'native_terminal'}
-          onRespond={answer}
+          // Only the owner's requests are answerable; any other answer place fails closed.
+          onRespond={
+            item.answer_at === 'yuki_or_user'
+              ? (extra) =>
+                  answer(
+                    query,
+                    { id, workId: work.work_id, permission: item.permission_id, agent },
+                    extra.response
+                      ? { response: extra.response }
+                      : { optionId: String(extra.option_id) },
+                  )
+              : undefined
+          }
         />
       </div>
-      {outcome && <Banner status={outcome.status}>{outcome.text}</Banner>}
+      {attempt && <Outcome attempt={attempt} />}
     </div>
   )
 }
@@ -325,14 +413,13 @@ export function DelegationFacts({
   const { t } = useTranslation(['works', 'common'])
   const { zone, locale } = useDisplayTime()
   const devices = useAgentDevices(id)
-  const { outcomes, record } = useAnswerOutcomes()
   const delegation = work.delegation
   const deviceId = delegation.executor.device_id
   const device = devices.data?.find((item) => item.id === deviceId)
   return (
     <section className={styles.delegationFacts} aria-label={relationshipLabel(t, delegation)}>
       <h3>{relationshipLabel(t, delegation)}</h3>
-      <p>{delegation.status_line}</p>
+      <p>{delegationStatus(t, work)}</p>
       <p className={styles.secondary}>
         {t('works:delegation.executor', {
           agent: agentName(delegation),
@@ -359,19 +446,9 @@ export function DelegationFacts({
         </Button>
       )}
       {delegation.pending.map((item) => (
-        <PendingRequest
-          key={item.permission_id}
-          id={id}
-          work={work}
-          item={item}
-          outcome={outcomes[item.permission_id]}
-          record={record}
-        />
+        <PendingRequest key={item.permission_id} id={id} work={work} item={item} />
       ))}
-      <AnsweredRequests
-        outcomes={outcomes}
-        pending={new Set(delegation.pending.map((item) => item.permission_id))}
-      />
+      <AnsweredRequests id={id} workId={work.work_id} pending={pendingKeys(id, [work])} />
     </section>
   )
 }
