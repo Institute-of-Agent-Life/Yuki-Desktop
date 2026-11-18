@@ -111,7 +111,7 @@ export function ConnectorTasks({
             { queryKey: ['connector-operations', character] },
             { queryKey: ['connector-operation', character] },
             // This device's delegations (useDelegations), so a cancel carries the current revision.
-            { queryKey: [character, 'works'] },
+            { queryKey: [character, 'delegations'] },
           ]) {
             const refresh = () => query.invalidateQueries(filter, { cancelRefetch: false })
             const pending = query.getQueryCache().find({ ...filter, type: 'active' })?.promise

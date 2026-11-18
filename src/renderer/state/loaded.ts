@@ -136,6 +136,8 @@ export function loadedItems(
     else if (kind === 'works')
       for (const page of (data as { pages: WorkPage[] }).pages)
         for (const work of page.works) addWork(work)
+    // Delegation and observation records are Works too (Client API 14).
+    else if (kind === 'delegations') for (const work of data as Work[]) addWork(work)
     else if (kind === 'artifacts')
       for (const page of (data as { pages: ArtifactPage[] }).pages)
         for (const item of page.items) {

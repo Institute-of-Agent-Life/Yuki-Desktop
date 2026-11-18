@@ -47,6 +47,7 @@ import {
   isDelegation,
   observes,
   pendingKeys,
+  refreshDelegations,
   useAgentDevices,
   useAnswered,
   useDelegations,
@@ -221,8 +222,13 @@ export function WorkList({
     () =>
       window.yuki.client.onHint((character, kind) => {
         // Delegations are child Works: the stream announces their changes as `refresh`.
-        if (character === id && ['sync', 'refresh', 'work', 'commands', 'computer'].includes(kind))
+        if (
+          character === id &&
+          ['sync', 'refresh', 'work', 'commands', 'computer'].includes(kind)
+        ) {
           void query.invalidateQueries({ queryKey: [id, 'works'] })
+          refreshDelegations(query, id)
+        }
       }),
     [id, query],
   )
@@ -1121,6 +1127,7 @@ export function CancelWorkSheet({
       close()
       void query.invalidateQueries({ queryKey: [id, 'work', work.work_id] })
       void query.invalidateQueries({ queryKey: [id, 'works'] })
+      refreshDelegations(query, id)
       void query.invalidateQueries({ queryKey: [id, 'home'] })
     } catch (error) {
       setProblem(error instanceof Error ? error.message : t('works:cancelFailed'))

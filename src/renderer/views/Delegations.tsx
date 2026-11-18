@@ -71,10 +71,16 @@ export function delegationStatus(t: T, work: Runs) {
 export const observes = (work: Work) => work.delegation?.relationship === 'observe'
 export const isDelegation = (work: Work): work is Runs => !!work.delegation
 
+/** Delegation records and the device directory have their own cache keys: the palette
+ * reads every `[id, 'works', …]` entry as a page of root Works. */
+export function refreshDelegations(query: QueryClient, id: string) {
+  for (const key of ['delegations', 'agent-devices'])
+    void query.invalidateQueries({ queryKey: [id, key] }, { cancelRefetch: false })
+}
 /** Every delegation and observation of this person, on all their devices. */
 export function useDelegations(id: string) {
   return useQuery({
-    queryKey: [id, 'works', 'delegations', 'active'],
+    queryKey: [id, 'delegations', 'active'],
     queryFn: () =>
       window.yuki.client
         .read<DelegationPage>(id, { kind: 'delegations', group: 'active' })
@@ -84,7 +90,7 @@ export function useDelegations(id: string) {
 }
 export function useAgentDevices(id: string) {
   return useQuery({
-    queryKey: [id, 'works', 'agent-devices'],
+    queryKey: [id, 'agent-devices'],
     queryFn: () => window.yuki.connector.devices(id).then(unwrap),
   })
 }
@@ -271,7 +277,7 @@ async function answer(
               : { message: error instanceof Error ? error.message : code }
   }
   put({ ...attempt, sending: false, result })
-  void query.invalidateQueries({ queryKey: [target.id, 'works'] })
+  refreshDelegations(query, target.id)
   void query.invalidateQueries({ queryKey: [target.id, 'work', target.workId] })
 }
 function Outcome({ attempt }: { attempt: Attempt }) {
