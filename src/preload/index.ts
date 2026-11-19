@@ -40,6 +40,7 @@ const bridge: DesktopBridge = {
     revealNative: (id) => ipcRenderer.invoke('yuki:connector-reveal-native', id),
     chooseProject: () => ipcRenderer.invoke('yuki:connector-choose-project'),
     chooseExecutable: () => ipcRenderer.invoke('yuki:connector-choose-executable'),
+    devices: (id) => ipcRenderer.invoke('yuki:connector-devices', id),
     sessions: (id, instance, cursor) =>
       ipcRenderer.invoke('yuki:connector-sessions', id, instance, cursor),
     operations: (id, work, cursor, device) =>
@@ -195,6 +196,8 @@ const bridge: DesktopBridge = {
     workCommands: (id) => ipcRenderer.invoke('yuki:work-commands', id),
     workQuestionDrafts: (id, work) => ipcRenderer.invoke('yuki:work-question-drafts', id, work),
     verifyWorkCommand: (id, request) => ipcRenderer.invoke('yuki:verify-work-command', id, request),
+    nativeAnswer: (id, work, permission, answer) =>
+      ipcRenderer.invoke('yuki:native-answer', id, work, permission, answer),
     workDraft: (id, work, text, question) =>
       ipcRenderer.invoke('yuki:work-draft', id, work, text, question),
     draft: (id, text) => ipcRenderer.invoke('yuki:draft', id, text),

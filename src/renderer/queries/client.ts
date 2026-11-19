@@ -24,6 +24,14 @@ export function useMe(id: string) {
     queryFn: () => window.yuki.client.read<Me>(id, { kind: 'me' }).then(unwrap),
   })
 }
+/** The server's personal API revision; undefined until it is read. */
+export function useApiRevision(id: string) {
+  return useQuery({
+    queryKey: [id, 'server-info'],
+    queryFn: () => window.yuki.client.serverInfo(id).then(unwrap),
+    select: (meta) => meta.api_revision,
+  }).data
+}
 function mediaProblem(reason: string) {
   return Object.hasOwn(errors.mediaReason, reason)
     ? t(`errors:mediaReason.${reason as keyof typeof errors.mediaReason}`)

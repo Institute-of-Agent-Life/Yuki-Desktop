@@ -47,6 +47,7 @@ import type {
   ArtifactSource,
   WorkCommand,
   WorkDraftQuestion,
+  NativeAnswer,
   ComputerCommand,
   Profile,
   SoulCommand,
@@ -529,6 +530,13 @@ else {
     }
     action('connector-choose-project', () => choosePath(true))
     action('connector-choose-executable', () => choosePath(false))
+    action('connector-devices', async (id: string) => {
+      const directory = await connections.agentRead<components['schemas']['NativeDirectory']>(
+        id,
+        'devices',
+      )
+      return directory.devices
+    })
     action('connector-sessions', async (id: string, instance: string, cursor?: string) => {
       const page = await connections.agentRead<components['schemas']['NativeSessions']>(
         id,
@@ -997,6 +1005,11 @@ else {
     )
     clientAction('verify-work-command', (id: string, request: string) =>
       connections.verifyWorkCommand(id, request),
+    )
+    clientAction(
+      'native-answer',
+      (id: string, work: string, permission: string, answer: NativeAnswer) =>
+        connections.nativeAnswer(id, work, permission, answer),
     )
     clientAction(
       'work-draft',

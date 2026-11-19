@@ -138,6 +138,7 @@ export interface ConnectorOperation {
   events?: components['schemas']['NativeEvent'][]
   next_cursor?: number
 }
+export type ConnectorDevice = components['schemas']['NativeDevice']
 export type ConnectorTerminal = components['schemas']['TerminalRun']
 export type ConnectorTerminalControl = components['schemas']['TerminalControl']
 export interface ConnectorBridge {
@@ -169,6 +170,8 @@ export interface ConnectorBridge {
   revealNative(instanceId: string): Promise<ApiReply<void>>
   chooseProject(): Promise<ApiReply<string | null>>
   chooseExecutable(): Promise<ApiReply<string | null>>
+  /** Every computer of this person in the server's device directory, online or not. */
+  devices(characterId: string): Promise<ApiReply<ConnectorDevice[]>>
   sessions(
     characterId: string,
     instanceId: string,

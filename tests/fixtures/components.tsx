@@ -500,6 +500,7 @@ window.yuki = {
       connectorCalls.push({ method: 'chooseExecutable' })
       return { ok: true, value: 'C:\\Program Files\\ACP Agent\\agent.exe' }
     },
+    devices: async () => ({ ok: true, value: [] }),
     sessions: async () => ({
       ok: true,
       value: { sessions: [{ id: 'original-session', label: '原會話' }] },
@@ -669,6 +670,7 @@ window.yuki = {
     issueLinkCode: async () => ({ ok: false, code: 'fixture_only' }),
     linkCodeRequests: async () => ({ ok: true, value: [] }),
     verifyLinkCode: async () => ({ ok: false, code: 'fixture_only' }),
+    nativeAnswer: async () => ({ ok: false, code: 'fixture_only' }),
     serverInfo: async () => ({ ok: false, code: 'fixture_only' }),
     soulDocument: async () => ({ ok: false, code: 'fixture_only' }),
     soulEdit: async () => ({ ok: false, code: 'fixture_only' }),

@@ -250,19 +250,19 @@ test('Claude uses the same connection flow and new or existing sessions do not r
     .getByRole('combobox', { name: '任務 Agent', exact: true })
     .selectOption('fixture-server-instance')
   await page.getByRole('textbox', { name: '原生任務要求', exact: true }).fill('請檢查目前狀態')
-  await page.getByRole('button', { name: '交給 Yuki 執行', exact: true }).click()
+  await page.getByRole('button', { name: '請 Yuki 委派給這個 Agent', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '原生任務要求', exact: true })).toHaveValue('')
   await page.getByText('工作位置（可選）', { exact: true }).click()
   await page.getByRole('textbox', { name: '本次任務工作位置', exact: true }).fill('/chosen/project')
   await page.getByRole('textbox', { name: '原生任務要求', exact: true }).fill('在指定位置檢查')
-  await page.getByRole('button', { name: '交給 Yuki 執行', exact: true }).click()
+  await page.getByRole('button', { name: '請 Yuki 委派給這個 Agent', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '原生任務要求', exact: true })).toHaveValue('')
   await page.getByRole('button', { name: '讀取原生會話', exact: true }).click()
   await page
     .getByRole('combobox', { name: '原生會話', exact: true })
     .selectOption('original-session')
   await page.getByRole('textbox', { name: '原生任務要求', exact: true }).fill('繼續原任務')
-  await page.getByRole('button', { name: '交給 Yuki 執行', exact: true }).click()
+  await page.getByRole('button', { name: '請 Yuki 委派給這個 Agent', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '原生任務要求', exact: true })).toHaveValue('')
   const calls = await page.evaluate(
     () =>

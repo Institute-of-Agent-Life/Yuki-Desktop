@@ -35,6 +35,23 @@ import type { DisplayTimeZone } from '../../shared/desktop'
 import { useDisplayTime } from '../state/time'
 import type { TFunction } from 'i18next'
 import { useTranslation } from '../i18n'
+import {
+  AnsweredRequests,
+  DelegationFacts,
+  DeviceRuns,
+  OperationReceipt,
+  PendingRequest,
+  agentName,
+  delegationState,
+  delegationStatus,
+  isDelegation,
+  observes,
+  pendingKeys,
+  refreshDelegations,
+  useAgentDevices,
+  useAnswered,
+  useDelegations,
+} from './Delegations'
 
 type T = TFunction<['works', 'common']>
 const terminal = (work: Work) => ['completed', 'failed', 'cancelled'].includes(work.state)
@@ -53,10 +70,10 @@ const states: Record<Work['state'], [Status, StateKey]> = {
   cancelled: ['offline', 'cancelled'],
 }
 const stateLabel = (t: T, state: Work['state']) => t(`works:state.${states[state]![1]}`)
-const workState = (t: T, work: Work): [Status, string] => [
-  states[work.state]![0],
-  stateLabel(t, work.state),
-]
+const workState = (t: T, work: Work): [Status, string] =>
+  work.delegation
+    ? delegationState(t, work.delegation)
+    : [states[work.state]![0], stateLabel(t, work.state)]
 type Step = WorkSteps['steps'][number]
 type Action = keyof Source['works']['action']
 // Servers before step kinds (API revision 11/12) only send these legacy categories.
@@ -105,6 +122,7 @@ const stepDetail = (t: T, step: Step) => {
   if (detail.exit_code != null) parts.push(t('works:detail.exitCode', { code: detail.exit_code }))
   if (detail.output_lost) parts.push(t('works:detail.outputLost'))
   if (detail.target_kind) parts.push(t(`works:detail.${detail.target_kind}`))
+  if (detail.relationship) parts.push(t(`works:delegation.relationship.${detail.relationship}`))
   if (detail.text_delivered != null)
     parts.push(t(detail.text_delivered ? 'works:detail.delivered' : 'works:detail.notDelivered'))
   // The record span is a duration only once the call has its result.
@@ -203,11 +221,21 @@ export function WorkList({
   useEffect(
     () =>
       window.yuki.client.onHint((character, kind) => {
-        if (character === id && ['sync', 'work', 'commands', 'computer'].includes(kind))
+        // Delegations are child Works: the stream announces their changes as `refresh`.
+        if (
+          character === id &&
+          ['sync', 'refresh', 'work', 'commands', 'computer'].includes(kind)
+        ) {
           void query.invalidateQueries({ queryKey: [id, 'works'] })
+          refreshDelegations(query, id)
+        }
       }),
     [id, query],
   )
+  // Delegations and observations of all this person's devices (Client API 14).
+  const delegations = useDelegations(id)
+  const devices = useAgentDevices(id)
+  const [cancel, setCancel] = useState<Work | null>(null)
   const failed = active.error ?? ended.error
   const activeWorks = hidesPrivateData(failed)
     ? []
@@ -215,7 +243,12 @@ export function WorkList({
   const endedWorks = hidesPrivateData(failed)
     ? []
     : unique(ended.data?.pages.flatMap((page) => page.works) ?? [])
+  const runs = hidesPrivateData(delegations.error) ? [] : (delegations.data ?? [])
+  const asking = runs.filter((work) => work.delegation.pending.length)
+  const answered = useAnswered(id)
   const needs = (work: Work) => work.state === 'waiting_user' || work.help_requested
+  // Observations are root Works; they are listed by their device, not again in progress.
+  const progress = activeWorks.filter((work) => !needs(work) && !work.delegation)
   const rows = (works: Work[]) =>
     works.map((work) => (
       <button
@@ -272,20 +305,51 @@ export function WorkList({
           </Button>
         </Banner>
       )}
-      {!!activeWorks.filter(needs).length && (
-        <section>
+      {/* One cause (say the SSH path is gone) is said once, by the list's own banner. */}
+      {delegations.error &&
+        !hidesPrivateData(delegations.error) &&
+        delegations.error.message !== failed?.message && (
+          <Banner status="failed">
+            {t('works:delegation.unreadable', { problem: delegations.error.message })}
+            <Button variant="plain" onClick={() => void delegations.refetch()}>
+              {t('works:delegation.reload')}
+            </Button>
+          </Banner>
+        )}
+      {(!!activeWorks.filter(needs).length || !!asking.length || answered) && (
+        <section aria-label={t('works:needsYou')}>
           <h3>{t('works:needsYou')}</h3>
           {rows(activeWorks.filter(needs))}
+          {asking.map((work) =>
+            work.delegation.pending.map((item) => (
+              <PendingRequest
+                key={`${work.work_id}/${item.permission_id}`}
+                id={id}
+                work={work}
+                item={item}
+              />
+            )),
+          )}
+          <AnsweredRequests id={id} pending={pendingKeys(id, asking)} />
         </section>
       )}
-      {!!activeWorks.filter((work) => !needs(work)).length && (
-        <section>
+      {!!runs.length && (
+        <DeviceRuns
+          works={runs}
+          devices={devices.data ?? []}
+          selected={selected}
+          open={open}
+          cancel={setCancel}
+        />
+      )}
+      {!!progress.length && (
+        <section aria-label={t('works:inProgress')}>
           <h3>{t('works:inProgress')}</h3>
-          {rows(activeWorks.filter((work) => !needs(work)))}
+          {rows(progress)}
         </section>
       )}
       {!!endedWorks.length && (
-        <section>
+        <section aria-label={t('works:ended')}>
           <h3>{t('works:ended')}</h3>
           {endedWorks.map((work, index) => (
             <div key={work.work_id}>
@@ -323,6 +387,7 @@ export function WorkList({
         !endedWorks.length && (
           <EmptyState title={t('works:empty')}>{t('works:emptyDescription')}</EmptyState>
         )}
+      <CancelWorkSheet id={id} work={cancel} close={() => setCancel(null)} />
     </div>
   )
 }
@@ -350,7 +415,8 @@ export function WorkDetail({
   const { t } = useTranslation(['works', 'common'])
   const query = useQueryClient(),
     [cancel, setCancel] = useState<Work | null>(null),
-    [linkProblem, setLinkProblem] = useState('')
+    [linkProblem, setLinkProblem] = useState(''),
+    [operation, setOperation] = useState<string>()
   const work = useQuery({
     queryKey: [id, 'work', workId],
     queryFn: () => read<Work>(id, { kind: 'work', workId }),
@@ -431,7 +497,13 @@ export function WorkDetail({
             <StatusPill status={workState(t, data)[0]}>{workState(t, data)[1]}</StatusPill>
             {!terminal(data) && (
               <Button variant="destructive" onClick={() => setCancel(data)}>
-                {t('works:cancelWork')}
+                {t(
+                  observes(data)
+                    ? 'works:delegation.stop'
+                    : data.delegation
+                      ? 'works:delegation.cancel'
+                      : 'works:cancelWork',
+                )}
               </Button>
             )}
           </div>
@@ -451,6 +523,7 @@ export function WorkDetail({
             </Banner>
           )}
           {data.wait && <p className={styles.secondary}>{waitText(t, data.wait, zone, locale)}</p>}
+          {isDelegation(data) && <DelegationFacts id={id} work={data} open={open} />}
           {data.waiting_question && !terminal(data) && (
             <QuestionBox
               key={`${data.waiting_question.conversation_id}/${data.waiting_question.event_id}`}
@@ -475,23 +548,41 @@ export function WorkDetail({
                 </Button>
               )}
             {allSteps.map((step) => (
-              <StepRow
-                key={step.step_id}
-                label={stepLabel(t, step)}
-                detail={stepDetail(t, step)}
-                status={
-                  step.status === 'succeeded'
-                    ? 'done'
-                    : step.status === 'failed'
-                      ? 'failed'
-                      : step.status === 'unknown'
-                        ? 'unknown'
-                        : step.status === 'recorded'
+              <div key={step.step_id}>
+                <StepRow
+                  label={stepLabel(t, step)}
+                  detail={stepDetail(t, step)}
+                  status={
+                    step.status === 'succeeded'
+                      ? 'done'
+                      : step.status === 'failed'
+                        ? 'failed'
+                        : step.status === 'unknown'
                           ? 'unknown'
-                          : 'running'
-                }
-                time={time(step.updated_at, zone, locale)}
-              />
+                          : step.status === 'recorded'
+                            ? 'unknown'
+                            : 'running'
+                  }
+                  time={time(step.updated_at, zone, locale)}
+                />
+                {/* A step managing this Work itself (e.g. manage_task finish) links nowhere. */}
+                {((step.detail?.subtask_id && step.detail.subtask_id !== workId) ||
+                  step.detail?.operation_id) && (
+                  <div className={styles.stepLinks}>
+                    {step.detail.subtask_id && step.detail.subtask_id !== workId && (
+                      <SubtaskState id={id} workId={step.detail.subtask_id} open={open} />
+                    )}
+                    {step.detail.operation_id && (
+                      <Button
+                        variant="plain"
+                        onClick={() => setOperation(step.detail!.operation_id!)}
+                      >
+                        {t('works:operation', { id: step.detail.operation_id })}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
             ))}
             {steps.hasNextPage && (
               <Button
@@ -548,15 +639,18 @@ export function WorkDetail({
                 draft.question.conversationId !== data.waiting_question?.conversation_id,
             )}
           />
-          <WorkReply
-            id={id}
-            platform={platform}
-            work={data}
-            done={refresh}
-            commandEnter={commandEnter}
-            inline
-            readOnly={terminal(data)}
-          />
+          {/* A delegation has no Yuki loop to read additions; Yuki directs it from its parent. */}
+          {!data.delegation && (
+            <WorkReply
+              id={id}
+              platform={platform}
+              work={data}
+              done={refresh}
+              commandEnter={commandEnter}
+              inline
+              readOnly={terminal(data)}
+            />
+          )}
           <details className={styles.secondary}>
             <summary>{t('works:usage')}</summary>
             {t('works:usageModels', {
@@ -581,7 +675,57 @@ export function WorkDetail({
         </>
       )}
       <CancelWorkSheet id={id} work={cancel} close={() => setCancel(null)} />
+      <OperationReceipt id={id} operationId={operation} close={() => setOperation(undefined)} />
     </div>
+  )
+}
+
+/** The live state of the subtask or delegation a step created or directed: the subtask is a
+ * Work, so its own `work` hint refreshes it. */
+function SubtaskState({
+  id,
+  workId,
+  open,
+}: {
+  id: string
+  workId: string
+  open(workId: string): void
+}) {
+  const { t } = useTranslation(['works', 'common'])
+  const query = useQueryClient()
+  const work = useQuery({
+    queryKey: [id, 'work', workId],
+    queryFn: () => read<Work>(id, { kind: 'work', workId }),
+  })
+  useEffect(
+    () =>
+      window.yuki.client.onHint((character, kind, data) => {
+        if (
+          character === id &&
+          // A delegation is a child Work, which the stream announces only as `refresh`.
+          (kind === 'sync' ||
+            kind === 'refresh' ||
+            (kind === 'work' && (data as { work_id?: string }).work_id === workId))
+        )
+          void query.invalidateQueries({ queryKey: [id, 'work', workId] }, { cancelRefetch: false })
+      }),
+    [id, workId, query],
+  )
+  const data = hidesPrivateData(work.error) ? undefined : work.data
+  const [status, label]: [Status, string] = data
+    ? workState(t, data)
+    : ['unknown', t('common:loading')]
+  const name = data && isDelegation(data) ? delegationStatus(t, data) : (data?.goal ?? workId)
+  return (
+    <button
+      className={styles.subtask}
+      data-subtask={workId}
+      aria-label={t('works:subtask', { name, state: label })}
+      onClick={() => open(workId)}
+    >
+      <StatusPill status={status}>{label}</StatusPill>
+      <span>{name}</span>
+    </button>
   )
 }
 
@@ -946,7 +1090,15 @@ export function ConversationWork({
     </>
   )
 }
-function CancelWorkSheet({ id, work, close }: { id: string; work: Work | null; close(): void }) {
+export function CancelWorkSheet({
+  id,
+  work,
+  close,
+}: {
+  id: string
+  work: Work | null
+  close(): void
+}) {
   const { t } = useTranslation(['works', 'common'])
   const query = useQueryClient(),
     [busy, setBusy] = useState(false),
@@ -954,6 +1106,7 @@ function CancelWorkSheet({ id, work, close }: { id: string; work: Work | null; c
   useEffect(() => {
     if (work) setProblem('')
   }, [work])
+  const observing = !!work && observes(work)
   const submit = async () => {
     if (!work) return
     setBusy(true)
@@ -977,6 +1130,7 @@ function CancelWorkSheet({ id, work, close }: { id: string; work: Work | null; c
       close()
       void query.invalidateQueries({ queryKey: [id, 'work', work.work_id] })
       void query.invalidateQueries({ queryKey: [id, 'works'] })
+      refreshDelegations(query, id)
       void query.invalidateQueries({ queryKey: [id, 'home'] })
     } catch (error) {
       setProblem(error instanceof Error ? error.message : t('works:cancelFailed'))
@@ -988,20 +1142,40 @@ function CancelWorkSheet({ id, work, close }: { id: string; work: Work | null; c
     <>
       {problem && <Banner status="failed">{problem}</Banner>}
       <Sheet
-        title={t('works:cancelTitle')}
+        title={t(
+          observing
+            ? 'works:delegation.stopTitle'
+            : work?.delegation
+              ? 'works:delegation.cancelTitle'
+              : 'works:cancelTitle',
+        )}
         open={!!work}
         onClose={close}
         actions={
           <>
-            <Button onClick={close}>{t('works:keepRunning')}</Button>
+            <Button onClick={close}>
+              {t(observing ? 'works:delegation.keepWatching' : 'works:keepRunning')}
+            </Button>
             <Button variant="destructive" loading={busy} onClick={() => void submit()}>
-              {t('works:cancelAnyway')}
+              {t(
+                observing
+                  ? 'works:delegation.stop'
+                  : work?.delegation
+                    ? 'works:delegation.cancel'
+                    : 'works:cancelAnyway',
+              )}
             </Button>
           </>
         }
       >
         <p>{work?.goal}</p>
-        <p>{t('works:cancelNote')}</p>
+        <p>
+          {observing
+            ? t('works:delegation.stopNote')
+            : work?.delegation
+              ? t('works:delegation.cancelNote', { agent: agentName(work.delegation) })
+              : t('works:cancelNote')}
+        </p>
       </Sheet>
     </>
   )

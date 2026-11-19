@@ -17,6 +17,8 @@ import type {
   OutboxItem,
   WorkCommand,
   WorkDraftQuestion,
+  NativeAnswer,
+  NativeAnswerReceipt,
   Profile,
   SoulCommand,
   SoulDocument,
@@ -714,6 +716,21 @@ export class Connections {
     )
     return { ...item, cache }
   }
+  /** One answer, under its own request ID: the server settles it to the native request
+   * once and the first answer wins; a lost reply is retried by the caller with the same ID. */
+  async nativeAnswer(id: string, workId: string, permissionId: string, answer: NativeAnswer) {
+    uuid(answer.requestId)
+    const client = this.client(id)
+    await this.identify(id)
+    await this.box(id).verifyOwner(client)
+    return client.post<NativeAnswerReceipt>(
+      `works/${uuid(workId)}/native-requests/${encodeURIComponent(permissionId)}/answer`,
+      {
+        request_id: answer.requestId,
+        ...(answer.response ? { response: answer.response } : { option_id: answer.optionId }),
+      },
+    )
+  }
   async workCommand(id: string, command: WorkCommand, question?: WorkDraftQuestion) {
     uuid(command.workId)
     const commands = this.commands(id),
@@ -1073,6 +1090,9 @@ export class Connections {
       const params = new URLSearchParams({ limit: '100' })
       if (route.after) params.set('after', route.after)
       path = `works/${uuid(route.workId)}/steps?${params}`
+    } else if (route.kind === 'delegations') {
+      if (!['active', 'ended'].includes(route.group)) throw new ApiError('validation_error')
+      path = `delegations?group=${route.group}`
     } else if (route.kind === 'artifacts') {
       const params = new URLSearchParams({ kind: route.category, limit: '50' })
       if (route.cursor) params.set('cursor', route.cursor)
@@ -1085,7 +1105,9 @@ export class Connections {
     } else throw new ApiError('validation_error')
     const box = this.box(id)
     try {
-      await this.identify(id)
+      const meta = await this.identify(id)
+      // Servers before Client API 14 keep no delegation or observation records.
+      if (route.kind === 'delegations' && meta.api_revision < 14) return { delegations: [] } as T
       const value = await this.client(id).get<T>(path)
       if (!['me', 'request', 'proactive-route'].includes(route.kind)) box.cache(path, value)
       if (route.kind === 'character') {

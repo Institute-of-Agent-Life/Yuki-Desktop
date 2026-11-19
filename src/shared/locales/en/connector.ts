@@ -301,6 +301,9 @@ export default {
     terminals: 'Terminal Runs',
     heading: 'Native Tasks',
     intro:
+      'Delegate a task to this Agent, or pick an existing session to continue or for Yuki to watch. Watching only looks: Yuki sends no input to the session and never answers or denies its requests; she tells you where to handle them. End Delegation keeps the native task; Cancel aborts this native turn and ends the delegation, though background programs it started may keep running. Native receipts are authoritative.',
+    // A server before Client API 14: watch is not observe-only there.
+    introLegacy:
       'Give a task directly, or pick an existing session to continue. The working location is optional; permissions follow the native settings. Stop Watching keeps the task; Cancel asks the native Agent to abort this run, though background programs it started may keep running. Native receipts are authoritative.',
     noAgents:
       'No native Agent is set up. You can add Codex, Claude or ACP under This Computer in Settings. Shell, file and program operations with full access are unaffected; past receipts remain below.',
@@ -322,17 +325,21 @@ export default {
     chooseFolder: 'Choose Folder',
     request: 'Request for Yuki',
     requestLabel: 'Native task request',
-    run: 'Hand to Yuki',
-    watch: 'Watch Session',
+    run: 'Ask Yuki to Delegate to This Agent',
+    watch: 'Ask Yuki to Watch This Session',
     operationsUnavailable: 'The operation list can’t be read right now.',
     operationDescription: 'Work {{work}} · {{status}}',
     viewReceipt: 'View Receipt',
     moreOperations: 'More Operations',
     operation: 'Operation {{id}}',
+    detachLegacy: 'Stop Watching',
+    cancelLegacy: 'Request Cancel',
+    stopObserving: 'Stop Watching',
+    here: 'Delegations and Watches on This Computer',
     queue: 'Queue in Session',
-    steer: 'Steer Task',
-    detach: 'Stop Watching',
-    cancel: 'Request Cancel',
+    steer: 'Steer the Running Turn',
+    detach: 'End Delegation, Keep the Native Task',
+    cancel: 'Cancel the Native Turn and End Delegation',
     refreshReceipt: 'Refresh Receipt',
     readingReceipt: 'Reading receipt…',
     receiptUnavailable: 'The receipt hasn’t finished loading. Refresh to try again.',
@@ -385,6 +392,8 @@ export default {
     deny: 'Deny',
     choose: 'Choose',
     submitAnswers: 'Submit Answers',
+    terminal:
+      'Handle it in the terminal: Yuki only watches this session and never answers or denies this request.',
     noOptions: 'This native request offers no replies. Handle it in the native program.',
     globPattern: 'Matching pattern: {{pattern}}',
     scope: {

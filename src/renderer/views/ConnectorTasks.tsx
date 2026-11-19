@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
-import type { Connection } from '../../shared/api'
+import type { Connection, Work } from '../../shared/api'
 import type {
   ConnectorOperation,
   ConnectorSession,
@@ -9,13 +9,21 @@ import type {
   ConnectorSubmission,
 } from '../../shared/connector'
 import { Banner, Button, Segmented, Sheet, TextField } from '../components/Controls'
-import { hidesPrivateData, unwrap } from '../queries/client'
+import { hidesPrivateData, unwrap, useApiRevision } from '../queries/client'
 import { Row } from './SettingsRow'
 import styles from './Settings.module.css'
 import { NativeRequest } from './NativeRequest'
 import { ConnectorTerminals } from './ConnectorTerminals'
 import activityStyles from './LocalComputer.module.css'
 import { useTranslation } from '../i18n'
+import {
+  delegationState,
+  delegationStatus,
+  observes,
+  relationshipLabel,
+  useDelegations,
+} from './Delegations'
+import { CancelWorkSheet } from './Works'
 
 export function ConnectorTasks({
   connection,
@@ -26,6 +34,7 @@ export function ConnectorTasks({
 }) {
   const query = useQueryClient()
   const { t } = useTranslation(['connector', 'common'])
+  const works = useTranslation(['works', 'common']).t
   const instances = (state.admission?.instances ?? []).filter((item) =>
     state.instances.some((local) => local.id === item.localId),
   )
@@ -44,6 +53,12 @@ export function ConnectorTasks({
   const [error, setError] = useState('')
   const [selectedId, setSelectedId] = useState<string>()
   const [receipt, setReceipt] = useState<ConnectorSubmission>()
+  const [cancelling, setCancelling] = useState<Work | null>(null)
+  // This device's delegations and observations, cancelled as the Works they are.
+  const delegations = useDelegations(connection.characterId)
+  const here = (delegations.data ?? []).filter(
+    (work) => work.delegation.executor.device_id === state.deviceId,
+  )
   const submittedPayload = useRef('')
   const submittedText = useRef('')
   const operations = useInfiniteQuery({
@@ -71,6 +86,12 @@ export function ConnectorTasks({
   const selected = latest
     ? { ...latest, events: pages!.flatMap((page) => page.events ?? []) }
     : undefined
+  // Client API 14 makes a watched session observe-only: no input, native control or answer
+  // goes to it. Older servers never did, so their watch keeps its previous controls; while
+  // the revision is unread the stricter reading applies.
+  const revision = useApiRevision(connection.characterId)
+  const current = revision === undefined || revision >= 14
+  const watching = current && selected?.action === 'watch'
   useEffect(() => {
     if (catalogKnown && instance && !instances.some((item) => item.id === instance)) {
       setInstance('')
@@ -86,8 +107,12 @@ export function ConnectorTasks({
           character === connection.characterId &&
           ['sync', 'refresh', 'work', 'conversation'].includes(kind)
         ) {
-          for (const key of ['connector-operations', 'connector-operation']) {
-            const filter = { queryKey: [key, character] }
+          for (const filter of [
+            { queryKey: ['connector-operations', character] },
+            { queryKey: ['connector-operation', character] },
+            // This device's delegations (useDelegations), so a cancel carries the current revision.
+            { queryKey: [character, 'delegations'] },
+          ]) {
             const refresh = () => query.invalidateQueries(filter, { cancelRefetch: false })
             const pending = query.getQueryCache().find({ ...filter, type: 'active' })?.promise
             if (pending) void pending.then(refresh, () => {})
@@ -156,7 +181,13 @@ export function ConnectorTasks({
     const input = {
       text:
         text.trim() ||
-        `請${intent === 'detach' ? '停止觀察' : intent === 'cancel' ? '取消' : '繼續處理'}原生任務`,
+        (intent === 'detach'
+          ? operation?.action === 'watch'
+            ? '請停止觀察這個會話'
+            : '請結束這項委派，保留原生任務'
+          : intent === 'cancel'
+            ? '請取消這項委派'
+            : '請繼續處理原生任務'),
       agentTarget: target,
     }
     const payload = JSON.stringify(input)
@@ -251,12 +282,39 @@ export function ConnectorTasks({
         </div>
         <p className={styles.notice}>
           {instances.length
-            ? t('connector:tasks.intro')
+            ? t(current ? 'connector:tasks.intro' : 'connector:tasks.introLegacy')
             : catalogKnown
               ? t('connector:tasks.noAgents')
               : t('connector:tasks.catalogUnknown')}
         </p>
         {!selectedId && outcome}
+        {!!here.length && (
+          <section aria-label={t('connector:tasks.here')} className={activityStyles.delegations}>
+            <h3>{t('connector:tasks.here')}</h3>
+            <div className={styles.group}>
+              {here.map((work) => (
+                <Row
+                  key={work.work_id}
+                  title={work.goal}
+                  description={[
+                    delegationState(works, work.delegation)[1],
+                    relationshipLabel(works, work.delegation),
+                    delegationStatus(works, work),
+                  ].join(' · ')}
+                >
+                  <Button variant="destructive" onClick={() => setCancelling(work)}>
+                    {works(observes(work) ? 'works:delegation.stop' : 'works:delegation.cancel')}
+                  </Button>
+                </Row>
+              ))}
+            </div>
+          </section>
+        )}
+        <CancelWorkSheet
+          id={connection.characterId}
+          work={cancelling}
+          close={() => setCancelling(null)}
+        />
         {instances.length > 0 && (
           <>
             <Row title={t('connector:tasks.admittedAgents')}>
@@ -392,7 +450,7 @@ export function ConnectorTasks({
           onClose={() => setSelectedId(undefined)}
           actions={
             <>
-              {selected && (
+              {selected && !watching && (
                 <>
                   <Button
                     disabled={busy || !text.trim()}
@@ -406,20 +464,30 @@ export function ConnectorTasks({
                   >
                     {t('connector:tasks.steer')}
                   </Button>
-                  <Button
-                    disabled={busy}
-                    onClick={() => void perform(() => submit('detach', selected))}
-                  >
-                    {t('connector:tasks.detach')}
-                  </Button>
-                  <Button
-                    disabled={busy}
-                    variant="destructive"
-                    onClick={() => void perform(() => submit('cancel', selected))}
-                  >
-                    {t('connector:tasks.cancel')}
-                  </Button>
                 </>
+              )}
+              {selected && (
+                <Button
+                  disabled={busy}
+                  onClick={() => void perform(() => submit('detach', selected))}
+                >
+                  {t(
+                    watching
+                      ? 'connector:tasks.stopObserving'
+                      : current
+                        ? 'connector:tasks.detach'
+                        : 'connector:tasks.detachLegacy',
+                  )}
+                </Button>
+              )}
+              {selected && !watching && (
+                <Button
+                  disabled={busy}
+                  variant="destructive"
+                  onClick={() => void perform(() => submit('cancel', selected))}
+                >
+                  {t(current ? 'connector:tasks.cancel' : 'connector:tasks.cancelLegacy')}
+                </Button>
               )}
               <Button disabled={detail.isFetching} onClick={() => void detail.refetch()}>
                 {t('connector:tasks.refreshReceipt')}
@@ -461,18 +529,21 @@ export function ConnectorTasks({
                   </pre>
                 </details>
               )}
-              <Row title={t('connector:tasks.followUp')}>
-                <TextField
-                  aria-label={t('connector:tasks.followUp')}
-                  value={text}
-                  onChange={(event) => setText(event.target.value)}
-                />
-              </Row>
+              {!watching && (
+                <Row title={t('connector:tasks.followUp')}>
+                  <TextField
+                    aria-label={t('connector:tasks.followUp')}
+                    value={text}
+                    onChange={(event) => setText(event.target.value)}
+                  />
+                </Row>
+              )}
               {selected.events?.map((event) => (
                 <NativeRequest
                   key={event.cursor}
                   event={event}
                   busy={busy}
+                  observed={watching}
                   onRespond={(extra) => perform(() => submit('respond', selected, extra))}
                 />
               ))}

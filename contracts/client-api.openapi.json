@@ -1908,6 +1908,133 @@
         "title": "CurrentAvatar",
         "type": "object"
       },
+      "Delegation": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "description": "A Work executed by a native agent on a device (Client API 14).",
+        "properties": {
+          "executor": {
+            "$ref": "#/components/schemas/DelegationExecutor"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_event_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event At"
+          },
+          "pending": {
+            "items": {
+              "$ref": "#/components/schemas/NativeRequest"
+            },
+            "title": "Pending",
+            "type": "array"
+          },
+          "relationship": {
+            "title": "Relationship",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "status_line": {
+            "title": "Status Line",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "executor",
+          "relationship",
+          "state",
+          "status_line",
+          "pending"
+        ],
+        "title": "Delegation",
+        "type": "object"
+      },
+      "DelegationExecutor": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "session": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session"
+          }
+        },
+        "title": "DelegationExecutor",
+        "type": "object"
+      },
+      "DelegationPage": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "delegations": {
+            "items": {
+              "$ref": "#/components/schemas/Work"
+            },
+            "title": "Delegations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "delegations"
+        ],
+        "title": "DelegationPage",
+        "type": "object"
+      },
       "Device": {
         "additionalProperties": {
           "$ref": "#/components/schemas/JsonValue"
@@ -2100,6 +2227,18 @@
         "title": "Envelope[ComputerView]",
         "type": "object"
       },
+      "Envelope_DelegationPage_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DelegationPage"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[DelegationPage]",
+        "type": "object"
+      },
       "Envelope_DisplayTicket_": {
         "properties": {
           "data": {
@@ -2230,6 +2369,18 @@
           "data"
         ],
         "title": "Envelope[Meta]",
+        "type": "object"
+      },
+      "Envelope_NativeAnswerReceipt_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/NativeAnswerReceipt"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "Envelope[NativeAnswerReceipt]",
         "type": "object"
       },
       "Envelope_PairReceipt_": {
@@ -3293,6 +3444,83 @@
         "title": "MinimumClient",
         "type": "object"
       },
+      "NativeAnswerBody": {
+        "additionalProperties": false,
+        "description": "One option from the original native request, or its native answer object.",
+        "properties": {
+          "option_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option Id"
+          },
+          "request_id": {
+            "format": "uuid4",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "response": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response"
+          }
+        },
+        "required": [
+          "request_id"
+        ],
+        "title": "NativeAnswerBody",
+        "type": "object"
+      },
+      "NativeAnswerReceipt": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "operation_id": {
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "permission_id": {
+            "title": "Permission Id",
+            "type": "string"
+          },
+          "replay": {
+            "default": false,
+            "title": "Replay",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "work_id": {
+            "title": "Work Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "work_id",
+          "permission_id",
+          "operation_id",
+          "status"
+        ],
+        "title": "NativeAnswerReceipt",
+        "type": "object"
+      },
       "NativeDevice": {
         "additionalProperties": {
           "$ref": "#/components/schemas/JsonValue"
@@ -3674,6 +3902,54 @@
           "next_cursor"
         ],
         "title": "NativeOperations",
+        "type": "object"
+      },
+      "NativeRequest": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "properties": {
+          "answer_at": {
+            "title": "Answer At",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Id"
+          },
+          "permission_id": {
+            "title": "Permission Id",
+            "type": "string"
+          },
+          "received_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Received At"
+          }
+        },
+        "required": [
+          "permission_id",
+          "kind",
+          "answer_at"
+        ],
+        "title": "NativeRequest",
         "type": "object"
       },
       "NativeSession": {
@@ -4498,6 +4774,33 @@
             "title": "Record Seconds",
             "type": "number"
           },
+          "relationship": {
+            "anyOf": [
+              {
+                "enum": [
+                  "delegate",
+                  "observe",
+                  "takeover"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relationship"
+          },
+          "subtask_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtask Id"
+          },
           "target_kind": {
             "anyOf": [
               {
@@ -5008,6 +5311,16 @@
             "title": "Conversation Id",
             "type": "string"
           },
+          "delegation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Delegation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "generation": {
             "title": "Generation",
             "type": "integer"
@@ -5026,6 +5339,17 @@
               }
             ],
             "title": "Help Requested"
+          },
+          "parent_work_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Work Id"
           },
           "reason": {
             "anyOf": [
@@ -5533,7 +5857,7 @@
   "info": {
     "title": "Yuki personal API",
     "version": "4.0.2",
-    "x-yuki-api-revision": 13
+    "x-yuki-api-revision": 14
   },
   "openapi": "3.1.0",
   "paths": {
@@ -8949,6 +9273,98 @@
         "summary": "Attachment"
       }
     },
+    "/client/v1/delegations": {
+      "get": {
+        "operationId": "delegations_page_client_v1_delegations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "group",
+            "required": false,
+            "schema": {
+              "default": "active",
+              "enum": [
+                "active",
+                "ended"
+              ],
+              "title": "Group",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-yuki-entry",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Yuki-Entry"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-yuki-conversation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Yuki-Conversation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DelegationPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delegations Page"
+      }
+    },
     "/client/v1/devices/{identity}": {
       "delete": {
         "operationId": "revoke_client_v1_devices__identity__delete",
@@ -10673,6 +11089,113 @@
           }
         },
         "summary": "Work Input"
+      }
+    },
+    "/client/v1/works/{identity}/native-requests/{permission_id}/answer": {
+      "post": {
+        "operationId": "native_answer_client_v1_works__identity__native_requests__permission_id__answer_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "permission_id",
+            "required": true,
+            "schema": {
+              "title": "Permission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-yuki-entry",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Yuki-Entry"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-yuki-conversation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Yuki-Conversation"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NativeAnswerBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_NativeAnswerReceipt_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Native Answer"
       }
     },
     "/client/v1/works/{identity}/steps": {

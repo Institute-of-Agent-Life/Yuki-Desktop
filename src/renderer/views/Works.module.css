@@ -216,3 +216,82 @@
   margin-top: 8px;
   white-space: pre-wrap;
 }
+.delegation {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.delegation > .row {
+  flex: 1;
+  min-width: 0;
+}
+.delegation > button:last-child {
+  flex-shrink: 0;
+}
+.device > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 16px 8px 4px;
+}
+.list .device h4 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.device > header small,
+.device > p {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.device > p {
+  margin: 4px 8px 8px;
+}
+.request {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--accent-subtle);
+  font-size: 13px;
+  line-height: 20px;
+}
+.delegationFacts {
+  gap: 6px;
+  font-size: 13px;
+  line-height: 20px;
+}
+.stepLinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 0 0 6px 22px;
+}
+.subtask {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  text-align: left;
+}
+.subtask:hover {
+  background: var(--fill-hover);
+}
+.subtask > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.requestBody > div {
+  padding: 8px 12px;
+}

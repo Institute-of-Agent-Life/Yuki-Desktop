@@ -32,7 +32,7 @@ npm run check:package
 
 ## 後端契約與聯調
 
-目前 main 需要提供 **Client API revision 11** 以上與相應實際服務的配套 Yuki 後端（契約固定在 revision 13；revision 11 的後端沒有電腦快照與閒置休眠說明，revision 12 及以前的後端沒有工作步驟分類 `kind`，此時步驟沿用舊分類顯示），固定來源與 OpenAPI 內容雜湊見 [contracts/source.json](../contracts/source.json)。桌面與後端應使用同一組配套版本；僅更新桌面不會升級後端。以下介紹產品入口及驗證安排，各平台原生操作、安裝包、簽章與部署結果以對應的實際運行記錄為準。
+目前 main 需要提供 **Client API revision 11** 以上與相應實際服務的配套 Yuki 後端（契約固定在 revision 14；revision 11 的後端沒有電腦快照與閒置休眠說明，revision 12 及以前的後端沒有工作步驟分類 `kind`，此時步驟沿用舊分類顯示；revision 13 及以前的後端沒有委派與觀察紀錄，「工作」不顯示各裝置的 Agent 與原生請求，也不向它要委派清單），固定來源與 OpenAPI 內容雜湊見 [contracts/source.json](../contracts/source.json)。桌面與後端應使用同一組配套版本；僅更新桌面不會升級後端。以下介紹產品入口及驗證安排，各平台原生操作、安裝包、簽章與部署結果以對應的實際運行記錄為準。
 
 `contracts/` 保存固定版本的 OpenAPI 與來源提交、內容雜湊。`npm run check:contract` 核對快照及生成型別，建置不讀取其他本機倉庫。需要與後端聯調時，可明確指定隔離的測試 checkout 與 Python 環境：
 
@@ -44,7 +44,7 @@ npm run test:e2e -- tests/e2e/backend.spec.ts
 
 預設測試依測試宿主分組：`@unix-manager` 需要 Unix socket，Windows 不選取這組；`@linux-supervisor` 另需 Linux `/proc`，macOS 也不選取。混合檔案中的其他案例仍會執行。Windows 客戶端連接 Linux 角色電腦可另跑下述真有頭桌面案例；未選取的宿主案例不算通過。
 
-該測試使用實際 Yuki 應用程式容器、帳本與 App Gateway，在臨時目錄建立測試資料，模型回覆使用固定測試 Provider，不呼叫付費服務。`tests/e2e/agent-connector.spec.ts` 覆蓋統一接入、Codex／Claude 選擇、已有安裝關聯及原實例重試；原生程式、真帳號和三平台服務另行驗收。
+該測試使用實際 Yuki 應用程式容器、帳本與 App Gateway，在臨時目錄建立測試資料，模型回覆使用固定測試 Provider，不呼叫付費服務。`tests/e2e/delegations.spec.ts` 以 renderer fixture 提供 revision 14 的委派與觀察投影，經實際「工作」與「這台電腦」畫面核對按裝置分組（含其他裝置與離線事實）、「需要你」的原生請求只送出一次回答、觀察中的請求只在終端處理、取消委派與停止觀察的用語，以及步驟上子工作的即時狀態只隨伺服器的提示更新（委派是子 Work，串流只送 `refresh`）；同一請求出現在兩處也只送出一次、回覆遺失時沿原請求 ID 查證，revision 13 的伺服器保留原 watch 控制與說明；輸出目錄保留截圖與呼叫紀錄。`tests/e2e/agent-connector.spec.ts` 覆蓋統一接入、Codex／Claude 選擇、已有安裝關聯及原實例重試；原生程式、真帳號和三平台服務另行驗收。
 
 `tests/e2e/real-computer-host.spec.ts` 使用 `YUKI_DESKTOP_REAL_BACKEND_URL` 指向操作者另行啟動的隔離測試 API，要求外部真 Manager 與角色桌面，測試不啟停 Manager。`YUKI_DESKTOP_EXECUTABLE` 指定打包程式；故障後可用 `YUKI_DESKTOP_REAL_PROFILE_ROOT` 指定該測試保留的臨時資料目錄，按原 Work ID 接續。測試在真瀏覽器確認完整輸入已到達後才交回，再核對原執行、預算、回執及實際發布的成果內容。
 

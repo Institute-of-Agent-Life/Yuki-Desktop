@@ -636,6 +636,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/client/v1/delegations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Delegations Page */
+        get: operations["delegations_page_client_v1_delegations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/client/v1/devices/{identity}": {
         parameters: {
             query?: never;
@@ -937,6 +954,23 @@ export interface paths {
         put?: never;
         /** Work Input */
         post: operations["work_input_client_v1_works__identity__inputs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client/v1/works/{identity}/native-requests/{permission_id}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Native Answer */
+        post: operations["native_answer_client_v1_works__identity__native_requests__permission_id__answer_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1570,6 +1604,47 @@ export interface components {
             /** Updated At */
             updated_at: string;
         };
+        /**
+         * Delegation
+         * @description A Work executed by a native agent on a device (Client API 14).
+         */
+        Delegation: {
+            executor: components["schemas"]["DelegationExecutor"];
+            /** Id */
+            id: string;
+            /** Last Event At */
+            last_event_at?: string | null;
+            /** Pending */
+            pending: components["schemas"]["NativeRequest"][];
+            /** Relationship */
+            relationship: string;
+            /** State */
+            state: string;
+            /** Status Line */
+            status_line: string;
+        } & {
+            [key: string]: components["schemas"]["JsonValue"];
+        };
+        /** DelegationExecutor */
+        DelegationExecutor: {
+            /** Agent */
+            agent?: string | null;
+            /** Device Id */
+            device_id?: string | null;
+            /** Label */
+            label?: string | null;
+            /** Session */
+            session?: string | null;
+        } & {
+            [key: string]: components["schemas"]["JsonValue"];
+        };
+        /** DelegationPage */
+        DelegationPage: {
+            /** Delegations */
+            delegations: components["schemas"]["Work"][];
+        } & {
+            [key: string]: components["schemas"]["JsonValue"];
+        };
         /** Device */
         Device: {
             /**
@@ -1640,6 +1715,10 @@ export interface components {
         Envelope_ComputerView_: {
             data: components["schemas"]["ComputerView"];
         };
+        /** Envelope[DelegationPage] */
+        Envelope_DelegationPage_: {
+            data: components["schemas"]["DelegationPage"];
+        };
         /** Envelope[DisplayTicket] */
         Envelope_DisplayTicket_: {
             data: components["schemas"]["DisplayTicket"];
@@ -1683,6 +1762,10 @@ export interface components {
         /** Envelope[Meta] */
         Envelope_Meta_: {
             data: components["schemas"]["Meta"];
+        };
+        /** Envelope[NativeAnswerReceipt] */
+        Envelope_NativeAnswerReceipt_: {
+            data: components["schemas"]["NativeAnswerReceipt"];
         };
         /** Envelope[PairReceipt] */
         Envelope_PairReceipt_: {
@@ -2064,6 +2147,41 @@ export interface components {
             /** Desktop */
             desktop: string | null;
         };
+        /**
+         * NativeAnswerBody
+         * @description One option from the original native request, or its native answer object.
+         */
+        NativeAnswerBody: {
+            /** Option Id */
+            option_id?: string | null;
+            /**
+             * Request Id
+             * Format: uuid4
+             */
+            request_id: string;
+            /** Response */
+            response?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+        };
+        /** NativeAnswerReceipt */
+        NativeAnswerReceipt: {
+            /** Operation Id */
+            operation_id: string;
+            /** Permission Id */
+            permission_id: string;
+            /**
+             * Replay
+             * @default false
+             */
+            replay: boolean;
+            /** Status */
+            status: string;
+            /** Work Id */
+            work_id: string;
+        } & {
+            [key: string]: components["schemas"]["JsonValue"];
+        };
         /** NativeDevice */
         NativeDevice: {
             /** Device Capabilities */
@@ -2165,6 +2283,21 @@ export interface components {
             items: components["schemas"]["NativeOperation"][];
             /** Next Cursor */
             next_cursor: string | null;
+        } & {
+            [key: string]: components["schemas"]["JsonValue"];
+        };
+        /** NativeRequest */
+        NativeRequest: {
+            /** Answer At */
+            answer_at: string;
+            /** Kind */
+            kind: string;
+            /** Operation Id */
+            operation_id?: string | null;
+            /** Permission Id */
+            permission_id: string;
+            /** Received At */
+            received_at?: string | null;
         } & {
             [key: string]: components["schemas"]["JsonValue"];
         };
@@ -2431,6 +2564,10 @@ export interface components {
             output_lost?: boolean | null;
             /** Record Seconds */
             record_seconds: number;
+            /** Relationship */
+            relationship?: ("delegate" | "observe" | "takeover") | null;
+            /** Subtask Id */
+            subtask_id?: string | null;
             /** Target Kind */
             target_kind?: ("group" | "private" | "channel") | null;
             /** Text Delivered */
@@ -2582,12 +2719,15 @@ export interface components {
             child_count: number;
             /** Conversation Id */
             conversation_id: string;
+            delegation?: components["schemas"]["Delegation"] | null;
             /** Generation */
             generation: number;
             /** Goal */
             goal: string;
             /** Help Requested */
             help_requested?: boolean | null;
+            /** Parent Work Id */
+            parent_work_id?: string | null;
             /** Reason */
             reason?: string | null;
             result_delivery: components["schemas"]["WorkSource"];
@@ -4170,6 +4310,41 @@ export interface operations {
             };
         };
     };
+    delegations_page_client_v1_delegations_get: {
+        parameters: {
+            query?: {
+                group?: "active" | "ended";
+            };
+            header?: {
+                authorization?: string | null;
+                "x-yuki-entry"?: string | null;
+                "x-yuki-conversation"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DelegationPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     revoke_client_v1_devices__identity__delete: {
         parameters: {
             query?: never;
@@ -4834,6 +5009,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_InputReceipt_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    native_answer_client_v1_works__identity__native_requests__permission_id__answer_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-yuki-entry"?: string | null;
+                "x-yuki-conversation"?: string | null;
+            };
+            path: {
+                identity: string;
+                permission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NativeAnswerBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_NativeAnswerReceipt_"];
                 };
             };
             /** @description Validation Error */
