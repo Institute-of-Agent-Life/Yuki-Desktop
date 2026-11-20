@@ -22,7 +22,7 @@ export default {
   fingerprint: '主机指纹',
   fingerprintKnown: '与这台电脑先前记住的指纹相同。',
   confirmConnect: '确认指纹并连接',
-  forgetHost: '忘记这台主机的旧指纹',
+  forgetHost: '忘记旧指纹',
   limitations:
     '通过 SSH 时，通道由这个 App 维持：App 没有运行时，这台电脑的连接器也会离线。需要 Yuki 随时使用这台电脑时，可以开启“登录时打开”，或改用 Tailscale／HTTPS 地址。手机 App 不能使用这种方式。',
   transport: '连接方式',

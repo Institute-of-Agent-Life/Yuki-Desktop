@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import type { Connection } from '../../shared/api'
 import type { ConnectorTerminalControl } from '../../shared/connector'
-import { Banner, Button, Sheet } from '../components/Controls'
+import { Banner, Button, Sheet, useRefreshing } from '../components/Controls'
 import { hidesPrivateData, unwrap } from '../queries/client'
 import { Row } from './SettingsRow'
 import styles from './Settings.module.css'
@@ -22,6 +22,9 @@ export function ConnectorTerminals({
   const [controls, setControls] = useState<Record<string, ConnectorTerminalControl>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // Only a refresh the person asked for shows on its button; hints read in the background.
+  const [refreshing, refresh] = useRefreshing()
+  const [rereading, reread] = useRefreshing()
   const directory = useInfiniteQuery({
     queryKey: ['connector-terminals', connection.characterId, deviceId],
     initialPageParam: undefined as string | undefined,
@@ -101,11 +104,8 @@ export function ConnectorTerminals({
         <h3>{t('connector:terminals.heading')}</h3>
         <Button
           variant="plain"
-          disabled={directory.isFetching || detail.isFetching}
-          onClick={() => {
-            void directory.refetch()
-            if (runId) void detail.refetch()
-          }}
+          loading={refreshing}
+          onClick={() => refresh(directory.refetch(), ...(runId ? [detail.refetch()] : []))}
         >
           {t('connector:refresh')}
         </Button>
@@ -136,7 +136,10 @@ export function ConnectorTerminals({
             ))}
       </div>
       {!hidesPrivateData(directory.error) && directory.hasNextPage && (
-        <Button disabled={directory.isFetching} onClick={() => void directory.fetchNextPage()}>
+        <Button
+          loading={directory.isFetchingNextPage}
+          onClick={() => void directory.fetchNextPage()}
+        >
           {t('connector:terminals.more')}
         </Button>
       )}
@@ -151,7 +154,10 @@ export function ConnectorTerminals({
             {selected && (
               <>
                 {detail.hasNextPage && (
-                  <Button disabled={detail.isFetching} onClick={() => void detail.fetchNextPage()}>
+                  <Button
+                    loading={detail.isFetchingNextPage}
+                    onClick={() => void detail.fetchNextPage()}
+                  >
                     {t('connector:terminals.moreOutput')}
                   </Button>
                 )}
@@ -167,7 +173,7 @@ export function ConnectorTerminals({
                 )}
               </>
             )}
-            <Button disabled={detail.isFetching} onClick={() => void detail.refetch()}>
+            <Button loading={rereading} onClick={() => reread(detail.refetch())}>
               {t('connector:terminals.refreshReceipt')}
             </Button>
             <Button variant="primary" onClick={() => setRunId(undefined)}>

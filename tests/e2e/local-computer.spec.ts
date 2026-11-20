@@ -135,7 +135,7 @@ test('the component fixture keeps the original request, loaded progress and draf
   const receipt = page.getByRole('dialog', { name: '原操作 original-operation', exact: true })
   await open.click()
   await expect(page.getByText('第一頁原進度', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '讀取後續進度', exact: true }).click()
+  await page.getByRole('button', { name: '更多進度', exact: true }).click()
   await expect(page.getByText('第二頁原進度', { exact: true })).toBeVisible()
   // The receipt's own field and the page's are the same draft.
   const input = page.getByRole('textbox', { name: '原生任務要求', exact: true })
@@ -275,7 +275,7 @@ test('an unknown admission keeps the selected original native session until the 
   )
   expect(after).toEqual({ instance: 'fixture-server-instance', session: 'original-session' })
   await native.getByRole('textbox', { name: '原生任務要求', exact: true }).fill('繼續原會話')
-  await native.getByRole('button', { name: '請 Yuki 委派給這個 Agent', exact: true }).click()
+  await native.getByRole('button', { name: '請 Yuki 委派', exact: true }).click()
   const calls = await page.evaluate(
     () =>
       (window as Window & { __connectorCalls?: { method: string; input?: unknown }[] })
@@ -345,7 +345,7 @@ test('a changed local device does not inherit the original operation, draft or t
     .getByRole('combobox', { name: '原生會話', exact: true })
     .selectOption('original-session')
   await native.getByRole('button', { name: '查看原回執', exact: true }).click()
-  await native.getByRole('button', { name: '讀取後續進度', exact: true }).click()
+  await native.getByRole('button', { name: '更多進度', exact: true }).click()
   await page.evaluate(() =>
     (
       window as Window & {
@@ -367,8 +367,8 @@ test('a changed local device does not inherit the original operation, draft or t
   const terminals = page.getByRole('tabpanel', { name: '終端執行', exact: true })
   await terminals.getByRole('button', { name: '查看終端回執', exact: true }).click()
   await expect(terminals.locator('pre').filter({ hasText: 'hello' })).toBeVisible()
-  await terminals.getByRole('button', { name: '停止原終端執行', exact: true }).click()
-  await expect(terminals.getByRole('button', { name: '查證原停止請求', exact: true })).toBeVisible()
+  await terminals.getByRole('button', { name: '停止執行', exact: true }).click()
+  await expect(terminals.getByRole('button', { name: '查證停止', exact: true })).toBeVisible()
   const originalStop = await page.evaluate(
     () =>
       (
@@ -409,7 +409,7 @@ test('a changed local device does not inherit the original operation, draft or t
     terminals.getByRole('heading', { name: '原終端執行 original-terminal', exact: true }),
   ).toHaveCount(0)
   await expect(terminals.locator('pre').filter({ hasText: 'hello' })).toHaveCount(0)
-  for (const name of ['停止原終端執行', '重送原停止請求', '查證原停止請求'])
+  for (const name of ['停止執行', '重送停止', '查證停止'])
     await expect(terminals.getByRole('button', { name, exact: true })).toHaveCount(0)
   await expect(terminals.getByRole('status').filter({ hasText: originalStop.request })).toHaveCount(
     0,
@@ -418,7 +418,7 @@ test('a changed local device does not inherit the original operation, draft or t
   await tabs.getByRole('tab', { name: '原生 Agent 任務', exact: true }).click()
   const newPrompt = '交給新裝置的獨立要求'
   await native.getByRole('textbox', { name: '原生任務要求', exact: true }).fill(newPrompt)
-  await native.getByRole('button', { name: '請 Yuki 委派給這個 Agent', exact: true }).click()
+  await native.getByRole('button', { name: '請 Yuki 委派', exact: true }).click()
   const calls = await page.evaluate(
     () =>
       (

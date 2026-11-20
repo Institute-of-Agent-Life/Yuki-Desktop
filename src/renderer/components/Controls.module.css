@@ -4,14 +4,21 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 14px;
+  /* A label is never cut or spilled: a button keeps its own width beside others, is never wider
+     than where it sits, and a label longer than that wraps inside it, centred and balanced. */
+  flex-shrink: 0;
+  max-width: 100%;
+  /* As tall as its label, not stretched to a taller neighbour such as a 36px field. */
+  height: fit-content;
+  min-height: 28px;
+  padding: 5px 14px;
   border-radius: 999px;
   font-weight: 500;
   /* Han characters in a 13px label read as one blot without a little air between them. */
   letter-spacing: 0.03em;
   line-height: 18px;
-  white-space: nowrap;
+  text-align: center;
+  text-wrap: balance;
   transition: background var(--motion-fast);
 }
 .primary,
@@ -35,14 +42,14 @@
 }
 .plain {
   color: var(--accent);
-  padding: 0 10px;
+  padding-inline: 10px;
 }
 .destructive {
   color: var(--status-failed);
 }
 .large {
-  height: 36px;
-  padding: 0 20px;
+  min-height: 36px;
+  padding: 8px 20px;
   font-size: 14px;
   line-height: 20px;
   min-width: 80px;
@@ -174,6 +181,8 @@
 .dialogFooter {
   display: flex;
   flex-shrink: 0;
+  /* A button that does not fit moves to the next line instead of squeezing the others. */
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 16px;

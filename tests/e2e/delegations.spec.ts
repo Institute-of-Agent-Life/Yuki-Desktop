@@ -318,10 +318,8 @@ test('「這台電腦」 lists this device’s delegations with the right stop w
     { kind: 'cancel', workId: 'observe-claude', expectedRevision: 3 },
   ])
   // DT6: the actions say what Yuki will do in the one subtask tool set.
-  await expect(
-    page.getByRole('button', { name: '請 Yuki 委派給這個 Agent', exact: true }),
-  ).toBeVisible()
-  await expect(page.getByRole('button', { name: '請 Yuki 觀察此會話', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '請 Yuki 委派', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '請 Yuki 觀察', exact: true })).toBeVisible()
 
   // The watched operation's request: facts only, handled in the terminal (F2).
   const rows = page.getByRole('button', { name: '查看原回執', exact: true })
@@ -333,7 +331,7 @@ test('「這台電腦」 lists this device’s delegations with the right stop w
       exact: true,
     }),
   ).toBeVisible()
-  for (const name of ['allow', 'deny', '排入原會話', '調整進行中的回合', '取消原生回合並結束委派'])
+  for (const name of ['allow', 'deny', '排入原會話', '調整回合', '取消回合'])
     await expect(watched.getByRole('button', { name, exact: true })).toHaveCount(0)
   await expect(watched.getByRole('button', { name: '停止觀察', exact: true })).toBeVisible()
   await evidence(page, 'connector-watch')
@@ -342,12 +340,8 @@ test('「這台電腦」 lists this device’s delegations with the right stop w
   await rows.nth(1).click()
   const delegated = page.getByRole('dialog', { name: '原操作 op-claude', exact: true })
   await expect(delegated.getByRole('button', { name: 'allow', exact: true })).toBeVisible()
-  await expect(
-    delegated.getByRole('button', { name: '結束委派，保留原生任務', exact: true }),
-  ).toBeVisible()
-  await expect(
-    delegated.getByRole('button', { name: '取消原生回合並結束委派', exact: true }),
-  ).toBeVisible()
+  await expect(delegated.getByRole('button', { name: '結束委派', exact: true })).toBeVisible()
+  await expect(delegated.getByRole('button', { name: '取消回合', exact: true })).toBeVisible()
   await evidence(page, 'connector-delegate')
   expect((await calls(page)).submits).toEqual([])
 })
@@ -367,7 +361,7 @@ test('「這台電腦」 on a server before Client API 14 keeps the previous wat
   await expect(watched.getByRole('button', { name: 'allow', exact: true })).toBeVisible()
   await expect(watched.getByRole('button', { name: '排入原會話', exact: true })).toBeVisible()
   await expect(watched.getByRole('button', { name: '停止觀察', exact: true })).toBeVisible()
-  await expect(watched.getByRole('button', { name: '請求取消原生執行', exact: true })).toBeVisible()
+  await expect(watched.getByRole('button', { name: '取消執行', exact: true })).toBeVisible()
   await expect(watched.getByText(/在終端處理/)).toHaveCount(0)
   await evidence(page, 'connector-legacy')
 })

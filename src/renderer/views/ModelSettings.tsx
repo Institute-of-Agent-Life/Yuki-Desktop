@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Connection } from '../../shared/api'
 import type { ModelApplyInput, ModelDocument } from '../../shared/models'
-import { Banner, Button, Segmented, Spinner } from '../components/Controls'
+import { Banner, Button, Segmented, Spinner, useRefreshing } from '../components/Controls'
 import { ClientProblem, unwrap, useMe } from '../queries/client'
 import { useTranslation } from '../i18n'
 import { PendingRequest } from './SettingsRow'
@@ -87,6 +87,7 @@ export function ModelSettings({
   const { t } = useTranslation(['models'])
   const model = useModelConfiguration(connection.characterId)
   const authority = useMe(connection.characterId)
+  const [reloading, reload] = useRefreshing()
   const data = model.bundle.data
   if (
     authority.data?.is_superuser === false ||
@@ -103,7 +104,7 @@ export function ModelSettings({
       {model.conflict && (
         <Banner status="failed">
           {t('models:conflict')}{' '}
-          <Button loading={model.bundle.isFetching} onClick={() => void model.reload()}>
+          <Button loading={reloading} onClick={() => reload(model.reload())}>
             {t('models:reload')}
           </Button>
         </Banner>

@@ -60,7 +60,7 @@ export default {
   noMemoriesDescription: 'Saved records will appear here.',
   moreMemories: 'Load More Memories',
   correctMemory: 'Correct Memory',
-  keepAndClose: 'Keep Memory and Close',
+  keepAndClose: 'Keep and Close',
   reloadMemories: 'Reload Memories',
   confirmForget: 'Forget',
   submitCorrection: 'Send Correction',

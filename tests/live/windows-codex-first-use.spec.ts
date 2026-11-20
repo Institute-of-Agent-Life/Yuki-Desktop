@@ -252,7 +252,7 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
     await page.getByRole('textbox', { name: '本次任務工作位置', exact: true }).fill(project)
     const prompt = `${marker}. This is an isolated live acceptance. Work only in ${project}. Before execution, request the native command runner's normal one-command write approval for exactly this command and cwd: ${command}. The script needs to write only inside ${project}. After approval, execute that exact PowerShell command once with this cwd. Copy it verbatim; the existing script writes a marker and waits for a test release file before reading it back. Continue waiting on that same original command as needed. Keep approval limited to this command and directory, without session-wide or persistent policy amendments. Do not run other commands, inspect files outside this directory, access the network, alter configuration or services. After the command returns the marker, finish with exactly ${marker}.`
     await page.getByRole('textbox', { name: '原生任務要求', exact: true }).fill(prompt)
-    await page.getByRole('button', { name: '請 Yuki 委派給這個 Agent', exact: true }).click()
+    await page.getByRole('button', { name: '請 Yuki 委派', exact: true }).click()
     const approvals = new Set<string>()
     const deadline = Date.now() + 120_000
     while (Date.now() < deadline) {
@@ -456,7 +456,7 @@ test('one real Codex turn survives Desktop quit and connector disconnection unde
     const sessions = page.getByRole('combobox', { name: '原生會話', exact: true })
     await expect(sessions.locator(`option[value="${completed.session_id}"]`)).toHaveCount(1)
     await sessions.selectOption(completed.session_id)
-    await expect(page.getByRole('button', { name: '請 Yuki 觀察此會話', exact: true })).toBeEnabled()
+    await expect(page.getByRole('button', { name: '請 Yuki 觀察', exact: true })).toBeEnabled()
     await writeFile(
       test.info().outputPath('native-original-proof.json'),
       JSON.stringify(

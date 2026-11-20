@@ -99,6 +99,18 @@ export function Button({
     </button>
   )
 }
+/**
+ * A refresh the person asked for: busy until its own reads settle. Reads in the background (a
+ * server hint, the window regaining focus) never touch the button and keep the data shown.
+ */
+export function useRefreshing() {
+  const [refreshing, setRefreshing] = useState(false)
+  const refresh = (...reads: Promise<unknown>[]) => {
+    setRefreshing(true)
+    void Promise.allSettled(reads).then(() => setRefreshing(false))
+  }
+  return [refreshing, refresh] as const
+}
 export function IconButton({
   label,
   children,
