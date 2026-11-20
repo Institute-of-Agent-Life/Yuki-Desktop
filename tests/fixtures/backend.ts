@@ -322,6 +322,9 @@ export async function yukiFixture(
             PYTHONPATH: [join(backend!, 'src'), backend!].join(delimiter),
             YUKI_DESKTOP_COMPUTER_FIXTURE: options.computer || options.computerWork ? '1' : '0',
             YUKI_DESKTOP_COMPUTER_WORK_FIXTURE: options.computerWork ? '1' : '0',
+            // The snapshot views list, rotate and restore several snapshots; since the
+            // backend's default keep became one (Yuki #661) they ask for three.
+            YUKI_DESKTOP_SNAPSHOT_KEEP: '3',
             YUKI_DESKTOP_NATIVE_FIXTURE: options.native ? '1' : '0',
             YUKI_DESKTOP_CHARACTER_FIXTURE: options.character ? '1' : '0',
             YUKI_AUTHORITY_FIXTURE: options.modelConfiguration ? '1' : '0',
