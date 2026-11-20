@@ -62,7 +62,16 @@ E2E：`tests/e2e/button-fit.spec.ts`（新），经 renderer fixture（`delegati
 - 受影响的既有用例（按钮文字定位已随文字更新）：`delegations`、`agent-connector`、`local-computer`、`components`、`native-request`、`control-motion`、`popup-polish`、`renderer-regressions`、`work-help`、`work-late-receipt`、`declutter`（需真后端的案例未设定时跳过）。
 - 全部主页面三语排版（`language-layout.spec.ts`）以固定提交的隔离后端执行，量测按钮、分页、分段是否撑破或超出所在行、对话框、侧栏。
 
-## 5. 未包含
+## 5. CI 首轮（PR #91，run 44782566096）
+
+| 失败 | 根因 | 处理 |
+| --- | --- | --- |
+| `pairing-visual.spec.ts`（mac 与 Windows） | 高度由 `height` 改为 `min-height` 后，按钮成了「高度自动」的弹性项，被所在行拉伸：配对页 `.codeRow` 里「貼上」跟着 36px 输入框变成 36px（用例要求 28px，等待至超时）。凡是按钮与更高控件同行而未设 `align-items` 的地方都会如此 | 按钮加 `height: fit-content`：高度随文字（单行 28／36px，两行自然增高），不再被同行拉伸；列方向的宽度拉伸不受影响 |
+| `button-fit.spec.ts`（Linux） | Linux 字体更宽，「工作」详情栏 600px 宽时状态行（状态胶囊＋「Cancel Delegation」）放不下；该行 `Works.module.css .status` 不换行 | `.status` 加 `flex-wrap: wrap`，按钮移到状态下方 |
+| `about-profile.spec.ts` 前两项（Windows） | 分片第一个文件的前两项页面 30 秒保持空白：151 个模块全部 200、无报错，React 已启动；同一 fixture 的后续 5 项在同一分片通过，mac 本机全部通过；改动不涉及该页渲染路径 | 判断为冷启动偶发，重跑核对 |
+| `glass-slices.spec.ts:131`（Windows） | 与本改动无关：只改合同的 `chore/connector-0.9.2`（run 44759757207）和更早的 run 43711634454 都以同样方式失败（对话框贴图次数 141） | 不改 |
+
+## 6. 未包含
 
 - 不改重读频率与串流提示；不改 Works 列表行（整行是按钮，标题按设计省略）。
 - 只在 renderer fixture 与 Chromium 中量测；未在打包 App、Windows 原生窗口或系统字体缩放下逐一验收。

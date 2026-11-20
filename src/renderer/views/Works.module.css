@@ -87,6 +87,8 @@
 }
 .status {
   display: flex;
+  /* A narrow detail moves the cancel button below the state instead of past the edge. */
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;

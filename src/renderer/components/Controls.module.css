@@ -8,6 +8,8 @@
      than where it sits, and a label longer than that wraps inside it, centred and balanced. */
   flex-shrink: 0;
   max-width: 100%;
+  /* As tall as its label, not stretched to a taller neighbour such as a 36px field. */
+  height: fit-content;
   min-height: 28px;
   padding: 5px 14px;
   border-radius: 999px;
