@@ -15,6 +15,7 @@ import type {
   WorkSteps,
 } from '../../src/shared/api'
 import type { ConnectorOperation, ConnectorState } from '../../src/shared/connector'
+import { applyLanguage } from '../../src/renderer/i18n'
 import '../../src/renderer/tokens.css'
 import '../../src/renderer/materials/materials.css'
 
@@ -274,6 +275,8 @@ const active = () =>
   Object.values(works).filter((work) => !['completed', 'failed', 'cancelled'].includes(work.state))
 Object.assign(window, {
   __calls: calls,
+  // The interface language, switched as Main's broadcast does in the app.
+  __applyLanguage: applyLanguage,
   __releaseAnswer: () => releaseAnswer?.(),
   // A delegation's native turn ends: its Work changes and the server emits the `work` hint.
   __finishAcp: () => {

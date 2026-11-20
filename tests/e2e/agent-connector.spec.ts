@@ -250,19 +250,19 @@ test('Claude uses the same connection flow and new or existing sessions do not r
     .getByRole('combobox', { name: '任務 Agent', exact: true })
     .selectOption('fixture-server-instance')
   await page.getByRole('textbox', { name: '原生任務要求', exact: true }).fill('請檢查目前狀態')
-  await page.getByRole('button', { name: '請 Yuki 委派給這個 Agent', exact: true }).click()
+  await page.getByRole('button', { name: '請 Yuki 委派', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '原生任務要求', exact: true })).toHaveValue('')
   await page.getByText('工作位置（可選）', { exact: true }).click()
   await page.getByRole('textbox', { name: '本次任務工作位置', exact: true }).fill('/chosen/project')
   await page.getByRole('textbox', { name: '原生任務要求', exact: true }).fill('在指定位置檢查')
-  await page.getByRole('button', { name: '請 Yuki 委派給這個 Agent', exact: true }).click()
+  await page.getByRole('button', { name: '請 Yuki 委派', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '原生任務要求', exact: true })).toHaveValue('')
   await page.getByRole('button', { name: '讀取原生會話', exact: true }).click()
   await page
     .getByRole('combobox', { name: '原生會話', exact: true })
     .selectOption('original-session')
   await page.getByRole('textbox', { name: '原生任務要求', exact: true }).fill('繼續原任務')
-  await page.getByRole('button', { name: '請 Yuki 委派給這個 Agent', exact: true }).click()
+  await page.getByRole('button', { name: '請 Yuki 委派', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '原生任務要求', exact: true })).toHaveValue('')
   const calls = await page.evaluate(
     () =>
@@ -715,15 +715,15 @@ test('a computer without Agent instances exposes local full access and original 
     page.getByRole('dialog', { name: '原終端執行 original-terminal', exact: true }),
   ).toBeVisible()
   await expect(page.locator('pre').filter({ hasText: 'hello' })).toBeVisible()
-  await page.getByRole('button', { name: '讀取後續終端輸出' }).click()
+  await page.getByRole('button', { name: '更多輸出', exact: true }).click()
   await expect(page.locator('pre').filter({ hasText: 'hello' })).toContainText('done')
   await expect(page.getByText('狀態：exited · 退出碼 0', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '停止原終端執行' }).click()
+  await page.getByRole('button', { name: '停止執行', exact: true }).click()
   await expect(
     page.getByRole('status').filter({ hasText: '結果尚未確認，請查證原請求。' }),
   ).toBeVisible()
-  await page.getByRole('button', { name: '重送原停止請求', exact: true }).click()
-  await page.getByRole('button', { name: '查證原停止請求' }).click()
+  await page.getByRole('button', { name: '重送停止', exact: true }).click()
+  await page.getByRole('button', { name: '查證停止', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: '原回執 completed' })).toBeVisible()
   const calls = await page.evaluate(
     () =>
@@ -773,7 +773,10 @@ test('a computer without Agent instances exposes local full access and original 
         : result
     }
   })
-  await page.getByRole('button', { name: '重新整理原終端回執', exact: true }).click()
+  await page
+    .getByRole('dialog', { name: '原終端執行 original-terminal', exact: true })
+    .getByRole('button', { name: '重新整理', exact: true })
+    .click()
   await expect(
     page.getByText('原執行狀態已保留，當前無法讀取本機輸出。', { exact: true }),
   ).toBeVisible()
@@ -835,7 +838,7 @@ test('an opened original receipt receives a late permission and terminal result 
   ).toEqual([])
   await page.getByRole('button', { name: '查看原回執', exact: true }).click()
   await expect(page.getByText('第一頁原進度', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '讀取後續進度', exact: true }).click()
+  await page.getByRole('button', { name: '更多進度', exact: true }).click()
   await expect(page.getByText('第二頁原進度', { exact: true })).toBeVisible()
   await page.evaluate(() =>
     (window as Window & { __connectorAdvance?: (phase: string, emit?: boolean) => void })
@@ -849,7 +852,10 @@ test('an opened original receipt receives a late permission and terminal result 
     (window as Window & { __connectorAdvance?: (phase: string, emit?: boolean) => void })
       .__connectorAdvance!('terminal', false),
   )
-  await page.getByRole('button', { name: '重新整理原回執', exact: true }).click()
+  await page
+    .getByRole('dialog', { name: '原操作 original-operation', exact: true })
+    .getByRole('button', { name: '重新整理', exact: true })
+    .click()
   await expect(page.getByText('原任務的真終態結果', { exact: true })).toBeVisible()
   await expect(page.getByText('第一頁原進度', { exact: true })).toHaveCount(1)
   await expect(page.getByText('第二頁原進度', { exact: true })).toHaveCount(1)

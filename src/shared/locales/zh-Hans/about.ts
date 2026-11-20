@@ -56,7 +56,7 @@ export default {
   noMemoriesDescription: '这里会显示已保存的记录。',
   moreMemories: '加载更多记忆',
   correctMemory: '更正记忆',
-  keepAndClose: '保留现有记忆并关闭',
+  keepAndClose: '保留并关闭',
   reloadMemories: '重新读取记忆',
   confirmForget: '确认忘记',
   submitCorrection: '提交更正',

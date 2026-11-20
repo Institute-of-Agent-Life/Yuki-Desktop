@@ -8,7 +8,7 @@ import type {
   ConnectorTarget,
   ConnectorSubmission,
 } from '../../shared/connector'
-import { Banner, Button, Segmented, Sheet, TextField } from '../components/Controls'
+import { Banner, Button, Segmented, Sheet, TextField, useRefreshing } from '../components/Controls'
 import { hidesPrivateData, unwrap, useApiRevision } from '../queries/client'
 import { Row } from './SettingsRow'
 import styles from './Settings.module.css'
@@ -54,6 +54,9 @@ export function ConnectorTasks({
   const [selectedId, setSelectedId] = useState<string>()
   const [receipt, setReceipt] = useState<ConnectorSubmission>()
   const [cancelling, setCancelling] = useState<Work | null>(null)
+  // Only a refresh the person asked for shows on its button; hints read in the background.
+  const [refreshing, refresh] = useRefreshing()
+  const [rereading, reread] = useRefreshing()
   // This device's delegations and observations, cancelled as the Works they are.
   const delegations = useDelegations(connection.characterId)
   const here = (delegations.data ?? []).filter(
@@ -271,11 +274,9 @@ export function ConnectorTasks({
           <h3>{t('connector:tasks.heading')}</h3>
           <Button
             variant="plain"
-            disabled={busy || operations.isFetching || detail.isFetching}
-            onClick={() => {
-              void operations.refetch()
-              if (selectedId) void detail.refetch()
-            }}
+            disabled={busy}
+            loading={refreshing}
+            onClick={() => refresh(operations.refetch(), ...(selectedId ? [detail.refetch()] : []))}
           >
             {t('connector:refresh')}
           </Button>
@@ -436,7 +437,8 @@ export function ConnectorTasks({
         </div>
         {!hidesPrivateData(operations.error) && operations.hasNextPage && (
           <Button
-            disabled={busy || operations.isFetching}
+            disabled={busy}
+            loading={operations.isFetchingNextPage}
             onClick={() => void operations.fetchNextPage()}
           >
             {t('connector:tasks.moreOperations')}
@@ -489,7 +491,7 @@ export function ConnectorTasks({
                   {t(current ? 'connector:tasks.cancel' : 'connector:tasks.cancelLegacy')}
                 </Button>
               )}
-              <Button disabled={detail.isFetching} onClick={() => void detail.refetch()}>
+              <Button loading={rereading} onClick={() => reread(detail.refetch())}>
                 {t('connector:tasks.refreshReceipt')}
               </Button>
               <Button variant="primary" onClick={() => setSelectedId(undefined)}>
@@ -549,7 +551,8 @@ export function ConnectorTasks({
               ))}
               {detail.hasNextPage && (
                 <Button
-                  disabled={busy || detail.isFetching}
+                  disabled={busy}
+                  loading={detail.isFetchingNextPage}
                   onClick={() => void detail.fetchNextPage()}
                 >
                   {t('connector:tasks.moreProgress')}

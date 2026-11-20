@@ -54,7 +54,7 @@ export default {
   noMemoriesDescription: '這裡會顯示已保存的記錄。',
   moreMemories: '載入更多記憶',
   correctMemory: '更正記憶',
-  keepAndClose: '保留現有記憶並關閉',
+  keepAndClose: '保留並關閉',
   reloadMemories: '重新讀取記憶',
   confirmForget: '確認忘記',
   submitCorrection: '送出更正',
