@@ -30,6 +30,7 @@ coverage/
 !/docs/reports/
 /docs/reports/*
 !/docs/reports/2026-10-28-rich-media/
+!/docs/reports/2026-11-23-liquid-glass/
 /assets/
 /scripts/
 /third-party/

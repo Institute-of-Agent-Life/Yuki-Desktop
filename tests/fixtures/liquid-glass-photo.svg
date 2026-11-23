@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <!-- A colourful picture with sharp edges, for the liquid glass lab (research only). -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b3a8f"/>
+      <stop offset="0.45" stop-color="#c2417a"/>
+      <stop offset="0.75" stop-color="#ff9a62"/>
+      <stop offset="1" stop-color="#ffd27a"/>
+    </linearGradient>
+    <linearGradient id="lake" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffb37a"/>
+      <stop offset="1" stop-color="#1c3f73"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="620" fill="url(#sky)"/>
+  <circle cx="1080" cy="470" r="120" fill="#fff1c9"/>
+  <polygon points="0,560 180,330 330,480 520,250 760,520 940,360 1120,560 1310,300 1600,520 1600,640 0,640" fill="#5a2f6e"/>
+  <polygon points="0,620 240,450 420,580 640,420 860,600 1080,470 1300,610 1480,460 1600,560 1600,660 0,660" fill="#2c1f4f"/>
+  <rect y="640" width="1600" height="360" fill="url(#lake)"/>
+  <g fill="#fff3d6" opacity="0.75">
+    <rect x="980" y="680" width="200" height="6"/><rect x="940" y="710" width="280" height="5"/>
+    <rect x="1000" y="740" width="160" height="4"/><rect x="960" y="770" width="240" height="4"/>
+    <rect x="1010" y="805" width="140" height="3"/>
+  </g>
+  <g fill="#102036">
+    <polygon points="90,1000 150,700 210,1000"/><polygon points="170,1000 240,620 310,1000"/>
+    <polygon points="1380,1000 1450,660 1520,1000"/><polygon points="1470,1000 1530,740 1590,1000"/>
+  </g>
+  <g stroke="#1b1030" stroke-width="5" fill="none" stroke-linecap="round">
+    <path d="M300 180 q20 -18 40 0 q20 -18 40 0"/><path d="M420 230 q14 -12 28 0 q14 -12 28 0"/>
+    <path d="M760 140 q18 -16 36 0 q18 -16 36 0"/>
+  </g>
+  <g fill="#ffffff" font-family="-apple-system, Helvetica, sans-serif" font-weight="800">
+    <text x="60" y="120" font-size="88">LAKE 湖</text>
+  </g>
+</svg>
