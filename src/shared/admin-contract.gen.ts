@@ -1278,6 +1278,10 @@ export interface components {
         ModelDocument: {
             asr?: components["schemas"]["ASRConnection"] | null;
             embedding?: components["schemas"]["EmbeddingConnection"] | null;
+            /** Fallbacks */
+            fallbacks?: {
+                [key: string]: string[];
+            };
             /** Profiles */
             profiles: {
                 [key: string]: components["schemas"]["ModelProfileDocument"];
