@@ -1,4 +1,4 @@
-import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -21,7 +21,10 @@ import { contentSize } from '../fixtures/visual'
  *   6. a replaced or removed picture's files stay behind;
  *   7. preferences outside the allowed values are kept (paths, fits, blur > 20, dim > 60);
  *   8. the chat's own menu cannot change the background;
- *   9. over a high-contrast picture the composer's text falls below 4.5:1 in either theme.
+ *   9. over a high-contrast picture the composer's text falls below 4.5:1 in either theme;
+ *  10. over it the conversation's own text is lost: in its bubbles (sender, time, a file's name
+ *      and kind, the text itself) and laid straight on the picture (the toolbar's title and status,
+ *      the date, the conversation's opening line): main text below 4.5:1, the rest below 3:1.
  */
 const evidence: Record<string, unknown> = {}
 test.afterAll(async () => {
@@ -321,23 +324,34 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
     })
     await composer.fill('邊緣應該把後面的內容彎過去，文字仍然要看得清楚。')
     const measured: Record<string, unknown> = {}
-    for (const theme of ['light', 'dark'] as const) {
-      await page.evaluate((theme) => window.yuki.preferences({ theme }), theme)
-      await expect(page.locator(`html[data-theme="${theme}"]`)).toBeAttached()
-      await page.waitForTimeout(800)
-      await page.screenshot({ path: test.info().outputPath(`chat-lineart-${theme}.png`) })
-      // 9: the text's colour against everything the glass shows behind it, the text hidden.
-      const colour = await composer.evaluate((element) => getComputedStyle(element).color)
-      await composer.evaluate((element) => {
-        element.style.color = 'transparent'
-        element.style.caretColor = 'transparent'
+    evidence.legibility = measured
+    // The text's colour against everything shown behind its glyphs, the text hidden: the worst 1%.
+    const legibility = async (text: Locator) => {
+      await text.scrollIntoViewIfNeeded()
+      const colour = await text.evaluate((element) => getComputedStyle(element).color)
+      await text.evaluate((element) => {
+        element.setAttribute('data-measured', '')
+        const style = document.createElement('style')
+        style.id = 'measured-style'
+        style.textContent =
+          '[data-measured], [data-measured] * { color: transparent !important; caret-color: transparent !important }'
+        document.head.append(style)
       })
       await page.waitForTimeout(100)
-      const area = (await composer.boundingBox())!
-      const shot = await page.screenshot({ clip: area })
-      await composer.evaluate((element) => {
-        element.style.color = ''
-        element.style.caretColor = ''
+      // Behind the text itself: the box of its glyphs, not the padding or corners around it; a
+      // text field's text is its own box.
+      const clip = await text.evaluate((element) => {
+        const range = document.createRange()
+        range.selectNodeContents(element)
+        const { x, y, width, height } = (
+          element instanceof HTMLTextAreaElement ? element : range
+        ).getBoundingClientRect()
+        return { x, y, width, height }
+      })
+      const shot = await page.screenshot({ clip })
+      await text.evaluate((element) => {
+        element.removeAttribute('data-measured')
+        document.getElementById('measured-style')!.remove()
       })
       const pixels = await page.evaluate(async (data) => {
         const image = new Image()
@@ -351,17 +365,49 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
         for (let k = 0; k < all.length; k += 4) list.push([all[k]!, all[k + 1]!, all[k + 2]!])
         return list
       }, shot.toString('base64'))
-      const text = colour
+      const rgb = colour
         .match(/\d+(\.\d+)?/g)!
         .slice(0, 3)
         .map(Number)
-      const ratios = pixels.map((pixel) => contrast(text, pixel)).sort((a, b) => a - b)
-      // The worst 1% of what lies behind the text.
-      const worst = ratios[Math.floor(ratios.length * 0.01)]!
-      measured[theme] = { text, worst, median: ratios[Math.floor(ratios.length / 2)] }
-      expect(worst, theme).toBeGreaterThanOrEqual(4.5)
+      const ratios = pixels.map((pixel) => contrast(rgb, pixel)).sort((a, b) => a - b)
+      return Math.round(ratios[Math.floor(ratios.length * 0.01)]! * 100) / 100
     }
-    evidence.legibility = measured
+    const messages = page.locator('[role="log"]').first(),
+      toolbar = page.locator('[data-region="toolbar"]').first()
+    const reply = messages
+        .locator('article')
+        .filter({ hasText: 'Desktop reference reply' })
+        .first(),
+      artifact = messages.locator('article').filter({ hasText: 'desktop-reference.txt' }).first(),
+      own = messages.locator('article').filter({ hasText: 'fixture file' }).first()
+    const texts: [string, Locator, number][] = [
+      ['composer', composer, 4.5],
+      ['reply', reply.getByText('Desktop reference reply', { exact: true }), 4.5],
+      ['own message', own.getByText('fixture file', { exact: true }), 4.5],
+      ['own sender', own.locator('header strong'), 3],
+      ['sender', artifact.locator('header strong'), 3],
+      ['time', artifact.locator('header time'), 3],
+      ['file name', artifact.getByText('desktop-reference.txt', { exact: true }), 3],
+      ['file kind', artifact.getByText('成果檔案', { exact: true }), 3],
+      ['title', toolbar.locator('strong').first(), 4.5],
+      ['status', toolbar.locator('small').first(), 3],
+      ['date', messages.getByText(/^\d{1,2}\/\d{1,2}$/).first(), 3],
+      ['opening', messages.locator('header h2').first(), 4.5],
+      ['opening line', messages.locator('header p').first(), 3],
+    ]
+    for (const theme of ['light', 'dark'] as const) {
+      await page.evaluate((theme) => window.yuki.preferences({ theme }), theme)
+      await expect(page.locator(`html[data-theme="${theme}"]`)).toBeAttached()
+      await page.waitForTimeout(800)
+      await messages.evaluate((element) => (element.scrollTop = 0))
+      await page.screenshot({ path: test.info().outputPath(`chat-lineart-${theme}.png`) })
+      const seen: Record<string, number> = {}
+      for (const [name, text] of texts) seen[name] = await legibility(text)
+      measured[theme] = seen
+      // 9, 10
+      for (const [name, , least] of texts)
+        expect(seen[name], `${theme} ${name}`).toBeGreaterThanOrEqual(least)
+    }
     success = true
   } finally {
     await app.close()

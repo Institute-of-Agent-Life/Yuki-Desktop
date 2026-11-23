@@ -40,6 +40,24 @@
     var(--backdrop-image) center / var(--backdrop-size) var(--backdrop-repeat),
     var(--backdrop-fill, var(--bg-content));
 }
+/* Over it, the text laid straight on the picture sits on a small glass of its own, tinted as the
+   bubbles are; an own bubble keeps its accent over that tint. */
+:global([data-backdrop='custom']) :is(.dateSeparator, .conversationIntroduction) {
+  width: fit-content;
+  border-radius: 999px;
+  background: var(--content-tint);
+  backdrop-filter: blur(var(--content-blur));
+}
+:global([data-backdrop='custom']) .dateSeparator {
+  margin-inline: auto;
+  padding: 2px 10px;
+}
+:global([data-backdrop='custom']) .conversationIntroduction {
+  padding: 3px 12px 3px 3px;
+}
+:global([data-backdrop='custom']) .ownMessage .bubble {
+  --glass-tint: color-mix(in srgb, var(--accent) 10%, var(--content-tint));
+}
 .messages {
   overflow: auto;
   flex: 1;

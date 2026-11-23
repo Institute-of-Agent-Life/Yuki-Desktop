@@ -555,6 +555,14 @@
   font-weight: 400;
   color: var(--text-secondary);
 }
+/* Over a picture of one's own the title sits on a small glass, tinted for the picture
+   (materials/backdrop.ts sets the tint only while the conversation shows it). */
+:global([data-backdrop='custom']) .toolbarTitle {
+  padding: 2px 12px;
+  border-radius: 14px;
+  background: var(--content-tint, none);
+  backdrop-filter: blur(var(--content-blur, 0px));
+}
 
 .app::after {
   content: '';
