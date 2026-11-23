@@ -1320,6 +1320,16 @@
               }
             ]
           },
+          "fallbacks": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Fallbacks",
+            "type": "object"
+          },
           "profiles": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ModelProfileDocument"
