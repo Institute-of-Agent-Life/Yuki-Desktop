@@ -148,7 +148,7 @@
   padding: 0;
   color: var(--text-primary);
   background: var(--mat-pane);
-  backdrop-filter: var(--glass-regular);
+  backdrop-filter: var(--glass-sheet);
   box-shadow: var(--shadow-pane);
 }
 /* The scrim only dims: a blurred window under the sheet's own glass is recomputed every frame. */

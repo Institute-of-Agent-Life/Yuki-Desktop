@@ -9,7 +9,7 @@
   border: 0;
   border-radius: 20px;
   background: var(--mat-pane);
-  backdrop-filter: var(--glass-regular);
+  backdrop-filter: var(--glass-sheet);
   color: var(--text-primary);
   box-shadow: var(--shadow-pane);
 }

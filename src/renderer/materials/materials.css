@@ -1,13 +1,17 @@
 /*
  * The glass tiers (docs/reports/2026-11-23-liquid-glass §15). They are declared on each pane, so
  * the lens each pane was given (`--refract`) is its own; every one ends in the seal.
- *   regular: toolbars, the composer, cards and sheets. Blurred first, then bent (glass.ts), so the
- *     blur's soft shapes melt where the bend presses them together.
+ *   regular: toolbars, the composer and cards. Blurred first, then bent (glass.ts), so the blur's
+ *     soft shapes melt where the bend presses them together.
+ *   sheet: the same glass for panes that open over the page (dialogs, the palette, menus), blurred
+ *     until the page's text beneath cannot be read through their own.
  *   lens: a control held under the finger, nearly clear.
  * The tint lies on each pane's own background: `--mat-glass`, or `--mat-pane` where it carries text.
  */
 [data-glass] {
   --glass-regular: blur(var(--glass-blur)) var(--refract,) brightness(var(--glass-brightness))
+    saturate(var(--glass-saturation)) var(--seal,);
+  --glass-sheet: blur(32px) var(--refract,) brightness(var(--glass-brightness))
     saturate(var(--glass-saturation)) var(--seal,);
   --glass-lens: blur(0.4px) var(--refract,) var(--seal,);
 }

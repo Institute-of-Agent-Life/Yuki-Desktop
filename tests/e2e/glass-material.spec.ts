@@ -83,11 +83,18 @@ async function imageSizes(page: Page, hrefs: string[]) {
   )
 }
 
-async function expectFinalGlass(page: Page, pane: Locator, theme: 'light' | 'dark', text: boolean) {
+async function expectFinalGlass(
+  page: Page,
+  pane: Locator,
+  theme: 'light' | 'dark',
+  text: boolean,
+  // Panes that open over the page blur it until its text cannot be read through theirs.
+  blur: string = final[theme].blur,
+) {
   const filter: Filter = await pane.evaluate(readFilter)
   const look = final[theme]
   // 1: blurred first, then bent, then lit.
-  expect(filter.backdrop).toMatch(new RegExp(`^blur\\(${look.blur}\\) url\\(`))
+  expect(filter.backdrop).toMatch(new RegExp(`^blur\\(${blur}\\) url\\(`))
   const primitives = filter.primitives
   // 3: no dispersion: no colour matrix, and every bend reads its own map.
   expect(primitives.filter((node) => node.name === 'feColorMatrix')).toEqual([])
@@ -150,7 +157,7 @@ test.describe('at 1x', () => {
       await page.getByRole('button', { name: '開啟對話框', exact: true }).click()
       const dialog = page.getByRole('dialog')
       await expect(dialog).toHaveAttribute('data-refracting', 'true')
-      evidence[`sheet-${theme}`] = await expectFinalGlass(page, dialog, theme, true)
+      evidence[`sheet-${theme}`] = await expectFinalGlass(page, dialog, theme, true, '32px')
     })
 })
 
