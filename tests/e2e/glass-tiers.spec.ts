@@ -40,13 +40,14 @@ test('every pane of a tier bends, blurs and seals the same way', async ({ page }
 
   await page.goto(gallery)
   await frost(page)
-  const slider = page.getByRole('slider').first()
-  const box = (await slider.boundingBox())!
+  // (The slider's held thumb is a glass of its own, slider-v2.md; the switch is the lens.)
+  const toggle = page.getByRole('switch').first()
+  const box = (await toggle.boundingBox())!
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
   await page.mouse.down()
-  const thumb = page.locator('[data-glass="slider"]').first()
+  const thumb = page.locator('[data-glass="toggle"]').first()
   await expect(thumb).toHaveAttribute('data-refracting', 'true')
-  tiers.lens!['held slider'] = await filter(thumb)
+  tiers.lens!['held switch'] = await filter(thumb)
   await page.mouse.up()
   await page.getByRole('button', { name: '開啟對話框', exact: true }).click()
   const dialog = page.getByRole('dialog')
@@ -75,7 +76,7 @@ test('every pane of a tier bends, blurs and seals the same way', async ({ page }
     expect([...filters][0], tier).toMatch(/url\("#lens"\)/)
     expect([...filters][0], tier).toMatch(/url\("#yuki-backdrop-seal"\)$/)
   }
-  expect(tiers.regular!.composer).not.toBe(tiers.lens!['held slider'])
+  expect(tiers.regular!.composer).not.toBe(tiers.lens!['held switch'])
 
   // 4: asked to be opaque, no pane filters at all.
   await page.evaluate(() => (document.documentElement.dataset.opaque = 'true'))

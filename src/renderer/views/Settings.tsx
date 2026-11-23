@@ -1,5 +1,5 @@
 import { useTabMotion } from '../motion/tab'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
@@ -34,6 +34,7 @@ import {
   Banner,
   Button,
   Segmented,
+  Slider,
   Spinner,
   Toggle,
   SelectionPill,
@@ -408,16 +409,13 @@ export function Settings({
                   onChange={(theme) => void change({ theme }, 'look')}
                 />
               </Row>
-              <Row title={t('settings:material')} description={t('settings:materialDescription')}>
-                <Segmented
-                  label={t('settings:material')}
-                  kind="radio"
-                  value={preferences.opaque ? 'opaque' : 'frost'}
-                  items={[
-                    { value: 'frost', label: t('settings:frost') },
-                    { value: 'opaque', label: t('settings:opaque') },
-                  ]}
-                  onChange={(material) => void change({ opaque: material === 'opaque' }, 'look')}
+              <Row
+                title={t('settings:transparency')}
+                description={t('settings:transparencyDescription')}
+              >
+                <TransparencySlider
+                  value={preferences.transparency}
+                  onChange={(transparency) => void change({ transparency }, 'look')}
                 />
               </Row>
               <Row title={t('settings:backdrop')} description={t('settings:backdropDescription')}>
@@ -621,6 +619,62 @@ export function Settings({
         </div>
       </div>
     </section>
+  )
+}
+
+/*
+ * The window's transparency (docs/reports/2026-11-23-liquid-glass/slider-v2.md): the page follows
+ * the thumb at once through `--window-transparency`, and the preference is saved when it is let
+ * go, or at once when it reaches or leaves 0, which turns the window's native material off or on.
+ */
+function TransparencySlider({ value, onChange }: { value: number; onChange(value: number): void }) {
+  const { t } = useTranslation(['settings'])
+  // What the thumb last showed, and a value saved as it crossed 0, not to be saved twice.
+  const shown = useRef(value),
+    crossed = useRef<number | undefined>(undefined)
+  return (
+    <div className={styles.transparency}>
+      <svg role="img" aria-label={t('settings:transparencyMin')} viewBox="0 0 16 16">
+        <rect x="3" y="3" width="10" height="10" rx="2.5" fill="currentColor" />
+      </svg>
+      <Slider
+        label={t('settings:transparency')}
+        value={value}
+        min={0}
+        max={100}
+        valueText={(value) =>
+          value === 0
+            ? t('settings:transparencyOpaque')
+            : t('settings:transparencyValue', { value })
+        }
+        onChange={(next) => {
+          document.documentElement.style.setProperty('--window-transparency', String(next / 100))
+          if ((next === 0) !== (shown.current === 0)) {
+            crossed.current = next
+            onChange(next)
+          }
+          shown.current = next
+        }}
+        onCommit={(next) => {
+          const saved = crossed.current === next
+          crossed.current = undefined
+          if (!saved) onChange(next)
+        }}
+      />
+      <svg role="img" aria-label={t('settings:transparencyMax')} viewBox="0 0 16 16">
+        <rect
+          x="1.6"
+          y="1.6"
+          width="12.8"
+          height="12.8"
+          rx="3"
+          fill="currentColor"
+          fillOpacity="0.2"
+          stroke="currentColor"
+          strokeWidth="1.2"
+        />
+      </svg>
+    </div>
   )
 }
 

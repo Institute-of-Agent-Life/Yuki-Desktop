@@ -42,10 +42,13 @@ export default {
   theme: '主題',
   light: '淺色',
   dark: '深色',
-  material: '視窗材質',
-  materialDescription: '透明磨砂讓桌面從所有畫面透出；不透明時一律使用實色。',
-  frost: '透明磨砂',
-  opaque: '不透明',
+  transparency: '透明度',
+  transparencyDescription:
+    '向右讓桌面透出更多；拖到最左即不透明。系統開啟「減少透明度」時一律不透明。',
+  transparencyOpaque: '不透明',
+  transparencyValue: '{{value}}%',
+  transparencyMin: '不透明',
+  transparencyMax: '透明',
   backdrop: '對話背景',
   backdropDescription: '疊在對話底下、玻璃之後的圖案；換一換，看看玻璃在不同底色上的樣子。',
   backdrops: {

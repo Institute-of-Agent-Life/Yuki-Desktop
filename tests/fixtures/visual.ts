@@ -1,5 +1,6 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
+import { chooseTransparency } from './transparency'
 
 export const workspaceSizes = [
   [1440, 900],
@@ -231,10 +232,7 @@ export async function captureWorkspace(
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
     await page.getByRole('radio', { name: theme === 'dark' ? '深色' : '淺色', exact: true }).click()
-    await page
-      .getByRole('radiogroup', { name: '視窗材質', exact: true })
-      .getByRole('radio', { name: theme === 'opaque' ? '不透明' : '透明磨砂', exact: true })
-      .click()
+    await chooseTransparency(page, theme === 'opaque' ? 0 : 70)
     for (const [label, checked] of [
       ['增加對比', theme === 'contrast'],
       ['減少動態', true],

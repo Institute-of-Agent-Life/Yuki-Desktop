@@ -180,11 +180,12 @@ export function App({ boot }: { boot: BootInfo }) {
     const opaque =
       cssAccessibility.opaque ||
       cssAccessibility.contrast ||
-      preferences.opaque ||
+      preferences.transparency === 0 ||
       preferences.highContrast ||
       appearance.reducedTransparency ||
       appearance.highContrast
     root.dataset.opaque = String(opaque)
+    root.style.setProperty('--window-transparency', String(preferences.transparency / 100))
     root.dataset.material = opaque ? 'none' : boot.nativeMaterial
     root.dataset.platform = boot.platform
   }, [preferences, appearance, cssAccessibility, boot.platform, boot.nativeMaterial])

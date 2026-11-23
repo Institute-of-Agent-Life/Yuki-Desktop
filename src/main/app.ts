@@ -1165,7 +1165,6 @@ else {
       authorize(event)
       const current = store.preferences()
       for (const key of [
-        'opaque',
         'reducedMotion',
         'highContrast',
         'keepInTray',
@@ -1190,6 +1189,8 @@ else {
       }
       if (patch.sendKey === 'enter' || patch.sendKey === 'command-enter')
         current.sendKey = patch.sendKey
+      if (typeof patch.transparency === 'number' && Number.isFinite(patch.transparency))
+        current.transparency = Math.max(0, Math.min(100, Math.round(patch.transparency)))
       if (typeof patch.sidebarWidth === 'number' && Number.isFinite(patch.sidebarWidth))
         current.sidebarWidth = Math.max(220, Math.min(320, patch.sidebarWidth))
       if (typeof patch.inspectorWidth === 'number' && Number.isFinite(patch.inspectorWidth))

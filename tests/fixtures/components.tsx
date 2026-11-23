@@ -802,12 +802,12 @@ function LensPreview() {
   )
 }
 function Gallery() {
-  const [preferences, setPreferences] = useState(defaultPreferences)
   const [sheet, setSheet] = useState(false)
   const [stepLabel, setStepLabel] = useState('執行中')
   const [zoom, setZoom] = useState(145)
   const [changes, setChanges] = useState({ switch: 0, segment: 0, button: 0 })
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
+  const [switched, setSwitched] = useState(false)
   const platform =
     new URLSearchParams(location.search).get('platform') === 'darwin' ? 'darwin' : 'linux'
   document.documentElement.dataset.theme = theme
@@ -850,9 +850,9 @@ function Gallery() {
           ))}
           <Toggle
             label="測試切換"
-            checked={preferences.opaque}
-            onChange={(opaque) => {
-              setPreferences((previous) => ({ ...previous, opaque }))
+            checked={switched}
+            onChange={(value) => {
+              setSwitched(value)
               setChanges((s) => ({ ...s, switch: s.switch + 1 }))
             }}
           />

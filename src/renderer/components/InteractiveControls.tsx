@@ -274,57 +274,103 @@ export function Segmented<T extends string>({
   )
 }
 
+/*
+ * A settings slider after the Liquid Glass slider of iOS 26 and macOS 26
+ * (docs/reports/2026-11-23-liquid-glass/slider-v2.md): a 6pt track filled with the accent up to a
+ * solid thumb. Held, the thumb grows and clears into glass that bends the track at its rim; let
+ * go, it springs back and frosts over. Grabbed on the thumb it does not jump; pressed elsewhere on
+ * the track the thumb comes to the pointer. Dragged quickly it stretches along the drag.
+ */
+const thumb = { rest: [24, 20], held: [37, 33] } as const
+const stretchPerSpeed = 0.002,
+  stretchLimit = 0.2
+
 export function Slider({
   label,
   value,
   min = 100,
   max = 400,
   disabled = false,
+  valueText = (value) => `${value}%`,
   onChange,
+  onCommit,
 }: {
   label: string
   value: number
   min?: number
   max?: number
   disabled?: boolean
+  valueText?(value: number): string
+  /** Every value the thumb passes while dragged or keyed. */
   onChange(value: number): void
+  /** The value it was let go at, or keyed to. */
+  onCommit?(value: number): void
 }) {
   const host = useRef<HTMLDivElement>(null),
-    glass = useGlass<HTMLSpanElement>('slider', true)
-  const current = useRef(value),
+    glass = useGlass<HTMLSpanElement>('slider', true, true, {
+      width: thumb.held[0],
+      height: thumb.held[1],
+      radius: thumb.held[1] / 2,
+    })
+  // The thumb's place along the track, 0–1, continuous while dragged; the value is its rounding.
+  const position = useRef((value - min) / (max - min)),
+    shown = useRef(value),
+    emitted = useRef<number[]>([]),
     dragging = useRef(false),
+    resting = useRef(0),
     cancel = useRef<(() => void) | undefined>(undefined)
-  const latest = useRef({ onChange, min, max }),
+  const latest = useRef({ onChange, onCommit, min, max }),
     [endRevision, setEndRevision] = useState(0)
   useLayoutEffect(() => {
-    latest.current = { onChange, min, max }
+    latest.current = { onChange, onCommit, min, max }
   })
-  const { values, wake } = useSprings({ press: 0, edge: 0, velocity: 0 }, (s, reduced) => {
-    if (!glass.ref.current || !host.current) return
-    const pressure = clamp(s.press.value, 0, 1),
-      p = reduced ? 0 : pressure,
-      speed = reduced ? 0 : clamp(s.velocity.value, 0, 0.08)
-    const position =
-      (current.current - latest.current.min) / (latest.current.max - latest.current.min)
-    host.current.style.setProperty('--value', `${position * 100}%`)
-    glass.ref.current.style.left = `calc(14px + (100% - 28px) * ${position})`
-    glass.ref.current.style.transform = `translateX(calc(-50% + ${reduced ? 0 : s.edge.value}px)) scale(${1 + 0.16 * p + speed},${1 + 0.28 * p - speed * 0.35})`
-    glass.setStrength(pressure)
+  const { values, wake } = useSprings({ held: 0, clear: 0, stretch: 0, edge: 0 }, (s, reduced) => {
+    const element = host.current,
+      knob = glass.ref.current
+    if (!element || !knob) return
+    const held = s.held.value,
+      clear = clamp(s.clear.value, 0, 1),
+      stretch = reduced ? 1 : 1 + clamp(s.stretch.value, 0, stretchLimit)
+    const w = (thumb.rest[0] + (thumb.held[0] - thumb.rest[0]) * held) * stretch,
+      h = (thumb.rest[1] + (thumb.held[1] - thumb.rest[1]) * held) / stretch
+    const centre = thumb.rest[0] / 2 + (element.clientWidth - thumb.rest[0]) * position.current
+    element.style.setProperty('--fill', `${centre}px`)
+    knob.style.width = `${w}px`
+    knob.style.height = `${h}px`
+    knob.style.borderRadius = `${h / 2}px`
+    knob.style.left = `${centre + (reduced ? 0 : s.edge.value) - w / 2}px`
+    knob.style.top = `${(element.clientHeight - h) / 2}px`
+    knob.style.setProperty('--held', clamp(held, 0, 1).toFixed(3))
+    glass.setStrength(clear)
   })
-  const paintValue = (next: number) => {
-    current.current = clamp(next, latest.current.min, latest.current.max)
-    const position =
-      (current.current - latest.current.min) / (latest.current.max - latest.current.min)
-    host.current?.style.setProperty('--value', `${position * 100}%`)
-    if (glass.ref.current) glass.ref.current.style.left = `calc(14px + (100% - 28px) * ${position})`
-    host.current?.setAttribute('aria-valuenow', String(current.current))
-    host.current?.setAttribute('aria-valuetext', `${Math.round(current.current)}%`)
+  const show = (next: number) => {
+    shown.current = next
+    host.current?.setAttribute('aria-valuenow', String(next))
+    host.current?.setAttribute('aria-valuetext', valueText(next))
+    host.current?.setAttribute('title', valueText(next))
+  }
+  // Moves the thumb to `next` (0–1) and reports the value it now shows, if that changed.
+  const place = (next: number) => {
+    const { min, max } = latest.current
+    position.current = clamp(next, 0, 1)
+    const rounded = Math.round(min + position.current * (max - min))
+    if (rounded !== shown.current) {
+      show(rounded)
+      emitted.current.push(rounded)
+      latest.current.onChange(rounded)
+    }
+    return rounded
   }
   useLayoutEffect(() => {
-    if (!dragging.current) {
-      paintValue(value)
-      wake()
-    }
+    if (dragging.current) return
+    // A value it gave out coming back (saved, say, after a round trip) is not a new value: keys
+    // pressed since have moved on, and it waits for the last of them.
+    const echo = emitted.current.indexOf(value)
+    emitted.current = echo < 0 ? [] : emitted.current.slice(echo + 1)
+    if (emitted.current.length) return
+    show(value)
+    position.current = (value - min) / (max - min)
+    wake()
   }, [value, min, max, endRevision])
   useLayoutEffect(() => {
     if (disabled) cancel.current?.()
@@ -340,8 +386,10 @@ export function Slider({
       aria-disabled={disabled}
       aria-valuemin={min}
       aria-valuemax={max}
-      aria-valuenow={current.current}
-      aria-valuetext={`${Math.round(current.current)}%`}
+      aria-valuenow={shown.current}
+      aria-valuetext={valueText(shown.current)}
+      // macOS shows a slider's value as a tooltip while the pointer rests on it; nothing printed.
+      title={valueText(shown.current)}
       onKeyDown={(event) => {
         if (disabled) return
         const keys: Record<string, number> = {
@@ -359,57 +407,67 @@ export function Slider({
             ? min
             : event.key === 'End'
               ? max
-              : current.current +
+              : shown.current +
                 keys[event.key]! * (event.shiftKey && event.key.startsWith('Arrow') ? 5 : 1)
-        paintValue(next)
-        onChange(current.current)
-        values.press.snap(reducedMotion() ? 0 : 0.35)
-        values.press.aim(0, springs.thumb)
+        const keyed = place((clamp(next, min, max) - min) / (max - min))
+        latest.current.onCommit?.(keyed)
         wake()
       }}
       onPointerDown={(event) => {
         if (disabled || event.button !== 0 || !event.isPrimary) return
         event.preventDefault()
+        // Focus for the keyboard, without the keyboard's ring: a press is not keyboard focus.
         event.currentTarget.focus({ preventScroll: true, focusVisible: false } as FocusOptions)
         cancel.current?.()
-        dragging.current = true
-        values.press.aim(1, springs.thumb)
         const bounds = event.currentTarget.getBoundingClientRect(),
-          width = bounds.width - 28
+          span = bounds.width - thumb.rest[0],
+          centre = bounds.left + thumb.rest[0] / 2 + span * position.current
+        const grab =
+          Math.abs(event.clientX - centre) <= thumb.held[0] / 2 ? event.clientX - centre : 0
+        dragging.current = true
+        values.held.aim(1, springs.sliderPress)
+        values.clear.aim(1, springs.sliderPress)
         let previous = event.clientX,
           time = event.timeStamp
         const update = (move: PointerEvent) => {
-          const dx = move.clientX - bounds.left - 14,
-            raw = min + (dx / width) * (max - min)
-          paintValue(raw)
-          latest.current.onChange(current.current)
+          const along = move.clientX - grab - bounds.left - thumb.rest[0] / 2
+          place(along / span)
+          // Pulled past an end, the thumb follows a little way and springs back when let go.
           values.edge.snap(
-            dx < 0 ? -rubber(-dx, 5, 48) : dx > width ? rubber(dx - width, 5, 48) : 0,
+            along < 0 ? -rubber(-along, 6, 48) : along > span ? rubber(along - span, 6, 48) : 0,
           )
-          values.velocity.snap(
-            Math.min(
-              0.08,
-              (Math.abs(move.clientX - previous) / Math.max(1, move.timeStamp - time)) * 0.03,
-            ),
-          )
-          values.velocity.aim(0, springs.settle)
+          const speed =
+            (Math.abs(move.clientX - previous) * 1000) / Math.max(1, move.timeStamp - time)
+          values.stretch.aim(Math.min(stretchLimit, speed * stretchPerSpeed), springs.sliderStretch)
+          // A thumb that stops moving stops stretching.
+          clearTimeout(resting.current)
+          resting.current = window.setTimeout(() => {
+            values.stretch.aim(0, springs.sliderRelease)
+            wake()
+          }, 60)
           previous = move.clientX
           time = move.timeStamp
           wake()
         }
-        update(event.nativeEvent)
+        if (!grab) update(event.nativeEvent)
         cancel.current = capturePointer(event.currentTarget, event.nativeEvent, update, () => {
           dragging.current = false
           cancel.current = undefined
+          clearTimeout(resting.current)
           swallowDragClick()
-          values.press.aim(0, springs.thumb)
-          values.edge.aim(0, springs.settle)
+          values.held.aim(0, springs.sliderRelease)
+          values.clear.aim(0, springs.sliderFrost)
+          values.stretch.aim(0, springs.sliderRelease)
+          values.edge.aim(0, springs.sliderRelease)
+          latest.current.onCommit?.(shown.current)
           wake()
+          // A value given while it was held is shown once it is let go.
           setEndRevision((revision) => revision + 1)
         })
+        wake()
       }}
     >
-      <span className={styles.sliderTrack}>
+      <span className={styles.sliderTrack} aria-hidden="true">
         <span />
       </span>
       <span ref={glass.ref} data-glass="slider" className={styles.sliderThumb} aria-hidden="true" />

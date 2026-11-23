@@ -31,7 +31,8 @@ export interface Preferences {
   theme: Theme
   backdrop: Backdrop
   timeZone: DisplayTimeZone
-  opaque: boolean
+  /** How much of the desktop shows through the window: 0 (opaque) to 100. */
+  transparency: number
   reducedMotion: boolean
   highContrast: boolean
   sidebarWidth: number
@@ -50,7 +51,7 @@ export const defaultPreferences: Preferences = {
   theme: 'system',
   backdrop: 'lens',
   timeZone: 'Asia/Taipei',
-  opaque: false,
+  transparency: 70,
   reducedMotion: false,
   highContrast: false,
   sidebarWidth: 260,

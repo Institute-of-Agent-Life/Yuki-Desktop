@@ -114,8 +114,9 @@ test('slider follows the pointer with no value spring and survives cancellation,
   await page.goto(gallery)
   const slider = page.getByRole('slider', { name: '測試縮放' }),
     bounds = (await slider.boundingBox())!
-  const x = (fraction: number) => bounds.x + 14 + (bounds.width - 28) * fraction,
-    y = bounds.y + 15
+  // The thumb's centre runs from half its resting width (24) in from either end.
+  const x = (fraction: number) => bounds.x + 12 + (bounds.width - 24) * fraction,
+    y = bounds.y + bounds.height / 2
   await page.mouse.move(x(0.5), y)
   await page.mouse.down()
   await expect

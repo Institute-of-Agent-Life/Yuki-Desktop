@@ -23,9 +23,14 @@ export class LocalStore {
       .run(key, JSON.stringify(value))
   }
   preferences(): Preferences {
-    const stored = { ...defaultPreferences, ...this.get<Partial<Preferences>>('appearance') }
+    const { opaque, ...stored } = {
+      ...defaultPreferences,
+      ...this.get<Partial<Preferences> & { opaque?: boolean }>('appearance'),
+    }
     // 「桌面」 was a backdrop before the window's frost became a choice of its own; it drew nothing.
     if ((stored.backdrop as string) === 'desktop') stored.backdrop = 'plain'
+    // Before transparency was a number it was frosted or opaque; opaque is 0.
+    if (opaque) stored.transparency = 0
     return stored
   }
 }

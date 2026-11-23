@@ -80,58 +80,89 @@
   box-shadow: 0 1px 3px #0003;
   pointer-events: none;
 }
+/* The glass slider (slider-v2.md): a 6pt track, the accent up to the thumb's centre. */
 .slider {
+  --slider-track: rgb(120 120 128 / 0.14);
+  /* The thumb at rest: white (light), 231 grey under a white hairline (dark). */
+  --slider-knob: #ffffff;
+  /* What the held glass adds to what it shows: WWDC25 219 reads it 13 levels darker. */
+  --slider-glass: rgb(0 0 0 / 0.05);
   position: relative;
-  height: 30px;
+  height: 36px;
   min-width: 60px;
   flex: 1;
+  outline: none;
   touch-action: none;
   user-select: none;
-  cursor: pointer;
+  cursor: default;
+}
+:global([data-theme='dark']) .slider {
+  --slider-track: rgb(255 255 255 / 0.19);
+  --slider-knob: #e7e7e9;
+  --slider-glass: rgb(255 255 255 / 0.04);
 }
 .sliderTrack {
   position: absolute;
-  left: 14px;
-  right: 14px;
-  top: 13px;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--track);
-  overflow: hidden;
+  left: 0;
+  right: 0;
+  top: calc(50% - 3px);
+  height: 6px;
+  border-radius: 3px;
+  background: var(--slider-track);
   pointer-events: none;
 }
 .sliderTrack > span {
-  display: block;
-  width: var(--value, 0%);
-  height: 100%;
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--fill, 0);
   border-radius: inherit;
   background: var(--accent);
 }
 .sliderThumb {
+  --held: 0;
   position: absolute;
-  top: 6px;
-  left: 14px;
-  width: 28px;
-  height: 18px;
-  border-radius: 9px;
+  left: 0;
+  top: 8px;
+  width: 24px;
+  height: 20px;
+  border-radius: 10px;
   pointer-events: none;
-  background: rgb(255 255 255 / calc(1 - var(--glass-pressure, 0) * 0.74));
-  backdrop-filter: var(--glass-lens);
+  /* Solid at rest; held, clear glass that shows the track and bends it at its rim, then frosts
+     back over as it settles. */
+  background:
+    radial-gradient(
+      closest-side,
+      transparent 72%,
+      rgb(0 0 0 / calc(var(--glass-pressure, 0) * 0.06))
+    ),
+    color-mix(
+      in srgb,
+      var(--slider-knob) calc((1 - var(--glass-pressure, 0)) * 100%),
+      var(--slider-glass)
+    );
+  backdrop-filter: var(--refract,) blur(calc((1 - var(--glass-pressure, 0)) * 4px)) var(--seal,);
+  /* A white hairline at rest; held, a bright rim, the edge's thickness faintly shaded within, and
+     WWDC25 219's soft shadow (about 0.12 of the height down, 6% dark). */
   box-shadow:
-    0 1px 3px #0003,
-    0 3px 10px #0000000f;
+    inset 0 0 0 0.5px rgb(255 255 255 / calc(0.7 + var(--glass-pressure, 0) * 0.3)),
+    inset 0 0.75px 0 rgb(255 255 255 / calc(var(--glass-pressure, 0) * 0.9)),
+    inset 0 0 2px rgb(0 0 0 / calc(var(--glass-pressure, 0) * 0.1)),
+    0 0 0 0.5px rgb(0 0 0 / calc(0.04 - var(--glass-pressure, 0) * 0.02)),
+    0 calc(0.5px + var(--held) * 3.5px) calc(2px + var(--held) * 8px)
+      rgb(0 0 0 / calc(0.12 - var(--held) * 0.04)),
+    0 calc(2px + var(--held) * 2px) calc(8px + var(--held) * 8px) rgb(0 0 0 / 0.06);
 }
-.slider:hover .sliderThumb {
+:global([data-theme='dark']) .sliderThumb {
   box-shadow:
-    0 1px 4px #0004,
-    0 3px 10px #00000014;
+    inset 0 0 0 0.5px rgb(255 255 255 / calc(0.8 + var(--glass-pressure, 0) * 0.2)),
+    inset 0 0.75px 0 rgb(255 255 255 / calc(var(--glass-pressure, 0) * 0.6)),
+    0 calc(0.5px + var(--held) * 3px) calc(2px + var(--held) * 10px)
+      rgb(0 0 0 / calc(0.3 + var(--held) * 0.1));
 }
-.slider:focus-visible {
-  outline: 0;
-}
+/* Keyboard focus only: a press focuses without it. The macOS ring: accent, around the thumb. */
 .slider:focus-visible .sliderThumb {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 1px;
+  outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 0.5px;
 }
 .slider[aria-disabled='true'] {
   opacity: 0.4;

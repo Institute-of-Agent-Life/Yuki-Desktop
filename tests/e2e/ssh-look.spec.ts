@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readFile, writeFile } from 'node:fs/promises'
 import { pairUI, systemOpaque, yukiFixture } from '../fixtures/backend'
+import { chooseTransparency } from '../fixtures/transparency'
 
 // The SSH entry, "Deploy to my server" and the connection-method dialog are the same welcome
 // card, form fields, settings rows and dialog as deploying on this computer. Screenshots in light
@@ -18,10 +19,7 @@ async function look(page: Page, value: (typeof looks)[number]) {
   await page
     .getByRole('radio', { name: value.theme === 'dark' ? '深色' : '淺色', exact: true })
     .click()
-  await page
-    .getByRole('radiogroup', { name: '視窗材質', exact: true })
-    .getByRole('radio', { name: value.opaque ? '不透明' : '透明磨砂', exact: true })
-    .click()
+  await chooseTransparency(page, value.opaque ? 0 : 70)
   await expect(page.locator('html')).toHaveAttribute('data-opaque', String(value.opaque))
   await page.getByRole('button', { name: '返回', exact: true }).click()
   // Material and theme transitions settle before the picture.

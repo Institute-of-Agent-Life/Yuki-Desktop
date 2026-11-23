@@ -4,6 +4,7 @@ import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import { delimiter, join } from 'node:path'
 import { currentConnection, pairUI, systemOpaque, yukiFixture } from '../fixtures/backend'
 import { fillSsh, sshHost } from '../fixtures/ssh-host'
+import { chooseTransparency } from '../fixtures/transparency'
 
 /*
  * Settings → 平台 (task book 2026-11-13 §3.2 desktop, §4 failure cases 4, 6–10, §5 revision),
@@ -621,10 +622,7 @@ for (const [look, theme, material] of looks)
       await expect(telegram).toBeHidden()
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
       await page.getByRole('radio', { name: theme, exact: true }).click()
-      await page
-        .getByRole('radiogroup', { name: '視窗材質', exact: true })
-        .getByRole('radio', { name: material, exact: true })
-        .click()
+      await chooseTransparency(page, material === '不透明' ? 0 : 70)
       await expect(page.locator('html')).toHaveAttribute(
         'data-opaque',
         String(material === '不透明'),

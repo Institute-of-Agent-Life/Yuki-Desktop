@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { launchShell } from '../fixtures/shell-app'
 import { captureViewport, contentSize } from '../fixtures/visual'
+import { chooseTransparency } from '../fixtures/transparency'
 
 test('frosted workspace keeps its paper, floating controls, real receipts and drafts across appearances and sizes', async () => {
   test.setTimeout(180000)
@@ -87,10 +88,7 @@ test('frosted workspace keeps its paper, floating controls, real receipts and dr
       await page
         .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
         .click()
-      await page
-        .getByRole('radiogroup', { name: '視窗材質', exact: true })
-        .getByRole('radio', { name: mode === 'opaque' ? '不透明' : '透明磨砂', exact: true })
-        .click()
+      await chooseTransparency(page, mode === 'opaque' ? 0 : 70)
       for (const [name, checked] of [['增加對比', mode === 'contrast']] as const) {
         const toggle = page.getByRole('switch', { name, exact: true })
         if ((await toggle.getAttribute('aria-checked')) !== String(checked)) await toggle.click()

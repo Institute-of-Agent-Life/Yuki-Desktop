@@ -301,6 +301,20 @@
 :global([data-contrast='true']) .categories button[role='tab'][aria-selected='true'] {
   color: var(--accent-on);
 }
+/* The transparency slider between its two ends: solid on the left, clear on the right. HIG: the
+   end icons sit about 2.4 track widths from the track. */
+.transparency {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 270px;
+}
+.transparency > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+}
 .backdrops {
   display: flex;
   flex-wrap: wrap;

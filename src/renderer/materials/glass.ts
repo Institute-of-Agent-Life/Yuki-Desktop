@@ -39,8 +39,11 @@ const NS = 'http://www.w3.org/2000/svg'
  *   lens: a control held under the finger, the clear lens of WWDC25 219.
  */
 const shapes = {
-  pane: { band: 0.45, bend: 1.2, profile: 2, wobble: 0.3 },
-  lens: { band: 0.19, bend: 2.16, profile: 4, wobble: 0 },
+  pane: { band: 0.45, bend: 1.2, profile: 2, wobble: 0.3, least: 3 },
+  lens: { band: 0.19, bend: 2.16, profile: 4, wobble: 0, least: 3 },
+  // The slider's held thumb, measured on WWDC25 219's front-on slider (slider-v2.md §3.2): a flat
+  // face and a rim a tenth of the radius wide, whose edge shows what lies 0.6 of the radius in.
+  slider: { band: 0.1, bend: 6, profile: 0.5, wobble: 0, least: 1 },
 } as const
 /*
  * The rim's light, measured on the same glass: a line half a point in from the edge, brightest on
@@ -73,13 +76,18 @@ const lights = {
       body: 0.2,
     },
   },
+  // The slider's thumb draws its own rim (InteractiveControls.module.css) and gathers no light.
+  slider: {
+    light: { line: 0, other: 0, lobe: 1, fresnel: 0, glow: 0, glowWidth: 1, body: 0 },
+    dark: { line: 0, other: 0, lobe: 1, fresnel: 0, glow: 0, glowWidth: 1, body: 0 },
+  },
 } as const
 const kinds = {
   toolbar: 'pane',
   composer: 'pane',
   card: 'pane',
   sheet: 'pane',
-  slider: 'lens',
+  slider: 'slider',
   toggle: 'lens',
   segment: 'lens',
 } as const
@@ -127,7 +135,7 @@ let sequence = 0
 function lens(width: number, height: number, radius: number, kind: GlassKind): Lens {
   const scale = Math.min(3, Math.max(2, Math.ceil(devicePixelRatio))),
     shape = shapes[kinds[kind]],
-    band = Math.max(3, shape.band * radius),
+    band = Math.max(shape.least, shape.band * radius),
     border = Math.ceil(Math.max(radius, band) + 2),
     tile = 2 * border + 1
   const across = width > tile,
@@ -313,8 +321,17 @@ const primitive = (name: string, attributes: Record<string, string>) => {
   return node
 }
 
-/** Samples only the backdrop; foreground text remains on the original surface. */
-export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false, enabled = true) {
+/**
+ * Samples only the backdrop; foreground text remains on the original surface. A glass whose size
+ * changes all the time (a held slider's thumb) can be given the size its maps are made for, once;
+ * they stretch with it.
+ */
+export function useGlass<T extends HTMLElement>(
+  kind: GlassKind,
+  dynamic = false,
+  enabled = true,
+  made?: { width: number; height: number; radius: number },
+) {
   const ref = useRef<T>(null),
     strength = useRef(dynamic ? 0 : 1)
   const bends = useRef<{ wobble?: SVGElement; bevel: SVGElement; amount: number } | null>(null)
@@ -484,17 +501,17 @@ export function useGlass<T extends HTMLElement>(kind: GlassKind, dynamic = false
       if (next !== size && !(dynamic && size)) {
         if (!shown && !dynamic && bending) materialise()
         shown = true
-        const made = lens(w, h, r, kind)
-        if (made !== current) {
-          current = made
-          assemble(made)
-          element.style.setProperty('--rim', `url("${made.rim}")`)
-          element.style.setProperty('--rim-slice', made.slice.join(' '))
+        const fresh = made ? lens(made.width, made.height, made.radius, kind) : lens(w, h, r, kind)
+        if (fresh !== current) {
+          current = fresh
+          assemble(fresh)
+          element.style.setProperty('--rim', `url("${fresh.rim}")`)
+          element.style.setProperty('--rim-slice', fresh.slice.join(' '))
           element.style.setProperty(
             '--rim-border',
-            made.border.map((value) => `${value}px`).join(' '),
+            fresh.border.map((value) => `${value}px`).join(' '),
           )
-          bends.current!.amount = made.band * shape.bend
+          bends.current!.amount = fresh.band * shape.bend
         }
       }
       if (next !== size) layout(w, h)

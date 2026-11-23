@@ -191,7 +191,6 @@ test('dialogs, the command palette, pairing and controls share the glass without
       'segment',
       page.locator('[data-glass="segment"]').first().locator('..').locator('button').first(),
     ],
-    ['slider', page.getByRole('slider').first()],
   ] as const) {
     const box = (await control.boundingBox())!
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
@@ -199,6 +198,20 @@ test('dialogs, the command palette, pairing and controls share the glass without
     await expectLiquidGlass(kind, page.locator(`[data-glass="${kind}"]`).first())
     await page.mouse.up()
   }
+  // The slider's held thumb bends too, but draws its own rim (slider-v2.md), not the map's.
+  const slider = page.getByRole('slider').first(),
+    thumb = slider.locator('[data-glass="slider"]'),
+    box = (await thumb.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await expect(thumb).toHaveAttribute('data-refracting', 'true')
+  expect(await thumb.evaluate((element) => getComputedStyle(element).backdropFilter)).toMatch(
+    /^url\(/,
+  )
+  expect(await thumb.evaluate((element) => getComputedStyle(element, '::after').display)).toBe(
+    'none',
+  )
+  await page.mouse.up()
 
   await page.goto(`${regressions}?case=palette`)
   const palette = page.locator('dialog[data-glass="sheet"]')

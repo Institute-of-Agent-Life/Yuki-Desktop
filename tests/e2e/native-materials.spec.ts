@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { launchShell } from '../fixtures/shell-app'
 import { pairUI } from '../fixtures/backend'
+import { chooseTransparency } from '../fixtures/transparency'
 
 async function snapshot(app: ElectronApplication, page: Page) {
   const renderer = await page.evaluate(() => {
@@ -146,10 +147,7 @@ test('native material shows through every surface and follows actual appearance 
       }
       expect(normal.native.bounds).toEqual(initialBounds)
       await page.screenshot({ path: test.info().outputPath(`native-material-${theme}.png`) })
-      await page
-        .getByRole('radiogroup', { name: '視窗材質', exact: true })
-        .getByRole('radio', { name: '不透明', exact: true })
-        .click()
+      await chooseTransparency(page, 0)
       await expect(page.locator('html')).toHaveAttribute('data-material', 'none')
       const opaque = await paintedSnapshot(app, page, 255)
       stages.push({ stage: theme + '-opaque', ...opaque })
@@ -159,10 +157,7 @@ test('native material shows through every surface and follows actual appearance 
       expect(opaque.renderer.sidebar).toBe(opaqueSidebar)
       expect(opaque.native.background.toLowerCase()).toBe(opaqueBackground)
       expect(opaque.native.bounds).toEqual(initialBounds)
-      await page
-        .getByRole('radiogroup', { name: '視窗材質', exact: true })
-        .getByRole('radio', { name: '透明磨砂', exact: true })
-        .click()
+      await chooseTransparency(page, 70)
       await expect(page.locator('html')).toHaveAttribute('data-material', material)
       await expect
         .poll(async () => (await snapshot(app, page)).native.background.toLowerCase())
@@ -178,10 +173,7 @@ test('native material shows through every surface and follows actual appearance 
       await page.getByRole('switch', { name: '增加對比', exact: true }).click()
       await expect(page.locator('html')).toHaveAttribute('data-material', material)
     }
-    await page
-      .getByRole('radiogroup', { name: '視窗材質', exact: true })
-      .getByRole('radio', { name: '不透明', exact: true })
-      .click()
+    await chooseTransparency(page, 0)
     await app.close()
     app = await launchShell(data)
     page = await app.firstWindow()
@@ -191,20 +183,16 @@ test('native material shows through every surface and follows actual appearance 
     await expect(page.locator('html')).toHaveAttribute('data-material', 'none')
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
-    await expect(
-      page
-        .getByRole('radiogroup', { name: '視窗材質', exact: true })
-        .getByRole('radio', { name: '不透明', exact: true }),
-    ).toBeChecked()
+    await expect(page.getByRole('slider', { name: '透明度', exact: true })).toHaveAttribute(
+      'aria-valuetext',
+      '不透明',
+    )
     const cold = await paintedSnapshot(app, page, 255)
     stages.push({ stage: 'cold-opaque', ...cold })
     expect(cold.native.background.toLowerCase()).toBe('#101215')
     expect(cold.renderer.sidebar).toBe('rgb(32, 34, 39)')
     expect(cold.native.groundPixel[3]).toBe(255)
-    await page
-      .getByRole('radiogroup', { name: '視窗材質', exact: true })
-      .getByRole('radio', { name: '透明磨砂', exact: true })
-      .click()
+    await chooseTransparency(page, 70)
     await expect(page.locator('html')).toHaveAttribute('data-material', material)
     const enabledAlpha = material === 'none' ? 255 : Math.round(0.35 * 255)
     const enabled = await paintedSnapshot(app, page, enabledAlpha)

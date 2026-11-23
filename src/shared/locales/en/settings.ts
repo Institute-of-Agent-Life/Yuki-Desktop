@@ -44,11 +44,13 @@ export default {
   theme: 'Theme',
   light: 'Light',
   dark: 'Dark',
-  material: 'Window Material',
-  materialDescription:
-    'Frosted glass lets the desktop show through every screen; opaque always uses solid colors.',
-  frost: 'Frosted Glass',
-  opaque: 'Opaque',
+  transparency: 'Transparency',
+  transparencyDescription:
+    'Slide right to let more of the desktop show through; all the way left is opaque. Reduce Transparency in system settings always makes it opaque.',
+  transparencyOpaque: 'Opaque',
+  transparencyValue: '{{value}}%',
+  transparencyMin: 'Opaque',
+  transparencyMax: 'Clear',
   backdrop: 'Conversation Backdrop',
   backdropDescription:
     'A pattern beneath the conversation, behind the glass. Try a few to see the glass over different colors.',

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { launchShell } from '../fixtures/shell-app'
 import { pairUI } from '../fixtures/backend'
+import { chooseTransparency } from '../fixtures/transparency'
 
 test('macOS native material keeps secondary sidebar text readable in actual window captures', async () => {
   test.skip(process.platform !== 'darwin', 'Requires an actual macOS compositor')
@@ -58,11 +59,7 @@ test('macOS native material keeps secondary sidebar text readable in actual wind
         .click()
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
       for (const mode of ['material', 'opaque', 'contrast'] as const) {
-        if (mode === 'opaque')
-          await page
-            .getByRole('radiogroup', { name: '視窗材質', exact: true })
-            .getByRole('radio', { name: '不透明', exact: true })
-            .click()
+        if (mode === 'opaque') await chooseTransparency(page, 0)
         if (mode === 'contrast')
           await page.getByRole('switch', { name: '增加對比', exact: true }).click()
         const samples = []
@@ -132,11 +129,7 @@ test('macOS native material keeps secondary sidebar text readable in actual wind
         )
         for (const sample of contrast)
           expect(sample.ratio, `${theme}/${mode}/${sample.text}`).toBeGreaterThanOrEqual(4.5)
-        if (mode === 'opaque')
-          await page
-            .getByRole('radiogroup', { name: '視窗材質', exact: true })
-            .getByRole('radio', { name: '透明磨砂', exact: true })
-            .click()
+        if (mode === 'opaque') await chooseTransparency(page, 70)
         if (mode === 'contrast')
           await page.getByRole('switch', { name: '增加對比', exact: true }).click()
       }

@@ -45,7 +45,9 @@
   background: #fff;
   -webkit-mask-box-image: var(--rim) var(--rim-slice) fill / var(--rim-border);
 }
-[data-glass]:not([data-refracting])::after {
+[data-glass]:not([data-refracting])::after,
+/* The slider's thumb draws its own rim (InteractiveControls.module.css). */
+[data-glass='slider']::after {
   display: none;
 }
 /* Over light content a thin dark ring lies just outside the rim, as on Apple's regular glass. */

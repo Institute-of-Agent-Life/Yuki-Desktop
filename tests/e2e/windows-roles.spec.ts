@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto'
 import { ledgerEvents, pairUI } from '../fixtures/backend'
 import { launchShell } from '../fixtures/shell-app'
 import { windowsFileDialogOwner, completeWindowsFileDialog } from '../fixtures/windows-file-dialog'
+import { chooseTransparency } from '../fixtures/transparency'
 
 async function connections(page: Page) {
   return page.evaluate(async () => {
@@ -353,10 +354,7 @@ test('Windows native roles keep original chats, prompt and avatar drafts and col
       await page
         .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
         .click()
-      await page
-        .getByRole('radiogroup', { name: '視窗材質', exact: true })
-        .getByRole('radio', { name: mode === 'opaque' ? '不透明' : '透明磨砂', exact: true })
-        .click()
+      await chooseTransparency(page, mode === 'opaque' ? 0 : 70)
       for (const [name, checked] of [
         ['增加對比', mode === 'contrast'],
         ['減少動態', true],

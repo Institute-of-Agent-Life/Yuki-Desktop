@@ -933,7 +933,11 @@ function Case() {
       onSelect={() => {}}
       connection={settingsConnection}
       preferences={preferences}
-      save={async (patch) => setPreferences((current) => ({ ...current, ...patch }))}
+      save={async (patch) => {
+        // Each save is what the app would send over `yuki:preferences`, recorded for the specs.
+        ;((window as unknown as { preferenceSaves?: unknown[] }).preferenceSaves ??= []).push(patch)
+        setPreferences((current) => ({ ...current, ...patch }))
+      }}
       back={() => setConversationSettings(false)}
       onConnection={() => {}}
       about={() => {}}

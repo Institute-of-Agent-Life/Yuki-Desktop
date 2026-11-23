@@ -20,8 +20,9 @@ export function windowAppearance(preferences: Preferences): Pick<
   vibrancy?: 'sidebar'
 } {
   const platform = platformMaterial()
+  // Native material is on or off; how much shows through above 0 is the page's own (tokens.css).
   const opaque =
-    preferences.opaque ||
+    preferences.transparency === 0 ||
     preferences.highContrast ||
     nativeTheme.prefersReducedTransparency ||
     nativeTheme.shouldUseHighContrastColors

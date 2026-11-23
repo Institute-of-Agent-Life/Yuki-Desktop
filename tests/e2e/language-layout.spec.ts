@@ -178,7 +178,7 @@ test('every main page in three languages, light and dark, keeps its controls ins
         const w = words(language)
         // Theme and material are read at start; the window reloads into them.
         await page.evaluate(
-          ({ language, theme }) => window.yuki.preferences({ language, theme, opaque: true }),
+          ({ language, theme }) => window.yuki.preferences({ language, theme, transparency: 0 }),
           { language, theme },
         )
         await page.reload()
