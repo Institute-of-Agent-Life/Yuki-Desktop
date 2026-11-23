@@ -317,6 +317,30 @@ test('v4: app panes over text, a picture, line art and chat; the background pick
   await page.screenshot({ path: join(directory, 'picker-own-picture.png') })
 })
 
+/*
+ * v5 (coordinator, 2026-11-23): a thick glowing bevel, a lower-frequency melt, maps at 2x with
+ * dithering, and a tint pulled into the theme's range where the backdrop is bright or dark.
+ * Failure case written first:
+ *  12. a v5 pane fails to refract over any background or theme.
+ */
+test('v5: app panes over line art, a picture, text and chat', async ({ page }) => {
+  test.setTimeout(300000)
+  const directory = join(output(), 'v5', 'app')
+  await mkdir(directory, { recursive: true })
+  for (const background of ['lineart', 'photo', 'text', 'chat'])
+    for (const theme of ['light', 'dark']) {
+      await page.setViewportSize({ width: 1320, height: 1000 })
+      await ready(page, `${lab}?v=all&set=v5&bg=${background}&theme=${theme}`)
+      for (const kind of ['toolbar', 'button', 'card', 'composer'])
+        // 12
+        await expect(page.locator(`[data-variant="v5"] [data-lab-kind="${kind}"]`)).toHaveAttribute(
+          'data-ready',
+          'true',
+        )
+      await page.screenshot({ path: join(directory, `overview-${background}-${theme}.png`) })
+    }
+})
+
 test('each variant within the glass budget while content moves beneath it', async ({ page }) => {
   test.setTimeout(240000)
   await watchMaps(page)
@@ -325,7 +349,7 @@ test('each variant within the glass budget while content moves beneath it', asyn
     browser: page.context().browser()?.version(),
     note: 'deviceScaleFactor 2, 1200x760, content scrolling under the glass, pointer sweeping',
   }
-  for (const variant of ['none', ...v2, 'v3', 'v4', ...v1.slice(1)]) {
+  for (const variant of ['none', ...v2, 'v3', 'v4', 'v5', ...v1.slice(1)]) {
     await page.goto(`${lab}?v=${variant}&solo=1&animate=1&picker=0`)
     await expect(page.locator('html[data-lab-ready]')).toBeAttached({ timeout: 10000 })
     await page.waitForTimeout(600)
@@ -396,7 +420,7 @@ test('each variant within the glass budget while content moves beneath it', asyn
   await mkdir(output(), { recursive: true })
   await writeFile(join(output(), 'frame-budget.json'), JSON.stringify(report, null, 2) + '\n')
   // 2
-  for (const variant of ['none', ...v2, 'v3', 'v4', ...v1.slice(1)]) {
+  for (const variant of ['none', ...v2, 'v3', 'v4', 'v5', ...v1.slice(1)]) {
     const result = report[variant] as { mapsMs: number; longTasks: number[] }
     expect(
       result.longTasks.filter((duration) => duration > 100),

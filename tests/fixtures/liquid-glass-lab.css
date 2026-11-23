@@ -634,3 +634,34 @@ body {
 .scene.photo img {
   object-fit: cover;
 }
+/* v5: v4 with a thicker melt (more blur before the bend, contrast restored after) and the thick
+   bevel's darker inner contour shown; its tint adapts in the filter. */
+:root {
+  --v5-blur: 7px;
+  --v5-bright: 1.02;
+  --v5-sat: 1.1;
+  --v5-contrast: 1.45;
+  --v5-tint: rgb(255 255 255 / 0.12);
+  --v5-outline: rgb(0 0 0 / 0.14);
+}
+:root[data-theme='dark'] {
+  --v5-blur: 8px;
+  --v5-bright: 1;
+  --v5-sat: 1.1;
+  --v5-contrast: 1.25;
+  --v5-tint: rgb(30 32 50 / 0.34);
+  --v5-outline: transparent;
+}
+.glass.v5Glass.v5Glass {
+  background: var(--v5-tint);
+  box-shadow:
+    0 0 0 0.5px var(--v5-outline),
+    0 6px 18px -8px rgb(16 24 40 / 0.2);
+}
+.v5Glass .slabShade {
+  display: block;
+  background: rgb(20 24 36 / 0.55);
+}
+[data-theme='dark'] .v5Glass .slabShade {
+  background: rgb(0 0 0 / 0.6);
+}

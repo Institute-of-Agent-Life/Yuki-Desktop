@@ -48,6 +48,7 @@ const allVariants: { id: Shown; name: string; note: string }[] = [
   { id: 'slab-thick', name: 'S3 厚倒角', note: '平板 + 16px 倒角' },
   { id: 'v3', name: 'V3 對齊蘋果', note: '按 HIG 實測：模糊 + 提亮 + 邊緣細光' },
   { id: 'v4', name: 'V4 通透有體積', note: '按 WWDC 透鏡：寬過渡折射 + 體內光 + 菲涅爾邊' },
+  { id: 'v5', name: 'V5 厚邊融化', note: 'V4 + 厚倒角光邊 + 低頻融化 + 自適應著色' },
   { id: 'curved', name: 'v1-B 曲面透鏡', note: '已否決：整面鼓起' },
   { id: 'volume', name: 'v1-C 體積光影', note: '已否決：枕形明暗' },
   { id: 'lit', name: 'v1-D 即時光照', note: '已否決：無 GPU 時 30fps' },
@@ -59,16 +60,18 @@ const variants = allVariants.filter((item) =>
       ? ['current', 'slab', 'v3'].includes(item.id)
       : query.get('set') === 'v4'
         ? ['current', 'v3', 'v4'].includes(item.id)
-        : ['current', 'slab-thin', 'slab', 'slab-thick'].includes(item.id),
+        : query.get('set') === 'v5'
+          ? ['current', 'v4', 'v5'].includes(item.id)
+          : ['current', 'slab-thin', 'slab', 'slab-thick'].includes(item.id),
 )
 const isSlab = (variant: Shown): variant is SlabVariant =>
-  variant.startsWith('slab') || variant === 'v3' || variant === 'v4'
+  variant.startsWith('slab') || variant === 'v3' || variant === 'v4' || variant === 'v5'
 // While tuning v3: ?p={"blur":4,...} overrides its material and light (see liquid-glass-slab.ts).
 const tuning = JSON.parse(query.get('p') ?? '{}') as Record<string, number | string>
 Object.assign(globalThis, { __v3: tuning })
 for (const [key, value] of Object.entries(tuning))
   if (['blur', 'bright', 'sat', 'contrast', 'tint', 'outline', 'shadow'].includes(key))
-    for (const prefix of ['v3', 'v4'])
+    for (const prefix of ['v3', 'v4', 'v5'])
       document.documentElement.style.setProperty(
         `--${prefix}-${key}`,
         typeof value === 'number' && key === 'blur' ? `${value}px` : String(value),
@@ -333,8 +336,8 @@ function SlabGlass({
     // The face keeps today's tint, frost and blur: only the bevel is new. v3 takes Apple's
     // measured material instead: a moderate blur, a lift in brightness, a little saturation.
     element.style.backdropFilter =
-      variant === 'v3' || variant === 'v4'
-        ? (variant === 'v4' ? tuning.order !== 'displaceFirst' : tuning.order === 'blurFirst')
+      variant === 'v3' || variant === 'v4' || variant === 'v5'
+        ? (variant !== 'v3' ? tuning.order !== 'displaceFirst' : tuning.order === 'blurFirst')
           ? `blur(var(--${variant}-blur)) url(#${filter.id}) brightness(var(--${variant}-bright)) saturate(var(--${variant}-sat)) contrast(var(--${variant}-contrast))`
           : `url(#${filter.id}) blur(var(--${variant}-blur)) brightness(var(--${variant}-bright)) saturate(var(--${variant}-sat)) contrast(var(--${variant}-contrast))`
         : kind === 'card'
@@ -357,7 +360,7 @@ function SlabGlass({
     <div
       ref={ref}
       data-lab-kind={kind}
-      className={`glass slabGlass ${variant === 'v3' || variant === 'v4' ? `v3Glass ${variant}Glass` : ''} ${className}`}
+      className={`glass slabGlass ${variant === 'v3' || variant === 'v4' || variant === 'v5' ? `v3Glass ${variant}Glass` : ''} ${className}`}
       style={style}
     >
       <span ref={shade} className="slabShade" aria-hidden="true" />

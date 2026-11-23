@@ -14,7 +14,7 @@
 import { roundedDistance } from '../../src/renderer/materials/glass'
 
 const NS = 'http://www.w3.org/2000/svg'
-export type SlabVariant = 'slab-thin' | 'slab' | 'slab-thick' | 'v3' | 'v4'
+export type SlabVariant = 'slab-thin' | 'slab' | 'slab-thick' | 'v3' | 'v4' | 'v5'
 // bevel: its width in px (capped by the corner and the pane); bend: displacement at the rim in px;
 // spread: dispersion around the bend (0: none).
 export const slabs: Record<SlabVariant, { bevel: number; bend: number; spread: number }> = {
@@ -23,6 +23,7 @@ export const slabs: Record<SlabVariant, { bevel: number; bend: number; spread: n
   'slab-thick': { bevel: 16, bend: 12, spread: 0 },
   v3: { bevel: 10, bend: 6, spread: 0 },
   v4: { bevel: 10, bend: 6, spread: 0 },
+  v5: { bevel: 10, bend: 6, spread: 0 },
 }
 /*
  * v3: the light measured off Apple's own glass (HIG Materials, see comparison.md): no broad
@@ -158,26 +159,48 @@ function bodyMap(width: number, below: number) {
 }
 /** The clear lens fitted to the WWDC25 219 grid (trace overlay in comparison.md). */
 export const lensFit = { bevelRatio: 0.19, bendRatio: 2.16, profile: 4, wobble: 0 }
-type Measured = 'v3' | 'v4'
+/*
+ * v5: v4 plus what still told it apart from Apple's glass: a thick, glowing bevel about 2.5pt wide
+ * with a darker contour inside it, bright on dark glass too; a lower-frequency melt (more blur
+ * before the bend, contrast restored after); a dithered bend map, so the far grid lines seen near
+ * the rim do not step into dashed rings; and a tint that deepens where the backdrop is busy.
+ */
+export const v5Look = {
+  band: 0.62,
+  bandAt: 1.1,
+  bandWidth: 1.15,
+  bandAxis: 0.7,
+  contour: 0.28,
+  contourAt: 2.9,
+  contourWidth: 0.9,
+  dither: 1,
+  // How far the backdrop's brightness is pulled into the theme's range (0: not at all).
+  adaptMax: 0.35,
+}
+const v5Dark: Partial<typeof v5Look> = { band: 0.5, contour: 0.4, adaptMax: 0.6 }
+type Measured = 'v3' | 'v4' | 'v5'
+export const isMeasured = (variant: SlabVariant): variant is Measured =>
+  variant === 'v3' || variant === 'v4' || variant === 'v5'
 const look = (variant: Measured = 'v3'): typeof v3Look & Record<string, number> => ({
   ...v3Look,
-  ...(variant === 'v4' ? v4Look : {}),
+  ...(variant !== 'v3' ? v4Look : {}),
+  ...(variant === 'v5' ? v5Look : {}),
   ...(document.documentElement.dataset.theme === 'dark'
-    ? variant === 'v4'
-      ? v4Dark
-      : v3Dark
+    ? variant === 'v3'
+      ? v3Dark
+      : { ...v4Dark, ...(variant === 'v5' ? v5Dark : {}) }
     : {}),
   ...((globalThis as { __v3?: Partial<typeof v3Look> }).__v3 ?? {}),
 })
 /** The bevel a pane gets: never wider than 60% of its corner or a quarter of its short side. */
 export const bevelOf = (variant: SlabVariant, width: number, height: number, radius: number) =>
-  variant === 'v3' || variant === 'v4'
+  isMeasured(variant)
     ? // Fitted to Apple's lens over a grid (WWDC25 219, 00:48): a fraction of the corner's radius.
       Math.max(3, look(variant).bevelRatio * Math.min(radius, Math.min(width, height) / 2))
     : Math.max(4, Math.min(shapeOf(variant).bevel, radius * 0.6, Math.min(width, height) * 0.25))
 // v3's bevel, bend and dispersion can be tuned like its light.
 const shapeOf = (variant: SlabVariant) =>
-  variant === 'v3' || variant === 'v4'
+  isMeasured(variant)
     ? { ...slabs[variant], ...pick(look(variant), ['bevel', 'bend', 'spread']) }
     : slabs[variant]
 const pick = (from: Record<string, number>, keys: string[]) =>
@@ -271,8 +294,10 @@ function paintTile(
     const t = -d / bevel,
       amount = measured ? (t >= 1 ? 0 : (1 - Math.max(0, t)) ** v3.profile) : bendAt(t),
       [nx, ny] = normal(x, y)
-    data[k] = Math.round(128 - amount * nx * 127)
-    data[k + 1] = Math.round(128 - amount * ny * 127)
+    // v5 dithers the 8-bit map: a strong bend otherwise steps 1px at a time into dashed curves.
+    const noise = v3.dither ? (((k * 2654435761) >>> 0) / 4294967296 - 0.5) * v3.dither : 0
+    data[k] = Math.round(128 - amount * nx * 127 + noise)
+    data[k + 1] = Math.round(128 - amount * ny * 127 - noise)
   }, neutral)
   // Where the specular line sits: the bevel's tilt there halves the angle between the light and
   // the eye. Its brightness follows how squarely each edge faces the light, as under a broad source.
@@ -296,8 +321,14 @@ function paintTile(
         : 0
       const line = Math.exp(-(((inset - v3.lineAt) / v3.lineWidth) ** 2)) * v3.line * weight
       const glow = v3.glow * Math.exp(-inset / v3.glowWidth)
+      // v5's thick bevel: a glowing band about 2.5pt wide, almost even all round.
+      const band = v3.band
+        ? v3.band *
+          ((v3.bandAxis ?? 0.7) + (1 - (v3.bandAxis ?? 0.7)) * lobes) *
+          Math.exp(-(((inset - (v3.bandAt ?? 1)) / (v3.bandWidth ?? 1)) ** 2))
+        : 0
       data[k] = data[k + 1] = data[k + 2] = 255
-      data[k + 3] = Math.round(Math.min(1, line + glow + fresnel) * coverage * 255)
+      data[k + 3] = Math.round(Math.min(1, line + glow + fresnel + band) * coverage * 255)
       return
     }
     const inset = Math.max(0, -d),
@@ -316,8 +347,17 @@ function paintTile(
     data[k + 3] = Math.round(Math.min(1, specular * 0.85 + hairline + inner) * coverage * 255)
   }, 0)
   const shade = paint((data, k, x, y, d) => {
-    // v3 has no line at the bevel's end: Apple's glass shows none.
-    if (measured) return
+    // v3 and v4 have no line at the bevel's end; v5 has the thick bevel's inner contour.
+    if (measured) {
+      if (v3.contour)
+        data[k + 3] = Math.round(
+          Math.min(
+            1,
+            v3.contour * Math.exp(-(((-d - (v3.contourAt ?? 3)) / (v3.contourWidth ?? 1)) ** 2)),
+          ) * 255,
+        )
+      return
+    }
     const inset = -d,
       [nx, ny] = normal(x, y)
     const facing = (nx * light[0]! + ny * light[1]!) / Math.hypot(light[0]!, light[1]!)
@@ -350,6 +390,9 @@ export function slabMaps(
   variant: SlabVariant,
   scale: number,
 ): SlabMaps {
+  // v5 paints its maps at no less than 2x: a strong bend from a 1x map steps a pixel at a time
+  // into the dashed curves seen near a lens's rim.
+  if (variant === 'v5') scale = Math.max(2, scale)
   const bevel = bevelOf(variant, width, height, radius)
   const border = Math.ceil(Math.max(radius, bevel) + 2),
     tile = 2 * border + 1
@@ -361,7 +404,7 @@ export function slabMaps(
     radius,
     bevel,
     scale,
-    variant === 'v3' || variant === 'v4' ? variant : undefined,
+    isMeasured(variant) ? variant : undefined,
   )
   let displacement: string
   if (!across && !down) displacement = painted.displacement.toDataURL()
@@ -398,10 +441,7 @@ export function slabMaps(
 /** The pane's refraction: the bevel's bend, split into three colours where it disperses. */
 export function slabFilter(variant: SlabVariant, maps: SlabMaps, width: number, height: number) {
   const { spread } = shapeOf(variant),
-    bend =
-      variant === 'v3' || variant === 'v4'
-        ? maps.bevel * look(variant).bendRatio
-        : shapeOf(variant).bend
+    bend = isMeasured(variant) ? maps.bevel * look(variant).bendRatio : shapeOf(variant).bend
   const svg = document.createElementNS(NS, 'svg')
   svg.setAttribute('aria-hidden', 'true')
   svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none'
@@ -433,10 +473,10 @@ export function slabFilter(variant: SlabVariant, maps: SlabMaps, width: number, 
   })
   // v4: the whole pane wobbles a little first; the bevel then bends what the wobble left.
   let source = 'SourceGraphic'
-  const wobble = variant === 'v4' ? (look('v4').wobble ?? 0) : 0
+  const wobble = variant === 'v4' || variant === 'v5' ? (look(variant).wobble ?? 0) : 0
   if (wobble) {
     add('feImage', {
-      href: wobbleMap(look('v4').wobbleFrequency ?? 1.6),
+      href: wobbleMap(look(variant as Measured).wobbleFrequency ?? 1.6),
       width: String(width),
       height: String(height),
       preserveAspectRatio: 'none',
@@ -445,7 +485,7 @@ export function slabFilter(variant: SlabVariant, maps: SlabMaps, width: number, 
     add('feDisplacementMap', {
       in: source,
       in2: 'wobble-map',
-      scale: String(2 * wobble * maps.bevel * look('v4').bendRatio),
+      scale: String(2 * wobble * maps.bevel * look(variant as Measured).bendRatio),
       xChannelSelector: 'R',
       yChannelSelector: 'G',
       result: 'wobbled',
@@ -494,11 +534,11 @@ export function slabFilter(variant: SlabVariant, maps: SlabMaps, width: number, 
     for (const channel of ['feFuncR', 'feFuncG', 'feFuncB'])
       add(channel, { type: 'linear', slope: '3' }, restore)
   }
-  if (variant === 'v4') {
+  if (variant === 'v4' || variant === 'v5') {
     // Every bend above ends in the filter's last result; brighten it by the body's light.
     const last = filter.lastElementChild!
     last.setAttribute('result', 'bent')
-    const v4 = look('v4')
+    const v4 = look(variant)
     add('feImage', {
       href: bodyMap(v4.bodyWidth ?? 0.6, v4.bodyY ?? 0),
       width: String(width),
@@ -512,6 +552,33 @@ export function slabFilter(variant: SlabVariant, maps: SlabMaps, width: number, 
       operator: 'arithmetic',
       k1: String(v4.bodyGain ?? 0),
       k2: '1',
+      result: 'lit',
+    })
+  }
+  if (variant === 'v5' && (look('v5').adaptMax ?? 0) > 0) {
+    // A tint that follows what is behind, as Apple's glass darkens over bright content and lightens
+    // over dark: the backdrop's brightness is compressed toward the theme's own range, so text of
+    // the theme's colour stays legible over line art or photos. Per pixel and cheap; the local
+    // contrast through blurred variance was tried and lost to 8-bit rounding and blocky blurs.
+    const v5 = look('v5'),
+      dark = document.documentElement.dataset.theme === 'dark'
+    const compress = add('feComponentTransfer', { in: 'lit', result: 'compressed' })
+    for (const channel of ['feFuncR', 'feFuncG', 'feFuncB'])
+      add(
+        channel,
+        {
+          type: 'table',
+          tableValues: dark ? '0.04 0.1 0.16 0.21 0.25' : '0.66 0.76 0.85 0.92 0.97',
+        },
+        compress,
+      )
+    const strength = v5.adaptMax ?? 0.6
+    add('feComposite', {
+      in: 'lit',
+      in2: 'compressed',
+      operator: 'arithmetic',
+      k2: String(1 - strength),
+      k3: String(strength),
     })
   }
   svg.append(filter)
