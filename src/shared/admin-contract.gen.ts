@@ -1004,6 +1004,11 @@ export interface components {
              * @default []
              */
             capabilities: components["schemas"]["ModelCapability"][];
+            /**
+             * Connect Timeout Seconds
+             * @default 10
+             */
+            connect_timeout_seconds: number;
             /** Context Window Tokens */
             context_window_tokens?: number | null;
             /** Default Max Output Tokens */
@@ -1301,6 +1306,8 @@ export interface components {
             base_url_env?: string;
             /** Capabilities */
             capabilities?: components["schemas"]["ModelCapability"][];
+            /** Connect Timeout Seconds */
+            connect_timeout_seconds?: number;
             /** Context Window Tokens */
             context_window_tokens?: number | null;
             /** Default Max Output Tokens */
