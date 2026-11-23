@@ -66,6 +66,7 @@ export type AutomationPage = components['schemas']['AutomationPage']
 export type Capabilities = components['schemas']['CharacterCapabilities']
 export type CharacterCommand =
   | { kind: 'device-revoke'; deviceId: string }
+  | { kind: 'device-delete'; deviceId: string }
   | { kind: 'proactive-route'; expectedRevision: number; bindingId: string }
   | {
       kind: 'profile'

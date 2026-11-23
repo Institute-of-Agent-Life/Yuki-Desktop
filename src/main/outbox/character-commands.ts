@@ -28,6 +28,14 @@ export function characterRequest(command: CharacterCommand, characterId: string,
       method: 'DELETE' as const,
       payload: {},
     }
+  if (command.kind === 'device-delete')
+    return {
+      operation: 'client.delete',
+      target: command.deviceId,
+      path: `devices/${command.deviceId}/delete`,
+      method: 'POST' as const,
+      payload: {},
+    }
   if (command.kind === 'avatar')
     return {
       operation: 'client.character_avatar',
@@ -129,9 +137,15 @@ export class CharacterCommands {
     )
       .map((row) => this.get(row.request_id))
       .filter((item) =>
-        ['profile', 'device-revoke', 'avatar', 'memory', 'automation', 'proactive-route'].includes(
-          item.command.kind,
-        ),
+        [
+          'profile',
+          'device-revoke',
+          'device-delete',
+          'avatar',
+          'memory',
+          'automation',
+          'proactive-route',
+        ].includes(item.command.kind),
       )
   }
   prepareAvatar(expectedRevision: number, bytes?: Uint8Array) {
@@ -172,7 +186,7 @@ export class CharacterCommands {
         !/^#[0-9a-f]{6}$/i.test(command.accent?.dark)
       )
         throw new ApiError('validation_error')
-    } else if (command.kind === 'device-revoke') {
+    } else if (command.kind === 'device-revoke' || command.kind === 'device-delete') {
       if (
         typeof command.deviceId !== 'string' ||
         !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -272,9 +286,15 @@ export class CharacterCommands {
     const item = this.get(id)
     if (
       item.state === 'result' ||
-      !['profile', 'device-revoke', 'avatar', 'proactive-route', 'memory', 'automation'].includes(
-        item.command.kind,
-      )
+      ![
+        'profile',
+        'device-revoke',
+        'device-delete',
+        'avatar',
+        'proactive-route',
+        'memory',
+        'automation',
+      ].includes(item.command.kind)
     )
       return item
     try {

@@ -107,6 +107,137 @@ test(
   },
 )
 
+test('a revoked sign-in is deleted only after confirmation; active, unknown and deleted devices are refused', async () => {
+  test.setTimeout(150000)
+  const rig = await yukiFixture(),
+    proxy = await forwardProxy(rig.base, '/device-delete')
+  const app = await rig.launch('device-delete')
+  let success = false
+  try {
+    const page = await app.firstWindow()
+    await pairUI(page, proxy.base, await rig.code(), 'Mac A')
+    const current = await selected(page)
+    const pairDevice = async (label: string) => {
+      const response = await fetch(`${rig.base}/client/v1/pair`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: await rig.code(), device_label: label }),
+      })
+      expect(response.ok).toBe(true)
+      return ((await response.json()) as { data: components['schemas']['PairReceipt'] }).data
+    }
+    const lost = await pairDevice('Lost phone'),
+      active = await pairDevice('Still active'),
+      retried = await pairDevice('Lost tablet')
+    const command = (kind: 'device-revoke' | 'device-delete', deviceId: string) =>
+      page.evaluate(
+        async ({ id, kind, deviceId }) => {
+          const value = await window.yuki.client.characterCommand(id, { kind, deviceId })
+          if (!value.ok) throw Error(value.code)
+          return { state: value.value.state, problem: value.value.problem }
+        },
+        { id: current.characterId, kind, deviceId },
+      )
+    const devices = () =>
+      page.evaluate(async (id) => {
+        const result = await window.yuki.client.read<Me>(id, { kind: 'me' })
+        if (!result.ok) throw Error(result.code)
+        return result.value.devices.map((device) => device.device_id)
+      }, current.characterId)
+    await security(page)
+    await expect(page.getByRole('button', { name: '撤銷 Lost phone', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^刪除 / })).toHaveCount(0)
+    await page.getByRole('button', { name: '撤銷 Lost phone', exact: true }).click()
+    await page
+      .getByRole('dialog', { name: '撤銷裝置？', exact: true })
+      .getByRole('button', { name: '撤銷裝置', exact: true })
+      .click()
+    const remove = page.getByRole('button', { name: '刪除 Lost phone', exact: true })
+    await expect(remove).toBeVisible()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await page.screenshot({
+      path: test.info().outputPath(`${process.platform}-revoked-device-row.png`),
+    })
+    await remove.click()
+    const dialog = page.getByRole('dialog', { name: '刪除裝置？', exact: true })
+    await expect(
+      dialog.getByText('「Lost phone」會從列表刪除，原訊息與紀錄保留。', { exact: true }),
+    ).toBeVisible()
+    await dialog.getByRole('button', { name: '取消', exact: true }).click()
+    await expect(dialog).not.toBeVisible()
+    expect(await devices()).toContain(lost.device_id)
+    await remove.click()
+    await dialog.getByRole('button', { name: '刪除裝置', exact: true }).click()
+    await expect(page.getByText('裝置已刪除。', { exact: true })).toBeVisible()
+    await expect(page.getByText('Lost phone')).toHaveCount(0)
+    expect(await devices()).not.toContain(lost.device_id)
+
+    expect(await command('device-delete', active.device_id)).toEqual({
+      state: 'result',
+      problem: 'precondition_failed',
+    })
+    expect(await command('device-delete', current.deviceId!)).toEqual({
+      state: 'result',
+      problem: 'precondition_failed',
+    })
+    expect(await command('device-delete', lost.device_id)).toEqual({
+      state: 'result',
+      problem: 'not_found',
+    })
+    expect(await command('device-delete', randomUUID())).toEqual({
+      state: 'result',
+      problem: 'not_found',
+    })
+    const stillActive = await fetch(`${rig.base}/client/v1/me`, {
+      headers: { Authorization: `Bearer ${active.token}` },
+    })
+    expect(stillActive.status).toBe(200)
+
+    expect(await command('device-revoke', retried.device_id)).toEqual({
+      state: 'result',
+      problem: null,
+    })
+    proxy.faults.loseNextSuffix = `/devices/${retried.device_id}/delete`
+    await page.getByRole('button', { name: '刪除 Lost tablet', exact: true }).click()
+    await dialog.getByRole('button', { name: '刪除裝置', exact: true }).click()
+    await expect(page.getByText('裝置刪除：結果尚未確認。')).toBeVisible()
+    proxy.faults.holdReceipts = false
+    await page.getByRole('button', { name: '重新確認', exact: true }).click()
+    await expect(page.getByText('Lost tablet')).toHaveCount(0)
+    await expect(page.getByText('裝置刪除：結果尚未確認。')).toHaveCount(0)
+    const writes = proxy.calls.filter(
+      (call) =>
+        call.method === 'POST' && call.path.endsWith(`/devices/${retried.device_id}/delete`),
+    )
+    expect(writes).toHaveLength(1)
+    expect(await devices()).toEqual(expect.arrayContaining([current.deviceId, active.device_id]))
+    expect(await devices()).not.toContain(retried.device_id)
+    await expect(dialog).toHaveCount(0)
+    await page.screenshot({ path: test.info().outputPath(`${process.platform}-device-delete.png`) })
+    await writeFile(
+      test.info().outputPath('device-delete.json'),
+      JSON.stringify(
+        {
+          currentDeviceId: current.deviceId,
+          deletedDeviceIds: [lost.device_id, retried.device_id],
+          activeDeviceId: active.device_id,
+          remainingDeviceIds: await devices(),
+          deleteWrites: proxy.calls.filter(
+            (call) => call.method === 'POST' && call.path.endsWith('/delete'),
+          ),
+        },
+        null,
+        2,
+      ),
+    )
+    success = true
+  } finally {
+    await app.close().catch(() => {})
+    await proxy.close()
+    await rig.close(success)
+  }
+})
+
 test('real QR pixels pair a second device once; original device revocation survives a lost response and cold restart', async () => {
   test.setTimeout(180000)
   const rig = await yukiFixture(),
