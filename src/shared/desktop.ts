@@ -74,6 +74,8 @@ export type NativeMaterial = 'none' | 'vibrancy' | 'mica'
 
 export interface BootInfo {
   nativeMaterial: NativeMaterial
+  /** Whether Chromium composites on the GPU; without it the glass does not bend (glass.ts). */
+  gpuCompositing: boolean
   platform: 'darwin' | 'win32' | 'linux'
   version: string
   deviceLabel: string

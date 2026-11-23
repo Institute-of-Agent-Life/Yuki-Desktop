@@ -122,6 +122,7 @@ test('frosted workspace keeps its paper, floating controls, real receipts and dr
             capsuleHeight: glass.getBoundingClientRect().height,
             filter: styles.backdropFilter,
             refract: styles.getPropertyValue('--refract'),
+            gpu: document.documentElement.dataset.gpuCompositing,
             footerHeight: footer.height,
             logPadding: parseFloat(getComputedStyle(log).paddingBottom),
             opaque: document.documentElement.dataset.opaque,
@@ -145,8 +146,10 @@ test('frosted workspace keeps its paper, floating controls, real receipts and dr
         expect(geometry.htmlWidth).toBe(geometry.viewport)
         if (geometry.opaque === 'true') expect(geometry.filter).toBe('none')
         else {
-          expect(geometry.filter).toContain('blur(1px) saturate(1.16)')
-          expect(geometry.refract).toContain('url(')
+          // The final glass blurs first; it bends only where the window composites on the GPU.
+          expect(geometry.filter).toMatch(/^blur\([23]px\) /)
+          if (geometry.gpu === 'true') expect(geometry.refract).toContain('url(')
+          else expect(geometry.refract).toBe('')
         }
         await expect(original).toHaveAttribute('data-event-id', event!)
         stages.push({ mode, width, height, method, geometry })

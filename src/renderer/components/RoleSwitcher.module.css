@@ -43,7 +43,7 @@
   padding: 6px;
   border-radius: 14px;
   background: var(--mat-pane);
-  backdrop-filter: var(--glass-pane);
+  backdrop-filter: var(--glass-regular);
   box-shadow: var(--shadow-pane);
   max-height: min(400px, calc(100vh - 130px));
   overflow: auto;

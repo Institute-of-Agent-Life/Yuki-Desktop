@@ -100,8 +100,12 @@
   --mat-sidebar: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.48));
   --mat-chrome: rgba(255, 255, 255, 0.66);
   --mat-sheet: rgba(255, 255, 255, 0.97);
-  /* A floating glass pane, and how much of the backdrop's contrast it lets through. */
-  --mat-pane: rgba(255, 255, 255, 0.6);
+  /* The glass's tint (materials.css): clear, and a little more where it carries text. */
+  --mat-glass: rgb(255 255 255 / 0.16);
+  --mat-pane: rgb(255 255 255 / 0.24);
+  --glass-blur: 2px;
+  --glass-brightness: 1.02;
+  --glass-saturation: 1.05;
   /* The surfaces pages lie on: solid here, a thin wash of their colour over the window's frost. */
   --surface-page: var(--bg-content);
   --surface-pane: var(--bg-inspector);
@@ -208,7 +212,11 @@
   --mat-sidebar: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.05));
   --mat-chrome: rgba(46, 48, 55, 0.62);
   --mat-sheet: rgba(38, 40, 46, 0.97);
-  --mat-pane: rgba(38, 40, 46, 0.64);
+  --mat-glass: rgb(30 32 50 / 0.42);
+  --mat-pane: rgb(30 32 50 / 0.74);
+  --glass-blur: 3px;
+  --glass-brightness: 1;
+  --glass-saturation: 1.1;
   --backdrop-aurora:
     radial-gradient(60% 55% at 12% 18%, rgb(70 110 230 / 0.42), transparent 70%),
     radial-gradient(50% 50% at 88% 22%, rgb(150 90 230 / 0.36), transparent 70%),

@@ -28,7 +28,7 @@
   padding: 32px;
   border-radius: 28px;
   background: var(--mat-pane);
-  backdrop-filter: var(--glass-pane);
+  backdrop-filter: var(--glass-regular);
   box-shadow: var(--shadow-glass);
   display: flex;
   align-items: center;
@@ -266,8 +266,6 @@
   --toolbar-inset: 0px;
 }
 .composer {
-  /* Light enough for the backdrop and the colour fringe to read through, as clear glass. */
-  --composer-tint: 16%;
   position: absolute;
   z-index: 6;
   bottom: 14px;
@@ -282,14 +280,8 @@
   border-radius: 22px;
   box-shadow: var(--shadow-glass);
   padding: 8px;
-  background: color-mix(in srgb, var(--bg-elevated) var(--composer-tint), transparent);
-  backdrop-filter: var(--glass-lens);
-}
-:global([data-theme='dark']) .composer {
-  --composer-tint: 24%;
-}
-:global([data-opaque='true']) .composer {
-  background: var(--bg-elevated);
+  background: var(--mat-pane);
+  backdrop-filter: var(--glass-regular);
 }
 @media (forced-colors: active) {
   .composer {

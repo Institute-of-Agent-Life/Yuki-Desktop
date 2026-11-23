@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
+import { readRim } from '../fixtures/rim'
 
 // 液态玻璃组件统一任务书 (2026-11-12), step 1: glass maps from slices. Failure cases 9, 13, 16.
 const evidence: Record<string, unknown> = {}
@@ -66,54 +67,46 @@ async function longTasks(page: Page) {
   return () => page.evaluate(() => (window as unknown as { long: number[] }).long)
 }
 
-test('the same glass lights its corners and edges alike at any size', async ({ page }) => {
+test('the same glass lights and bends its corners and edges alike at any size', async ({
+  page,
+}) => {
   await page.goto(`${regressions}?case=conversation-glass`)
   await expect(page.getByText('幫我整理一下這週的訪談筆記。', { exact: true })).toBeVisible()
-  await page.evaluate(() => (document.documentElement.dataset.backdrop = 'plain'))
-  await page.mouse.move(2, 2)
   const composer = page.locator('[data-region="composer"]')
-  const rim = async (width: number) => {
+  // The glass's own maps, read where they are laid: its light at points of the top-left corner
+  // and along the straight top edge, and the pieces its bend is put together from.
+  const maps = async (width: number) => {
     await page.setViewportSize({ width, height: 760 })
     await expect(composer).toHaveAttribute('data-refracting', 'true')
     await page.waitForTimeout(400)
     const box = (await composer.boundingBox())!
-    const shot = await page.screenshot({
-      clip: { x: box.x, y: box.y, width: box.width, height: 4 },
+    const rim = await composer.evaluate(readRim, [
+      ...Array.from({ length: 24 }, (_, x) => [x, 0.5] as [number, number]),
+      [box.width / 2 - 50, 0.5],
+      [box.width / 2 + 50, 0.5],
+    ] as [number, number][])
+    const pieces = await composer.evaluate((element) => {
+      const id = getComputedStyle(element).backdropFilter.match(/#(yuki-glass-\d+)/)![1]!
+      return [...document.getElementById(id)!.querySelectorAll('feImage')]
+        .filter((image) => image.getAttribute('result')!.startsWith('bevel-'))
+        .map((image) => ({
+          href: image.getAttribute('href'),
+          // Corners keep their size; only the stretched edges grow with the glass.
+          size: [image.getAttribute('width'), image.getAttribute('height')],
+        }))
     })
-    return page.evaluate(
-      async ({ data, width }) => {
-        const image = new Image()
-        image.src = `data:image/png;base64,${data}`
-        await image.decode()
-        const canvas = new OffscreenCanvas(image.width, image.height),
-          context = canvas.getContext('2d')!
-        context.drawImage(image, 0, 0)
-        const pixels = context.getImageData(0, 0, image.width, image.height).data
-        const at = (x: number, y: number) => {
-          const k = (Math.round(y * 2) * image.width + Math.round(x * 2)) * 4
-          return [pixels[k]!, pixels[k + 1]!, pixels[k + 2]!]
-        }
-        // The top-left corner's first 24px, and two points on the straight top edge 100px apart.
-        return {
-          corner: Array.from({ length: 24 }, (_, x) => at(x, 1)),
-          edge: [at(width / 2 - 50, 0.5), at(width / 2 + 50, 0.5)],
-        }
-      },
-      { data: shot.toString('base64'), width: box.width },
-    )
+    return { width: box.width, corner: rim.light.slice(0, 24), edge: rim.light.slice(24), pieces }
   }
-  const narrow = await rim(760),
-    wide = await rim(1400)
-  evidence.rims = { narrow, wide }
-  const difference = (a: number[], b: number[]) =>
-    a.reduce((sum, value, index) => sum + Math.abs(value - b[index]!), 0) / a.length
+  // The composer is at most 712px wide: narrower than that in a narrow window.
+  const narrow = await maps(600),
+    wide = await maps(1400)
+  evidence.maps = { narrow, wide }
+  expect(wide.width).toBeGreaterThan(narrow.width + 100)
   // 9: the corner looks the same however wide the glass, and the edge is even along its length.
-  const cornerDifference =
-    narrow.corner.reduce((sum, value, index) => sum + difference(value, wide.corner[index]!), 0) /
-    narrow.corner.length
-  expect(cornerDifference).toBeLessThanOrEqual(2)
-  for (const sample of [narrow, wide])
-    expect(difference(sample.edge[0]!, sample.edge[1]!)).toBeLessThanOrEqual(2)
+  expect(wide.corner).toEqual(narrow.corner)
+  for (const sample of [narrow, wide]) expect(sample.edge[0]).toBe(sample.edge[1])
+  // The bend is the same pieces, moved: none is painted again for the new width.
+  expect(wide.pieces.map((piece) => piece.href)).toEqual(narrow.pieces.map((piece) => piece.href))
 })
 
 test('the pointer lights only the glass, never the whole page', async ({ page }) => {
@@ -181,22 +174,25 @@ test('opening panes and resizing glass stay within their map budget', async ({ p
   await page.goto(`${regressions}?case=conversation-glass`)
   const composer = page.locator('[data-region="composer"]')
   await expect(composer).toHaveAttribute('data-refracting', 'true')
-  const steps: number[] = []
+  const steps: number[] = [],
+    widths = new Set<number>()
   for (let step = 1; step <= 20; step++) {
     await resetMaps(page)
     await page.setViewportSize({ width: 720 - step, height: 760 })
     await page.waitForTimeout(80)
     steps.push(await mapTime(page))
+    widths.add((await composer.boundingBox())!.width)
   }
-  budget.resize = steps
+  budget.resize = { steps, widths: [...widths] }
   // The composer follows the window, so each step is a new size.
-  expect(steps.filter((time) => time > 0).length).toBeGreaterThan(10)
+  expect(widths.size).toBeGreaterThan(10)
   evidence.budget = budget
 
   // 16: a kind of glass is painted once, as a slice, the first time it is shown; after that, and
   // at any other size, its maps are only put together. Measured unthrottled, with room for slower
   // machines (CI's macOS runner is about six times slower than a desktop Mac): whole maps took
-  // about 17ms to open a dialog and 8ms per step of a resize; slices take about 2.5ms and 0.25ms.
+  // about 17ms to open a dialog and 8ms per step of a resize; slices take about 2.5ms to open, and
+  // a resize only moves the pieces of the bend, painting nothing.
   for (const pane of ['dialog', 'palette', 'menu', 'dialogAgain', 'menuAgain'] as const) {
     const { maps, long } = budget[pane] as { maps: number; long: number[] }
     expect(maps, pane).toBeLessThanOrEqual(pane.endsWith('Again') ? 2 : 30)

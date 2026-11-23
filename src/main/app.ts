@@ -1151,6 +1151,7 @@ else {
       return {
         platform: process.platform as BootInfo['platform'],
         nativeMaterial: platformMaterial(),
+        gpuCompositing: app.getGPUFeatureStatus().gpu_compositing.startsWith('enabled'),
         version: app.getVersion(),
         deviceLabel: hostname(),
         ...appearance(),

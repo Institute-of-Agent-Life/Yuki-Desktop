@@ -913,6 +913,7 @@ function Case() {
     <Settings
       boot={{
         nativeMaterial: 'none',
+        gpuCompositing: true,
         platform: 'linux',
         version: 'fixture',
         deviceLabel: 'Fixture desktop',

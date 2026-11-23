@@ -14,6 +14,8 @@ window.yuki
   .boot()
   .then((boot) => {
     applyLanguage(boot.language)
+    // Read by every glass as it attaches, before any of the App's own effects have run.
+    document.documentElement.dataset.gpuCompositing = String(boot.gpuCompositing)
     window.yuki.onLanguage(applyLanguage)
     window.addEventListener('keydown', (event) => {
       if (event.isComposing || event.keyCode === 229) return
