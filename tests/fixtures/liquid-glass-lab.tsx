@@ -9,7 +9,14 @@
  *   ?page=profile                bevel profiles and displacement maps, drawn
  *   ?page=slider                 the iOS-style transparency slider with its live preview
  */
-import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type ReactNode,
+} from 'react'
 import { createRoot } from 'react-dom/client'
 import { Droplet, Plus, Mic, Search, Sparkles, SunMedium } from 'lucide-react'
 import { useGlass, type GlassKind } from '../../src/renderer/materials/glass'
@@ -40,6 +47,7 @@ const allVariants: { id: Shown; name: string; note: string }[] = [
   { id: 'slab', name: 'S2 標準倒角', note: '平板 + 12px 倒角 + 輕色散' },
   { id: 'slab-thick', name: 'S3 厚倒角', note: '平板 + 16px 倒角' },
   { id: 'v3', name: 'V3 對齊蘋果', note: '按 HIG 實測：模糊 + 提亮 + 邊緣細光' },
+  { id: 'v4', name: 'V4 通透有體積', note: '按 WWDC 透鏡：寬過渡折射 + 體內光 + 菲涅爾邊' },
   { id: 'curved', name: 'v1-B 曲面透鏡', note: '已否決：整面鼓起' },
   { id: 'volume', name: 'v1-C 體積光影', note: '已否決：枕形明暗' },
   { id: 'lit', name: 'v1-D 即時光照', note: '已否決：無 GPU 時 30fps' },
@@ -49,20 +57,99 @@ const variants = allVariants.filter((item) =>
     ? ['current', 'curved', 'volume', 'lit'].includes(item.id)
     : query.get('set') === 'v3'
       ? ['current', 'slab', 'v3'].includes(item.id)
-      : ['current', 'slab-thin', 'slab', 'slab-thick'].includes(item.id),
+      : query.get('set') === 'v4'
+        ? ['current', 'v3', 'v4'].includes(item.id)
+        : ['current', 'slab-thin', 'slab', 'slab-thick'].includes(item.id),
 )
 const isSlab = (variant: Shown): variant is SlabVariant =>
-  variant.startsWith('slab') || variant === 'v3'
+  variant.startsWith('slab') || variant === 'v3' || variant === 'v4'
 // While tuning v3: ?p={"blur":4,...} overrides its material and light (see liquid-glass-slab.ts).
 const tuning = JSON.parse(query.get('p') ?? '{}') as Record<string, number | string>
 Object.assign(globalThis, { __v3: tuning })
 for (const [key, value] of Object.entries(tuning))
   if (['blur', 'bright', 'sat', 'contrast', 'tint', 'outline', 'shadow'].includes(key))
-    document.documentElement.style.setProperty(
-      `--v3-${key}`,
-      typeof value === 'number' && key === 'blur' ? `${value}px` : String(value),
-    )
+    for (const prefix of ['v3', 'v4'])
+      document.documentElement.style.setProperty(
+        `--${prefix}-${key}`,
+        typeof value === 'number' && key === 'blur' ? `${value}px` : String(value),
+      )
 const ready = { count: 0 }
+
+/*
+ * What lies under the glass: built-in test backgrounds, or any picture chosen from a file or dropped
+ * on the page, so v3, v4 and Apple's references can be compared over the owner's own images.
+ */
+const backdrops = {
+  chat: '聊天',
+  text: '整段文字',
+  photo: '彩色圖片',
+  lineart: '高對比線稿',
+  solid: '純色',
+  gradient: '漸層',
+  image: '自選圖片',
+} as const
+type BackdropKind = keyof typeof backdrops
+let backdrop: { kind: BackdropKind; image?: string } = {
+  kind: (query.get('bg') ?? 'chat') as BackdropKind,
+  image: query.get('img') ?? undefined,
+}
+const backdropListeners = new Set<() => void>()
+const setBackdrop = (next: typeof backdrop) => {
+  backdrop = next
+  for (const listener of backdropListeners) listener()
+}
+const useBackdrop = () =>
+  useSyncExternalStore(
+    (listener) => {
+      backdropListeners.add(listener)
+      return () => backdropListeners.delete(listener)
+    },
+    () => backdrop,
+  )
+const pictures: Partial<Record<BackdropKind, string>> = {
+  photo: './liquid-glass-photo.svg',
+  lineart: './liquid-glass-lineart.png',
+}
+function BackdropPicker() {
+  const { kind } = useBackdrop()
+  const load = (file: File | undefined) => {
+    if (file?.type.startsWith('image/'))
+      setBackdrop({ kind: 'image', image: URL.createObjectURL(file) })
+  }
+  useLayoutEffect(() => {
+    const over = (event: DragEvent) => event.preventDefault()
+    const drop = (event: DragEvent) => {
+      event.preventDefault()
+      load(event.dataTransfer?.files[0])
+    }
+    addEventListener('dragover', over)
+    addEventListener('drop', drop)
+    return () => {
+      removeEventListener('dragover', over)
+      removeEventListener('drop', drop)
+    }
+  }, [])
+  return (
+    <div className="backdropPicker">
+      <select
+        aria-label="背景"
+        value={kind}
+        onChange={(event) => setBackdrop({ ...backdrop, kind: event.target.value as BackdropKind })}
+      >
+        {Object.entries(backdrops).map(([value, label]) => (
+          <option key={value} value={value} disabled={value === 'image' && !backdrop.image}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <label>
+        選擇圖片…
+        <input type="file" accept="image/*" onChange={(event) => load(event.target.files?.[0])} />
+      </label>
+      <span>或拖入圖片</span>
+    </div>
+  )
+}
 
 // Patterned content under the glass, so bending and light have something to show.
 function Scene({ animate, children }: { animate: boolean; children: ReactNode }) {
@@ -80,7 +167,15 @@ function Scene({ animate, children }: { animate: boolean; children: ReactNode })
     return () => cancelAnimationFrame(frame)
   }, [animate])
   const rows = Array.from({ length: 18 }, (_, index) => index),
-    background = query.get('bg') ?? 'chat'
+    { kind: background, image } = useBackdrop()
+  const picture =
+    background === 'image'
+      ? image
+      : background === 'photo'
+        ? (image ?? pictures.photo)
+        : pictures[background]
+  if (background === 'solid' || background === 'gradient')
+    return <div className={`scene ${background}`}>{children}</div>
   if (background === 'text')
     return (
       <div className="scene text">
@@ -97,12 +192,12 @@ function Scene({ animate, children }: { animate: boolean; children: ReactNode })
         {children}
       </div>
     )
-  if (background === 'photo')
+  if (picture)
     return (
       <div className="scene photo">
         <div className="content" ref={content}>
-          <img src={query.get('img') ?? './liquid-glass-photo.svg'} alt="" />
-          <img src={query.get('img') ?? './liquid-glass-photo.svg'} alt="" />
+          <img src={picture} alt="" />
+          <img src={picture} alt="" />
         </div>
         {children}
       </div>
@@ -238,8 +333,10 @@ function SlabGlass({
     // The face keeps today's tint, frost and blur: only the bevel is new. v3 takes Apple's
     // measured material instead: a moderate blur, a lift in brightness, a little saturation.
     element.style.backdropFilter =
-      variant === 'v3'
-        ? `url(#${filter.id}) blur(var(--v3-blur)) brightness(var(--v3-bright)) saturate(var(--v3-sat)) contrast(var(--v3-contrast))`
+      variant === 'v3' || variant === 'v4'
+        ? (variant === 'v4' ? tuning.order !== 'displaceFirst' : tuning.order === 'blurFirst')
+          ? `blur(var(--${variant}-blur)) url(#${filter.id}) brightness(var(--${variant}-bright)) saturate(var(--${variant}-sat)) contrast(var(--${variant}-contrast))`
+          : `url(#${filter.id}) blur(var(--${variant}-blur)) brightness(var(--${variant}-bright)) saturate(var(--${variant}-sat)) contrast(var(--${variant}-contrast))`
         : kind === 'card'
           ? `blur(24px) saturate(160%) var(--glass-calm) url(#${filter.id})`
           : `url(#${filter.id}) blur(1px) saturate(116%) var(--glass-calm)`
@@ -260,7 +357,7 @@ function SlabGlass({
     <div
       ref={ref}
       data-lab-kind={kind}
-      className={`glass slabGlass ${variant === 'v3' ? 'v3Glass' : ''} ${className}`}
+      className={`glass slabGlass ${variant === 'v3' || variant === 'v4' ? `v3Glass ${variant}Glass` : ''} ${className}`}
       style={style}
     >
       <span ref={shade} className="slabShade" aria-hidden="true" />
@@ -306,6 +403,7 @@ function Panel({ variant, solo }: { variant: Shown; solo: boolean }) {
   )
 }
 
+const picker = query.get('picker') !== '0'
 function Comparison() {
   const solo = query.get('solo') === '1',
     shown = (query.get('v') ?? 'all') as Shown | 'all' | 'none'
@@ -330,6 +428,7 @@ function Comparison() {
       {(shown === 'all' ? variants.map((item) => item.id) : [shown]).map((id) => (
         <Panel key={id} variant={id} solo={solo} />
       ))}
+      {picker && <BackdropPicker />}
     </main>
   )
 }

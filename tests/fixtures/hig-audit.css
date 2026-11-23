@@ -1,0 +1,766 @@
+/*
+ * HIG audit target tokens (research only; not imported by the app). Values follow the macOS
+ * built-in text styles (HIG Typography), the dynamic system colours read from AppKit on macOS 27
+ * (labelColor, separatorColor, system fills), the control heights AppKit draws for small /
+ * regular / large / extra large, and the concentric rule of WWDC25 356: a nested shape's radius is
+ * its parent's radius minus the padding between them, or a capsule.
+ */
+:root {
+  color-scheme: light;
+  --font:
+    -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Hiragino Sans', 'Segoe UI Variable Text',
+    'Segoe UI', 'Microsoft JhengHei UI', 'Noto Sans CJK TC', 'Noto Sans TC', sans-serif;
+
+  /* macOS text styles: size / line height. Han text keeps a slightly taller line than SF's
+     Latin-tuned leading (16 -> 18 at body size). */
+  --t-large-title: 700 26px/32px var(--font);
+  --t-title1: 700 22px/28px var(--font);
+  --t-title2: 700 17px/22px var(--font);
+  --t-title3: 600 15px/20px var(--font);
+  --t-headline: 600 13px/18px var(--font);
+  --t-body: 400 13px/18px var(--font);
+  --t-callout: 400 12px/16px var(--font);
+  --t-subheadline: 400 11px/14px var(--font);
+
+  /* Labels and fills as alpha over whatever lies beneath (labelColor & co.). Secondary is
+     raised from AppKit's 0.50 to 0.62 so 12-13px descriptions keep 4.5:1. */
+  --label: rgb(0 0 0 / 0.85);
+  --label-2: rgb(0 0 0 / 0.62);
+  --label-3: rgb(0 0 0 / 0.3);
+  --separator: rgb(0 0 0 / 0.1);
+  --fill-1: rgb(0 0 0 / 0.1);
+  --fill-2: rgb(0 0 0 / 0.08);
+  --fill-3: rgb(0 0 0 / 0.05);
+  --fill-4: rgb(0 0 0 / 0.03);
+  --window: #ffffff;
+  --grouped: rgb(0 0 0 / 0.035);
+  --control: #ffffff;
+  --control-edge: rgb(0 0 0 / 0.12);
+
+  /* The character's accent (default Yuki blue); prominent fills deepen it so white text keeps
+     4.5:1, text uses a darker step. */
+  --accent: #3a6bd6;
+  --accent-fill: oklch(from var(--accent) min(l, 0.52) calc(c * 1.25) h);
+  --accent-text: oklch(from var(--accent) min(l, 0.5) c h);
+  --on-accent: #ffffff;
+  --green: #34c759;
+  --orange: #ff8d28;
+  --red: #ff383c;
+
+  /* Liquid Glass, regular variant: only on the navigation / control layer. Larger panes are
+     more opaque (HIG Color: sidebars). */
+  --glass: rgb(252 252 253 / 0.72);
+  --glass-large: rgb(246 246 248 / 0.86);
+  --glass-edge: rgb(255 255 255 / 0.9);
+  --glass-line: rgb(0 0 0 / 0.07);
+  --glass-shadow: 0 6px 20px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.06);
+  --glass-blur: blur(18px) saturate(170%);
+
+  /* Concentric chain: the window's radius (assumed until measured from the native frame), the
+     sidebar inset into it, and what nests in the sidebar. */
+  --r-window: 20px;
+  --inset: 8px;
+  --r-pane: calc(var(--r-window) - var(--inset));
+  --r-row: 8px;
+  --r-group: 10px;
+  --r-control: 6px;
+
+  --h-small: 20px;
+  --h-regular: 24px;
+  --h-large: 28px;
+  --h-xl: 36px;
+  --toolbar: 52px;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --label: rgb(255 255 255 / 0.85);
+  --label-2: rgb(255 255 255 / 0.6);
+  --label-3: rgb(255 255 255 / 0.28);
+  --separator: rgb(255 255 255 / 0.1);
+  --fill-1: rgb(255 255 255 / 0.1);
+  --fill-2: rgb(255 255 255 / 0.08);
+  --fill-3: rgb(255 255 255 / 0.05);
+  --fill-4: rgb(255 255 255 / 0.03);
+  --window: #1e1e1e;
+  --grouped: rgb(255 255 255 / 0.05);
+  --control: rgb(255 255 255 / 0.1);
+  --control-edge: rgb(255 255 255 / 0.08);
+  --accent: #7fa4ff;
+  --accent-fill: oklch(from var(--accent) min(l, 0.52) calc(c * 1.25) h);
+  --accent-text: var(--accent);
+  --green: #30d158;
+  --orange: #ff9230;
+  --red: #ff4245;
+  --glass: rgb(44 44 48 / 0.7);
+  --glass-large: rgb(38 38 42 / 0.84);
+  --glass-edge: rgb(255 255 255 / 0.14);
+  --glass-line: rgb(0 0 0 / 0.4);
+  --glass-shadow: 0 6px 20px rgb(0 0 0 / 0.35), 0 1px 2px rgb(0 0 0 / 0.3);
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  font: var(--t-body);
+  color: var(--label);
+  background: var(--window);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+p {
+  margin: 0;
+}
+svg {
+  flex-shrink: 0;
+}
+
+/* ---------- Window frame ---------- */
+.h-window {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background: var(--window);
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+}
+.h-window[data-bare] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.h-lights {
+  display: flex;
+  gap: 8px;
+  height: 14px;
+  align-items: center;
+}
+.h-lights i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff5f57;
+  box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.12);
+}
+.h-lights i:nth-child(2) {
+  background: #febc2e;
+}
+.h-lights i:nth-child(3) {
+  background: #28c840;
+}
+
+/* ---------- Glass (navigation layer only) ---------- */
+.h-glass {
+  position: relative;
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  box-shadow:
+    inset 0 0 0 0.5px var(--glass-edge),
+    0 0 0 0.5px var(--glass-line),
+    var(--glass-shadow);
+}
+
+/* ---------- Sidebar: an inset glass pane, concentric with the window ---------- */
+.h-sidebar {
+  position: relative;
+  z-index: 2;
+  margin: var(--inset) 0 var(--inset) var(--inset);
+  border-radius: var(--r-pane);
+  background: var(--glass-large);
+  backdrop-filter: var(--glass-blur);
+  box-shadow:
+    inset 0 0 0 0.5px var(--glass-edge),
+    0 0 0 0.5px var(--glass-line),
+    var(--glass-shadow);
+  display: flex;
+  flex-direction: column;
+  padding: 12px 10px 10px;
+  min-height: 0;
+  overflow: hidden;
+}
+.h-sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  padding: 0 4px 0 6px;
+  margin-bottom: 10px;
+}
+.h-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--h-large);
+  padding: 0 8px;
+  margin: 0 2px 8px;
+  border-radius: calc(var(--h-large) / 2);
+  background: var(--fill-3);
+  color: var(--label-2);
+}
+.h-section {
+  font: 600 11px/14px var(--font);
+  color: var(--label-2);
+  padding: 12px 10px 4px;
+}
+.h-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-row);
+  background: none;
+  text-align: left;
+  cursor: default;
+}
+.h-row svg {
+  color: var(--accent-text);
+}
+.h-row[aria-current='page'] {
+  background: var(--fill-2);
+  font-weight: 600;
+}
+.h-presence {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 10px;
+}
+.h-presence b {
+  display: block;
+  font: var(--t-headline);
+}
+.h-presence small {
+  font: var(--t-subheadline);
+  color: var(--label-2);
+}
+.h-avatar {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--fill-2);
+}
+.h-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+/* ---------- Main column, toolbar and the scroll edge ---------- */
+.h-main {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.h-toolbar {
+  position: absolute;
+  z-index: 3;
+  inset: 0 0 auto;
+  height: var(--toolbar);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 16px;
+}
+.h-window[data-bare] .h-toolbar {
+  padding-left: 20px;
+}
+/* macOS uses the hard edge style: a uniform band under the toolbar where content passes. */
+.h-edge {
+  position: absolute;
+  z-index: 2;
+  inset: 0 0 auto;
+  height: var(--toolbar);
+  background: color-mix(in srgb, var(--window) 78%, transparent);
+  backdrop-filter: blur(10px);
+  mask-image: linear-gradient(#000 70%, transparent);
+  pointer-events: none;
+}
+.h-title {
+  min-width: 0;
+  margin-right: auto;
+}
+.h-title b {
+  display: block;
+  font: 700 13px/16px var(--font);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.h-title small {
+  display: block;
+  font: var(--t-subheadline);
+  color: var(--label-2);
+  white-space: nowrap;
+}
+.h-title-lg {
+  font: var(--t-title3);
+}
+/* Toolbar items: symbols without bezels on one shared piece of glass per group. */
+.h-group {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 2px;
+  border-radius: 16px;
+}
+.h-tool {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--label);
+}
+.h-group .h-tool {
+  width: 30px;
+  height: 28px;
+}
+.h-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-top: var(--toolbar);
+}
+
+/* ---------- Controls ---------- */
+.h-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--h-regular);
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--control);
+  box-shadow:
+    0 0 0 0.5px var(--control-edge),
+    0 0.5px 1px rgb(0 0 0 / 0.08);
+  white-space: nowrap;
+}
+/* Large and extra large controls are capsules (WWDC25 310 / 356). */
+.h-button[data-size='large'] {
+  height: var(--h-large);
+  padding: 0 14px;
+  border-radius: calc(var(--h-large) / 2);
+}
+.h-button[data-size='xl'] {
+  height: var(--h-xl);
+  padding: 0 20px;
+  border-radius: calc(var(--h-xl) / 2);
+  font-weight: 600;
+}
+.h-button[data-style='prominent'] {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  box-shadow: none;
+  font-weight: 600;
+}
+.h-button[data-style='prominent']:disabled {
+  opacity: 0.45;
+}
+.h-button[data-style='plain'] {
+  background: none;
+  box-shadow: none;
+  color: var(--accent-text);
+  padding: 0 4px;
+}
+.h-popup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 120px;
+  height: var(--h-regular);
+  padding: 0 6px 0 10px;
+  border-radius: var(--r-control);
+  background: var(--control);
+  box-shadow:
+    0 0 0 0.5px var(--control-edge),
+    0 0.5px 1px rgb(0 0 0 / 0.08);
+  white-space: nowrap;
+}
+.h-popup svg {
+  color: var(--label-2);
+}
+.h-field {
+  width: 100%;
+  height: var(--h-large);
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--control);
+  box-shadow: inset 0 0 0 0.5px var(--control-edge);
+  outline: none;
+}
+.h-field::placeholder {
+  color: var(--label-2);
+}
+.h-field[data-focus] {
+  box-shadow:
+    inset 0 0 0 0.5px var(--control-edge),
+    0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.h-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--fill-1);
+}
+.h-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 24px;
+  height: 18px;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+}
+.h-switch[data-on] {
+  background: var(--accent-fill);
+}
+.h-switch[data-on]::after {
+  left: 14px;
+}
+.h-segmented {
+  display: inline-flex;
+  height: var(--h-regular);
+  padding: 2px;
+  border-radius: var(--r-control);
+  background: var(--fill-3);
+  box-shadow: inset 0 0 0 0.5px var(--control-edge);
+}
+.h-segmented span {
+  display: grid;
+  place-items: center;
+  min-width: 64px;
+  padding: 0 10px;
+  border-radius: calc(var(--r-control) - 2px);
+  white-space: nowrap;
+}
+.h-segmented span[data-on] {
+  background: var(--control);
+  box-shadow:
+    0 0 0 0.5px var(--control-edge),
+    0 1px 2px rgb(0 0 0 / 0.12);
+  font-weight: 600;
+}
+
+/* ---------- Grouped form (content layer: plain fills, no glass) ---------- */
+.h-page {
+  max-width: 680px;
+  padding: 8px 28px 40px;
+}
+.h-form-section {
+  margin-bottom: 20px;
+}
+.h-form-section > h3 {
+  margin: 0 0 6px 2px;
+  font: var(--t-headline);
+}
+.h-form {
+  border-radius: var(--r-group);
+  background: var(--grouped);
+}
+.h-form-row {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  min-height: 40px;
+  padding: 8px 12px;
+}
+/* Separators start at the text, as in grouped lists. */
+.h-form-row + .h-form-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 0;
+  border-top: 0.5px solid var(--separator);
+}
+.h-form-row > div:first-child {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.h-form-row small,
+.h-note {
+  display: block;
+  font: var(--t-callout);
+  color: var(--label-2);
+  margin-top: 2px;
+}
+.h-note {
+  margin: 6px 12px 0;
+}
+.h-swatches {
+  display: flex;
+  gap: 8px;
+}
+.h-swatch {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  font: var(--t-subheadline);
+  color: var(--label-2);
+}
+.h-swatch i {
+  width: 44px;
+  height: 30px;
+  border-radius: var(--r-control);
+  box-shadow: inset 0 0 0 0.5px var(--control-edge);
+}
+.h-swatch[data-on] i {
+  box-shadow:
+    inset 0 0 0 0.5px var(--control-edge),
+    0 0 0 2px var(--window),
+    0 0 0 4px var(--accent-fill);
+}
+.h-swatch[data-on] {
+  color: var(--label);
+  font-weight: 600;
+}
+
+/* ---------- Conversation (content layer) ---------- */
+.h-thread {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 12px 32px 120px;
+}
+.h-thread-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 4px;
+  color: var(--label-2);
+}
+.h-thread-head b {
+  color: var(--label);
+  font: var(--t-headline);
+}
+.h-date {
+  text-align: center;
+  font: 600 11px/14px var(--font);
+  color: var(--label-2);
+  margin: 18px 0 14px;
+}
+.h-msg {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin: 0 0 12px;
+}
+.h-msg[data-own] {
+  justify-content: flex-end;
+}
+.h-msg .h-avatar {
+  width: 28px;
+  height: 28px;
+}
+.h-bubble {
+  max-width: min(520px, 78%);
+  padding: 7px 12px;
+  border-radius: 18px;
+  background: var(--fill-2);
+  overflow-wrap: anywhere;
+}
+.h-msg[data-own] .h-bubble {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+.h-meta {
+  font: var(--t-subheadline);
+  color: var(--label-2);
+  margin: 0 0 3px 46px;
+}
+.h-msg-wrap[data-own] .h-meta {
+  text-align: right;
+  margin: 0 4px 3px 0;
+}
+.h-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 520px;
+  margin: 4px 0 14px 36px;
+  padding: 12px 12px 12px 14px;
+  border-radius: 14px;
+  background: var(--grouped);
+  box-shadow: inset 0 0 0 0.5px var(--separator);
+}
+.h-card > div {
+  flex: 1;
+  min-width: 0;
+}
+.h-card b {
+  display: block;
+  font: var(--t-headline);
+}
+.h-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: var(--t-callout);
+  color: var(--label-2);
+}
+.h-composer {
+  position: absolute;
+  z-index: 4;
+  left: 0;
+  right: 0;
+  bottom: 16px;
+  margin: 0 auto;
+  width: min(680px, calc(100% - 48px));
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 6px 6px 6px 8px;
+  border-radius: 22px;
+}
+.h-composer input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  font: 400 14px/20px var(--font);
+  outline: none;
+}
+.h-composer input::placeholder {
+  color: var(--label-2);
+}
+.h-composer .h-tool {
+  width: 32px;
+  height: 32px;
+  color: var(--label-2);
+}
+.h-send {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+/* ---------- Pairing (onboarding: bold, left aligned) ---------- */
+.h-onboard {
+  width: min(560px, 100%);
+  margin: 0 auto;
+  padding: 28px 28px 40px;
+}
+.h-mark {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  margin-bottom: 16px;
+}
+.h-onboard h1 {
+  margin: 0 0 6px;
+  font: var(--t-title1);
+}
+.h-onboard > p {
+  color: var(--label-2);
+  margin-bottom: 20px;
+}
+.h-field-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+.h-link-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+.h-link-row > span {
+  flex: 1;
+  min-width: 0;
+}
+.h-link-row > svg:first-child {
+  color: var(--accent-text);
+}
+.h-link-row > svg:last-child {
+  color: var(--label-3);
+}
+.h-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+/* ---------- Spec sheets (tokens / motion) ---------- */
+.h-spec {
+  padding: 32px 40px;
+  display: grid;
+  gap: 28px;
+  max-width: 1200px;
+}
+.h-spec h2 {
+  margin: 0 0 12px;
+  font: var(--t-title2);
+}
+.h-spec-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  align-items: center;
+}
+.h-chip {
+  display: grid;
+  gap: 4px;
+  font: var(--t-subheadline);
+  color: var(--label-2);
+}
+.h-chip i {
+  width: 72px;
+  height: 36px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 0.5px var(--separator);
+}
+.h-chart {
+  color: var(--label-2);
+  font: var(--t-callout);
+}
+.h-chart text {
+  fill: currentColor;
+}

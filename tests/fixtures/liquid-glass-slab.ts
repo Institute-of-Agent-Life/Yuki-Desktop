@@ -14,7 +14,7 @@
 import { roundedDistance } from '../../src/renderer/materials/glass'
 
 const NS = 'http://www.w3.org/2000/svg'
-export type SlabVariant = 'slab-thin' | 'slab' | 'slab-thick' | 'v3'
+export type SlabVariant = 'slab-thin' | 'slab' | 'slab-thick' | 'v3' | 'v4'
 // bevel: its width in px (capped by the corner and the pane); bend: displacement at the rim in px;
 // spread: dispersion around the bend (0: none).
 export const slabs: Record<SlabVariant, { bevel: number; bend: number; spread: number }> = {
@@ -22,6 +22,7 @@ export const slabs: Record<SlabVariant, { bevel: number; bend: number; spread: n
   slab: { bevel: 12, bend: 8, spread: 0.12 },
   'slab-thick': { bevel: 16, bend: 12, spread: 0 },
   v3: { bevel: 10, bend: 6, spread: 0 },
+  v4: { bevel: 10, bend: 6, spread: 0 },
 }
 /*
  * v3: the light measured off Apple's own glass (HIG Materials, see comparison.md): no broad
@@ -54,20 +55,131 @@ const v3Dark: Partial<typeof v3Look> = {
   glow: 0.16,
   glowWidth: 1.3,
 }
-const look = (): typeof v3Look & Record<string, number> => ({
+/*
+ * v4: the lens of WWDC25 219 (00:48) and its controls as the main reference. The bend starts
+ * further in (about a fifth of the radius) and grows smoothly to a strong pull at the rim; the
+ * rim has a Fresnel band as well as the line; a whisper of dispersion where the bend is strongest.
+ */
+export const v4Look = {
+  // Regular glass on controls, after the iOS 26.2 home screen's folders and Dock: a wide band
+  // (0.45 of the corner) pulling inward up to 1.2 times its width, over a backdrop blurred
+  // first, so the blur's soft shapes are warped into the "melted" blobs of real uneven glass.
+  // The clear lens over the WWDC grid fits 0.19 / 2.16 / 4 instead (`lens` below).
+  bevelRatio: 0.45,
+  bendRatio: 1.2,
+  profile: 2,
+  wobble: 0.3,
+  wobbleFrequency: 1.6,
+  line: 0.4,
+  lineAt: 0.5,
+  lineWidth: 0.6,
+  axis: 0.25,
+  lobe: 2,
+  bottom: 0,
+  // Lit most on the anti-diagonal (upper right, lower left) as the WWDC lens is at 00:48, and
+  // about half as much on the diagonal; that lens's light moves during its animation.
+  anti: 1,
+  other: 0.45,
+  fresnel: 0.3,
+  fresnelRatio: 0.06,
+  glow: 0.03,
+  glowWidth: 1,
+  // Dispersion costs two more displacements per frame; on controls it is barely visible.
+  spread: 0,
+  // Light gathered in the body: the backdrop brightened by up to this much in the middle,
+  // falling off as a Gaussian of the normalised distance from the centre.
+  bodyGain: 0.28,
+  bodyWidth: 0.7,
+  // Its centre sits a little below the middle, as measured on the lens (positive is down).
+  bodyY: 0.15,
+}
+const v4Dark: Partial<typeof v4Look> = {
+  line: 0.3,
+  fresnel: 0.16,
+  glow: 0.12,
+  glowWidth: 1.3,
+  bodyGain: 0.2,
+}
+/*
+ * v4's "uneven glass": a weak, low-frequency wobble over the whole pane, as if the slab were not
+ * quite even. Like the body's light it is a small map stretched over the pane, applied as its own
+ * displacement before the bevel's, so the bevel's maps keep being put together from slices.
+ */
+const wobbleMaps = new Map<number, string>()
+function wobbleMap(frequency: number) {
+  const cached = wobbleMaps.get(frequency)
+  if (cached) return cached
+  const size = 64,
+    canvas = document.createElement('canvas')
+  canvas.width = canvas.height = size
+  const context = canvas.getContext('2d')!,
+    image = context.createImageData(size, size)
+  for (let j = 0; j < size; j++)
+    for (let i = 0; i < size; i++) {
+      const u = (((i + 0.5) / size) * 2 - 1) * frequency,
+        v = (((j + 0.5) / size) * 2 - 1) * frequency
+      const dx =
+          (Math.sin(2.3 * u + 1.1 * v + 0.7) + 0.6 * Math.sin(1.3 * u - 2.9 * v + 2.1)) / 1.6,
+        dy = (Math.sin(1.7 * u - 2.1 * v + 1.9) + 0.6 * Math.sin(-2.6 * u + 1.4 * v + 0.4)) / 1.6
+      const k = (j * size + i) * 4
+      image.data[k] = Math.round(128 + dx * 127)
+      image.data[k + 1] = Math.round(128 + dy * 127)
+      image.data[k + 2] = 128
+      image.data[k + 3] = 255
+    }
+  context.putImageData(image, 0, 0)
+  const url = canvas.toDataURL()
+  wobbleMaps.set(frequency, url)
+  return url
+}
+// The body's light map: small and stretched over the pane, as it changes only slowly.
+const bodyMaps = new Map<string, string>()
+function bodyMap(width: number, below: number) {
+  const cached = bodyMaps.get(`${width}/${below}`)
+  if (cached) return cached
+  const size = 64,
+    canvas = document.createElement('canvas')
+  canvas.width = canvas.height = size
+  const context = canvas.getContext('2d')!,
+    image = context.createImageData(size, size)
+  for (let j = 0; j < size; j++)
+    for (let i = 0; i < size; i++) {
+      const u = ((i + 0.5) / size) * 2 - 1,
+        v = ((j + 0.5) / size) * 2 - 1 - below
+      const value = Math.round(255 * Math.exp(-((u * u + v * v) / (width * width))))
+      const k = (j * size + i) * 4
+      image.data[k] = image.data[k + 1] = image.data[k + 2] = value
+      image.data[k + 3] = 255
+    }
+  context.putImageData(image, 0, 0)
+  const url = canvas.toDataURL()
+  bodyMaps.set(`${width}/${below}`, url)
+  return url
+}
+/** The clear lens fitted to the WWDC25 219 grid (trace overlay in comparison.md). */
+export const lensFit = { bevelRatio: 0.19, bendRatio: 2.16, profile: 4, wobble: 0 }
+type Measured = 'v3' | 'v4'
+const look = (variant: Measured = 'v3'): typeof v3Look & Record<string, number> => ({
   ...v3Look,
-  ...(document.documentElement.dataset.theme === 'dark' ? v3Dark : {}),
+  ...(variant === 'v4' ? v4Look : {}),
+  ...(document.documentElement.dataset.theme === 'dark'
+    ? variant === 'v4'
+      ? v4Dark
+      : v3Dark
+    : {}),
   ...((globalThis as { __v3?: Partial<typeof v3Look> }).__v3 ?? {}),
 })
 /** The bevel a pane gets: never wider than 60% of its corner or a quarter of its short side. */
 export const bevelOf = (variant: SlabVariant, width: number, height: number, radius: number) =>
-  variant === 'v3'
-    ? // Fitted to Apple's lens over a grid (WWDC25 219, 00:48): about 16% of the corner's radius.
-      Math.max(3, look().bevelRatio * Math.min(radius, Math.min(width, height) / 2))
+  variant === 'v3' || variant === 'v4'
+    ? // Fitted to Apple's lens over a grid (WWDC25 219, 00:48): a fraction of the corner's radius.
+      Math.max(3, look(variant).bevelRatio * Math.min(radius, Math.min(width, height) / 2))
     : Math.max(4, Math.min(shapeOf(variant).bevel, radius * 0.6, Math.min(width, height) * 0.25))
 // v3's bevel, bend and dispersion can be tuned like its light.
 const shapeOf = (variant: SlabVariant) =>
-  variant === 'v3' ? { ...slabs.v3, ...pick(look(), ['bevel', 'bend', 'spread']) } : slabs[variant]
+  variant === 'v3' || variant === 'v4'
+    ? { ...slabs[variant], ...pick(look(variant), ['bevel', 'bend', 'spread']) }
+    : slabs[variant]
 const pick = (from: Record<string, number>, keys: string[]) =>
   Object.fromEntries(Object.entries(from).filter(([key]) => keys.includes(key)))
 
@@ -108,9 +220,9 @@ function paintTile(
   radius: number,
   bevel: number,
   scale: number,
-  measured: boolean,
+  measured: Measured | undefined,
 ) {
-  const key = `${width}/${height}/${radius}/${bevel}/${scale}/${measured ? JSON.stringify(look()) : ''}`
+  const key = `${width}/${height}/${radius}/${bevel}/${scale}/${measured ? measured + JSON.stringify(look(measured)) : ''}`
   const cached = tiles.get(key)
   if (cached) return cached
   const hx = width / 2,
@@ -154,7 +266,7 @@ function paintTile(
     return canvas
   }
   const neutral = new Uint32Array(new Uint8ClampedArray([128, 128, 128, 255]).buffer)[0]!
-  const v3 = look()
+  const v3 = look(measured)
   const displacement = paint((data, k, x, y, d) => {
     const t = -d / bevel,
       amount = measured ? (t >= 1 ? 0 : (1 - Math.max(0, t)) ** v3.profile) : bendAt(t),
@@ -171,12 +283,21 @@ function paintTile(
     if (measured) {
       const inset = Math.max(0, -d),
         [nx, ny] = normal(x, y)
-      const weight =
-        v3.axis + (1 - v3.axis) * Math.abs(2 * nx * ny) ** v3.lobe + v3.bottom * Math.max(0, ny)
+      const diagonal = 2 * nx * ny,
+        lobes = v3.anti
+          ? Math.max(0, -diagonal) ** v3.lobe + (v3.other ?? 0) * Math.max(0, diagonal) ** v3.lobe
+          : Math.abs(diagonal) ** v3.lobe
+      const weight = v3.axis + (1 - v3.axis) * lobes + v3.bottom * Math.max(0, ny)
+      // v4's Fresnel band: the rim brightening over a few percent of the radius.
+      const fresnel = v3.fresnel
+        ? v3.fresnel *
+          weight *
+          Math.exp(-inset / Math.max(0.8, (bevel / v3.bevelRatio) * (v3.fresnelRatio ?? 0.03)))
+        : 0
       const line = Math.exp(-(((inset - v3.lineAt) / v3.lineWidth) ** 2)) * v3.line * weight
       const glow = v3.glow * Math.exp(-inset / v3.glowWidth)
       data[k] = data[k + 1] = data[k + 2] = 255
-      data[k + 3] = Math.round(Math.min(1, line + glow) * coverage * 255)
+      data[k + 3] = Math.round(Math.min(1, line + glow + fresnel) * coverage * 255)
       return
     }
     const inset = Math.max(0, -d),
@@ -240,7 +361,7 @@ export function slabMaps(
     radius,
     bevel,
     scale,
-    variant === 'v3',
+    variant === 'v3' || variant === 'v4' ? variant : undefined,
   )
   let displacement: string
   if (!across && !down) displacement = painted.displacement.toDataURL()
@@ -277,7 +398,10 @@ export function slabMaps(
 /** The pane's refraction: the bevel's bend, split into three colours where it disperses. */
 export function slabFilter(variant: SlabVariant, maps: SlabMaps, width: number, height: number) {
   const { spread } = shapeOf(variant),
-    bend = variant === 'v3' ? maps.bevel * look().bendRatio : shapeOf(variant).bend
+    bend =
+      variant === 'v3' || variant === 'v4'
+        ? maps.bevel * look(variant).bendRatio
+        : shapeOf(variant).bend
   const svg = document.createElementNS(NS, 'svg')
   svg.setAttribute('aria-hidden', 'true')
   svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none'
@@ -307,9 +431,30 @@ export function slabFilter(variant: SlabVariant, maps: SlabMaps, width: number, 
     preserveAspectRatio: 'none',
     result: 'map',
   })
+  // v4: the whole pane wobbles a little first; the bevel then bends what the wobble left.
+  let source = 'SourceGraphic'
+  const wobble = variant === 'v4' ? (look('v4').wobble ?? 0) : 0
+  if (wobble) {
+    add('feImage', {
+      href: wobbleMap(look('v4').wobbleFrequency ?? 1.6),
+      width: String(width),
+      height: String(height),
+      preserveAspectRatio: 'none',
+      result: 'wobble-map',
+    })
+    add('feDisplacementMap', {
+      in: source,
+      in2: 'wobble-map',
+      scale: String(2 * wobble * maps.bevel * look('v4').bendRatio),
+      xChannelSelector: 'R',
+      yChannelSelector: 'G',
+      result: 'wobbled',
+    })
+    source = 'wobbled'
+  }
   const bent = (scale: number, result?: string) =>
     add('feDisplacementMap', {
-      in: 'SourceGraphic',
+      in: source,
       in2: 'map',
       scale: String(2 * scale),
       xChannelSelector: 'R',
@@ -348,6 +493,26 @@ export function slabFilter(variant: SlabVariant, maps: SlabMaps, width: number, 
     const restore = add('feComponentTransfer', { in: 'thirds' })
     for (const channel of ['feFuncR', 'feFuncG', 'feFuncB'])
       add(channel, { type: 'linear', slope: '3' }, restore)
+  }
+  if (variant === 'v4') {
+    // Every bend above ends in the filter's last result; brighten it by the body's light.
+    const last = filter.lastElementChild!
+    last.setAttribute('result', 'bent')
+    const v4 = look('v4')
+    add('feImage', {
+      href: bodyMap(v4.bodyWidth ?? 0.6, v4.bodyY ?? 0),
+      width: String(width),
+      height: String(height),
+      preserveAspectRatio: 'none',
+      result: 'body',
+    })
+    add('feComposite', {
+      in: 'bent',
+      in2: 'body',
+      operator: 'arithmetic',
+      k1: String(v4.bodyGain ?? 0),
+      k2: '1',
+    })
   }
   svg.append(filter)
   document.body.append(svg)

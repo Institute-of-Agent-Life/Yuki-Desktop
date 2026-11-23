@@ -1,0 +1,219 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+:root {
+  /* HIG sliders images: the empty track on 247 grey reads 229 (light); +38 on the dark page. */
+  --gs-track: rgb(120 120 128 / 0.14);
+  /* The thumb at rest: white (light), 231 grey under a white hairline (dark). */
+  --gs-knob: #ffffff;
+  /* What the held glass adds to what it shows: WWDC25 219 reads it 13 levels darker. */
+  --gs-glass: rgb(0 0 0 / 0.05);
+}
+:root[data-theme='dark'] {
+  --gs-track: rgb(255 255 255 / 0.19);
+  --gs-knob: #e7e7e9;
+  --gs-glass: rgb(255 255 255 / 0.04);
+}
+.gs-layout {
+  display: grid;
+  grid-template-columns: 420px 360px;
+  gap: 40px;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  background: var(--bg-window);
+  color: var(--text-primary);
+  font:
+    13px/1.35 -apple-system,
+    BlinkMacSystemFont,
+    'PingFang TC',
+    sans-serif;
+}
+
+/* A grouped settings form, as macOS System Settings lays one out: label leading, control trailing. */
+.gs-form h2 {
+  margin: 0 0 8px 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.gs-group {
+  border-radius: 12px;
+  background: var(--bg-content);
+  box-shadow: 0 0 0 0.5px var(--separator-strong);
+}
+.gs-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 44px;
+  padding: 0 14px;
+}
+.gs-row + .gs-row {
+  box-shadow: inset 0 0.5px 0 var(--separator);
+}
+.gs-value {
+  margin-left: auto;
+  color: var(--text-secondary);
+}
+.gs-control {
+  display: flex;
+  align-items: center;
+  /* HIG: the end icons sit about 2.4 track widths from the track. */
+  gap: 14px;
+  width: 270px;
+  margin-left: auto;
+}
+.gs-footnote {
+  margin: 8px 4px 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.gs-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+}
+
+/* The slider: a 6pt track, the accent from its start to the thumb's centre, a glass thumb. */
+.gs-slider {
+  position: relative;
+  flex: 1;
+  height: 36px;
+  outline: none;
+  cursor: default;
+  touch-action: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.gs-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% - 3px);
+  height: 6px;
+  border-radius: 3px;
+  background: var(--gs-track);
+  pointer-events: none;
+}
+.gs-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--fill, 0);
+  border-radius: 3px;
+  background: var(--accent);
+}
+.gs-thumb {
+  --clear: 0;
+  --held: 0;
+  position: absolute;
+  pointer-events: none;
+  /* Solid at rest; held, clear glass that shows the track and bends it at its rim. */
+  background:
+    radial-gradient(closest-side, transparent 72%, rgb(0 0 0 / calc(var(--clear) * 0.06))),
+    color-mix(in srgb, var(--gs-knob) calc((1 - var(--clear)) * 100%), var(--gs-glass));
+  backdrop-filter: var(--lens,) blur(calc((1 - var(--clear)) * 4px));
+  /* A white hairline at rest; held, a bright rim, the edge's thickness faintly shaded within, and
+     WWDC25 219's soft shadow (about 0.12 of the height down, 6% dark). */
+  box-shadow:
+    inset 0 0 0 0.5px rgb(255 255 255 / calc(0.7 + var(--clear) * 0.3)),
+    inset 0 0.75px 0 rgb(255 255 255 / calc(var(--clear) * 0.9)),
+    inset 0 0 2px rgb(0 0 0 / calc(var(--clear) * 0.1)),
+    0 0 0 0.5px rgb(0 0 0 / calc(0.04 - var(--clear) * 0.02)),
+    0 calc(0.5px + var(--held) * 3.5px) calc(2px + var(--held) * 8px)
+      rgb(0 0 0 / calc(0.12 - var(--held) * 0.04)),
+    0 calc(2px + var(--held) * 2px) calc(8px + var(--held) * 8px) rgb(0 0 0 / 0.06);
+}
+:root[data-theme='dark'] .gs-thumb {
+  box-shadow:
+    inset 0 0 0 0.5px rgb(255 255 255 / calc(0.8 + var(--clear) * 0.2)),
+    inset 0 0.75px 0 rgb(255 255 255 / calc(var(--clear) * 0.6)),
+    0 calc(0.5px + var(--held) * 3px) calc(2px + var(--held) * 10px)
+      rgb(0 0 0 / calc(0.3 + var(--held) * 0.1));
+}
+/* Keyboard focus only: a press focuses without it. The macOS ring: accent, around the thumb. */
+.gs-slider:focus-visible .gs-thumb {
+  outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 0.5px;
+}
+
+/* The preview: a window over a desktop picture, drawn from --window-transparency (0–1). */
+.gs-desk {
+  --clear: var(--window-transparency, 0.6);
+  position: relative;
+  width: 360px;
+  height: 240px;
+  margin: 0;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.gs-wallpaper {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(40% 50% at 20% 25%, #ff9a62, transparent 70%),
+    radial-gradient(45% 55% at 80% 30%, #7c6cff, transparent 70%),
+    radial-gradient(50% 60% at 55% 90%, #1fc8b4, transparent 70%),
+    linear-gradient(135deg, #2d3a8c, #c2417a);
+}
+.gs-window {
+  position: absolute;
+  inset: 26px 30px;
+  display: flex;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.2),
+    0 12px 30px rgb(0 0 0 / 0.3);
+  /* At 0 the window is its own colour, whole; above 0 the desktop shows through, blurred. */
+  backdrop-filter: blur(calc(var(--clear) * 26px)) saturate(calc(100% + var(--clear) * 60%));
+  background: color-mix(in srgb, var(--bg-window) calc(100% - var(--clear) * 72%), transparent);
+}
+.gs-window aside {
+  width: 70px;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: color-mix(in srgb, var(--bg-sidebar) calc(100% - var(--clear) * 84%), transparent);
+}
+.gs-window aside i {
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-primary) 18%, transparent);
+}
+.gs-page {
+  position: relative;
+  flex: 1;
+  padding: 10px;
+  background: color-mix(in srgb, var(--bg-content) calc(100% - var(--clear) * 65%), transparent);
+}
+.gs-bubble {
+  margin: 0 0 6px;
+  width: fit-content;
+  max-width: 80%;
+  padding: 4px 8px;
+  border-radius: 9px;
+  font-size: 11px;
+  background: var(--bg-elevated);
+}
+.gs-bubble.mine {
+  margin-left: auto;
+  background: var(--accent);
+  color: var(--accent-on);
+}
+.gs-composer {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  padding: 6px 10px;
+  border-radius: 14px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--bg-elevated) calc(100% - var(--clear) * 80%), transparent);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+}

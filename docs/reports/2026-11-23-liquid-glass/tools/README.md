@@ -23,3 +23,7 @@ uv run --with pillow --with numpy --with scipy python -I docs/reports/2026-11-23
 | `frame_bg.py` | 重建影片幀裡玻璃下方的背景 |
 | `compare.py` | 並排圖、6 倍邊緣放大圖與數值表 |
 | `render.mjs`、`render_frame.mjs` | 用實驗頁在相同幾何下渲染我們的玻璃 |
+| `field.py`、`field_fit.py` | 從網格線反推透鏡的位移場：朝內或朝外、帶寬、邊緣位移、剖面，以倒角距離評分 |
+| `overlay.py` | 兩邊網格線軌跡疊在同一座標系（紅：蘋果，藍：我們） |
+| `diagonal.py` | 玻璃自身的光：沿對角線的 ΔL* 剖面 |
+| `render_shape.mjs` | 任意圓角矩形以 3x 渲染在指定背景上（線稿上的資料夾與 Dock） |

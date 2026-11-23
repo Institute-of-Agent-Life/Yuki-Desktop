@@ -21,7 +21,8 @@ const lab = 'http://127.0.0.1:4178/liquid-glass-lab.html'
 const output = () => process.env.YUKI_LAB_OUTPUT!
 
 async function ready(page: Page, url: string) {
-  await page.goto(url)
+  // The background picker is for people; pictures are taken without it.
+  await page.goto(`${url}${url.includes('?') ? '&' : '?'}picker=0`)
   await expect(page.locator('html[data-lab-ready]')).toBeAttached({ timeout: 10000 })
   await page.mouse.move(2, 2)
   await page.waitForTimeout(1200)
@@ -130,7 +131,8 @@ async function crops(page: Page, shown: readonly string[], kind: string) {
 
 const v1 = ['current', 'curved', 'volume', 'lit'] as const,
   v2 = ['current', 'slab-thin', 'slab', 'slab-thick'] as const,
-  v3 = ['current', 'slab', 'v3'] as const
+  v3 = ['current', 'slab', 'v3'] as const,
+  v4 = ['current', 'v3', 'v4'] as const
 
 test('v1: the current glass and the three rejected proposals, side by side', async ({ page }) => {
   test.setTimeout(120000)
@@ -273,6 +275,48 @@ test('v3: the measured material in app panes, over text, a picture and chat', as
     }
 })
 
+/*
+ * v4 (owner and coordinator, 2026-11-23): clear and shaped rather than frosted; light inside the
+ * body; uneven, blur-first refraction after the iOS 26.2 home screen. Failure cases written first:
+ *  10. a v4 pane fails to refract over any background or theme;
+ *  11. the background picker cannot switch to a built-in background or load a chosen picture.
+ */
+test('v4: app panes over text, a picture, line art and chat; the background picker', async ({
+  page,
+}) => {
+  test.setTimeout(300000)
+  const directory = join(output(), 'v4', 'app')
+  await mkdir(directory, { recursive: true })
+  for (const background of ['text', 'photo', 'lineart', 'chat'])
+    for (const theme of ['light', 'dark']) {
+      await page.setViewportSize({ width: 1320, height: 1000 })
+      await ready(page, `${lab}?v=all&set=v4&bg=${background}&theme=${theme}`)
+      for (const kind of ['toolbar', 'button', 'card', 'composer'])
+        // 10
+        await expect(page.locator(`[data-variant="v4"] [data-lab-kind="${kind}"]`)).toHaveAttribute(
+          'data-ready',
+          'true',
+        )
+      await page.screenshot({ path: join(directory, `overview-${background}-${theme}.png`) })
+      for (const kind of ['composer', 'button', 'card'])
+        await writeFile(
+          join(directory, `${background}-${theme}-${kind}-A-V3-V4.png`),
+          await crops(page, v4, kind),
+        )
+    }
+  // 11
+  await page.goto(`${lab}?v=all&set=v4`)
+  const picker = page.getByRole('combobox', { name: '背景' })
+  await picker.selectOption('gradient')
+  await expect(page.locator('.scene.gradient')).toHaveCount(3)
+  await page
+    .locator('.backdropPicker input[type=file]')
+    .setInputFiles('tests/fixtures/liquid-glass-lineart.png')
+  await expect(picker).toHaveValue('image')
+  await expect(page.locator('.scene.photo img[src^="blob:"]').first()).toBeVisible()
+  await page.screenshot({ path: join(directory, 'picker-own-picture.png') })
+})
+
 test('each variant within the glass budget while content moves beneath it', async ({ page }) => {
   test.setTimeout(240000)
   await watchMaps(page)
@@ -281,8 +325,8 @@ test('each variant within the glass budget while content moves beneath it', asyn
     browser: page.context().browser()?.version(),
     note: 'deviceScaleFactor 2, 1200x760, content scrolling under the glass, pointer sweeping',
   }
-  for (const variant of ['none', ...v2, 'v3', ...v1.slice(1)]) {
-    await page.goto(`${lab}?v=${variant}&solo=1&animate=1`)
+  for (const variant of ['none', ...v2, 'v3', 'v4', ...v1.slice(1)]) {
+    await page.goto(`${lab}?v=${variant}&solo=1&animate=1&picker=0`)
     await expect(page.locator('html[data-lab-ready]')).toBeAttached({ timeout: 10000 })
     await page.waitForTimeout(600)
     const maps = await page.evaluate(() => (window as unknown as { maps(): number }).maps())
@@ -352,7 +396,7 @@ test('each variant within the glass budget while content moves beneath it', asyn
   await mkdir(output(), { recursive: true })
   await writeFile(join(output(), 'frame-budget.json'), JSON.stringify(report, null, 2) + '\n')
   // 2
-  for (const variant of ['none', ...v2, 'v3', ...v1.slice(1)]) {
+  for (const variant of ['none', ...v2, 'v3', 'v4', ...v1.slice(1)]) {
     const result = report[variant] as { mapsMs: number; longTasks: number[] }
     expect(
       result.longTasks.filter((duration) => duration > 100),
