@@ -665,3 +665,31 @@ body {
 [data-theme='dark'] .v5Glass .slabShade {
   background: rgb(0 0 0 / 0.6);
 }
+/* v6, the final: v4's material; panes carrying text take a little more tint, which keeps their
+   text legible over dark, high-contrast backgrounds. */
+:root {
+  --v6-blur: 2px;
+  --v6-bright: 1.02;
+  --v6-sat: 1.05;
+  --v6-contrast: 1;
+  --v6-tint: rgb(255 255 255 / 0.16);
+  --v6-text-tint: rgb(255 255 255 / 0.24);
+  --v6-outline: rgb(0 0 0 / 0.16);
+}
+:root[data-theme='dark'] {
+  --v6-blur: 3px;
+  --v6-bright: 1;
+  --v6-sat: 1.1;
+  --v6-tint: rgb(30 32 50 / 0.42);
+  --v6-text-tint: rgb(30 32 50 / 0.74);
+  --v6-outline: transparent;
+}
+.glass.v6Glass.v6Glass {
+  background: var(--v6-tint);
+  box-shadow:
+    0 0 0 0.5px var(--v6-outline),
+    0 6px 18px -8px rgb(16 24 40 / 0.18);
+}
+.glass.v6Glass.v6Glass:is(.card, .composer) {
+  background: var(--v6-text-tint);
+}

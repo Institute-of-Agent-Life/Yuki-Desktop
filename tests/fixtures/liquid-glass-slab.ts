@@ -14,7 +14,7 @@
 import { roundedDistance } from '../../src/renderer/materials/glass'
 
 const NS = 'http://www.w3.org/2000/svg'
-export type SlabVariant = 'slab-thin' | 'slab' | 'slab-thick' | 'v3' | 'v4' | 'v5'
+export type SlabVariant = 'slab-thin' | 'slab' | 'slab-thick' | 'v3' | 'v4' | 'v5' | 'v6'
 // bevel: its width in px (capped by the corner and the pane); bend: displacement at the rim in px;
 // spread: dispersion around the bend (0: none).
 export const slabs: Record<SlabVariant, { bevel: number; bend: number; spread: number }> = {
@@ -24,6 +24,7 @@ export const slabs: Record<SlabVariant, { bevel: number; bend: number; spread: n
   v3: { bevel: 10, bend: 6, spread: 0 },
   v4: { bevel: 10, bend: 6, spread: 0 },
   v5: { bevel: 10, bend: 6, spread: 0 },
+  v6: { bevel: 10, bend: 6, spread: 0 },
 }
 /*
  * v3: the light measured off Apple's own glass (HIG Materials, see comparison.md): no broad
@@ -178,17 +179,28 @@ export const v5Look = {
   adaptMax: 0.35,
 }
 const v5Dark: Partial<typeof v5Look> = { band: 0.5, contour: 0.4, adaptMax: 0.6 }
-type Measured = 'v3' | 'v4' | 'v5'
+/*
+ * v6, the final: v4 as it was (the owner preferred it to v5), with only the details that do not
+ * change its look: bend maps painted at 2x and dithered, so no stepped ghost lines near a rim. The
+ * lens's arc highlights and the text panes' tint are set by the page (lab CSS and lens preset).
+ */
+export const v6Look = { dither: 1 }
+type Measured = 'v3' | 'v4' | 'v5' | 'v6'
 export const isMeasured = (variant: SlabVariant): variant is Measured =>
-  variant === 'v3' || variant === 'v4' || variant === 'v5'
+  variant === 'v3' || variant === 'v4' || variant === 'v5' || variant === 'v6'
+const isLater = (variant: SlabVariant) => variant === 'v5' || variant === 'v6'
 const look = (variant: Measured = 'v3'): typeof v3Look & Record<string, number> => ({
   ...v3Look,
   ...(variant !== 'v3' ? v4Look : {}),
   ...(variant === 'v5' ? v5Look : {}),
+  ...(variant === 'v6' ? v6Look : {}),
   ...(document.documentElement.dataset.theme === 'dark'
     ? variant === 'v3'
       ? v3Dark
-      : { ...v4Dark, ...(variant === 'v5' ? v5Dark : {}) }
+      : {
+          ...v4Dark,
+          ...(variant === 'v5' ? v5Dark : {}),
+        }
     : {}),
   ...((globalThis as { __v3?: Partial<typeof v3Look> }).__v3 ?? {}),
 })
@@ -392,7 +404,7 @@ export function slabMaps(
 ): SlabMaps {
   // v5 paints its maps at no less than 2x: a strong bend from a 1x map steps a pixel at a time
   // into the dashed curves seen near a lens's rim.
-  if (variant === 'v5') scale = Math.max(2, scale)
+  if (isLater(variant)) scale = Math.max(2, scale)
   const bevel = bevelOf(variant, width, height, radius)
   const border = Math.ceil(Math.max(radius, bevel) + 2),
     tile = 2 * border + 1
@@ -439,7 +451,14 @@ export function slabMaps(
 }
 
 /** The pane's refraction: the bevel's bend, split into three colours where it disperses. */
-export function slabFilter(variant: SlabVariant, maps: SlabMaps, width: number, height: number) {
+export function slabFilter(
+  variant: SlabVariant,
+  maps: SlabMaps,
+  width: number,
+  height: number,
+  // Whether the pane carries text: only those have their backdrop pulled into the theme's range.
+  text = true,
+) {
   const { spread } = shapeOf(variant),
     bend = isMeasured(variant) ? maps.bevel * look(variant).bendRatio : shapeOf(variant).bend
   const svg = document.createElementNS(NS, 'svg')
@@ -473,7 +492,7 @@ export function slabFilter(variant: SlabVariant, maps: SlabMaps, width: number, 
   })
   // v4: the whole pane wobbles a little first; the bevel then bends what the wobble left.
   let source = 'SourceGraphic'
-  const wobble = variant === 'v4' || variant === 'v5' ? (look(variant).wobble ?? 0) : 0
+  const wobble = variant === 'v4' || isLater(variant) ? (look(variant as Measured).wobble ?? 0) : 0
   if (wobble) {
     add('feImage', {
       href: wobbleMap(look(variant as Measured).wobbleFrequency ?? 1.6),
@@ -534,11 +553,11 @@ export function slabFilter(variant: SlabVariant, maps: SlabMaps, width: number, 
     for (const channel of ['feFuncR', 'feFuncG', 'feFuncB'])
       add(channel, { type: 'linear', slope: '3' }, restore)
   }
-  if (variant === 'v4' || variant === 'v5') {
+  if (variant === 'v4' || isLater(variant)) {
     // Every bend above ends in the filter's last result; brighten it by the body's light.
     const last = filter.lastElementChild!
     last.setAttribute('result', 'bent')
-    const v4 = look(variant)
+    const v4 = look(variant as Measured)
     add('feImage', {
       href: bodyMap(v4.bodyWidth ?? 0.6, v4.bodyY ?? 0),
       width: String(width),
@@ -555,12 +574,12 @@ export function slabFilter(variant: SlabVariant, maps: SlabMaps, width: number, 
       result: 'lit',
     })
   }
-  if (variant === 'v5' && (look('v5').adaptMax ?? 0) > 0) {
+  if (variant === 'v5' && text && (look('v5').adaptMax ?? 0) > 0) {
     // A tint that follows what is behind, as Apple's glass darkens over bright content and lightens
     // over dark: the backdrop's brightness is compressed toward the theme's own range, so text of
     // the theme's colour stays legible over line art or photos. Per pixel and cheap; the local
     // contrast through blurred variance was tried and lost to 8-bit rounding and blocky blurs.
-    const v5 = look('v5'),
+    const v5 = look(variant as Measured),
       dark = document.documentElement.dataset.theme === 'dark'
     const compress = add('feComponentTransfer', { in: 'lit', result: 'compressed' })
     for (const channel of ['feFuncR', 'feFuncG', 'feFuncB'])
