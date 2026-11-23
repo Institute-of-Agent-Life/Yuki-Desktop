@@ -19,7 +19,6 @@ export default {
     unavailable: 'Unavailable',
   },
   status: '{{state}} · Control: {{holder}}',
-  statusChecking: '{{state}} · Control: {{holder}} · Checking for updates',
   holderYou: 'You',
   holderNone: 'None',
   endQQ: 'End QQ Control',

@@ -114,6 +114,8 @@ SSH 與「部署到我的伺服器」：`prepare-local-bot.mjs` 以後端自己�
 
 `button-fit.spec.ts` 以 renderer fixture 在三種語言、1440×900／960×640／600×720 下量測「這台電腦」、原回執與終端回執對話框及「工作」委派視圖的按鈕：文字不得超出按鈕或超過兩行、按鈕不得重疊或超出所在列與對話框；並核對伺服器提示觸發的背景重讀不改變任何按鈕的狀態與外觀、回執內容不閃成讀取中，只有點擊的重新整理顯示載入直到該次讀取結束。輸出目錄保留各畫面截圖與取樣紀錄。
 
+`status-steady.spec.ts` 以 renderer fixture（每次讀取延遲，讓讀取中的狀態可見）核對伺服器提示觸發的背景重讀不改變「設定 → 連線」的伺服器狀態與「Yuki 的電腦」的狀態文字（不閃成「正在確認…」、不重新掛載、無任何 DOM 變動）；只有尚未取得結果或本人點擊「重新檢查」時顯示「正在確認…」。輸出目錄保留 `status-steady.json`（看到的每個狀態文字與重讀次數）與截圖。
+
 `control-motion.spec.ts` 驗證實際拖曳、取消、鍵盤與背景像素折射；`frosted-workspace.spec.ts` 使用隔離真後端核對四種外觀、三個尺寸、原回執與草稿。兩者均不呼叫付費模型，截圖只作本地審閱。
 
 [開發約束](architecture/development-contract.md)隨原始碼維護。任務書、調研、設計文件、互動原型與其預覽／檢查材料只在本地維護，不在此發布。安裝包以產品檔案白名單建置，並經封裝內容檢查。E2E 在原輸出目錄保留 JSON 報告、每例 trace 與既有流程產物；CI 在 macOS arm64、Windows x64 與 Linux x64 各分三片執行 E2E，獨立上傳 `Yuki-e2e-results-<platform>-<arch>-<shard>`，不加入安裝包或正式 Release；Intel Mac 與 ARM Linux 只執行單元測試與封裝。

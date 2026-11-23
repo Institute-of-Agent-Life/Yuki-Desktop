@@ -20,7 +20,6 @@ export default {
     unavailable: '当前无法读取',
   },
   status: '{{state}} · 控制：{{holder}}',
-  statusChecking: '{{state}} · 控制：{{holder}} · 正在确认最新状态',
   holderYou: '你',
   holderNone: '无',
   endQQ: '结束 QQ 控制',

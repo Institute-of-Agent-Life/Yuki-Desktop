@@ -26,6 +26,7 @@ import type {
   CachedContent,
   EventsPage,
   Home,
+  Meta,
   OutboxItem,
   PublicEvent,
   Profile,
@@ -35,6 +36,7 @@ import type {
   WorkPage,
   WorkSteps,
 } from '../../src/shared/api'
+import { REQUIRED_API_REVISION } from '../../src/shared/api'
 import '../../src/renderer/tokens.css'
 import '../../src/renderer/materials/materials.css'
 
@@ -65,6 +67,11 @@ const contentReads: AttachmentSource[] = []
 const lateWorkReads: { kind: 'work' | 'steps'; workId: string }[] = []
 const hintListeners = new Set<Parameters<ConversationBridge['onHint']>[0]>()
 let lateReceipt = false
+// `server` answers the server's meta (`server=down` until `serverDown(false)`); `delay=N` holds
+// every read N ms, so a read in progress is on screen long enough to be seen.
+let serverDown = new URLSearchParams(location.search).get('server') === 'down'
+const readDelay = Number(new URLSearchParams(location.search).get('delay') ?? 0)
+const held = () => new Promise((resolve) => setTimeout(resolve, readDelay))
 let holdNextSecondPage = false
 let releaseSecondPage: (() => void) | undefined
 const queries = new QueryClient()
@@ -417,7 +424,13 @@ Object.assign(window, {
       },
       read: async (_id: string, route: ApiRead) => {
         reads.push(route.kind)
-        if (route.kind === 'me') return { ok: true, value: { is_superuser: true } }
+        if (readDelay) await held()
+        if (route.kind === 'me') return { ok: true, value: { is_superuser: true, bindings: [] } }
+        if (route.kind === 'proactive-route')
+          return {
+            ok: true,
+            value: { binding_id: null, paused: false, platform: null, revision: 1 },
+          }
         if (showcase() && route.kind === 'works')
           return {
             ok: true,
@@ -676,6 +689,22 @@ Object.assign(window, {
       },
       workCommands: async () => ({ ok: true, value: [] }),
       computerCommands: async () => ({ ok: true, value: [] }),
+      serverInfo: async () => {
+        reads.push('server-info')
+        if (readDelay) await held()
+        if (!new URLSearchParams(location.search).has('server') || serverDown)
+          return { ok: false, code: 'transport_unknown' }
+        return {
+          ok: true,
+          value: {
+            api_revision: REQUIRED_API_REVISION,
+            capabilities: [],
+            character: { ...profile, avatar_url: null },
+            min_client: { android: null, desktop: null },
+            server_version: 'fixture',
+          } satisfies Meta,
+        }
+      },
       computerTicket: async () => ({ ok: false, code: 'fixture_only' }),
       keyboardCapture: async () => ({ ok: true, value: undefined }),
       workQuestionDrafts: async () => ({ ok: true, value: [] }),
@@ -816,6 +845,9 @@ Object.assign(window, {
     },
     avatarReads: () => avatarReads,
     previewOpens: () => previewOpens,
+    serverDown: (down: boolean) => {
+      serverDown = down
+    },
     hint: (kind: string) => {
       for (const listener of hintListeners) listener('role', kind, {})
     },
