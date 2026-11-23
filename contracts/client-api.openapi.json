@@ -5857,7 +5857,7 @@
   "info": {
     "title": "Yuki personal API",
     "version": "4.0.2",
-    "x-yuki-api-revision": 14
+    "x-yuki-api-revision": 15
   },
   "openapi": "3.1.0",
   "paths": {
@@ -9468,6 +9468,104 @@
           }
         },
         "summary": "Revoke"
+      }
+    },
+    "/client/v1/devices/{identity}/delete": {
+      "post": {
+        "operationId": "delete_device_client_v1_devices__identity__delete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity",
+            "required": true,
+            "schema": {
+              "format": "uuid4",
+              "title": "Identity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-yuki-entry",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Yuki-Entry"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-yuki-conversation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Yuki-Conversation"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Delete Device Client V1 Devices  Identity  Delete Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Device"
       }
     },
     "/client/v1/home": {
