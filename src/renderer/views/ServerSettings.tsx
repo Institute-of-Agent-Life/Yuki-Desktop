@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Connection, Me, ProactiveRoute, CharacterCommandItem } from '../../shared/api'
-import { Banner, Button } from '../components/Controls'
+import { Banner, Button, useRefreshing } from '../components/Controls'
 import { unwrap, problemText, hidesPrivateData } from '../queries/client'
 import { useTranslation } from '../i18n'
 import { PendingRequest, Row, SettingsSection } from './SettingsRow'
@@ -47,6 +47,9 @@ export function ServerSettings({
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
     [busy, setBusy] = useState(false)
+  // Hints and focus read in the background and leave the status as it is; only a recheck the
+  // person asked for, or a server not yet answered, shows it is checking.
+  const [rechecking, recheck] = useRefreshing()
   const refresh = () =>
     Promise.all(
       ['me', 'proactive-route', 'character-commands'].map((key) =>
@@ -143,19 +146,14 @@ export function ServerSettings({
             <TransportSettings connection={connection} onConnection={onConnection} />
             <Row title={t('connection:status')}>
               <span role="status">
-                {info.isFetching || me.isFetching
+                {info.isPending || me.isPending || rechecking
                   ? t('connection:checking')
                   : info.isError || me.isError
                     ? t('connection:unreachable')
                     : t('connection:connected')}
               </span>
               {(info.isError || me.isError) && (
-                <Button
-                  onClick={() => {
-                    void info.refetch()
-                    void refresh()
-                  }}
-                >
+                <Button loading={rechecking} onClick={() => recheck(info.refetch(), refresh())}>
                   {t('connection:recheck')}
                 </Button>
               )}

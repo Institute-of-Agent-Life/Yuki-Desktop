@@ -213,7 +213,7 @@ export function Computer({
       {/* The state sits beside the controls, so switching displays leaves the toolbar still. */}
       {!showQQ && (
         <span className={styles.state}>
-          {t(query.isFetching && !query.isPending ? 'computer:statusChecking' : 'computer:status', {
+          {t('computer:status', {
             state: t(
               state.display === 'running'
                 ? 'computer:state.running'

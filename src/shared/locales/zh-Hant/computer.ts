@@ -18,7 +18,6 @@ export default {
     unavailable: '目前無法讀取',
   },
   status: '{{state}} · 控制：{{holder}}',
-  statusChecking: '{{state}} · 控制：{{holder}} · 正在確認最新狀態',
   holderYou: '你',
   holderNone: '無',
   endQQ: '結束 QQ 控制',
