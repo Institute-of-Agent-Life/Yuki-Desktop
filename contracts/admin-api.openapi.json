@@ -535,6 +535,12 @@
             "type": "array",
             "uniqueItems": true
           },
+          "connect_timeout_seconds": {
+            "default": 10.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Connect Timeout Seconds",
+            "type": "number"
+          },
           "context_window_tokens": {
             "anyOf": [
               {
@@ -1418,6 +1424,10 @@
             },
             "title": "Capabilities",
             "type": "array"
+          },
+          "connect_timeout_seconds": {
+            "title": "Connect Timeout Seconds",
+            "type": "number"
           },
           "context_window_tokens": {
             "anyOf": [
