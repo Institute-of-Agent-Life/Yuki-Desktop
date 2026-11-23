@@ -33,10 +33,14 @@ import { installMenu } from './menu'
 import { language, setLanguage, t } from './i18n'
 import { displayLanguage, languagePreferences, listNames } from '../shared/locales'
 import { LocalStore } from './store'
+import { Backgrounds } from './backgrounds'
 import {
   backdrops,
+  defaultPreferences,
+  type BackdropTable,
   type BootInfo,
   type Preferences,
+  type PreferencesPatch,
   type NavigationTarget,
 } from '../shared/desktop'
 import type {
@@ -120,6 +124,7 @@ else {
   process.argv.filter((arg) => /^yuki:\/\//i.test(arg)).forEach(receiveLink)
   void app.whenReady().then(() => {
     const store = new LocalStore(join(app.getPath('userData'), 'desktop.sqlite3'))
+    const backgrounds = new Backgrounds(join(app.getPath('userData'), 'backgrounds'))
     nativeTheme.themeSource = store.preferences().theme
     const shownLanguage = (preferences: Preferences) =>
       displayLanguage(preferences.language, app.getPreferredSystemLanguages())
@@ -130,6 +135,12 @@ else {
       const url = new URL(request.url)
       if (url.hostname === 'desktop' && url.pathname.startsWith('/__media/'))
         return connections.previews.response(request)
+      if (url.hostname === 'desktop' && url.pathname.startsWith('/__backgrounds/')) {
+        const file = backgrounds.file(decodeURIComponent(url.pathname.slice(15)))
+        return file
+          ? net.fetch(pathToFileURL(file).toString())
+          : new Response(null, { status: 404 })
+      }
       const path = resolve(renderer, `.${decodeURIComponent(url.pathname)}`)
       if (url.hostname !== 'desktop' || !path.startsWith(renderer + sep))
         return new Response(null, { status: 404 })
@@ -921,9 +932,9 @@ else {
       connections.avatarBytes(id, sha, size),
     )
     action('preview-avatar', (server: string) => connections.previewAvatar(server))
-    action('pick-avatar', async () => {
+    const pickImage = async (title: string) => {
       const picked = await dialog.showOpenDialog(win!, {
-        title: t('dialogs:chooseAvatar'),
+        title,
         properties: ['openFile'],
         filters: [
           {
@@ -939,8 +950,26 @@ else {
         ],
       })
       return picked.canceled || !picked.filePaths[0] ? null : avatarInput(picked.filePaths[0])
-    })
+    }
+    action('pick-avatar', () => pickImage(t('dialogs:chooseAvatar')))
     action('drop-avatar', (path: string) => avatarInput(path))
+    action('pick-background', () => pickImage(t('dialogs:chooseBackground')))
+    action('drop-background', (path: string) => avatarInput(path))
+    action('background-store', (original: Uint8Array, copy: Uint8Array, table: BackdropTable) =>
+      backgrounds.store(original, copy, table),
+    )
+    action('background-blur', (id: string, radius: number, copy: Uint8Array) =>
+      backgrounds.blur(id, radius, copy),
+    )
+    action(
+      'background-menu',
+      () =>
+        new Promise<boolean>((resolve) => {
+          Menu.buildFromTemplate([
+            { label: t('settings:backdropChange'), click: () => resolve(true) },
+          ]).popup({ window: win!, callback: () => resolve(false) })
+        }),
+    )
     action('paste-avatar', () => {
       const image = clipboard.readImage()
       if (image.isEmpty()) throw new ApiError('unsupported_image')
@@ -1161,7 +1190,7 @@ else {
         openTarget,
       }
     })
-    ipcMain.handle('yuki:preferences', (event, patch: Partial<Preferences>) => {
+    ipcMain.handle('yuki:preferences', async (event, patch: PreferencesPatch) => {
       authorize(event)
       const current = store.preferences()
       for (const key of [
@@ -1176,7 +1205,16 @@ else {
         if (typeof patch[key] === 'boolean') current[key] = patch[key]
       }
       if (['system', 'light', 'dark'].includes(patch.theme ?? '')) current.theme = patch.theme!
-      if (backdrops.includes(patch.backdrop!)) current.backdrop = patch.backdrop!
+      if (backdrops.includes(patch.backdrop as never) || patch.backdrop === 'custom')
+        current.backdrop = patch.backdrop!
+      if (typeof patch.customBackdrop === 'object' && patch.customBackdrop)
+        current.customBackdrop = await backgrounds.accept(
+          patch.customBackdrop,
+          current.customBackdrop,
+        )
+      // A picture of one's own is the backdrop only while there is one.
+      if (current.backdrop === 'custom' && !current.customBackdrop.light)
+        current.backdrop = defaultPreferences.backdrop
       if (patch.timeZone === 'Asia/Taipei' || patch.timeZone === 'system')
         current.timeZone = patch.timeZone
       if (languagePreferences.includes(patch.language!)) current.language = patch.language!
@@ -1196,6 +1234,7 @@ else {
       if (typeof patch.inspectorWidth === 'number' && Number.isFinite(patch.inspectorWidth))
         current.inspectorWidth = Math.max(320, Math.min(560, patch.inspectorWidth))
       store.set('appearance', current)
+      await backgrounds.keep(current.customBackdrop)
       native.update(current)
       nativeTheme.themeSource = current.theme
       if (win) applyWindowAppearance(win, current)

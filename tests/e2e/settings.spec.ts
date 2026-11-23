@@ -115,13 +115,14 @@ test('actual settings paths retain native preferences, timezone, notifications a
     const backdrops = page.getByRole('radiogroup', { name: '對話背景', exact: true })
     await expect(backdrops.getByRole('radio', { name: '光線', exact: true })).toBeChecked()
     // 6 (全局透明磨砂 task book): the frost is the window's own choice; the backdrop is only a
-    // pattern laid over the conversation, or none.
+    // pattern laid over the conversation, none, or a picture of one's own (custom-backdrop.spec.ts).
     expect(await backdrops.getByRole('radio').allInnerTexts()).toEqual([
       '無',
       '光線',
       '極光',
       '晚霞',
       '格線',
+      '自訂圖片',
     ])
     const transparency = page.getByRole('slider', { name: '透明度', exact: true })
     await expect(transparency).toHaveAttribute('aria-valuenow', '70')

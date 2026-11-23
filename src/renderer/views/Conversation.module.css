@@ -18,6 +18,28 @@
 :global([data-backdrop='grid']) .chat {
   background: var(--backdrop-grid);
 }
+/* A picture of one's own (materials/backdrop.ts, App.tsx): a layer of its own behind everything
+   in the chat, the page's colour laid over it as much as it is dimmed; a blurred picture is a
+   blurred copy, never a live filter. Fitted inside, the rest takes its average colour. */
+:global([data-backdrop='custom']) .chat {
+  background: none;
+  isolation: isolate;
+}
+:global([data-backdrop='custom']) .chat::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  will-change: transform;
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--bg-content) var(--backdrop-dim), transparent),
+      color-mix(in srgb, var(--bg-content) var(--backdrop-dim), transparent)
+    ),
+    var(--backdrop-image) center / var(--backdrop-size) var(--backdrop-repeat),
+    var(--backdrop-fill, var(--bg-content));
+}
 .messages {
   overflow: auto;
   flex: 1;

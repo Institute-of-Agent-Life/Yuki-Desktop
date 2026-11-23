@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { BootInfo, Preferences } from '../shared/desktop'
+import type { BootInfo, PreferencesPatch } from '../shared/desktop'
 import { Banner } from './components/Controls'
 import styles from './App.module.css'
 import { useCommands } from './state/commands'
@@ -21,6 +21,7 @@ import { RoleSwitcher } from './components/RoleSwitcher'
 import { ApplicationMenu } from './components/ApplicationMenu'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from './i18n'
+import { backdropVariables } from './materials/backdrop'
 
 export function App({ boot }: { boot: BootInfo }) {
   const { t } = useTranslation(['workspace'])
@@ -166,7 +167,7 @@ export function App({ boot }: { boot: BootInfo }) {
       }),
     [],
   )
-  const save = async (patch: Partial<Preferences>) =>
+  const save = async (patch: PreferencesPatch) =>
     setPreferences(await window.yuki.preferences(patch))
   useLayoutEffect(() => {
     const root = document.documentElement
@@ -177,6 +178,11 @@ export function App({ boot }: { boot: BootInfo }) {
     )
     root.dataset.motion = preferences.reducedMotion ? 'reduced' : 'normal'
     root.dataset.backdrop = preferences.backdrop
+    const theme = root.dataset.theme as 'light' | 'dark'
+    for (const [name, value] of Object.entries(
+      preferences.backdrop === 'custom' ? backdropVariables(preferences.customBackdrop, theme) : {},
+    ))
+      root.style.setProperty(name, value)
     const opaque =
       cssAccessibility.opaque ||
       cssAccessibility.contrast ||
@@ -353,6 +359,16 @@ export function App({ boot }: { boot: BootInfo }) {
                       connection={item}
                       platform={boot.platform}
                       preferences={preferences}
+                      onBackground={(id) => {
+                        // The picture shown now is the one replaced: dark's own, or the shared one.
+                        const dark =
+                          document.documentElement.dataset.theme === 'dark' &&
+                          preferences.customBackdrop.dark
+                        void save({
+                          backdrop: 'custom',
+                          customBackdrop: { [dark ? 'dark' : 'light']: id },
+                        })
+                      }}
                       roleSwitcher={(trigger) => (
                         <RoleSwitcher
                           trigger={trigger}

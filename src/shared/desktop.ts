@@ -4,7 +4,31 @@ import type { Language, LanguagePreference } from './locales'
 export type Theme = 'system' | 'light' | 'dark'
 // The pattern laid over the conversation, behind its glass; chosen in Appearance and kept.
 export const backdrops = ['plain', 'lens', 'aurora', 'sunset', 'grid'] as const
-export type Backdrop = (typeof backdrops)[number]
+// 'custom' is a picture of the person's own (`customBackdrop`), offered after the patterns.
+export type Backdrop = (typeof backdrops)[number] | 'custom'
+export const backdropFits = ['fill', 'fit', 'tile'] as const
+/**
+ * A picture of the person's own behind the conversation: kept by the app under the SHA-256 of
+ * its bytes, one for both themes or one each; how it fills the chat, its blur (0–20px) and how
+ * much the page's colour is laid over it (0–60%).
+ */
+export interface CustomBackdrop {
+  light?: string
+  dark?: string
+  fit: (typeof backdropFits)[number]
+  blur: number
+  dim: number
+}
+/**
+ * What the app keeps of a picture beside its smaller copy, made when it is imported: the mean,
+ * 5th and 95th percentile of relative luminance in each cell of a `grid` × `grid` raster, row by
+ * row, and the picture's average colour.
+ */
+export interface BackdropTable {
+  grid: number
+  cells: [number, number, number][]
+  average: string
+}
 export type DisplayTimeZone = 'Asia/Taipei' | 'system'
 export interface LoginItemState {
   enabled: boolean
@@ -33,6 +57,7 @@ export interface Preferences {
   timeZone: DisplayTimeZone
   /** How much of the desktop shows through the window: 0 (opaque) to 100. */
   transparency: number
+  customBackdrop: CustomBackdrop
   reducedMotion: boolean
   highContrast: boolean
   sidebarWidth: number
@@ -46,12 +71,21 @@ export interface Preferences {
   updateChannel: import('./updates').UpdateChannel
 }
 
+/**
+ * A change to the preferences: each given field replaces its own; a custom backdrop's parts do the
+ * same, so a picture given as undefined is removed and the parts not given are kept.
+ */
+export type PreferencesPatch = Partial<Omit<Preferences, 'customBackdrop'>> & {
+  customBackdrop?: Partial<CustomBackdrop>
+}
+
 export const defaultPreferences: Preferences = {
   language: 'system',
   theme: 'system',
   backdrop: 'lens',
   timeZone: 'Asia/Taipei',
   transparency: 70,
+  customBackdrop: { fit: 'fill', blur: 0, dim: 0 },
   reducedMotion: false,
   highContrast: false,
   sidebarWidth: 260,
@@ -106,7 +140,22 @@ export interface DesktopBridge {
   }
   boot(): Promise<BootInfo>
   applicationMenu(position: { x: number; y: number }): Promise<import('./api').ApiReply<boolean>>
-  preferences(patch: Partial<Preferences>): Promise<Preferences>
+  preferences(patch: PreferencesPatch): Promise<Preferences>
+  backgrounds: {
+    /** A picture chosen in the system's file dialog, or null if none was. */
+    pick(): Promise<import('./api').ApiReply<import('./api').AvatarInput | null>>
+    drop(file: File): Promise<import('./api').ApiReply<import('./api').AvatarInput>>
+    /** Keeps a picture, its smaller copy (WebP) and its table; gives back its id. */
+    store(
+      original: Uint8Array,
+      copy: Uint8Array,
+      table: BackdropTable,
+    ): Promise<import('./api').ApiReply<string>>
+    /** Keeps a blurred copy of a kept picture. */
+    blur(id: string, radius: number, copy: Uint8Array): Promise<import('./api').ApiReply<void>>
+    /** The chat's own menu over its empty space; whether 「更換背景…」 was chosen. */
+    menu(): Promise<import('./api').ApiReply<boolean>>
+  }
   loginItem(enabled?: boolean): Promise<import('./api').ApiReply<LoginItemState>>
   exportDiagnostics(): Promise<import('./api').ApiReply<boolean>>
   onCommand(callback: (command: Command) => void): () => void

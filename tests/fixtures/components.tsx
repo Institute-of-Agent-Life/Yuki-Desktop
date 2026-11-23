@@ -743,7 +743,18 @@ window.yuki = {
   boot: async () => {
     throw new Error('fixture only')
   },
-  preferences: async (patch) => ({ ...defaultPreferences, ...patch }),
+  backgrounds: {
+    pick: async () => ({ ok: false, code: 'fixture_only' }),
+    drop: async () => ({ ok: false, code: 'fixture_only' }),
+    store: async () => ({ ok: false, code: 'fixture_only' }),
+    blur: async () => ({ ok: false, code: 'fixture_only' }),
+    menu: async () => ({ ok: false, code: 'fixture_only' }),
+  },
+  preferences: async (patch) => ({
+    ...defaultPreferences,
+    ...patch,
+    customBackdrop: { ...defaultPreferences.customBackdrop, ...patch.customBackdrop },
+  }),
   onCommand: () => () => {},
   exportDiagnostics: async () => ({ ok: true, value: false }),
   loginItem: async () => ({

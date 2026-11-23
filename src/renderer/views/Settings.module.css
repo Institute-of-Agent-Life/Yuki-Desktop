@@ -315,6 +315,21 @@
   height: 16px;
   color: var(--text-secondary);
 }
+.customActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.backdropSlider {
+  display: flex;
+  width: 220px;
+}
+/* A picture held over the custom choice, about to be dropped on it. */
+.backdropSwatch[data-dropping] {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+}
 .backdrops {
   display: flex;
   flex-wrap: wrap;

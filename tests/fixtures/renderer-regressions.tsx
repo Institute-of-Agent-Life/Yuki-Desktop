@@ -936,7 +936,11 @@ function Case() {
       save={async (patch) => {
         // Each save is what the app would send over `yuki:preferences`, recorded for the specs.
         ;((window as unknown as { preferenceSaves?: unknown[] }).preferenceSaves ??= []).push(patch)
-        setPreferences((current) => ({ ...current, ...patch }))
+        setPreferences((current) => ({
+          ...current,
+          ...patch,
+          customBackdrop: { ...current.customBackdrop, ...patch.customBackdrop },
+        }))
       }}
       back={() => setConversationSettings(false)}
       onConnection={() => {}}
@@ -1022,6 +1026,7 @@ function Case() {
               preferences={preferences}
               onSettings={openSettings}
               onPairAgain={() => {}}
+              onBackground={() => {}}
             />
           </WorkspaceSession>
         </div>

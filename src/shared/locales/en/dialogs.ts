@@ -24,6 +24,7 @@ export default {
   exportRetiredHistory: 'Export Earlier Operation Records',
   retiredHistory: 'Earlier Operation Records',
   chooseAvatar: 'Choose Avatar Image',
+  chooseBackground: 'Choose Chat Background Image',
   images: 'Images',
   pngImages: 'PNG Images',
   attachFiles: 'Attach Files',

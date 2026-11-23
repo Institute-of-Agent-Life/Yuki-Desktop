@@ -8,6 +8,7 @@ import { animateBubble, releaseDraft } from '../motion/bubble'
 import { glide, gliding, movedByApp, movedByOther, place } from '../motion/glide'
 import { sampleSpring, springs } from '../motion/spring'
 import { useGlass } from '../materials/glass'
+import { blurBackdrop, followBackdrop, importBackdrop } from '../materials/backdrop'
 import {
   Fragment,
   useCallback,
@@ -128,6 +129,7 @@ export function Conversation({
   preferences,
   onSettings,
   onPairAgain,
+  onBackground,
   roleSwitcher,
 }: {
   connection: Connection
@@ -135,10 +137,28 @@ export function Conversation({
   preferences: Preferences
   onSettings(category?: SettingsCategory): void
   onPairAgain(): void
+  /** A picture of one's own, chosen from the chat's menu and kept: make it the backdrop. */
+  onBackground(id: string): void
   roleSwitcher?: (trigger: React.ReactNode) => React.ReactNode
 }) {
   const { t } = useTranslation(['presence', 'conversation', 'computer', 'common'])
   const floatingRef = useFloatingInsets()
+  const [chat, setChat] = useState<HTMLDivElement | null>(null)
+  const chatRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      setChat(node)
+      return floatingRef(node)
+    },
+    [floatingRef],
+  )
+  // Over a picture of one's own, the glass follows what lies under it (materials/backdrop.ts).
+  useEffect(
+    () =>
+      chat && preferences.backdrop === 'custom'
+        ? followBackdrop(chat, preferences.customBackdrop)
+        : undefined,
+    [chat, preferences.backdrop, preferences.customBackdrop],
+  )
   const workspace = useWorkspace()
   const active = useSessionActive()
   const id = connection.characterId,
@@ -1276,8 +1296,32 @@ export function Conversation({
           )
         ) : (
           <div
-            ref={floatingRef}
+            ref={chatRef}
             className={styles.chat}
+            onContextMenu={(click) => {
+              // Only its empty space: messages, controls and the composer have menus of their own.
+              if (
+                click.defaultPrevented ||
+                (click.target as HTMLElement).closest(
+                  'article, a, button, input, textarea, [contenteditable], [data-glass]',
+                )
+              )
+                return
+              click.preventDefault()
+              void (async () => {
+                if (!unwrap(await window.yuki.backgrounds.menu())) return
+                const picture = unwrap(await window.yuki.backgrounds.pick())
+                if (!picture) return
+                const id = await importBackdrop(picture.bytes)
+                if (preferences.customBackdrop.blur)
+                  await blurBackdrop(id, preferences.customBackdrop.blur)
+                onBackground(id)
+              })().catch((error: unknown) =>
+                setMediaError(
+                  error instanceof ClientProblem ? error.message : problemText('unsupported_image'),
+                ),
+              )
+            }}
             onDragOver={(event) => {
               if (isMain && event.dataTransfer.types.includes('Files')) {
                 event.preventDefault()

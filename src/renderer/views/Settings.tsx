@@ -1,5 +1,6 @@
 import { useTabMotion } from '../motion/tab'
-import { useRef, useState } from 'react'
+import { useRef, useState, type DragEvent } from 'react'
+import { backdropUrl, blurBackdrop, importBackdrop } from '../materials/backdrop'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
@@ -28,7 +29,15 @@ import { ModelSettings, type ModelPage } from './ModelSettings'
 import { Platforms } from './Platforms'
 import { LogoutFlow } from './LogoutFlow'
 import { Row, SettingsSection } from './SettingsRow'
-import { backdrops, type Backdrop, type BootInfo, type Preferences } from '../../shared/desktop'
+import {
+  backdrops,
+  defaultPreferences,
+  type Backdrop,
+  type BootInfo,
+  type CustomBackdrop,
+  type Preferences,
+  type PreferencesPatch,
+} from '../../shared/desktop'
 import {
   Avatar,
   Banner,
@@ -39,7 +48,7 @@ import {
   Toggle,
   SelectionPill,
 } from '../components/Controls'
-import { unwrap } from '../queries/client'
+import { ClientProblem, unwrap } from '../queries/client'
 import styles from './Settings.module.css'
 import { useTranslation } from '../i18n'
 import { languageNames, languages } from '../../shared/locales'
@@ -112,7 +121,7 @@ export function Settings({
 }: {
   boot: BootInfo
   preferences: Preferences
-  save(patch: Partial<Preferences>): Promise<void>
+  save(patch: PreferencesPatch): Promise<void>
   back(): void
   connection?: Connection
   connections: Connection[]
@@ -163,12 +172,34 @@ export function Settings({
     setError(undefined)
     setNotice('')
   }
-  const change = async (patch: Partial<Preferences>, section: string) => {
+  const change = async (patch: PreferencesPatch, section: string) => {
     setError(undefined)
     try {
       await save(patch)
     } catch {
       setError({ section, message: t('settings:saveFailed') })
+    }
+  }
+  // A picture of one's own for a theme: chosen in the file dialog, or dropped. Its blur, if any, is
+  // drawn for it at once, so a new picture is never shown sharp under a blurred setting.
+  const pictureFor = async (picture?: File) => {
+    setError(undefined)
+    try {
+      const input = picture
+        ? unwrap(await window.yuki.backgrounds.drop(picture))
+        : unwrap(await window.yuki.backgrounds.pick())
+      if (!input) return undefined
+      const id = await importBackdrop(input.bytes).catch((error: unknown) => {
+        throw error instanceof ClientProblem ? error : new ClientProblem('unsupported_image')
+      })
+      if (preferences.customBackdrop.blur) await blurBackdrop(id, preferences.customBackdrop.blur)
+      return id
+    } catch (error) {
+      setError({
+        section: 'look',
+        message: error instanceof Error ? error.message : t('settings:saveFailed'),
+      })
+      return undefined
     }
   }
   const setLogin = async (enabled: boolean) => {
@@ -421,9 +452,32 @@ export function Settings({
               <Row title={t('settings:backdrop')} description={t('settings:backdropDescription')}>
                 <BackdropPicker
                   value={preferences.backdrop}
+                  custom={preferences.customBackdrop}
                   onChange={(backdrop) => void change({ backdrop }, 'look')}
+                  onPicture={(picture) =>
+                    void pictureFor(picture).then((light) => {
+                      if (light)
+                        return change({ backdrop: 'custom', customBackdrop: { light } }, 'look')
+                    })
+                  }
                 />
               </Row>
+              {preferences.backdrop === 'custom' && (
+                <CustomBackdropRows
+                  backdrop={preferences.customBackdrop}
+                  pictureFor={pictureFor}
+                  change={(customBackdrop) => change({ customBackdrop }, 'look')}
+                  remove={() =>
+                    void change(
+                      {
+                        backdrop: defaultPreferences.backdrop,
+                        customBackdrop: { light: undefined, dark: undefined },
+                      },
+                      'look',
+                    )
+                  }
+                />
+              )}
               <Row
                 title={t('settings:reducedMotion')}
                 description={t('settings:reducedMotionDescription')}
@@ -678,12 +732,116 @@ function TransparencySlider({ value, onChange }: { value: number; onChange(value
   )
 }
 
-// Each choice previews the backdrop itself, in the current theme.
-function BackdropPicker({ value, onChange }: { value: Backdrop; onChange(value: Backdrop): void }) {
+/*
+ * A picture of one's own: chosen again, a separate one for dark, how it fits, its blur and dim, or
+ * removed. A blur is drawn into a copy of each picture when it is let go, then saved.
+ */
+function CustomBackdropRows({
+  backdrop,
+  pictureFor,
+  change,
+  remove,
+}: {
+  backdrop: CustomBackdrop
+  pictureFor(): Promise<string | undefined>
+  change(part: Partial<CustomBackdrop>): Promise<void>
+  remove(): void
+}) {
   const { t } = useTranslation(['settings'])
+  const [separate, setSeparate] = useState(Boolean(backdrop.dark))
+  const choose = (theme: 'light' | 'dark') =>
+    void pictureFor().then((id) => {
+      if (id) return change({ [theme]: id })
+    })
+  return (
+    <>
+      <Row title={t('settings:backdrops.custom')}>
+        <div className={styles.customActions}>
+          <Button onClick={() => choose('light')}>{t('settings:backdropChoose')}</Button>
+          {separate && (
+            <Button onClick={() => choose('dark')}>{t('settings:backdropChooseDark')}</Button>
+          )}
+          <Button onClick={remove}>{t('settings:backdropRemove')}</Button>
+        </div>
+      </Row>
+      <Row title={t('settings:backdropPerTheme')}>
+        <Toggle
+          label={t('settings:backdropPerTheme')}
+          checked={separate}
+          onChange={(next) => {
+            setSeparate(next)
+            if (!next && backdrop.dark) void change({ dark: undefined })
+          }}
+        />
+      </Row>
+      <Row title={t('settings:backdropFit')}>
+        <Segmented
+          label={t('settings:backdropFit')}
+          kind="radio"
+          value={backdrop.fit}
+          items={[
+            { value: 'fill', label: t('settings:backdropFill') },
+            { value: 'fit', label: t('settings:backdropFitInside') },
+            { value: 'tile', label: t('settings:backdropTile') },
+          ]}
+          onChange={(fit) => void change({ fit })}
+        />
+      </Row>
+      <Row title={t('settings:backdropBlur')}>
+        <div className={styles.backdropSlider}>
+          <Slider
+            label={t('settings:backdropBlur')}
+            value={backdrop.blur}
+            min={0}
+            max={20}
+            valueText={(value) => t('settings:backdropBlurValue', { value })}
+            onChange={() => {}}
+            onCommit={(blur) =>
+              void Promise.all(
+                [backdrop.light, backdrop.dark]
+                  .filter((id): id is string => Boolean(id) && blur > 0)
+                  .map((id) => blurBackdrop(id, blur)),
+              ).then(() => change({ blur }))
+            }
+          />
+        </div>
+      </Row>
+      <Row title={t('settings:backdropDim')}>
+        <div className={styles.backdropSlider}>
+          <Slider
+            label={t('settings:backdropDim')}
+            value={backdrop.dim}
+            min={0}
+            max={60}
+            valueText={(value) => t('settings:backdropDimValue', { value })}
+            onChange={() => {}}
+            onCommit={(dim) => void change({ dim })}
+          />
+        </div>
+      </Row>
+    </>
+  )
+}
+
+// Each choice previews the backdrop itself, in the current theme; the last is a picture of one's
+// own, which also takes a picture dropped on it.
+function BackdropPicker({
+  value,
+  custom,
+  onChange,
+  onPicture,
+}: {
+  value: Backdrop
+  custom: CustomBackdrop
+  onChange(value: Backdrop): void
+  onPicture(picture?: File): void
+}) {
+  const { t } = useTranslation(['settings'])
+  const [dropping, setDropping] = useState(false)
+  const choices = [...backdrops, 'custom'] as const
   return (
     <div role="radiogroup" aria-label={t('settings:backdrop')} className={styles.backdrops}>
-      {backdrops.map((backdrop, index) => (
+      {choices.map((backdrop, index) => (
         <button
           key={backdrop}
           type="button"
@@ -691,15 +849,34 @@ function BackdropPicker({ value, onChange }: { value: Backdrop; onChange(value: 
           aria-checked={value === backdrop}
           tabIndex={value === backdrop ? 0 : -1}
           className={styles.backdrop}
-          onClick={() => onChange(backdrop)}
+          onClick={() =>
+            backdrop === 'custom' && !custom.light ? onPicture() : onChange(backdrop)
+          }
+          {...(backdrop === 'custom'
+            ? {
+                onDragOver: (event: DragEvent<HTMLButtonElement>) => {
+                  if (!event.dataTransfer.types.includes('Files')) return
+                  event.preventDefault()
+                  setDropping(true)
+                },
+                onDragLeave: () => setDropping(false),
+                onDrop: (event: DragEvent<HTMLButtonElement>) => {
+                  event.preventDefault()
+                  setDropping(false)
+                  const picture = event.dataTransfer.files[0]
+                  if (picture) onPicture(picture)
+                },
+              }
+            : {})}
           onKeyDown={(event) => {
             if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return
             event.preventDefault()
             const next =
-              backdrops[
-                (index + (event.key === 'ArrowRight' ? 1 : backdrops.length - 1)) % backdrops.length
+              choices[
+                (index + (event.key === 'ArrowRight' ? 1 : choices.length - 1)) % choices.length
               ]!
-            onChange(next)
+            if (next === 'custom' && !custom.light) onPicture()
+            else onChange(next)
             const group = event.currentTarget.parentElement!
             requestAnimationFrame(() =>
               group.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus(),
@@ -708,7 +885,16 @@ function BackdropPicker({ value, onChange }: { value: Backdrop; onChange(value: 
         >
           <span
             className={styles.backdropSwatch}
-            style={{ background: `var(--backdrop-${backdrop}), var(--surface-page)` }}
+            data-dropping={backdrop === 'custom' && dropping ? '' : undefined}
+            title={backdrop === 'custom' && dropping ? t('settings:backdropDrop') : undefined}
+            style={{
+              background:
+                backdrop !== 'custom'
+                  ? `var(--backdrop-${backdrop}), var(--surface-page)`
+                  : custom.light
+                    ? `url("${backdropUrl(`${custom.light}.webp`)}") center / cover`
+                    : undefined,
+            }}
           />
           <span>{t(`settings:backdrops.${backdrop}`)}</span>
         </button>

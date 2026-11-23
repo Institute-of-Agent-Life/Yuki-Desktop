@@ -23,6 +23,7 @@ export default {
   exportRetiredHistory: '导出旧版操作记录',
   retiredHistory: '旧版操作记录',
   chooseAvatar: '选择头像图片',
+  chooseBackground: '选择聊天背景图片',
   images: '图片',
   pngImages: 'PNG 图片',
   attachFiles: '附加文件',
