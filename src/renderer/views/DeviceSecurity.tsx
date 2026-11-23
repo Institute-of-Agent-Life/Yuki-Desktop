@@ -3,11 +3,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import QRCode from 'qrcode'
 import type { Connection, Me, LinkCodeReply, CharacterCommandItem } from '../../shared/api'
 import { Banner, Button, Sheet, Spinner } from '../components/Controls'
-import { hidesPrivateData, unwrap, problemText } from '../queries/client'
+import { hidesPrivateData, unwrap, problemText, useApiRevision } from '../queries/client'
 import { useDisplayTime } from '../state/time'
 import { useTranslation } from '../i18n'
 import { Row, SettingsSection, PendingRequest } from './SettingsRow'
 import styles from './Settings.module.css'
+
+type DeviceCommand = 'device-revoke' | 'device-delete'
 
 export function DeviceSecurity({ connection }: { connection: Connection }) {
   const { t } = useTranslation(['devices', 'common'])
@@ -34,7 +36,8 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
     [notice, setNotice] = useState<{ section: string; message: string }>(),
     [busy, setBusy] = useState(false),
     [revoked, setRevoked] = useState(false),
-    [revoke, setRevoke] = useState<Me['devices'][number]>()
+    [confirm, setConfirm] = useState<{ device: Me['devices'][number]; kind: DeviceCommand }>()
+  const deletable = (useApiRevision(id) ?? 0) >= 15
   const [open, setOpen] = useState(false),
     [issued, setIssued] = useState<LinkCodeReply>(),
     [qr, setQR] = useState(''),
@@ -65,7 +68,7 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
   useEffect(() => {
     if (lost || connection.logout) {
       close()
-      setRevoke(undefined)
+      setConfirm(undefined)
     }
   }, [lost, connection.logout])
   useEffect(
@@ -78,7 +81,7 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
         ) {
           setRevoked(true)
           close()
-          setRevoke(undefined)
+          setConfirm(undefined)
         }
         if (
           character === id &&
@@ -148,7 +151,8 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
       setBusy(false)
     }
   }
-  const revokeDevice = async (
+  const deviceCommand = async (
+    kind: DeviceCommand,
     deviceId: string,
     section: Me['devices'][number]['purpose'] | 'pending',
     requestId?: string,
@@ -160,7 +164,7 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
       const item: CharacterCommandItem = unwrap(
         requestId
           ? await window.yuki.client.verifyCharacterCommand(id, requestId)
-          : await window.yuki.client.characterCommand(id, { kind: 'device-revoke', deviceId }),
+          : await window.yuki.client.characterCommand(id, { kind, deviceId }),
       )
       if (item.state === 'result') {
         if (item.problem) setError({ section, message: problemText(item.problem) })
@@ -168,17 +172,26 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
           setNotice({
             section,
             message:
-              section === 'connector' ? t('devices:connectorRemoved') : t('devices:deviceRevoked'),
+              kind === 'device-delete'
+                ? t('devices:deviceDeleted')
+                : section === 'connector'
+                  ? t('devices:connectorRemoved')
+                  : t('devices:deviceRevoked'),
           })
       }
       await refresh()
     } catch (error) {
       setError({
         section,
-        message: error instanceof Error ? error.message : t('devices:revokeUnconfirmed'),
+        message:
+          error instanceof Error
+            ? error.message
+            : kind === 'device-delete'
+              ? t('devices:deleteUnconfirmed')
+              : t('devices:revokeUnconfirmed'),
       })
     } finally {
-      setRevoke(undefined)
+      setConfirm(undefined)
       setBusy(false)
     }
   }
@@ -195,8 +208,16 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
   }
   const pending =
     commands.data?.filter(
-      (item) => item.command.kind === 'device-revoke' && item.state !== 'result',
+      (item) =>
+        (item.command.kind === 'device-revoke' || item.command.kind === 'device-delete') &&
+        item.state !== 'result',
     ) ?? []
+  const waiting = (deviceId: string) =>
+    pending.some(
+      (item) =>
+        (item.command.kind === 'device-revoke' || item.command.kind === 'device-delete') &&
+        item.command.deviceId === deviceId,
+    )
   const feedback = (section: string) => (
     <>
       {error?.section === section && <Banner status="failed">{error.message}</Banner>}
@@ -250,18 +271,24 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
                 }
               >
                 {device.revoked_at ? (
-                  <span className={styles.notice}>{t('devices:revoked')}</span>
+                  <>
+                    <span className={styles.notice}>{t('devices:revoked')}</span>
+                    {deletable && (
+                      <Button
+                        disabled={busy || waiting(device.device_id)}
+                        onClick={() => setConfirm({ device, kind: 'device-delete' })}
+                        aria-label={t('devices:deleteNamed', {
+                          name: device.label || t('devices:unnamed'),
+                        })}
+                      >
+                        {t('devices:delete')}
+                      </Button>
+                    )}
+                  </>
                 ) : device.device_id !== connection.deviceId ? (
                   <Button
-                    disabled={
-                      busy ||
-                      pending.some(
-                        (item) =>
-                          item.command.kind === 'device-revoke' &&
-                          item.command.deviceId === device.device_id,
-                      )
-                    }
-                    onClick={() => setRevoke(device)}
+                    disabled={busy || waiting(device.device_id)}
+                    onClick={() => setConfirm({ device, kind: 'device-revoke' })}
                     aria-label={t(
                       purpose === 'connector' ? 'devices:removeNamed' : 'devices:revokeNamed',
                       { name: device.label || t('devices:unnamed') },
@@ -283,11 +310,20 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
           {pending.map((item) => (
             <PendingRequest
               key={item.requestId}
-              text={t('devices:revokePending')}
+              text={
+                item.command.kind === 'device-delete'
+                  ? t('devices:deletePending')
+                  : t('devices:revokePending')
+              }
               busy={busy}
               onVerify={() => {
-                if (item.command.kind === 'device-revoke')
-                  void revokeDevice(item.command.deviceId, 'pending', item.requestId)
+                if (item.command.kind === 'device-revoke' || item.command.kind === 'device-delete')
+                  void deviceCommand(
+                    item.command.kind,
+                    item.command.deviceId,
+                    'pending',
+                    item.requestId,
+                  )
               }}
             />
           ))}
@@ -322,33 +358,51 @@ export function DeviceSecurity({ connection }: { connection: Connection }) {
       </SettingsSection>
       <Sheet
         title={
-          revoke?.purpose === 'connector'
-            ? t('devices:removeComputerTitle')
-            : t('devices:revokeDeviceTitle')
+          confirm?.kind === 'device-delete'
+            ? t('devices:deleteDeviceTitle')
+            : confirm?.device.purpose === 'connector'
+              ? t('devices:removeComputerTitle')
+              : t('devices:revokeDeviceTitle')
         }
-        open={!!revoke}
+        open={!!confirm}
         onClose={() => {
-          if (!busy) setRevoke(undefined)
+          if (!busy) setConfirm(undefined)
         }}
         actions={
           <>
-            <Button disabled={busy} onClick={() => setRevoke(undefined)}>
+            <Button disabled={busy} onClick={() => setConfirm(undefined)}>
               {t('common:action.cancel')}
             </Button>
             <Button
               variant="destructive"
               loading={busy}
-              onClick={() => void revokeDevice(revoke!.device_id, revoke!.purpose)}
+              onClick={() =>
+                void deviceCommand(
+                  confirm!.kind,
+                  confirm!.device.device_id,
+                  confirm!.device.purpose,
+                )
+              }
             >
-              {revoke?.purpose === 'connector'
-                ? t('devices:removeComputer')
-                : t('devices:revokeDevice')}
+              {confirm?.kind === 'device-delete'
+                ? t('devices:deleteDevice')
+                : confirm?.device.purpose === 'connector'
+                  ? t('devices:removeComputer')
+                  : t('devices:revokeDevice')}
             </Button>
           </>
         }
       >
-        <p>{t('devices:revokeBody', { name: revoke?.label || t('devices:unnamed') })}</p>
-        {revoke?.purpose === 'connector' && <p>{t('devices:removeBody')}</p>}
+        {confirm?.kind === 'device-delete' ? (
+          <p>{t('devices:deleteBody', { name: confirm.device.label || t('devices:unnamed') })}</p>
+        ) : (
+          <>
+            <p>
+              {t('devices:revokeBody', { name: confirm?.device.label || t('devices:unnamed') })}
+            </p>
+            {confirm?.device.purpose === 'connector' && <p>{t('devices:removeBody')}</p>}
+          </>
+        )}
       </Sheet>
       <Sheet
         title={t('devices:connectAnother')}
