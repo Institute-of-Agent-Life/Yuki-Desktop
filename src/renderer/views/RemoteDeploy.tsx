@@ -9,9 +9,8 @@ import { Banner, Button, TextField } from '../components/Controls'
 import { unwrap } from '../queries/client'
 import { useTranslation } from '../i18n'
 import styles from '../App.module.css'
-import { useGlass } from '../materials/glass'
 
-/** "Deploy to my server": the same card, steps and progress as deploying on this computer. */
+/** "Deploy to my server": the same page, steps and progress as deploying on this computer. */
 export function RemoteDeploy({
   active,
   label,
@@ -24,7 +23,6 @@ export function RemoteDeploy({
   done(connection: Connection, activate?: boolean): void
 }) {
   const { t } = useTranslation(['remoteDeploy', 'ssh'])
-  const card = useGlass<HTMLElement>('card')
   const activeRef = useRef(active)
   activeRef.current = active
   const [state, setState] = useState<RemoteDeployState>()
@@ -121,8 +119,8 @@ export function RemoteDeploy({
     check.os === 'Linux' &&
     ['x86_64', 'amd64', 'aarch64', 'arm64'].includes(check.arch)
   return (
-    <div className={styles.welcome}>
-      <section ref={card.ref} data-glass="card" className={styles.welcomeInner}>
+    <div className={styles.welcome} data-page="deploy">
+      <section className={styles.welcomeInner}>
         <h1>{t('remoteDeploy:title')}</h1>
         <p>{t('remoteDeploy:intro')}</p>
         <div ref={top} />

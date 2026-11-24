@@ -184,7 +184,8 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
   const update = () => {
     frame = 0
     if (!table || !size || !live) return
-    const box = chat.getBoundingClientRect(),
+    // The picture lies under the whole window (Conversation.module.css), not the chat alone.
+    const box = new DOMRect(0, 0, innerWidth, innerHeight),
       grid = table.grid
     const fit = backdrop.fit,
       cover = Math.max(box.width / size.width, box.height / size.height),
@@ -244,7 +245,7 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
       }
     }
     const colour = (alpha: number) => `rgb(${tint.colour.join(' ')} / ${alpha.toFixed(3)})`
-    const content = alphaOver(box, 0, 1)
+    const content = alphaOver(chat.getBoundingClientRect(), 0, 1)
     main.style.setProperty('--content-tint', colour(content.alpha))
     main.style.setProperty('--content-blur', `${8 + 8 * content.spread}px`)
     const current = new Set(
@@ -270,6 +271,7 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
   const resize = new ResizeObserver(schedule),
     changes = new MutationObserver(schedule)
   resize.observe(chat)
+  addEventListener('resize', schedule)
   changes.observe(main, { childList: true, subtree: true, attributeFilter: ['data-refracting'] })
   void backdropTable(shown.id).then((value) => {
     table = value
@@ -286,6 +288,7 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
     live = false
     cancelAnimationFrame(frame)
     resize.disconnect()
+    removeEventListener('resize', schedule)
     changes.disconnect()
     chat.style.removeProperty('--backdrop-fill')
     main.style.removeProperty('--content-tint')

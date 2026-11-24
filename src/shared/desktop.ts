@@ -82,7 +82,7 @@ export type PreferencesPatch = Partial<Omit<Preferences, 'customBackdrop'>> & {
 export const defaultPreferences: Preferences = {
   language: 'system',
   theme: 'system',
-  backdrop: 'lens',
+  backdrop: 'plain',
   timeZone: 'Asia/Taipei',
   transparency: 70,
   customBackdrop: { fit: 'fill', blur: 0, dim: 0 },

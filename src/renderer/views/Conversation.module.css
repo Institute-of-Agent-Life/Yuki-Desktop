@@ -20,14 +20,15 @@
 }
 /* A picture of one's own (materials/backdrop.ts, App.tsx): a layer of its own behind everything
    in the chat, the page's colour laid over it as much as it is dimmed; a blurred picture is a
-   blurred copy, never a live filter. Fitted inside, the rest takes its average colour. */
+   blurred copy, never a live filter. Fitted inside, the rest takes its average colour. It reaches
+   the window's edges: the sidebar's glass floats over it. */
 :global([data-backdrop='custom']) .chat {
   background: none;
   isolation: isolate;
 }
 :global([data-backdrop='custom']) .chat::before {
   content: '';
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
@@ -44,7 +45,7 @@
    bubbles are; an own bubble keeps its accent over that tint. */
 :global([data-backdrop='custom']) :is(.dateSeparator, .conversationIntroduction) {
   width: fit-content;
-  border-radius: 999px;
+  border-radius: var(--r-capsule);
   background: var(--content-tint);
   backdrop-filter: blur(var(--content-blur));
 }
@@ -55,9 +56,7 @@
 :global([data-backdrop='custom']) .conversationIntroduction {
   padding: 3px 12px 3px 3px;
 }
-:global([data-backdrop='custom']) .ownMessage .bubble {
-  --glass-tint: color-mix(in srgb, var(--accent) 10%, var(--content-tint));
-}
+
 .messages {
   overflow: auto;
   flex: 1;
@@ -76,7 +75,7 @@
   margin: 0 0 14px;
   width: fit-content;
   max-width: min(620px, 100%);
-  border-radius: 18px;
+  border-radius: var(--r-popover);
 }
 .message > [role='img'] {
   margin-top: 7px;
@@ -98,24 +97,12 @@
   align-items: flex-end;
 }
 .bubble {
-  --glass-radius: 18px;
+  --glass-radius: var(--r-popover);
   --glass-bleed-inline: 22px;
   --glass-bleed-tail: 30px;
   min-width: 0;
   padding: 8px 13px;
   border-radius: var(--glass-radius);
-  /* Lifts the glass off the backdrop; an entering drop gains it once it has its shape. */
-  box-shadow:
-    0 0.5px 1px rgb(29 54 102 / 0.06),
-    0 6px 16px -8px rgb(29 54 102 / 0.22);
-}
-:global([data-theme='dark']) .bubble {
-  box-shadow:
-    0 0.5px 1px rgb(0 0 0 / 0.3),
-    0 8px 18px -8px rgb(0 0 0 / 0.55);
-}
-:global([data-opaque='true']) .bubble {
-  box-shadow: none;
 }
 .bubble > :global([data-liquid-outline]) {
   position: absolute;
@@ -160,9 +147,21 @@
   margin-left: auto;
   max-width: min(560px, 88%);
 }
+/* One's own message is filled with the accent, deepened until white text keeps 4.5:1. */
 .ownMessage .bubble {
-  --glass-tint: color-mix(in srgb, var(--accent) 10%, transparent);
-  --glass-solid: var(--accent-subtle);
+  --glass-tint: oklch(from var(--accent) min(l, 0.52) calc(c * 1.25) h);
+  --glass-solid: var(--glass-tint);
+  color: #fff;
+}
+.ownMessage .bubble :is(header, time) {
+  color: rgb(255 255 255 / 0.8);
+}
+.ownMessage .bubble :is(a, a:visited) {
+  color: inherit;
+  text-decoration: underline;
+}
+.ownMessage .bubble :is(code, pre) {
+  background: rgb(255 255 255 / 0.16);
 }
 /* The selection frames the bubble itself, not the avatar beside it. */
 .selected .bubble {
@@ -173,7 +172,7 @@
   position: absolute;
   top: -12px;
   right: 8px;
-  border-radius: 8px;
+  border-radius: var(--r-row);
   background: var(--mat-chrome);
   box-shadow: var(--shadow-glass);
   display: flex;
@@ -197,7 +196,7 @@
 .markdown pre {
   overflow: auto;
   background: var(--fill-code);
-  border-radius: 8px;
+  border-radius: var(--r-row);
   padding: 12px;
 }
 .markdown :global(.code-block) {
@@ -208,7 +207,7 @@
   right: 8px;
   top: 8px;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: var(--fill-control);
   color: var(--text-secondary);
   font-size: 11px;
@@ -327,7 +326,7 @@
   right: 24px;
   padding: 6px 14px;
   background: var(--mat-pane);
-  border-radius: 14px;
+  border-radius: var(--r-panel);
   box-shadow: var(--shadow-glass);
   backdrop-filter: var(--glass-regular);
   color: var(--accent);
@@ -478,7 +477,7 @@
   right: 0;
   margin: 0 auto;
   width: min(712px, calc(100% - 40px));
-  border-radius: 20px;
+  border-radius: var(--r-sheet);
   background: var(--mat-pane);
   backdrop-filter: var(--glass-regular);
   box-shadow: var(--shadow-glass);

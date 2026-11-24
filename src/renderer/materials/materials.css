@@ -59,6 +59,7 @@
 :root[data-opaque='true'] {
   --mat-ground: var(--bg-window);
   --mat-sidebar: var(--bg-sidebar);
+  --mat-sidebar-glass: var(--bg-sidebar);
   --mat-chrome: var(--bg-elevated);
   --mat-sheet: var(--bg-elevated);
   --mat-glass: var(--bg-elevated);

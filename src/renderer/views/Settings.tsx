@@ -3,7 +3,7 @@ import { useRef, useState, type DragEvent } from 'react'
 import { backdropUrl, blurBackdrop, importBackdrop } from '../materials/backdrop'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft,
+  ChevronLeft,
   SlidersHorizontal,
   Palette,
   Bell,
@@ -42,6 +42,8 @@ import {
   Avatar,
   Banner,
   Button,
+  Capsule,
+  IconButton,
   Segmented,
   Slider,
   Spinner,
@@ -239,10 +241,11 @@ export function Settings({
     <section ref={edge} className={styles.settings} aria-label={t('settings:title')}>
       <EdgeFade shown={scrolled} />
       <header className={`${styles.header} ${scrolled ? styles.headerScrolled : ''}`}>
-        <Button variant="plain" onClick={back} disabled={!!connection?.logout}>
-          <ArrowLeft size={16} />
-          {t('settings:back')}
-        </Button>
+        <Capsule>
+          <IconButton label={t('settings:back')} onClick={back} disabled={!!connection?.logout}>
+            <ChevronLeft size={16} />
+          </IconButton>
+        </Capsule>
         <strong>{t('settings:title')}</strong>
         <ApplicationMenu platform={boot.platform} className={styles.menu} />
       </header>
@@ -303,7 +306,7 @@ export function Settings({
                     ).focus()
                   }}
                 >
-                  <item.icon size={16} strokeWidth={1.5} />
+                  <item.icon size={16} />
                   {t(`settings:category.${item.id}`)}
                 </button>
               ))}
@@ -725,7 +728,7 @@ function TransparencySlider({ value, onChange }: { value: number; onChange(value
           fill="currentColor"
           fillOpacity="0.2"
           stroke="currentColor"
-          strokeWidth="1.2"
+          strokeWidth="1.33"
         />
       </svg>
     </div>

@@ -46,7 +46,9 @@ export function SettingsSection({
     <section className={`${styles.section} ${danger ? styles.danger : ''}`}>
       {title && <h3>{title}</h3>}
       {description && <p className={styles.notice}>{description}</p>}
-      <div className={styles.group}>{children}</div>
+      <div className={styles.group} data-settings-group>
+        {children}
+      </div>
     </section>
   )
 }

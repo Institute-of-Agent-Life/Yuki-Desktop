@@ -41,28 +41,49 @@
   flex: 1;
   min-height: 0;
 }
+/* Under the floating category sidebar the page goes on to the window's edge (as the workspace). */
+:global([data-platform='darwin']) .layout {
+  background: var(--surface-page);
+}
 :global([data-opaque='true']) .headerScrolled {
   background: var(--surface-page);
   box-shadow: 0 var(--line) 0 var(--separator);
 }
+/* The categories are the same sidebar as the workspace's: inset glass on macOS, flush elsewhere.
+   The selection is a neutral fill, the label bold and its icon in the accent (Finder, HIG). */
 .categories {
+  --fill-selected: var(--fill-pressed);
   position: relative;
-  padding: 8px 12px;
-  padding-top: calc(8px + var(--toolbar-inset));
+  z-index: 1;
+  margin: var(--inset);
+  padding: var(--space-4) var(--space-5);
+  padding-top: calc(var(--space-4) + var(--toolbar-inset) - var(--inset));
   border-right: var(--line) solid var(--separator);
+  border-radius: var(--r-pane);
+  background: var(--bg-sidebar);
   overflow: visible;
+}
+:global([data-material='vibrancy']) .categories,
+:global([data-material='mica']) .categories {
+  background: var(--mat-sidebar);
+}
+:global([data-platform='darwin']) .categories {
+  border-right: 0;
+  background: var(--mat-sidebar-glass);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation)) var(--seal,);
+  box-shadow: var(--shadow-glass);
 }
 .categories button[role='tab'] {
   position: relative;
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  padding: 6px 8px;
+  gap: var(--space-4);
+  min-height: 30px;
+  padding: var(--space-3) var(--space-4);
   border: 0;
   background: none;
-  border-radius: 8px;
+  border-radius: var(--r-row);
   text-align: left;
   color: var(--text-primary);
   cursor: pointer;
@@ -72,8 +93,11 @@
 }
 .categories button[role='tab'][aria-selected='true'] {
   background: transparent;
-  color: var(--accent-strong);
+  color: var(--text-primary);
   font-weight: 600;
+}
+.categories button[role='tab'] svg {
+  color: var(--accent);
 }
 .categoryGroup:last-child {
   margin-top: 16px;
@@ -121,8 +145,8 @@
   max-height: min(400px, calc(100vh - 280px));
 }
 .pane {
-  padding: 8px 32px 32px;
-  padding-top: calc(8px + var(--toolbar-inset));
+  padding: var(--space-4) var(--space-9) var(--space-9);
+  padding-top: calc(var(--space-4) + var(--toolbar-inset));
   overflow: auto;
   min-width: 0;
 }
@@ -134,22 +158,29 @@
   line-height: 22px;
   margin: 12px 0 16px;
 }
+/* A grouped inset list (HIG grouped form): a fill without a border, rows of at least 40pt, and
+   separators that start where the text does. */
 .group {
-  border: var(--line) solid var(--separator);
-  border-radius: 12px;
+  border-radius: var(--r-group);
   overflow: hidden;
-  margin-bottom: 20px;
-  background: var(--bg-raised);
+  margin-bottom: var(--space-7);
+  background: var(--grouped);
 }
 .row {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
-  min-height: 48px;
-  padding: 12px 16px;
+  gap: var(--space-3) var(--space-6);
+  min-height: 40px;
+  padding: var(--space-4) var(--space-5);
 }
-.row + .row {
+.row + .row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: var(--space-5);
+  right: 0;
   border-top: var(--line) solid var(--separator);
 }
 .label {
@@ -162,9 +193,9 @@
 .label small {
   display: block;
   font-size: 12px;
-  line-height: 18px;
+  line-height: 16px;
   color: var(--text-secondary);
-  margin-top: 2px;
+  margin-top: var(--space-1);
   overflow-wrap: anywhere;
 }
 .rowValue {
@@ -228,14 +259,14 @@
   margin-bottom: 24px;
 }
 .pane .section > h3 {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-3) var(--space-1);
   font-size: 13px;
 }
 .section > .group {
   margin-bottom: 0;
 }
 .danger .group {
-  border-color: color-mix(in srgb, var(--status-failed) 35%, var(--separator));
+  box-shadow: inset 0 0 0 var(--line) color-mix(in srgb, var(--status-failed) 35%, transparent);
 }
 .pane h3 {
   font-size: 13px;
@@ -261,7 +292,7 @@
   height: auto;
   margin: 0;
   background: #fff;
-  border-radius: 8px;
+  border-radius: var(--r-row);
 }
 .secret {
   font: 13px/20px var(--font-mono);
@@ -285,7 +316,7 @@
   font: 12px/18px var(--font-mono);
   color: var(--text-primary);
   background: var(--bg-raised);
-  border-radius: 8px;
+  border-radius: var(--r-row);
   padding: 12px;
 }
 @media (max-width: 1000px) {
@@ -298,7 +329,8 @@
   margin-left: auto;
 }
 
-:global([data-contrast='true']) .categories button[role='tab'][aria-selected='true'] {
+:global([data-contrast='true']) .categories button[role='tab'][aria-selected='true'],
+:global([data-contrast='true']) .categories button[role='tab'][aria-selected='true'] svg {
   color: var(--accent-on);
 }
 /* The transparency slider between its two ends: solid on the left, clear on the right. HIG: the
@@ -354,7 +386,7 @@
 .backdropSwatch {
   width: 56px;
   height: 38px;
-  border-radius: 10px;
+  border-radius: var(--r-group);
   box-shadow: inset 0 0 0 var(--line) var(--separator-strong);
 }
 .backdrop[aria-checked='true'] {

@@ -43,7 +43,7 @@ export function DisconnectedHome({
   return (
     <Workspace
       name="Yuki Desktop"
-      avatar={<Snowflake size={28} strokeWidth={1.5} aria-hidden="true" />}
+      avatar={<Snowflake size={28} aria-hidden="true" />}
       status={t('home:notConnected')}
       presence="offline"
       platform={platform}
@@ -52,7 +52,7 @@ export function DisconnectedHome({
           name="Yuki Desktop"
           status={t('home:notConnected')}
           color="offline"
-          avatar={<Snowflake size={28} strokeWidth={1.5} aria-hidden="true" />}
+          avatar={<Snowflake size={28} aria-hidden="true" />}
         />,
       )}
       onSettings={onSettings}
@@ -60,8 +60,8 @@ export function DisconnectedHome({
       inspectorTitle={t('home:notConnected')}
       inspector={<p className={styles.inspectorEmpty}>{t('home:inspectorEmpty')}</p>}
     >
-      <section className={styles.empty} aria-labelledby="disconnected-heading">
-        <Icon className={styles.mark} size={40} strokeWidth={1.25} aria-hidden="true" />
+      <section className={styles.empty} data-page="welcome" aria-labelledby="disconnected-heading">
+        <Icon className={styles.mark} size={40} strokeWidth={1.5} aria-hidden="true" />
         <h1 id="disconnected-heading">{t(`home:heading.${page}`)}</h1>
         <p className={styles.description}>{t(`home:description.${page}`)}</p>
         <div className={styles.actions}>

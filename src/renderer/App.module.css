@@ -18,33 +18,31 @@
   align-items: center;
   overflow: auto;
   height: 100%;
-  padding: 52px 24px 24px;
+  padding: 52px var(--space-8) var(--space-8);
+  background: var(--surface-page);
 }
+/* A page lies on the window itself, as macOS 26's setup and settings do: no card of its own. Its
+   column reads from the left, its title first. */
 .welcomeInner {
   position: relative;
   margin: auto 0;
   flex-shrink: 0;
-  width: min(640px, 100%);
-  padding: 32px;
-  border-radius: 28px;
-  background: var(--mat-pane);
-  backdrop-filter: var(--glass-regular);
-  box-shadow: var(--shadow-glass);
+  width: min(560px, 100%);
+  padding: var(--space-9) 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex-direction: column;
-  gap: 20px;
-  text-align: center;
+  gap: var(--space-6);
+  text-align: left;
 }
 .welcomeMark {
   color: var(--accent);
-  margin-bottom: 12px;
 }
 .entryChoices {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 12px;
+  gap: var(--space-5);
   width: min(320px, 100%);
 }
 .welcomeInner p {
@@ -76,8 +74,14 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+/* A page's own actions are large: 28pt capsules (hig-audit.md §4). */
+.welcomeInner .actions > button {
+  min-height: var(--h-large);
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--r-capsule);
 }
 @property --workspace-left {
   syntax: '<length>';
@@ -100,15 +104,20 @@
 .shell[data-focus-mode] {
   grid-template-columns: 400px 0 minmax(0, 1fr);
 }
+/*
+ * The window after macOS 26: the main area reaches every edge of the window, and the sidebar is a
+ * pane of its own. On macOS it floats inset as glass, its corner concentric with the window's; on
+ * Windows and Linux it lies flush, divided from the page by a hairline.
+ */
 .sidebar {
+  --fill-selected: var(--fill-pressed);
   position: relative;
-  margin: 6px;
-  border-radius: 14px;
+  z-index: 2;
+  margin: var(--inset);
+  border-radius: var(--r-pane);
   background: var(--bg-sidebar);
-  box-shadow:
-    0 0 0 0.5px var(--edge),
-    0 8px 22px rgba(16, 24, 40, 0.05);
-  padding: 46px 8px 10px;
+  border-right: var(--line) solid var(--separator);
+  padding: 46px var(--space-4) var(--space-5);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -117,7 +126,10 @@
 }
 .sidebar:not(.sidebarOverlay) {
   justify-self: end;
-  width: max(0px, calc(max(var(--workspace-left), var(--workspace-left-reveal, 0px)) - 12px));
+  width: max(
+    0px,
+    calc(max(var(--workspace-left), var(--workspace-left-reveal, 0px)) - 2 * var(--inset))
+  );
 }
 .sidebar[data-pane-open='false'] {
   visibility: hidden;
@@ -132,7 +144,7 @@
   height: 52px;
   flex-shrink: 0;
   width: 100%;
-  border-radius: 12px;
+  border-radius: var(--r-card);
   padding: 8px;
   text-align: left;
   margin-bottom: 6px;
@@ -174,31 +186,32 @@
   align-items: center;
   gap: 9px;
   padding: 0 10px;
-  border-radius: 8px;
+  border-radius: var(--r-row);
   width: 100%;
   text-align: left;
 }
+/* The selection is a neutral fill, its label bold; every icon takes the accent (Finder, HIG). */
 .nav[aria-current='page'] {
-  color: var(--accent-strong);
+  color: var(--text-primary);
+  font-weight: 600;
   background: transparent;
 }
-:global([data-contrast='true']) .nav[aria-current='page'] {
+.nav svg {
+  color: var(--accent);
+}
+:global([data-contrast='true']) .nav[aria-current='page'],
+:global([data-contrast='true']) .nav[aria-current='page'] svg {
   color: var(--accent-on);
 }
 .main {
-  --right-radius: clamp(0px, calc(14px - var(--workspace-right)), 14px);
   isolation: isolate;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   position: relative;
-  margin: 6px max(0px, calc(6px - var(--workspace-right))) 6px
-    max(0px, calc(6px - var(--workspace-left)));
-  border-radius: 14px var(--right-radius) var(--right-radius) 14px;
   overflow: hidden;
   background: var(--surface-page);
-  box-shadow: var(--shadow-panel);
   /* Every page runs up under the floating toolbar; its scrolling areas start below it. */
   --toolbar-inset: 52px;
 }
@@ -206,9 +219,21 @@
 :global([data-material='mica']) .sidebar:not(.sidebarOverlay) {
   background: var(--mat-sidebar);
 }
-.shell[data-focus-mode] .main {
-  margin-right: 0;
-  border-radius: 14px 0 0 14px;
+.sidebar:not(.sidebarOverlay)::before {
+  display: none;
+}
+:global([data-platform='darwin']) .sidebar:not(.sidebarOverlay) {
+  border-right: 0;
+  background: var(--mat-sidebar-glass);
+  backdrop-filter: var(--glass-regular);
+  box-shadow: var(--shadow-glass);
+}
+:global([data-platform='darwin']) .sidebar:not(.sidebarOverlay)::before {
+  display: block;
+}
+/* Under the floating sidebar the page goes on to the window's edge. */
+:global([data-platform='darwin']) .shell {
+  background: var(--surface-page);
 }
 .toolbar {
   position: absolute;
@@ -237,7 +262,7 @@
   line-height: 20px;
 }
 .macWorkspace {
-  --traffic-light-inset: calc(92px - max(6px, var(--workspace-left)));
+  --traffic-light-inset: calc(92px - max(0px, var(--workspace-left)));
 }
 .macWorkspace .toolbar {
   padding-left: max(20px, var(--traffic-light-inset));
@@ -277,7 +302,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 22px;
+  border-radius: var(--r-sheet);
   box-shadow: var(--shadow-glass);
   padding: 8px;
   background: var(--mat-pane);
@@ -353,10 +378,8 @@
 }
 .inspector {
   position: relative;
-  margin: 6px 6px 6px 0;
-  border-radius: 14px;
   overflow: hidden;
-  box-shadow: var(--shadow-panel);
+  border-left: var(--line) solid var(--separator);
   background: var(--surface-pane);
   min-width: 0;
   min-height: 0;
@@ -365,16 +388,10 @@
 }
 .shell:not([data-focus-mode]) .inspector:not(.detailPage) {
   justify-self: start;
-  width: max(0px, calc(max(var(--workspace-right), var(--workspace-right-reveal, 0px)) - 6px));
-}
-.splitWorkspace .main {
-  box-shadow: none;
+  width: max(0px, max(var(--workspace-right), var(--workspace-right-reveal, 0px)));
 }
 .splitWorkspace .inspector {
-  border-left: var(--line) solid var(--separator);
-  border-radius: 0 14px 14px 0;
   background: var(--surface-page);
-  box-shadow: none;
 }
 .inspectorHeader {
   height: 52px;
@@ -428,8 +445,8 @@
 }
 .detailPage {
   z-index: 3;
+  border-left: 0;
   background: var(--surface-page);
-  margin-left: max(0px, calc(6px - var(--workspace-left)));
 }
 .detailPage[inert] {
   opacity: 0;
@@ -461,8 +478,10 @@
 .sidebarOverlay {
   position: absolute;
   inset: 52px auto 16px 16px;
+  margin: 0;
+  border-right: 0;
   width: 260px;
-  border-radius: 16px;
+  border-radius: var(--r-popover);
   padding-top: 12px;
   box-shadow: var(--shadow-sheet);
   z-index: 5;
@@ -559,19 +578,7 @@
    (materials/backdrop.ts sets the tint only while the conversation shows it). */
 :global([data-backdrop='custom']) .toolbarTitle {
   padding: 2px 12px;
-  border-radius: 14px;
+  border-radius: var(--r-panel);
   background: var(--content-tint, none);
   backdrop-filter: blur(var(--content-blur, 0px));
-}
-
-.app::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 95;
-  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.45);
-}
-:global([data-theme='dark']) .app::after {
-  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.12);
 }
