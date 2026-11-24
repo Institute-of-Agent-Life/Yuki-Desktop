@@ -276,7 +276,8 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
     // the appearance the rule calls for (appearance.ts) and to the best this glass reaches, as
     // measured (light / dark on a Retina Mac, whose display encoding reads mid greys a little
     // dark; Linux without GPU compositing 3.7 / 3.2): composer 4.3 / 3.2–3.6, time 1.7 / 1.7, file name 3.1 / 2.5, file kind 1.7 / 1.6,
-    // status 3.4 / 2.9.
+    // status 3.4 / 2.9; the title, where the window is narrow (Windows) and its capsule lies
+    // over the shapes, 3.9 dark.
     const bubble = (article: Locator) => article.locator('[data-bubble-copy]').locator('..')
     const texts: [string, Locator, number, Locator?][] = [
       ['composer', composer, 3, page.locator('[data-region="composer"]')],
@@ -292,7 +293,12 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
         bubble(artifact),
       ],
       ['file kind', artifact.getByText('成果檔案', { exact: true }), 1.5, bubble(artifact)],
-      ['title', toolbar.locator('strong').first(), 4.5],
+      [
+        'title',
+        toolbar.locator('strong').first(),
+        3.5,
+        toolbar.locator('strong').first().locator('xpath=ancestor::*[@data-glass][1]'),
+      ],
       [
         'status',
         toolbar.locator('small').first(),
@@ -325,7 +331,7 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
       for (const [name, , , glass] of texts) {
         if (!glass) continue
         // A bubble's frost or, without transparency, any glass is a fill of the theme there.
-        const content = !['composer', 'status'].includes(name)
+        const content = !['composer', 'status', 'title'].includes(name)
         const { mean, high, expected: rule } = await appearanceFor(page, glass, lineart, dim)
         const expected = (content ? through.content : through.glass) ? rule : null
         const actual = await glass.getAttribute('data-appearance')

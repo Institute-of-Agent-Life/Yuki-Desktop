@@ -124,6 +124,19 @@ async function takes(page: Page) {
     name === 'reply' ? through.content : through.glass && (name !== 'sidebar' || sidebar)
   return { through, take: (name: string, wanted: string) => (shows(name) ? wanted : null) }
 }
+/** A text's legibility; the sidebar's read with the sidebar open where a small screen folds it. */
+async function read(page: Page, name: string, text: Locator) {
+  const toggle = page.locator('[data-region="toolbar"] [data-toggle="sidebar"]')
+  const folded = name === 'sidebar' && (await toggle.getAttribute('aria-expanded')) === 'false'
+  if (folded) {
+    await toggle.click()
+    await expect(page.locator('[data-region="sidebar"]')).toHaveAttribute('data-pane-open', 'true')
+    await page.waitForTimeout(600)
+  }
+  const seen = await legible(page, text)
+  if (folded) await toggle.click()
+  return seen
+}
 const glassOf: Record<string, string> = {
   composer: 'composer',
   reply: 'reply',
@@ -180,7 +193,7 @@ test('text-bearing glass turns dark over dark pictures and light over bright one
         expect
           .soft(await ink(text), `nightlines light: ${name}'s ink is white`)
           .toBeGreaterThan(200)
-      seenNight[name] = await legible(page, text)
+      seenNight[name] = await read(page, name, text)
       expect.soft(seenNight[name], `nightlines light: ${name}`).toBeGreaterThanOrEqual(4.5)
     }
     ;(evidence['nightlines light'] as Record<string, unknown>).contrast = seenNight
@@ -241,7 +254,7 @@ test('text-bearing glass turns dark over dark pictures and light over bright one
     for (const [name, text] of Object.entries(texts(page))) {
       if (take(glassOf[name]!, 'light'))
         expect.soft(await ink(text), `snow dark: ${name}'s ink is black`).toBeLessThan(60)
-      seenSnow[name] = await legible(page, text)
+      seenSnow[name] = await read(page, name, text)
       expect.soft(seenSnow[name], `snow dark: ${name}`).toBeGreaterThanOrEqual(4.5)
     }
     ;(evidence['snow dark'] as Record<string, unknown>).contrast = seenSnow
