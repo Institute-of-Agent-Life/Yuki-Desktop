@@ -39,12 +39,14 @@ async function shot(page: Page, name: string) {
   await page.waitForTimeout(700)
   await page.screenshot({ path: output(`${name}.png`) })
 }
-// The page reads its preferences when it starts: written from outside, it is reloaded to show them.
-async function themed(page: Page, theme: 'light' | 'dark') {
+// The page reads its preferences when it starts: written from outside, it is reloaded to show them,
+// at the size it had (a reload ends the emulated size a small screen needs).
+async function themed(app: ElectronApplication, page: Page, theme: 'light' | 'dark') {
   if ((await page.locator(`html[data-theme="${theme}"]`).count()) === 1) return
   await page.evaluate((theme) => window.yuki.preferences({ theme }), theme)
   await page.reload()
   await expect(page.locator(`html[data-theme="${theme}"]`)).toBeAttached()
+  await contentSize(app, page, 1100, 760)
 }
 async function appearance(page: Page, theme: 'light' | 'dark') {
   await page.getByRole('tab', { name: '外觀', exact: true }).click()
@@ -168,12 +170,12 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
 
     // Screenshots, light and dark: the welcome and the connection form.
     for (const theme of ['light', 'dark'] as const) {
-      await themed(page, theme)
+      await themed(app, page, theme)
       await expect(page.getByRole('button', { name: '連接已有 Yuki', exact: true })).toBeVisible()
       await shot(page, `welcome-${theme}`)
       await windowCorners(app, `welcome-${theme}`)
     }
-    await themed(page, 'light')
+    await themed(app, page, 'light')
     // 5, 2: the welcome lies on the window, its one action a 36pt capsule.
     const start = page.getByRole('button', { name: '連接已有 Yuki', exact: true })
     expect.soft(await page.locator('[data-glass="card"]').count(), 'welcome card').toBe(0)
@@ -192,7 +194,7 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
       .getByLabel('配對連結、綁定碼或完整回覆', { exact: true })
       .filter({ visible: true })
     for (const theme of ['dark', 'light'] as const) {
-      await themed(page, theme)
+      await themed(app, page, theme)
       await start.click()
       await expect(input).toBeVisible()
       await shot(page, `connection-${theme}`)
@@ -221,11 +223,11 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
     await expect(page.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible()
     await contentSize(app, page, 1100, 760)
     for (const theme of ['light', 'dark'] as const) {
-      await themed(page, theme)
+      await themed(app, page, theme)
       await shot(page, `chat-${theme}`)
       await windowCorners(app, `chat-${theme}`)
     }
-    await themed(page, 'light')
+    await themed(app, page, 'light')
 
     // 3: the main area reaches the window's edges; the sidebar floats inset (macOS) or is flush.
     const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
@@ -254,7 +256,15 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
     expect.soft(main.shadow, 'main shadow').toBe('none')
     expect.soft(main.x + main.width, 'main reaches the right edge').toBeCloseTo(viewport.width, 0)
     expect.soft([main.y, main.height], 'main runs top to bottom').toEqual([0, viewport.height])
-    if (platform === 'darwin') {
+    // A window narrower than 1100pt folds the sidebar into a pane that opens over the page
+    // (geometry.ts); the inset, concentric pane is the docked one.
+    const overlay = await page
+      .locator('[data-region="sidebar"]')
+      .evaluate((node) => node.className.includes('_sidebarOverlay_'))
+    evidence.overlaySidebar = overlay
+    if (overlay)
+      expect.soft(sidebar.margin, 'an overlay sidebar').toEqual(['0px', '0px', '0px', '0px'])
+    else if (platform === 'darwin') {
       const inset = px(tokens['--inset']!),
         corner = px(tokens['--r-window']!)
       expect.soft(inset, 'inset').toBeGreaterThan(0)

@@ -43,14 +43,32 @@ const answerWith = (app: ElectronApplication, path: string) =>
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [path] })) as never
   }, path)
 
-async function themed(page: Page, theme: 'light' | 'dark') {
-  await page.evaluate((theme) => window.yuki.preferences({ theme }), theme)
-  await expect(page.locator(`html[data-theme="${theme}"]`)).toBeAttached()
+// The page reads its preferences when it starts: written from outside, it is reloaded to show them,
+// at the size it had.
+async function themed(app: ElectronApplication, page: Page, theme: 'light' | 'dark') {
+  if ((await page.locator(`html[data-theme="${theme}"]`).count()) === 0) {
+    await page.evaluate((theme) => window.yuki.preferences({ theme }), theme)
+    await page.reload()
+    await expect(page.locator(`html[data-theme="${theme}"]`)).toBeAttached()
+    await contentSize(app, page, 1100, 760)
+    await page.addStyleTag({ content: ':root { background: var(--bg-window) !important }' })
+  }
   await page.waitForTimeout(800)
 }
 
 async function shoot(page: Page, element: Locator, name: string) {
-  if (!(await element.isVisible())) return void (evidence[name] = 'absent')
+  // Absent, or (as a sidebar folded away on a small screen) not wholly in the window.
+  const shown = await element
+    .evaluate(
+      (node) => {
+        const { left, top, right, bottom } = node.getBoundingClientRect()
+        return right > left && left >= 0 && top >= 0 && right <= innerWidth && bottom <= innerHeight
+      },
+      undefined,
+      { timeout: 3000 },
+    )
+    .catch(() => false)
+  if (!shown) return void (evidence[name] = 'absent')
   evidence[name] = (await closeUps(page, element, name)).shape
   await element.screenshot({ path: test.info().outputPath(`${name}-whole.png`) })
 }
@@ -269,7 +287,7 @@ test('glass edges in the real app', async () => {
     await page.addStyleTag({ content: ':root { background: var(--bg-window) !important }' })
     // The largest glass in the window: the sidebar's pane (macOS; elsewhere it lies flush).
     for (const theme of ['light', 'dark'] as const) {
-      await themed(page, theme)
+      await themed(app, page, theme)
       await shoot(page, page.locator('[data-region="sidebar"]'), `sidebar-${theme}`)
     }
     await pairUI(page, rig.base, await rig.code())
@@ -297,7 +315,7 @@ test('glass edges in the real app', async () => {
     }
     const chat = async (background: string) => {
       for (const theme of ['light', 'dark'] as const) {
-        if (background === 'builtin') await themed(page, theme)
+        if (background === 'builtin') await themed(app, page, theme)
         else {
           await page.keyboard.press('ControlOrMeta+,')
           await appearance(theme)

@@ -61,6 +61,10 @@
 .server input {
   height: 36px;
 }
+/* Read from the left, its link buttons start where its text does. */
+.server > button {
+  align-self: flex-start;
+}
 .codeRow {
   display: flex;
   gap: 8px;
