@@ -47,6 +47,8 @@
   --text-primary: #1b1c20;
   --text-secondary: #5b5e66;
   --text-tertiary: #5f626a;
+  /* Quiet text on glass over a picture of one's own, drawn nearer the main text as vibrancy does. */
+  --text-vibrant: #3e4047;
   --text-disabled: #b4b7be;
   --separator: rgba(20, 30, 50, 0.1);
   --separator-strong: rgba(20, 30, 50, 0.17);
@@ -288,6 +290,7 @@
   --text-primary: #f1f2f5;
   --text-secondary: #a4a7af;
   --text-tertiary: #a0a3ab;
+  --text-vibrant: #c9ccd3;
   --text-disabled: #55585f;
   --separator: rgba(255, 255, 255, 0.1);
   --separator-strong: rgba(255, 255, 255, 0.18);

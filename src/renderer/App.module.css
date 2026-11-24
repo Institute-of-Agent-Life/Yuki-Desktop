@@ -235,6 +235,13 @@
 :global([data-platform='darwin']) .sidebar:not(.sidebarOverlay)::before {
   display: block;
 }
+/* Over a picture of one's own the sidebar's glass is tinted to keep its text legible
+   (materials/backdrop.ts); its quieter text is drawn nearer its main text, as vibrancy draws it,
+   so that the tint stays thin enough to be glass. */
+:global([data-backdrop='custom']) .sidebar {
+  --text-secondary: var(--text-vibrant);
+  --text-tertiary: var(--text-vibrant);
+}
 /* Under the floating sidebar the page goes on to the window's edge. */
 :global([data-platform='darwin']) .shell {
   background: var(--surface-page);

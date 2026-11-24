@@ -9,13 +9,10 @@ import { unwrap } from '../queries/client'
  */
 export const backdropUrl = (name: string) => `app://desktop/__backgrounds/${name}`
 
-const luminance = (r: number, g: number, b: number) => {
-  const linear = (value: number) => {
-    const c = value / 255
-    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-  }
-  return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
-}
+const linear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+const weights = [0.2126, 0.7152, 0.0722] as const
+const luminance = (r: number, g: number, b: number) =>
+  weights[0] * linear(r / 255) + weights[1] * linear(g / 255) + weights[2] * linear(b / 255)
 
 // The table: 32 × 32 cells, each measured on an 8 × 8 patch of a 256 × 256 scaling of the picture.
 function measure(image: ImageBitmap): BackdropTable {
@@ -141,6 +138,34 @@ const tints = {
 } as const
 const srgb = (linear: number) =>
   linear <= 0.0031308 ? linear * 12.92 : 1.055 * linear ** (1 / 2.4) - 0.055
+// The colours (sRGB, 0–1) a picture can show at luminance `y`, as saturated as they come: each
+// primary and secondary scaled to it (or filled with white where it cannot reach it), and grey. A
+// tint must hold over the worst of them: a saturated blue lets far more through a white tint than
+// a grey of its brightness.
+const hues = [
+  [1, 0, 0],
+  [0, 1, 0],
+  [0, 0, 1],
+  [1, 1, 0],
+  [0, 1, 1],
+  [1, 0, 1],
+  [1, 1, 1],
+]
+const coloursOf = (y: number) =>
+  hues.map((hue) => {
+    const reach = hue.reduce((sum, value, i) => sum + value * weights[i]!, 0)
+    return hue
+      .map((value) =>
+        reach >= y ? (value * y) / reach : value + ((1 - value) * (y - reach)) / (1 - reach),
+      )
+      .map(srgb)
+  })
+// The luminance of `tint` laid at `alpha` over `colour` (both sRGB, 0–1), as the page composites.
+const laid = (tint: number[], colour: number[], alpha: number) =>
+  colour.reduce(
+    (sum, value, i) => sum + weights[i]! * linear(alpha * tint[i]! + (1 - alpha) * value),
+    0,
+  )
 
 /** Follows `chat`'s custom backdrop with its glass, in whichever theme is shown, until called. */
 export function followBackdrop(chat: HTMLElement, backdrop: CustomBackdrop) {
@@ -173,6 +198,11 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
     frosted = 0,
     frostUrl = ''
   const panes = new Set<HTMLElement>()
+  const sidebar = document.querySelector<HTMLElement>('[data-region="sidebar"]')
+  const clearSidebar = () => {
+    sidebar?.style.removeProperty('--mat-sidebar')
+    sidebar?.style.removeProperty('--mat-sidebar-glass')
+  }
   const clear = (pane: HTMLElement) => {
     for (const name of ['--mat-pane', '--mat-glass', '--glass-blur'])
       pane.style.removeProperty(name)
@@ -231,22 +261,40 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
           low = Math.min(low, cellLow!)
           high = Math.max(high, cellHigh!)
         }
-      return {
-        low: srgb(dim * under + (1 - dim) * low),
-        high: srgb(dim * under + (1 - dim) * high),
-      }
+      return { low: dim * under + (1 - dim) * low, high: dim * under + (1 - dim) * high }
     }
-    // How much of the theme's tint keeps text legible over what lies in `rect`, at least `base`.
-    const alphaOver = (rect: DOMRect, base: number, brightened: number) => {
+    // How much of the theme's tint keeps what lies in `rect` at or beyond `target` luminance
+    // (light: at least; dark: at most), over any colour of its darkest (light) or brightest
+    // (dark), at least `base`.
+    const shade = tint.colour.map((value) => value / 255)
+    const alphaOver = (
+      rect: DOMRect,
+      base: number,
+      brightened: number,
+      target = linear(tint.needed),
+    ) => {
       const { low, high } = range(rect)
-      const bright = Math.min(1, high * brightened)
-      const needed =
-        theme === 'light'
-          ? (tint.needed - low) / (1 - low)
-          : (bright - tint.needed) / (bright - 0.13)
+      const worst = theme === 'light' ? low : linear(Math.min(1, srgb(high) * brightened))
+      const colours = coloursOf(worst)
+      const holds = (alpha: number) =>
+        colours.every((colour) =>
+          theme === 'light'
+            ? laid(shade, colour, alpha) >= target
+            : laid(shade, colour, alpha) <= target,
+        )
+      let needed = 0
+      if (!holds(0)) {
+        let short = 0
+        needed = 1
+        for (let step = 0; step < 16; step++) {
+          const middle = (short + needed) / 2
+          if (holds(middle)) needed = middle
+          else short = middle
+        }
+      }
       return {
         alpha: Math.min(tint.ceiling, Math.max(base, needed + 0.05)),
-        spread: Math.max(0, high - low),
+        spread: Math.max(0, srgb(high) - srgb(low)),
       }
     }
     const colour = (alpha: number) => `rgb(${tint.colour.join(' ')} / ${alpha.toFixed(3)})`
@@ -276,6 +324,30 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
       pane.style.setProperty('--mat-pane', colour(alpha))
       pane.style.setProperty('--mat-glass', colour(alpha))
       pane.style.setProperty('--glass-blur', `${tint.blur + 4 * spread}px`)
+    }
+    // The sidebar's glass floats over the picture too: tinted until the quietest of its texts
+    // keeps 4.5:1 (its section headers, the line under the persona's name).
+    clearSidebar()
+    if (sidebar) {
+      const style = getComputedStyle(sidebar)
+      const base = Number(style.backgroundColor.match(/[\d.]+/g)?.[3] ?? 1)
+      if (base < 1) {
+        const texts = ['--text-primary', '--text-secondary', '--text-tertiary'].map((name) => {
+          const [r, g, b] = style
+            .getPropertyValue(name)
+            .trim()
+            .match(/[0-9a-f]{2}/gi)!
+            .map((value) => parseInt(value, 16))
+          return luminance(r!, g!, b!)
+        })
+        const target =
+          theme === 'light'
+            ? 4.5 * (Math.max(...texts) + 0.05) - 0.05
+            : (Math.min(...texts) + 0.05) / 4.5 - 0.05
+        const { alpha } = alphaOver(sidebar.getBoundingClientRect(), base, 1.2, target)
+        sidebar.style.setProperty('--mat-sidebar', colour(alpha))
+        sidebar.style.setProperty('--mat-sidebar-glass', colour(alpha))
+      }
     }
   }
   // The picture blurred by `radius` of its own pixels, made smaller first as far as the blur
@@ -340,5 +412,6 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
     main.style.removeProperty('--backdrop-frost-image')
     if (frostUrl) URL.revokeObjectURL(frostUrl)
     for (const pane of panes) clear(pane)
+    clearSidebar()
   }
 }
