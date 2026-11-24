@@ -90,6 +90,15 @@ test('the sidebar keeps its text legible over any picture, light and dark, and s
         if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
         await expect(toggle).toHaveAttribute('aria-expanded', 'true')
         await expect(sidebar).toHaveAttribute('data-pane-open', 'true')
+        // Measured where it has slid to, not on its way.
+        await page.evaluate(() =>
+          Promise.allSettled(
+            document
+              .getAnimations()
+              .filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime))
+              .map((animation) => animation.finished),
+          ),
+        )
         // The pointer rests on the sidebar's empty middle, lighting no row.
         const box = (await sidebar.boundingBox())!
         await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.75)
