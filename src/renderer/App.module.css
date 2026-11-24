@@ -230,17 +230,6 @@
   border-radius: var(--r-pane);
   background: var(--mat-sidebar-glass);
   backdrop-filter: var(--glass-regular);
-  box-shadow: var(--shadow-glass);
-}
-:global([data-platform='darwin']) .sidebar:not(.sidebarOverlay)::before {
-  display: block;
-}
-/* Over a picture of one's own the sidebar's glass is tinted to keep its text legible
-   (materials/backdrop.ts); its quieter text is drawn nearer its main text, as vibrancy draws it,
-   so that the tint stays thin enough to be glass. */
-:global([data-backdrop='custom']) .sidebar {
-  --text-secondary: var(--text-vibrant);
-  --text-tertiary: var(--text-vibrant);
 }
 /* Under the floating sidebar the page goes on to the window's edge. */
 :global([data-platform='darwin']) .shell {
@@ -314,7 +303,6 @@
   flex-direction: column;
   overflow: hidden;
   border-radius: var(--r-sheet);
-  box-shadow: var(--shadow-glass);
   padding: 8px;
   background: var(--mat-pane);
   backdrop-filter: var(--glass-regular);
@@ -334,9 +322,7 @@
  * Increased contrast marks focus on the edge itself.
  */
 :global([data-contrast='true']) .composer:focus-within {
-  box-shadow:
-    var(--shadow-glass),
-    0 0 0 2px var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 .composer textarea {
   flex: 1;
@@ -585,11 +571,13 @@
   font-weight: 400;
   color: var(--text-secondary);
 }
-/* Over a picture of one's own the title sits on a small glass, tinted for the picture
-   (materials/backdrop.ts sets the tint only while the conversation shows it). */
-:global([data-backdrop='custom']) .toolbarTitle {
-  padding: 2px 12px;
-  border-radius: var(--r-panel);
-  background: var(--content-tint, none);
-  backdrop-filter: blur(var(--content-blur, 0px));
+/* Over a picture of one's own the title sits on a capsule of the toolbar's glass (Workspace.tsx). */
+.toolbarTitle[data-glass] {
+  position: relative;
+  justify-content: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--r-capsule);
+  background: var(--mat-glass);
+  backdrop-filter: var(--glass-regular);
 }

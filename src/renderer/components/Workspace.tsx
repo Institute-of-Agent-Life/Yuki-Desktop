@@ -33,6 +33,7 @@ import { useCommands } from '../state/commands'
 import { requestNavigation } from '../state/navigation'
 import { useWorkspaceMotion } from '../motion/workspace'
 import { ApplicationMenu } from './ApplicationMenu'
+import { useGlass } from '../materials/glass'
 import { EdgeFade, useScrolledUnder } from './EdgeFade'
 import { useTranslation } from '../i18n'
 
@@ -138,7 +139,12 @@ export function Workspace(props: Props) {
   const detailPage = inspector && detailLayer
   const left = focusMode ? 0 : layout.sidebar
   const right = focusMode ? 0 : layout.inspector
-  const sidebarRef = useRef<HTMLElement>(null)
+  // On macOS the sidebar floats as the Dock's glass (beside the page it is flush, and opaque).
+  const sidebarRef = useGlass<HTMLElement>(
+    'sidebar',
+    false,
+    !layout.overlaySidebar && document.documentElement.dataset.platform === 'darwin',
+  ).ref
   const inspectorRef = useRef<HTMLElement>(null)
   const showInspector = useWorkspaceMotion(root, sidebarRef, inspectorRef, {
     active,
@@ -377,14 +383,14 @@ export function Workspace(props: Props) {
           {props.toolbar ?? (
             <>
               {props.toolbarTitle ?? (
-                <span className={styles.toolbarTitle}>
+                <ToolbarTitle>
                   <strong>
                     {state.view === 'chat' || focusMode
                       ? props.name
                       : t(`workspace:view.${state.view}`)}
                   </strong>
                   {(state.view === 'chat' || focusMode) && <small>{props.status}</small>}
-                </span>
+                </ToolbarTitle>
               )}
               <Capsule>
                 <IconButton
@@ -476,5 +482,35 @@ export function Workspace(props: Props) {
         </>
       )}
     </div>
+  )
+}
+
+// The backdrop the conversation shows (App.tsx sets it on the root).
+function useBackdrop() {
+  const read = () => document.documentElement.dataset.backdrop
+  const [backdrop, setBackdrop] = useState(read)
+  useEffect(() => {
+    const observer = new MutationObserver(() => setBackdrop(read()))
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-backdrop'],
+    })
+    return () => observer.disconnect()
+  }, [])
+  return backdrop
+}
+
+/** The toolbar's title: over a picture of one's own it sits on a capsule of the Dock's glass. */
+function ToolbarTitle({ children }: { children: ReactNode }) {
+  const custom = useBackdrop() === 'custom'
+  const glass = useGlass<HTMLSpanElement>('toolbar', false, custom)
+  return (
+    <span
+      ref={glass.ref}
+      data-glass={custom ? 'toolbar' : undefined}
+      className={styles.toolbarTitle}
+    >
+      {children}
+    </span>
   )
 }

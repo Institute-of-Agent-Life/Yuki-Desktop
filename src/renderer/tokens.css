@@ -42,13 +42,13 @@
   --control-edge: rgb(0 0 0 / 0.12);
   /* Content: another's message frosted in a neutral tint, one's own with this much of the accent
      mixed in (Conversation). */
-  --fill-bubble: rgb(233 233 238 / 0.74);
+  /* A bubble is frosted with the Dock's colour (materials/dock.ts), laid as a grey over the
+     backdrop blurred once; the slider moves it (App.tsx). */
+  --bubble-material: rgb(234 234 234 / 0.52);
   --bubble-accent: 22%;
   --text-primary: #1b1c20;
   --text-secondary: #5b5e66;
   --text-tertiary: #5f626a;
-  /* Quiet text on glass over a picture of one's own, drawn nearer the main text as vibrancy does. */
-  --text-vibrant: #3e4047;
   --text-disabled: #b4b7be;
   --separator: rgba(20, 30, 50, 0.1);
   --separator-strong: rgba(20, 30, 50, 0.17);
@@ -126,19 +126,17 @@
   --focus-ring: color-mix(in srgb, var(--accent) 45%, transparent);
   --mat-ground: rgba(229, 234, 242, 0.84);
   --mat-sidebar: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.48));
-  /* The macOS sidebar floats as large glass, more opaque than a control's (HIG Color). */
-  --mat-sidebar-glass: color-mix(in srgb, var(--bg-sidebar) 86%, transparent);
+  /* The macOS sidebar floats as the Dock's glass, untinted. */
+  --mat-sidebar-glass: transparent;
   --mat-chrome: rgba(255, 255, 255, 0.66);
   --mat-sheet: rgba(255, 255, 255, 0.97);
-  /* The glass's tint (materials.css): clear, and a little more where it carries text. */
-  --mat-glass: rgb(255 255 255 / 0.16);
-  --mat-pane: rgb(255 255 255 / 0.24);
+  /* The Dock's glass carries no tint (materials.css); only without transparency is it filled. */
+  --mat-glass: transparent;
+  --mat-pane: transparent;
   /* Glass that opens over the page (dialogs, the palette, menus): thicker, so the page's text
      beneath cannot be read through its own. */
   --mat-sheet-glass: rgb(255 255 255 / 0.5);
-  --glass-blur: 3px;
-  --glass-brightness: 1.02;
-  --glass-saturation: 1.05;
+  --glass-blur: 2px;
   /* How much of the desktop shows through the window, 0–1 (the Transparency setting; App.tsx). The
      frost's washes below are today's at 0.7, thinner above it and thicker below. */
   --window-transparency: 0.7;
@@ -212,8 +210,6 @@
   /* Frost: small things floating over content that need no lens (notices, a message's actions,
      hints). It holds no pane's own lens, so it is one value for the whole page. */
   --glass-frost: blur(12px) saturate(160%) var(--glass-calm) var(--seal,);
-  --stroke-hi: rgba(255, 255, 255, 0.95);
-  --stroke-lo: rgba(255, 255, 255, 0.28);
   --edge: rgba(20, 30, 50, 0.1);
   --shadow-glass:
     0 0 0 var(--line) var(--glass-hairline, transparent), 0 1px 2px rgba(16, 24, 40, 0.06),
@@ -285,12 +281,11 @@
   --grouped: rgb(255 255 255 / 0.05);
   --control: rgb(255 255 255 / 0.1);
   --control-edge: rgb(255 255 255 / 0.08);
-  --fill-bubble: rgb(44 44 50 / 0.8);
+  --bubble-material: rgb(61 61 61 / 0.33);
   --bubble-accent: 24%;
   --text-primary: #f1f2f5;
   --text-secondary: #a4a7af;
   --text-tertiary: #a0a3ab;
-  --text-vibrant: #c9ccd3;
   --text-disabled: #55585f;
   --separator: rgba(255, 255, 255, 0.1);
   --separator-strong: rgba(255, 255, 255, 0.18);
@@ -315,12 +310,7 @@
   --mat-sidebar: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.05));
   --mat-chrome: rgba(46, 48, 55, 0.62);
   --mat-sheet: rgba(38, 40, 46, 0.97);
-  --mat-glass: rgb(30 32 50 / 0.42);
-  --mat-pane: rgb(30 32 50 / 0.74);
   --mat-sheet-glass: rgb(30 32 50 / 0.74);
-  --glass-blur: 3px;
-  --glass-brightness: 1;
-  --glass-saturation: 1.1;
   --backdrop-aurora:
     radial-gradient(60% 55% at 12% 18%, rgb(70 110 230 / 0.42), transparent 70%),
     radial-gradient(50% 50% at 88% 22%, rgb(150 90 230 / 0.36), transparent 70%),
@@ -332,8 +322,6 @@
     radial-gradient(70% 60% at 50% 100%, rgb(110 70 200 / 0.34), transparent 70%);
   --grid-line: rgb(255 255 255 / 0.1);
   --glass-calm: contrast(0.9) brightness(0.9);
-  --stroke-hi: rgba(255, 255, 255, 0.18);
-  --stroke-lo: rgba(255, 255, 255, 0.04);
   --edge: rgba(0, 0, 0, 0.45);
   --shadow-glass:
     0 0 0 var(--line) var(--glass-hairline, transparent), 0 1px 2px rgba(0, 0, 0, 0.3),
@@ -354,7 +342,6 @@
   --seal: url(#yuki-backdrop-seal);
   --mat-ground: transparent;
   --mat-sidebar: color-mix(in srgb, var(--bg-sidebar) var(--wash-sidebar), transparent);
-  --mat-sidebar-glass: var(--mat-sidebar);
   --surface-page: color-mix(in srgb, var(--bg-content) var(--wash-page), transparent);
   --surface-pane: color-mix(in srgb, var(--bg-inspector) var(--wash-pane), transparent);
   --wash-sidebar: max(0%, 100% - 84% * var(--window-transparency) / 0.7);

@@ -1,62 +1,39 @@
 /*
- * The glass tiers (docs/reports/2026-11-23-liquid-glass §15). They are declared on each pane, so
- * the lens each pane was given (`--refract`) is its own; every one ends in the seal.
- *   regular: toolbars, the composer and cards. Blurred first, then bent (glass.ts), so the blur's
- *     soft shapes melt where the bend presses them together.
+ * The glass tiers (docs/reports/2026-11-23-liquid-glass §15), the Dock's glass (materials/dock.ts).
+ * They are declared on each pane, so the lens each pane was given (`--refract`, which also gives it
+ * the Dock's colour and rim) is its own; glass with no filter of its own takes the colour alone
+ * (`--glass-native`). Every one ends in the seal.
+ *   regular: the sidebar, toolbars, the composer and cards: blurred a little, then bent (glass.ts).
  *   sheet: the same glass for panes that open over the page (dialogs, the palette, menus), blurred
- *     until the page's text beneath cannot be read through their own.
+ *     until the page's text beneath cannot be read through their own, and tinted
+ *     (`--mat-sheet-glass`).
  *   lens: a control held under the finger, nearly clear.
- * The tint lies on each pane's own background: `--mat-glass`, `--mat-pane` where it carries text,
- * `--mat-sheet-glass` for sheets.
+ * No tint, hairline or shadow lies on the Dock's glass.
  */
+:root {
+  --glass-native: url(#yuki-glass-tone);
+}
 [data-glass] {
-  --glass-regular: blur(var(--glass-blur)) var(--refract,) brightness(var(--glass-brightness))
-    saturate(var(--glass-saturation)) var(--seal,);
-  --glass-sheet: blur(32px) var(--refract,) brightness(var(--glass-brightness))
-    saturate(var(--glass-saturation)) var(--seal,);
+  --glass-regular: blur(var(--glass-blur)) var(--refract, var(--glass-native)) var(--seal,);
+  --glass-sheet: blur(32px) var(--refract, var(--glass-native)) var(--seal,);
   --glass-lens: blur(0.4px) var(--refract,) var(--seal,);
 }
-[data-glass]::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 0.75px;
-  pointer-events: none;
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
-}
 /*
- * Glass without a light map of its own (native materials, or before refraction starts) draws its
- * rim as a thin gradient; refracting glass is lit by its map alone, never outlined on top.
+ * Text on the Dock's glass, as the system draws it: the main text black or white; the quieter text
+ * the glass's own colour, darkened (light: black at 0.4, as multiplying by 0.6) or lightened
+ * (dark: white at 0.4).
  */
-[data-glass]:where(:not([data-refracting]))::before {
-  background: linear-gradient(
-    154deg,
-    var(--stroke-hi),
-    var(--stroke-lo) 55%,
-    color-mix(in srgb, var(--stroke-hi) 40%, transparent)
-  );
+:root[data-platform='darwin']:not([data-contrast='true'])
+  :is([data-glass='sidebar'], [data-glass='toolbar'], [data-glass='composer']) {
+  --text-primary: #000;
+  --text-secondary: rgb(0 0 0 / 0.4);
+  --text-tertiary: rgb(0 0 0 / 0.4);
 }
-/* The rim's light where nothing bends (no GPU compositing): the pane's own light map (glass.ts)
-   laid around the edge in white. Where the glass bends, its filter adds the light itself, on top
-   of what the bend shows, so the rim keeps those colours. */
-[data-glass]::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: #fff;
-  -webkit-mask-box-image: var(--rim) var(--rim-slice) fill / var(--rim-border);
-}
-[data-glass]:not([data-refracting])::after,
-:root:not([data-gpu-compositing='false']) [data-glass][data-refracting]::after,
-/* The slider's thumb draws its own rim (InteractiveControls.module.css). */
-[data-glass='slider']::after {
-  display: none;
+:root[data-platform='darwin'][data-theme='dark']:not([data-contrast='true'])
+  :is([data-glass='sidebar'], [data-glass='toolbar'], [data-glass='composer']) {
+  --text-primary: #fff;
+  --text-secondary: rgb(255 255 255 / 0.4);
+  --text-tertiary: rgb(255 255 255 / 0.4);
 }
 /* As specific as the dark theme's materials (:root[data-theme='dark']), so opaque wins in dark too. */
 :root[data-opaque='true'] {
@@ -68,8 +45,6 @@
   --mat-glass: var(--bg-elevated);
   --mat-pane: var(--bg-elevated);
   --mat-sheet-glass: var(--bg-elevated);
-  --stroke-hi: transparent;
-  --stroke-lo: transparent;
   --scrim: rgba(24, 30, 44, 0.3);
 }
 [data-opaque='true'][data-theme='dark'] {
@@ -77,10 +52,6 @@
 }
 [data-opaque='true'] [data-glass] {
   backdrop-filter: none !important;
-}
-[data-opaque='true'] [data-glass]::before,
-[data-opaque='true'] [data-glass]::after {
-  display: none;
 }
 [data-press]::after {
   content: '';
@@ -95,8 +66,4 @@
 html[data-control-drag],
 html[data-control-drag] * {
   user-select: none !important;
-}
-
-[data-refracting]::before {
-  display: none;
 }

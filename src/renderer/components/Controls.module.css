@@ -388,7 +388,6 @@
   padding: 3px;
   border-radius: var(--r-capsule);
   background: var(--mat-glass);
-  box-shadow: var(--shadow-glass);
   backdrop-filter: var(--glass-regular);
   -webkit-app-region: no-drag;
 }

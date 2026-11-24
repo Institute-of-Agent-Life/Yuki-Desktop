@@ -70,8 +70,7 @@
   border-right: 0;
   border-radius: var(--r-pane);
   background: var(--mat-sidebar-glass);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation)) var(--seal,);
-  box-shadow: var(--shadow-glass);
+  backdrop-filter: blur(var(--glass-blur)) var(--glass-native) var(--seal,);
 }
 .categories button[role='tab'] {
   position: relative;

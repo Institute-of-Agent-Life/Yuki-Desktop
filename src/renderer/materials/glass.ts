@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { reducedMotion } from '../motion/hooks'
 import { sampleSpring, springs } from '../motion/spring'
+import { dockLens, dockMatrix, dockRim, dockRimDepth } from './dock'
 
 const NS = 'http://www.w3.org/2000/svg'
 
@@ -27,23 +28,43 @@ const NS = 'http://www.w3.org/2000/svg'
   document.body.append(svg)
 }
 
+const theme = () => (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light')
+const glassTint = () => Number(document.documentElement.dataset.glassTint ?? 0.49)
+
 /*
- * Liquid Glass as measured on iOS 26 (the owner's screenshots registered against their own
- * wallpapers): the backdrop is blurred (materials.css), then bent inward over a band along the
- * edge, lifted a little and lit at the rim.
- *
- * The bend always samples from further inside, along the inward normal: a pixel at depth d shows
- * what lies D(d) deeper, D(d) = A·(e^(−d/λ) − e^(−w/λ)) up to the band's width w. D falls faster
- * than d grows near the rim, so the band shows the strip just inside it mirrored and pressed
- * together, as the rounded rim of real glass reflects it. The lens is a part's own, not its
- * radius's or height's:
- *   pane: toolbars, the composer, cards and sheets, after the Lock Screen's platters and buttons
- *     (A 21.1, λ 2.62, w 7.5pt: 19.9pt at the rim, the fold at 5.5pt);
+ * The Dock's colour (dock.ts) for glass that carries no filter of its own (`--glass-native`,
+ * materials.css): its tone, for the theme and the slider shown now.
+ */
+{
+  const svg = document.createElementNS(NS, 'svg'),
+    filter = document.createElementNS(NS, 'filter'),
+    tone = document.createElementNS(NS, 'feColorMatrix')
+  svg.setAttribute('aria-hidden', 'true')
+  svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none'
+  filter.id = 'yuki-glass-tone'
+  filter.setAttribute('color-interpolation-filters', 'sRGB')
+  tone.setAttribute('type', 'matrix')
+  const update = () => tone.setAttribute('values', dockMatrix(theme(), glassTint()))
+  update()
+  new MutationObserver(update).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme', 'data-glass-tint'],
+  })
+  filter.append(tone)
+  svg.append(filter)
+  document.body.append(svg)
+}
+
+/*
+ * The lens. The bend always samples from further inside, along the inward normal: a pixel at depth
+ * d shows what lies D(d) deeper, up to the band's width, so the band shows the strip just inside it
+ * mirrored and pressed together, as the rounded rim of real glass reflects it. The lens is a
+ * part's own, not its radius's or height's:
+ *   pane: the Dock's (dock.ts), for the sidebar, toolbars, the composer, cards and sheets;
  *   lens: a control held under the finger, the clear lens of WWDC25 219;
  *   slider: its held thumb (slider-v2.md §3.2): a rim a tenth of the radius wide showing what lies
  *     0.6 of the radius in.
- * Near a corner the bend follows a rounder shape (the normal of a corner `turn` times as large):
- * iOS's corners bend so, not along the visible circle's own normal.
+ * Near a corner the bend follows a rounder shape (the normal of a corner `turn` times as large).
  */
 interface Shape {
   /** How far a pixel at depth `d` (CSS px) from the edge samples deeper, for a corner `radius`. */
@@ -68,37 +89,18 @@ const power = (band: number, pull: number, profile: number, least: number): Shap
   turn: 1,
 })
 const shapes = {
-  pane: exponential(21.1, 2.62, 7.5),
+  pane: exponential(dockLens.amplitude, dockLens.decay, dockLens.width),
   lens: power(0.19, 2.16, 4, 3),
   slider: power(0.1, 6, 0.5, 1),
 } satisfies Record<string, Shape>
 /*
- * The light, measured on the same glass. The face is lifted evenly by `lift` (about 20 levels,
- * neutral: no tint and no extra saturation). The rim adds the same to red, green and blue on top of
- * what the bend shows, so it keeps the colour of what lies just inside: E·f(θ)·r(d), with θ the
- * outward normal's angle (0° right, 90° up), the light fixed at the upper left:
- *   f(θ) = clamp(0.5 + cos 2(θ − 135°), 0, 1)·(0.8 + 0.4·sin²θ): brightest on the upper-left and
- *     lower-right corners, about 0.7 along the top and bottom, 0.5 along the sides, nothing on the
- *     upper-right and lower-left;
- *   r(d) = clamp(1.15 − 0.88·d, 0, 1): about 1.2pt wide, brightest at the outermost pixel.
- * It is laid on as white of that strength (X + a·(1 − X)), which iOS's grey rows prefer and which
- * never clips a pale page to white; E is iOS's 72 on dark glass and 60 on light, whose white tint
- * already lies close to white over a pale page. No colours are parted, no shade lies within and no ring
- * around it.
+ * The rim (dock.ts): what the lens shows, multiplied by 1 + k(θ)·r(d), so it keeps its colour and
+ * never turns white. The slider's thumb draws its own (InteractiveControls.module.css). Only panes
+ * take the Dock's colour; a held control stays clear.
  */
-const lights = {
-  pane: { light: { lift: 20, rim: 60 }, dark: { lift: 20, rim: 72 } },
-  lens: { light: { lift: 20, rim: 60 }, dark: { lift: 20, rim: 72 } },
-  // The slider's thumb draws its own rim (InteractiveControls.module.css).
-  slider: { light: { lift: 0, rim: 0 }, dark: { lift: 0, rim: 0 } },
-} as const
-/** The rim's strength by the outward normal's angle (radians, 0 right, π/2 up). */
-export const rimAngle = (theta: number) =>
-  Math.min(1, Math.max(0, 0.5 + Math.cos(2 * (theta - (3 * Math.PI) / 4)))) *
-  (0.8 + 0.4 * Math.sin(theta) ** 2)
-/** The rim's strength by depth (CSS px). */
-export const rimDepth = (d: number) => Math.min(1, Math.max(0, 1.15 - 0.88 * d))
+const rimmed = { pane: true, lens: true, slider: false } as const
 const kinds = {
+  sidebar: 'pane',
   toolbar: 'pane',
   composer: 'pane',
   card: 'pane',
@@ -108,7 +110,6 @@ const kinds = {
   segment: 'lens',
 } as const
 export type GlassKind = keyof typeof kinds
-const theme = () => (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light')
 
 export function roundedDistance(x: number, y: number, hx: number, hy: number, radius: number) {
   const qx = Math.abs(x) - hx + radius,
@@ -130,11 +131,8 @@ const place = (span: Span, size: number) =>
   ] as const
 interface Lens {
   pieces: { href: string; x: Span; y: Span }[]
-  /** The rim's light map cut the same way, laid over a clear face for the filter. */
+  /** The rim's map cut the same way, laid over a neutral face for the filter. */
   rimPieces: { href: string; x: Span; y: Span }[]
-  rim: string
-  slice: [number, number]
-  border: [number, number]
   /** The bend map's full scale: the largest bend, twice over (a map value runs ±0.5 of it). */
   span: number
 }
@@ -163,14 +161,13 @@ function lens(width: number, height: number, radius: number, kind: GlassKind): L
   const across = width > tile,
     down = height > tile
   const w = across ? tile : width,
-    h = down ? tile : height,
-    look = theme()
-  const key = `${w}/${h}/${radius}/${kind}/${scale}/${look}`
+    h = down ? tile : height
+  const key = `${w}/${h}/${radius}/${kind}/${scale}`
   const cached = lenses.get(key)
   if (cached) return cached
-  const light = lights[kinds[kind]][look],
-    hx = w / 2,
-    hy = h / 2
+  const hx = w / 2,
+    hy = h / 2,
+    neutral = new Uint32Array(new Uint8ClampedArray([128, 128, 128, 255]).buffer)[0]!
   // The outward normal of a rounded rectangle with corners `corner`: straight off a side, or off
   // a corner's centre.
   const normal = (x: number, y: number, corner: number) => {
@@ -206,26 +203,23 @@ function lens(width: number, height: number, radius: number, kind: GlassKind): L
     context.putImageData(image, 0, 0)
     return canvas
   }
-  const bend = paint(
-    new Uint32Array(new Uint8ClampedArray([128, 128, 128, 255]).buffer)[0]!,
-    (data, k, x, y, distance) => {
-      // Inward, as far as the lens says for this depth, along the rounder shape's normal.
-      const amount = shape.bend(-distance, radius) / span,
-        [nx, ny] = normal(x, y, turned)
-      const noise = ((k * 2654435761) >>> 0) / 4294967296 - 0.5
-      data[k] = Math.round(128 - amount * nx * 255 + noise)
-      data[k + 1] = Math.round(128 - amount * ny * 255 - noise)
-    },
-  )
-  // The rim's light: white whose alpha is its strength (premultiplied, it adds evenly to red,
-  // green and blue).
-  const rim = paint(0, (data, k, x, y, distance) => {
+  const bend = paint(neutral, (data, k, x, y, distance) => {
+    // Inward, as far as the lens says for this depth, along the rounder shape's normal.
+    const amount = shape.bend(-distance, radius) / span,
+      [nx, ny] = normal(x, y, turned)
+    const noise = ((k * 2654435761) >>> 0) / 4294967296 - 0.5
+    data[k] = Math.round(128 - amount * nx * 255 + noise)
+    data[k + 1] = Math.round(128 - amount * ny * 255 - noise)
+  })
+  // The rim's factor m = k(θ)·r(d), as grey 128 + 255·m (the filter multiplies by 1 + m), with
+  // θ the outward normal's angle. The outermost pixel is covered only partly, which smooths the
+  // curve.
+  const rim = paint(neutral, (data, k, x, y, distance) => {
+    if (!rimmed[kinds[kind]]) return
     const [nx, ny] = normal(x, y, radius),
-      strength = (light.rim / 255) * rimAngle(Math.atan2(-ny, nx)) * rimDepth(-distance)
-    // The outermost pixel is covered only partly, which smooths the curve.
-    const coverage = Math.max(0, Math.min(1, 0.5 - distance * scale))
-    data[k] = data[k + 1] = data[k + 2] = 255
-    data[k + 3] = Math.round(strength * coverage * 255)
+      coverage = Math.max(0, Math.min(1, 0.5 - distance * scale)),
+      factor = dockRim(Math.atan2(-ny, nx)) * dockRimDepth(-distance) * coverage
+    data[k] = data[k + 1] = data[k + 2] = Math.round(128 + 255 * factor)
   })
   // Each axis cut into its start, a middle one CSS pixel long that stretches along a straight
   // side, and its end; or kept whole where the glass is no longer than its tile.
@@ -254,9 +248,6 @@ function lens(width: number, height: number, radius: number, kind: GlassKind): L
   const result: Lens = {
     pieces: cut(bend),
     rimPieces: cut(rim),
-    rim: rim.toDataURL(),
-    slice: [down ? border * scale : 0, across ? border * scale : 0],
-    border: [down ? border : 0, across ? border : 0],
     span,
   }
   // A handful of kinds, radii and short sides: kept.
@@ -362,10 +353,10 @@ export function useGlass<T extends HTMLElement>(
       primitiveUnits: 'userSpaceOnUse',
       'color-interpolation-filters': 'sRGB',
     })
-    // The bevel's map: its pieces merged over a neutral face; the rim's light, over a clear one.
-    // The blurred backdrop (materials.css) is bent by the map, lifted evenly, and the rim's light
-    // added to it: the same on red, green and blue, so the rim keeps the colour of what the bend
-    // brought to it.
+    // The bevel's map and the rim's, each of its pieces merged over a neutral face. The blurred
+    // backdrop (materials.css) is bent by the bevel's map, given the Dock's colour (a pane's own:
+    // a held control stays clear), and multiplied by the rim's: X·(1 + m), with the map holding
+    // 128/255 + m, as k1·map·X + k3·X.
     // A displacement map moves whole pixels: a fine line bent across the bevel steps and breaks
     // up, where Apple's stays a smooth curve. Half a pixel of blur after the bend joins it again.
     const merge = primitive('feMerge', { result: 'bevel' }),
@@ -382,26 +373,29 @@ export function useGlass<T extends HTMLElement>(
       stdDeviation: '0.5',
       result: 'bent',
     })
-    const lift = primitive('feComponentTransfer', { in: 'bent', result: 'lifted' })
-    for (const name of ['feFuncR', 'feFuncG', 'feFuncB'])
-      lift.append(primitive(name, { type: 'linear', slope: '1' }))
-    // White of the rim's strength a over what was lifted: X + a·(1 − X), as k1·a·X + k2·a + k3·X.
-    // The pane's tint (its background) lies over all this: the rim is strengthened by as much as
-    // the tint takes away (`1 / (1 − tint)`), so the same light reaches the eye.
+    const docked = kinds[kind] === 'pane'
+    // The Dock's colour (a held control stays clear); the alpha made whole, as the half pixel of
+    // blur reaches past the glass's edge, where the filter has nothing.
+    const tone = primitive('feColorMatrix', {
+      in: 'bent',
+      type: 'matrix',
+      values: '1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 1',
+      result: 'toned',
+    })
     const rimLight = primitive('feComposite', {
       in: 'rim',
-      in2: 'lifted',
+      in2: 'toned',
       operator: 'arithmetic',
-      k3: '1',
+      k1: '1',
+      k3: String(1 - 128 / 255),
     })
     filter.append(
       primitive('feFlood', { 'flood-color': '#808080', result: 'flat' }),
       merge,
-      primitive('feFlood', { 'flood-opacity': '0', result: 'clear' }),
       rimMerge,
       bevelBend,
       smooth,
-      lift,
+      tone,
       rimLight,
     )
     svg.append(filter)
@@ -434,7 +428,7 @@ export function useGlass<T extends HTMLElement>(
       )
       rimMerge.before(...rimPieces)
       rimMerge.replaceChildren(
-        ...['clear', ...rimPieces.map((_, index) => `rim-${index}`)].map((input) =>
+        ...['flat', ...rimPieces.map((_, index) => `rim-${index}`)].map((input) =>
           primitive('feMergeNode', { in: input }),
         ),
       )
@@ -475,9 +469,6 @@ export function useGlass<T extends HTMLElement>(
     }
     const quiet = () => {
       element.style.removeProperty('--refract')
-      element.style.removeProperty('--rim')
-      element.style.removeProperty('--rim-slice')
-      element.style.removeProperty('--rim-border')
       delete element.dataset.refracting
     }
     const sync = () => {
@@ -516,33 +507,21 @@ export function useGlass<T extends HTMLElement>(
         if (fresh !== current) {
           current = fresh
           assemble(fresh)
-          element.style.setProperty('--rim', `url("${fresh.rim}")`)
-          element.style.setProperty('--rim-slice', fresh.slice.join(' '))
-          element.style.setProperty(
-            '--rim-border',
-            fresh.border.map((value) => `${value}px`).join(' '),
-          )
           bends.current!.span = fresh.span
         }
       }
       if (next !== size) layout(w, h)
       size = next
-      const look = lights[kinds[kind]][theme()]
-      for (const func of lift.children) func.setAttribute('intercept', String(look.lift / 255))
+      if (docked) tone.setAttribute('values', dockMatrix(theme(), glassTint()))
       if (bending) element.style.setProperty('--refract', `url(#${id})`)
-      const tint = Number(
-        getComputedStyle(element).backgroundColor.match(/[\d.]+(?=\)$)/)?.[0] ?? 0,
-      )
-      const through = 1 / Math.max(0.1, 1 - Math.min(1, tint))
-      rimLight.setAttribute('k1', String(-through))
-      rimLight.setAttribute('k2', String(through))
       element.dataset.refracting = 'true'
       // While it bends in, the rising spring alone sets its strength.
       if (!rising) bend(strength.current)
     }
-    // Transparency and the theme's light change the maps; a page writing the same value again
-    // changes nothing.
-    const appearanceOf = () => `${root.dataset.opaque}/${theme()}/${root.dataset.material}`
+    // Transparency, the theme and the system's slider change the glass; a page writing the same
+    // value again changes nothing.
+    const appearanceOf = () =>
+      `${root.dataset.opaque}/${theme()}/${root.dataset.material}/${root.dataset.glassTint}`
     let shownAs = appearanceOf()
     const resize = new ResizeObserver(sync),
       appearance = new MutationObserver(() => {
@@ -555,7 +534,7 @@ export function useGlass<T extends HTMLElement>(
     resize.observe(element, { box: 'border-box' })
     appearance.observe(root, {
       attributes: true,
-      attributeFilter: ['data-opaque', 'data-theme', 'data-material'],
+      attributeFilter: ['data-opaque', 'data-theme', 'data-material', 'data-glass-tint'],
     })
     sync()
     const dispose = () => {

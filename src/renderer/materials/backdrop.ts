@@ -1,5 +1,6 @@
 import type { BackdropTable, CustomBackdrop } from '../../shared/desktop'
 import { unwrap } from '../queries/client'
+import { dockMatrix } from './dock'
 
 /*
  * A picture of the person's own behind the conversation (docs/reports/2026-11-23-liquid-glass
@@ -120,21 +121,20 @@ export function backdropVariables(backdrop: CustomBackdrop, theme: 'light' | 'da
 }
 
 /*
- * Glass that follows what lies under it, as Apple's darkens over bright content and lightens over
- * dark: the picture's table is read under each pane over the conversation, and the pane's tint is
- * raised from its own until secondary text of the theme's colour keeps 3:1 over the darkest
- * (light) or brightest (dark) of it, which leaves main text above 4.5:1. Where the picture is busy
- * the pane blurs more. The conversation's own text, in its bubbles and laid on the picture (the
- * toolbar's title, the date, the opening line), takes one tint for the whole picture
- * (`--content-tint`, Conversation.module.css) over a light blur (`--content-blur`).
+ * The conversation's text laid straight on the picture (the toolbar's title, the date, the opening
+ * line) takes one tint for the whole picture (`--content-tint`, Conversation.module.css) over a
+ * light blur (`--content-blur`): the picture's table is read under the conversation, and the tint
+ * raised until secondary text of the theme's colour keeps 3:1 over the darkest (light) or
+ * brightest (dark) of it, which leaves main text above 4.5:1. The bubbles' frost is the picture
+ * blurred once as the Dock's glass blurs it (`--backdrop-frost-image`).
  */
 const tints = {
   // White over the picture, under secondary text of luminance 0.112 (#5b5e66): the result must
   // reach luminance 0.436, sRGB 0.69.
-  light: { colour: [255, 255, 255], needed: 0.69, ceiling: 0.92, blur: 2 },
+  light: { colour: [255, 255, 255], needed: 0.69, ceiling: 0.92 },
   // rgb(30 32 50), sRGB 0.13, over it, under secondary text of luminance 0.387 (#a4a7af): at most
-  // luminance 0.096, sRGB 0.34. The body's light brightens a pane's middle by up to a fifth.
-  dark: { colour: [30, 32, 50], needed: 0.34, ceiling: 0.92, blur: 3 },
+  // luminance 0.096, sRGB 0.34.
+  dark: { colour: [30, 32, 50], needed: 0.34, ceiling: 0.92 },
 } as const
 const srgb = (linear: number) =>
   linear <= 0.0031308 ? linear * 12.92 : 1.055 * linear ** (1 / 2.4) - 0.055
@@ -197,16 +197,6 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
     live = true,
     frosted = 0,
     frostUrl = ''
-  const panes = new Set<HTMLElement>()
-  const sidebar = document.querySelector<HTMLElement>('[data-region="sidebar"]')
-  const clearSidebar = () => {
-    sidebar?.style.removeProperty('--mat-sidebar')
-    sidebar?.style.removeProperty('--mat-sidebar-glass')
-  }
-  const clear = (pane: HTMLElement) => {
-    for (const name of ['--mat-pane', '--mat-glass', '--glass-blur'])
-      pane.style.removeProperty(name)
-  }
   // The page's colour laid over the picture, as luminance.
   const page = () => {
     const [r, g, b] = getComputedStyle(chat)
@@ -267,14 +257,10 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
     // (light: at least; dark: at most), over any colour of its darkest (light) or brightest
     // (dark), at least `base`.
     const shade = tint.colour.map((value) => value / 255)
-    const alphaOver = (
-      rect: DOMRect,
-      base: number,
-      brightened: number,
-      target = linear(tint.needed),
-    ) => {
-      const { low, high } = range(rect)
-      const worst = theme === 'light' ? low : linear(Math.min(1, srgb(high) * brightened))
+    const alphaOver = (rect: DOMRect) => {
+      const { low, high } = range(rect),
+        target = linear(tint.needed)
+      const worst = theme === 'light' ? low : high
       const colours = coloursOf(worst)
       const holds = (alpha: number) =>
         colours.every((colour) =>
@@ -293,65 +279,28 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
         }
       }
       return {
-        alpha: Math.min(tint.ceiling, Math.max(base, needed + 0.05)),
+        alpha: Math.min(tint.ceiling, needed + 0.05),
         spread: Math.max(0, srgb(high) - srgb(low)),
       }
     }
     const colour = (alpha: number) => `rgb(${tint.colour.join(' ')} / ${alpha.toFixed(3)})`
-    const content = alphaOver(chat.getBoundingClientRect(), 0, 1),
-      blur = 8 + 8 * content.spread
+    const content = alphaOver(chat.getBoundingClientRect())
     main.style.setProperty('--content-tint', colour(content.alpha))
-    main.style.setProperty('--content-blur', `${blur}px`)
-    // The bubbles' frost: the picture blurred once by the content's blur, as it is drawn.
+    main.style.setProperty('--content-blur', `${8 + 8 * content.spread}px`)
+    // The bubbles' frost: the picture blurred once as the glass blurs it (--glass-blur, in CSS
+    // pixels), in its own pixels as it is drawn.
     main.style.setProperty('--backdrop-frost-size', `${drawn.width}px ${drawn.height}px`)
-    const radius = Math.round(blur / scale)
+    const radius =
+      Math.round(
+        (parseFloat(getComputedStyle(main).getPropertyValue('--glass-blur')) / scale) * 4,
+      ) / 4
     if (radius !== frosted) {
       frosted = radius
       void frost(radius)
     }
-    const current = new Set(
-      main.querySelectorAll<HTMLElement>(
-        '[data-glass="composer"][data-refracting], [data-glass="toolbar"][data-refracting]',
-      ),
-    )
-    for (const pane of panes) if (!current.has(pane)) clear(pane)
-    panes.clear()
-    for (const pane of current) {
-      panes.add(pane)
-      clear(pane)
-      const base = Number(getComputedStyle(pane).backgroundColor.match(/[\d.]+(?=\)$)/)![0])
-      const { alpha, spread } = alphaOver(pane.getBoundingClientRect(), base, 1.2)
-      pane.style.setProperty('--mat-pane', colour(alpha))
-      pane.style.setProperty('--mat-glass', colour(alpha))
-      pane.style.setProperty('--glass-blur', `${tint.blur + 4 * spread}px`)
-    }
-    // The sidebar's glass floats over the picture too: tinted until the quietest of its texts
-    // keeps 4.5:1 (its section headers, the line under the persona's name).
-    clearSidebar()
-    if (sidebar) {
-      const style = getComputedStyle(sidebar)
-      const base = Number(style.backgroundColor.match(/[\d.]+/g)?.[3] ?? 1)
-      if (base < 1) {
-        const texts = ['--text-primary', '--text-secondary', '--text-tertiary'].map((name) => {
-          const [r, g, b] = style
-            .getPropertyValue(name)
-            .trim()
-            .match(/[0-9a-f]{2}/gi)!
-            .map((value) => parseInt(value, 16))
-          return luminance(r!, g!, b!)
-        })
-        const target =
-          theme === 'light'
-            ? 4.5 * (Math.max(...texts) + 0.05) - 0.05
-            : (Math.min(...texts) + 0.05) / 4.5 - 0.05
-        const { alpha } = alphaOver(sidebar.getBoundingClientRect(), base, 1.2, target)
-        sidebar.style.setProperty('--mat-sidebar', colour(alpha))
-        sidebar.style.setProperty('--mat-sidebar-glass', colour(alpha))
-      }
-    }
   }
-  // The picture blurred by `radius` of its own pixels, made smaller first as far as the blur
-  // allows (what it removes is finer than any pixel it drops), so it is made in a few ms.
+  // The picture blurred by `radius` of its own pixels and its colour raised as the glass raises it,
+  // made smaller first as far as the blur allows (what it removes is finer than any pixel it drops).
   const frost = async (radius: number) => {
     const reduce = Math.max(1, Math.floor(radius / 4)),
       width = Math.max(1, Math.round(image.naturalWidth / reduce)),
@@ -370,10 +319,38 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
       drawing.drawImage(image, 0, 0, around.width, around.height)
       drawing.drawImage(image, margin, margin, width, height)
     }
+    // The page's colour laid over it as much as it is dimmed (Conversation.module.css), before the
+    // glass takes its colour.
+    const [r, g, b] = getComputedStyle(chat)
+      .getPropertyValue('--bg-content')
+      .trim()
+      .match(/[0-9a-f]{2}/gi)!
+      .map((value) => parseInt(value, 16))
+    drawing.fillStyle = `rgb(${r} ${g} ${b} / ${shown.dim / 100})`
+    drawing.fillRect(0, 0, around.width, around.height)
     const canvas = new OffscreenCanvas(width, height),
       context = canvas.getContext('2d')!
     context.filter = `blur(${radius / reduce}px)`
     context.drawImage(around, -margin, -margin)
+    // The Dock's colour (dock.ts), as the glass's filter gives it.
+    const matrix = dockMatrix(theme, Number(document.documentElement.dataset.glassTint ?? 0.49))
+        .split(' ')
+        .map(Number),
+      pixels = context.getImageData(0, 0, width, height),
+      data = pixels.data
+    for (let k = 0; k < data.length; k += 4) {
+      const red = data[k]! / 255,
+        green = data[k + 1]! / 255,
+        blue = data[k + 2]! / 255
+      for (let c = 0; c < 3; c++)
+        data[k + c] =
+          255 *
+          (matrix[c * 5]! * red +
+            matrix[c * 5 + 1]! * green +
+            matrix[c * 5 + 2]! * blue +
+            matrix[c * 5 + 4]!)
+    }
+    context.putImageData(pixels, 0, 0)
     const url = URL.createObjectURL(await canvas.convertToBlob({ type: 'image/png' }))
     if (!live || radius !== frosted) return URL.revokeObjectURL(url)
     if (frostUrl) URL.revokeObjectURL(frostUrl)
@@ -383,11 +360,9 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
   const schedule = () => {
     frame ||= requestAnimationFrame(update)
   }
-  const resize = new ResizeObserver(schedule),
-    changes = new MutationObserver(schedule)
+  const resize = new ResizeObserver(schedule)
   resize.observe(chat)
   addEventListener('resize', schedule)
-  changes.observe(main, { childList: true, subtree: true, attributeFilter: ['data-refracting'] })
   void backdropTable(shown.id).then((value) => {
     table = value
     chat.style.setProperty('--backdrop-fill', value.average)
@@ -404,14 +379,11 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
     cancelAnimationFrame(frame)
     resize.disconnect()
     removeEventListener('resize', schedule)
-    changes.disconnect()
     chat.style.removeProperty('--backdrop-fill')
     main.style.removeProperty('--content-tint')
     main.style.removeProperty('--content-blur')
     main.style.removeProperty('--backdrop-frost-size')
     main.style.removeProperty('--backdrop-frost-image')
     if (frostUrl) URL.revokeObjectURL(frostUrl)
-    for (const pane of panes) clear(pane)
-    clearSidebar()
   }
 }

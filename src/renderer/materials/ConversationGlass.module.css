@@ -1,6 +1,6 @@
 .root {
   position: relative;
-  --glass-neutral-tint: var(--fill-bubble);
+  --glass-neutral-tint: var(--bubble-material);
   --glass-edge: rgba(255, 255, 255, 0.94);
   --glass-edge-shadow: rgba(29, 54, 102, 0.18);
 }
@@ -40,20 +40,19 @@
 .surface:global([data-liquid])::before {
   inset: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
 }
-/* Over a picture of one's own the conversation's text needs more than the pattern's thin tint: one
-   thick enough for the picture (materials/backdrop.ts), over a light blur of it: the picture's
-   layers (Conversation.module.css), the picture itself as blurred once. */
+/* Over a picture of one's own the bubbles show the picture blurred once, with its dim and the
+   Dock's colour (materials/backdrop.ts). */
 :global([data-backdrop='custom']) .root {
-  --glass-neutral-tint: var(--content-tint);
+  /* The picture's copy carries the dim and the glass's colour itself (materials/backdrop.ts). */
+  --bubble-material: transparent;
 }
 :global([data-backdrop='custom']) .surface {
-  --dim: color-mix(in srgb, var(--bg-content) var(--backdrop-dim), transparent);
   background-color: var(--backdrop-fill, var(--bg-content));
   background-image:
     linear-gradient(var(--glass-tint, var(--glass-neutral-tint)) 0 0),
-    linear-gradient(var(--dim) 0 0), var(--backdrop-frost-image, none);
+    var(--backdrop-frost-image, none);
   background-position: center;
-  background-size: auto, auto, var(--backdrop-frost-size, var(--backdrop-size));
+  background-size: auto, var(--backdrop-frost-size, var(--backdrop-size));
   background-repeat: var(--backdrop-repeat);
   background-attachment: fixed;
 }

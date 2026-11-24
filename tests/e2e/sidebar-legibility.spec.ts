@@ -43,7 +43,13 @@ test('the sidebar keeps its text legible over any picture, light and dark, and s
   let success = false
   try {
     const page = await app.firstWindow()
-    await contentSize(app, page, 1100, 760)
+    // A native window within the screen's work area: an emulated larger one does not hold through
+    // the settings page and back.
+    const area = await app.evaluate(
+      ({ BrowserWindow, screen }) =>
+        screen.getDisplayMatching(BrowserWindow.getAllWindows()[0]!.getBounds()).workArea,
+    )
+    await contentSize(app, page, Math.min(1100, area.width), Math.min(760, area.height - 40))
     await pairUI(page, rig.base, await rig.code())
     const name = await activeCharacterName(page)
     await expect(page.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible()

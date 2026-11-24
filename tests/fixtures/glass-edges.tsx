@@ -139,12 +139,8 @@ function Glass({ item }: { item: Item }) {
     borderRadius: item.radius,
     background: item.tint,
     backdropFilter: query.get('filter') ?? filter,
-    // The shadows the app's panes carry, with the hairline the light theme draws around them.
-    boxShadow: dynamic
-      ? undefined
-      : item.kind === 'sheet'
-        ? 'var(--shadow-pane)'
-        : 'var(--shadow-glass)',
+    // A sheet's shadow; the Dock's glass carries none.
+    boxShadow: item.kind === 'sheet' ? 'var(--shadow-pane)' : undefined,
   }
   return <div ref={glass.ref} data-glass={item.kind} data-name={item.name} style={style} />
 }

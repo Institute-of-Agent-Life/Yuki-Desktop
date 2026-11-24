@@ -8,26 +8,29 @@ import { picture } from '../fixtures/pictures'
 import { closeUps, enlarge, pixels, type Pixels } from '../fixtures/edges'
 
 /*
- * The edges of the glass, to Liquid Glass as measured on iOS 26 (the owner's screenshots registered
- * against their own wallpapers; glass.ts). Failure cases, written before the glass was changed:
- *   1. the rim is not lit from the upper left by the measured law: the upper-right corner keeps
- *      more than 0.1 of the upper-left's light, (at 2x) the top is not 0.45–0.75 of it, a side not
- *      0.3–0.55, or the top no brighter than a side; on a 1x screen the top lifts dark glass by
- *      under 15 levels, or the brightest corner by over 80 (iOS: top +51–55, corners +72 at 3x,
- *      where the 1.2pt rim spans 4 pixels; at 1x one pixel averages it); over a pale page light glass's rim reaches white (253 or more);
- *   2. a ring lies around the glass: just outside it the page is darker than 3pt farther out by
- *      more than 1.5 levels; or light spills out (brighter by more than 2);
- *   3. a shade lies within the rim: 2–6pt in is darker than 7pt in by more than 1.5 levels;
- *   4. the rim takes the colour of what lies outside the edge, not of what the bend brings from
- *      inside: over orange outside and blue inside, the rim is not blue;
- *   5. the band does not mirror: over a ramp darkening toward the edge, the rim shows no deeper
- *      (brighter) a sample than 4pt in, by at least 8 levels; or past the fold the ramp does not
- *      resume; or a pane's bend at the rim is not iOS's 19.9pt (a map's full scale of 39.8);
- *   6. colours are parted: over a grey grid the 99th percentile of chroma in the band exceeds 4;
- *   7. a line bent across the band steps and breaks: the band's finest detail over a grid (99th
+ * The glass, to the macOS Dock's as measured on this Mac (Apple's own glass filter fitted to the
+ * real Dock, then the Dock's edge measured; glass.ts). Failure cases, written before the glass was
+ * changed:
+ *   1. the face is not the Dock's tone of what lies behind it: over flat greys of 21, 128 and 255
+ *      the face is not 20 + 0.67·B (dark) or 122 + 0.48·B (light, provisional) within 2.5 levels:
+ *      a tint, a fill or a lift is still laid on, or a brightness filter;
+ *   2. anything is drawn outside the glass: within 4pt of its edge the page differs from the page
+ *      farther out by more than 1 level (a hairline, a ring, a shadow);
+ *   3. the band does not mirror what lies inside as the Dock's lens does: over a ramp darkening
+ *      toward the edge the rim shows no deeper (brighter) a sample than 6pt in, by at least 8
+ *      levels; past the band (13pt) the ramp does not resume; or a pane's bend at the rim is not
+ *      the Dock's 24.5pt (a map's full scale of 49.0);
+ *   4. the rim is not the Dock's: lit along the vertical axis and multiplying what the lens shows
+ *      (keeping its colour), not adding white. Over mid grey the top's outermost device pixel is not
+ *      at least 1.15 times the face, the bottom's 1.1 times, a side's under 0.95 times; the top is
+ *      not brighter than the bottom; over near-black the rim lifts the face by more than 0.35 of
+ *      it (a white add lifts dark glass by tens of levels); over blue inside an orange outside, the
+ *      top rim is not blue;
+ *   5. colours are parted: over a grey grid the 99th percentile of chroma in the band exceeds 4;
+ *   6. a line bent across the band steps and breaks: the band's finest detail over a grid (99th
  *      percentile of each pixel's distance from its 3×3 mean) exceeds 2.3 levels on a pane, 9.5 on
  *      a held control;
- *   8. nothing joins the bent pixels again: no blur after the bend.
+ *   7. nothing joins the bent pixels again: no blur after the bend.
  * The real app's close-ups (6x: the sidebar's pane, toolbar, composer, sheet, the held slider and
  * the segmented control, light, dark and over a line-art backdrop) are written as the test's output.
  */
@@ -93,6 +96,9 @@ interface Glass {
   radius: number
 }
 const panes = ['button', 'toolbar', 'composer', 'card', 'sheet', 'folder']
+// The Dock's glass: every pane but a sheet (which opens over the page, thicker, to be read).
+const docked = panes.filter((name) => name !== 'sheet')
+const tone = { dark: [0.67, 20], light: [0.48, 0.478 * 255] } as const
 
 async function scene(page: Page, theme: 'light' | 'dark', background: string, scale: number) {
   await page.setViewportSize({ width: 800, height: 520 })
@@ -142,220 +148,130 @@ function across(image: Pixels, x: number, y: number, nx: number, ny: number, fro
   }
   return values
 }
-function edges(image: Pixels, glass: Glass) {
-  const { x, y, width, radius } = glass,
-    face = luminance(image, x + width / 2, y + glass.height / 2)
-  const top = across(image, x + width / 2, y, 0, -1)
-  // Around the upper-right corner, every ten degrees from the top to the right side.
-  const arc = Array.from({ length: 10 }, (_, step) => {
-    const angle = (step * Math.PI) / 18,
-      nx = Math.sin(angle),
-      ny = -Math.cos(angle)
-    return across(image, x + width - radius + nx * radius, y + radius + ny * radius, nx, ny)
-  })
-  // And around the upper-left one, from the top to the left side.
-  const left = Array.from({ length: 10 }, (_, step) => {
-    const angle = (step * Math.PI) / 18,
-      nx = -Math.sin(angle),
-      ny = -Math.cos(angle)
-    return across(image, x + radius + nx * radius, y + radius + ny * radius, nx, ny)
-  })
-  // The rim's light: its first 3pt, against the face.
-  const lift = (profile: { depth: number; value: number }[]) =>
-    Math.max(
-      ...profile
-        .filter((point) => point.depth >= 0 && point.depth <= 3)
-        .map((point) => point.value),
-    ) - face
-  return {
-    face,
-    top,
-    arc,
-    lift,
-    topLift: lift(top),
-    arcLifts: arc.map(lift),
-    leftLifts: left.map(lift),
-  }
-}
-
 test.describe('the edges of the glass', () => {
   test.describe.configure({ timeout: 120000 })
-  for (const scale of [1, 2])
-    test.describe(`at ${scale}x`, () => {
-      test.use({ deviceScaleFactor: scale })
-      test('dark glass is lit from the upper left by the measured law, with no ring and no shade', async ({
-        page,
-      }) => {
-        const { glass, image } = await scene(page, 'dark', 'dark', scale)
-        // A shade shows over a mid-grey page; over near-black there is little left to darken.
-        const grey = await scene(page, 'dark', 'gray', scale)
-        const found: Record<
-          string,
-          { peak: number; across: number; top: number; side: number; shade: number; spill: number }
-        > = {}
-        for (const name of panes) {
-          const edge = edges(image, glass[name]!),
-            shaded = edges(grey.image, grey.glass[name]!)
-          const { x, y, height } = glass[name]!
-          const side = across(image, x, y + height / 2, -1, 0)
-          const page = luminance(image, 2, 2)
-          const past = shaded.top.find((point) => point.depth >= 7)!.value
-          found[name] = {
-            peak: Math.max(edge.leftLifts[4]!, edge.leftLifts[5]!),
-            across: Math.max(edge.arcLifts[4]!, edge.arcLifts[5]!),
-            top: edge.topLift,
-            side: edge.lift(side),
-            shade:
-              Math.min(
-                ...shaded.top
-                  .filter((point) => point.depth >= 2 && point.depth <= 6)
-                  .map((point) => point.value),
-              ) - past,
-            spill: Math.max(...edge.top.filter((p) => p.depth <= -1).map((p) => p.value)) - page,
-          }
-        }
-        evidence[`dark-${scale}x`] = found
-        for (const name of panes) {
-          const { peak, across: anti, top, side, shade, spill } = found[name]!
-          // 1
-          expect(anti, `${name}: the upper right`).toBeLessThanOrEqual(0.1 * peak)
-          // The corner's own share, on a screen with pixels enough to follow a corner.
-          if (scale === 2) {
-            expect(top / peak, `${name}: the top`).toBeGreaterThanOrEqual(0.45)
-            expect(top / peak, `${name}: the top`).toBeLessThanOrEqual(0.75)
-            expect(side / peak, `${name}: a side`).toBeGreaterThanOrEqual(0.3)
-            expect(side / peak, `${name}: a side`).toBeLessThanOrEqual(0.55)
-          }
-          expect(top, `${name}: the top against a side`).toBeGreaterThan(side)
-          if (scale === 1) {
-            expect(top, `${name}: the top`).toBeGreaterThanOrEqual(15)
-            expect(peak, `${name}: the brightest corner`).toBeLessThanOrEqual(80)
-          }
-          // 2
-          expect(spill, `${name}: outside`).toBeLessThanOrEqual(2)
-          // 3
-          expect(shade, `${name}: no shade within`).toBeGreaterThanOrEqual(-1.5)
-        }
-      })
-
-      test('light glass has no ring and no shade, and its rim never clips', async ({ page }) => {
-        // 1: over a pale page the brightest of the rim stays short of white.
-        const pale = await scene(page, 'light', 'pale', scale)
-        const brightest: Record<string, number> = {}
-        for (const name of panes) {
-          const edge = edges(pale.image, pale.glass[name]!)
-          brightest[name] = Math.max(
-            ...[edge.top, ...edge.arc]
-              .flat()
-              .filter((point) => point.depth >= 0 && point.depth <= 3)
-              .map((point) => point.value),
-          )
-        }
-        evidence[`pale-${scale}x`] = brightest
-        for (const name of panes) expect(brightest[name], `${name}: brightest`).toBeLessThan(253)
-        const { glass, image } = await scene(page, 'light', 'white', scale)
-        const found: Record<string, { ring: number; shade: number }> = {}
-        for (const name of panes) {
-          const edge = edges(image, glass[name]!)
-          const outside = edge.top.filter((point) => point.depth < 0)
-          // Against the page 3pt out: the pane's soft shadow darkens it slowly; a ring is steep.
-          const page = outside[0]!.value
-          const past = edge.top.find((point) => point.depth >= 7)!.value
-          found[name] = {
-            ring: Math.min(...outside.map((point) => point.value)) - page,
-            shade:
-              Math.min(
-                ...edge.top
-                  .filter((point) => point.depth >= 2 && point.depth <= 6)
-                  .map((point) => point.value),
-              ) - past,
-          }
-        }
-        evidence[`light-${scale}x`] = found
-        for (const name of panes) {
-          // 2, 3
-          expect(found[name]!.ring, `${name}: no ring`).toBeGreaterThanOrEqual(-1.5)
-          expect(found[name]!.shade, `${name}: no shade within`).toBeGreaterThanOrEqual(-1.5)
-        }
-      })
-    })
-
-  test.describe('in colour and depth', () => {
-    test.use({ deviceScaleFactor: 2 })
-    test('the rim keeps the colour the bend brings from inside', async ({ page }) => {
+  test.use({ deviceScaleFactor: 2 })
+  for (const theme of ['dark', 'light'] as const)
+    test(`${theme} glass is the Dock's: its tone, nothing outside, and its rim`, async ({
+      page,
+    }) => {
+      const [slope, intercept] = tone[theme]
       const found: Record<string, unknown> = {}
-      for (const theme of ['light', 'dark'] as const) {
-        const { glass, image } = await scene(page, theme, 'band', 2)
-        const { x, y, width } = glass.composer!
-        const rgb = (px: number, py: number) => {
-          const k = (Math.floor(py * 2) * image.width + Math.floor(px * 2)) * 4
-          return [image.rgba[k]!, image.rgba[k + 1]!, image.rgba[k + 2]!] as const
+      // 1, 2
+      for (const [background, level] of [
+        ['dark', 0x15],
+        ['gray', 128],
+        ['white', 255],
+      ] as const) {
+        const { glass, image } = await scene(page, theme, background, 2)
+        for (const name of docked) {
+          const { x, y, width, height } = glass[name]!
+          const face = luminance(image, x + width / 2, y + height / 2)
+          // The page within 4pt of the left edge (away from the sheet's shadow), against the
+          // page 8pt out.
+          const profile = across(image, x, y + height / 2, -1, 0, 8, 0),
+            ground = profile[0]!.value
+          const drawn = Math.max(
+            ...profile
+              .filter((point) => point.depth >= -4 && point.depth < 0)
+              .map((point) => Math.abs(point.value - ground)),
+          )
+          found[`${background} ${name}`] = { face, drawn }
+          expect
+            .soft(face, `${theme} over ${level}: ${name}'s face`)
+            .toBeCloseTo(intercept + slope * level, -0.7)
+          expect.soft(drawn, `${theme} over ${level}: ${name} draws outside`).toBeLessThanOrEqual(1)
         }
-        // Along the top, away from the corners: the outermost device pixel of the rim.
-        const rim = rgb(x + width / 2, y + 0.25),
-          outside = rgb(x + width / 2, y - 3)
-        found[theme] = { rim, outside }
-        // 4: blue (inside), not orange (outside).
-        expect(rim[2] - rim[0], `${theme}: a blue rim`).toBeGreaterThan(0)
-        expect(outside[0] - outside[2], `${theme}: orange outside`).toBeGreaterThan(0)
       }
-      evidence.colour = found
+      // 4: over mid grey, the rim against the face.
+      const grey = await scene(page, theme, 'gray', 2)
+      const black = await scene(page, theme, 'dark', 2)
+      for (const name of docked) {
+        const { x, y, width, height } = grey.glass[name]!
+        const face = luminance(grey.image, x + width / 2, y + height / 2)
+        const at = (px: number, py: number) => luminance(grey.image, px, py) / face
+        const rim = {
+          top: at(x + width / 2, y + 0.25),
+          bottom: at(x + width / 2, y + height - 0.25),
+          side: at(x + 0.25, y + height / 2),
+        }
+        const darkFace = luminance(black.image, x + width / 2, y + height / 2)
+        const lift = luminance(black.image, x + width / 2, y + 0.25) - darkFace
+        found[`rim ${name}`] = { ...rim, lift, darkFace }
+        expect.soft(rim.top, `${theme} ${name}: the top`).toBeGreaterThanOrEqual(1.15)
+        expect.soft(rim.bottom, `${theme} ${name}: the bottom`).toBeGreaterThanOrEqual(1.1)
+        expect
+          .soft(rim.top, `${theme} ${name}: the top over the bottom`)
+          .toBeGreaterThan(rim.bottom)
+        expect.soft(rim.side, `${theme} ${name}: a side`).toBeLessThan(0.95)
+        expect
+          .soft(lift, `${theme} ${name}: multiplied, not white added`)
+          .toBeLessThanOrEqual(0.35 * darkFace)
+      }
+      // 4: the rim keeps the colour the lens brings from inside.
+      const band = await scene(page, theme, 'band', 2)
+      const { x, y, width } = band.glass.composer!
+      const k =
+        (Math.floor((y + 0.25) * 2) * band.image.width + Math.floor((x + width / 2) * 2)) * 4
+      const rim = [band.image.rgba[k]!, band.image.rgba[k + 1]!, band.image.rgba[k + 2]!]
+      found.colour = rim
+      expect.soft(rim[2]! - rim[0]!, `${theme}: a blue rim`).toBeGreaterThan(0)
+      evidence[`dock-${theme}`] = found
     })
 
-    test('the band mirrors what lies just inside and parts no colours', async ({ page }) => {
-      // 5: a ramp, dark at the top: deeper is brighter.
-      const ramp = await scene(page, 'light', 'ramp', 2)
-      const { x, y, width } = ramp.glass.composer!
-      const at = (d: number) => luminance(ramp.image, x + width / 2, y + d)
-      const profile = [0.25, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12].map((d) => [d, at(d)] as const)
-      evidence.ramp = profile
-      expect(at(0.25) - at(4), 'the rim shows a deeper sample than 4pt in').toBeGreaterThanOrEqual(
-        8,
+  test("the band mirrors what lies just inside, to the Dock's depth, and parts no colours", async ({
+    page,
+  }) => {
+    // 3: a ramp, dark at the top: deeper is brighter.
+    const ramp = await scene(page, 'light', 'ramp', 2)
+    const { x, y, width } = ramp.glass.composer!
+    const at = (d: number) => luminance(ramp.image, x + width / 2, y + d)
+    const profile = [0.25, 1, 2, 3, 4, 6, 8, 10, 12, 13, 14, 16].map((d) => [d, at(d)] as const)
+    evidence.ramp = profile
+    expect(at(0.25) - at(6), 'the rim shows a deeper sample than 6pt in').toBeGreaterThanOrEqual(8)
+    expect(at(16), 'past the band the ramp resumes').toBeGreaterThan(at(13))
+    const spans = await page.locator('[data-name]').evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const id = getComputedStyle(node).backdropFilter.match(/#(yuki-glass-[^")]+)/)?.[1]
+        const map = id && document.getElementById(id)!.querySelector('feDisplacementMap')
+        return {
+          name: (node as HTMLElement).dataset.name!,
+          span: map ? Number(map.getAttribute('scale')) : 0,
+        }
+      }),
+    )
+    evidence.spans = spans
+    for (const { name, span } of spans.filter((item) => panes.includes(item.name)))
+      expect(span, `${name}: the map's full scale`).toBeCloseTo(
+        2 * 25.5 * (1 - Math.exp(-13 / 4)),
+        0,
       )
-      expect(at(12), 'past the fold the ramp resumes').toBeGreaterThan(at(7))
-      const spans = await page.locator('[data-name]').evaluateAll((nodes) =>
-        nodes.map((node) => {
-          const id = getComputedStyle(node).backdropFilter.match(/#(yuki-glass-[^")]+)/)?.[1]
-          const map = id && document.getElementById(id)!.querySelector('feDisplacementMap')
-          return {
-            name: (node as HTMLElement).dataset.name!,
-            span: map ? Number(map.getAttribute('scale')) : 0,
-          }
-        }),
-      )
-      evidence.spans = spans
-      for (const { name, span } of spans.filter((item) => panes.includes(item.name)))
-        expect(span, `${name}: the map's full scale`).toBeCloseTo(
-          2 * 21.1 * (1 - Math.exp(-7.5 / 2.62)),
-          0,
-        )
 
-      // 6: over a grey grid, no colour is parted in the band.
-      const { glass, image } = await scene(page, 'light', 'grid', 2)
-      const found: Record<string, number> = {}
-      for (const name of ['composer', 'card', 'folder']) {
-        const { x, y, width, height, radius } = glass[name]!
-        const chroma: number[] = []
-        for (let i = Math.floor(y * 2); i < (y + height) * 2; i++)
-          for (let j = Math.floor(x * 2); j < (x + width) * 2; j++) {
-            const px = (j + 0.5) / 2 - x - width / 2,
-              py = (i + 0.5) / 2 - y - height / 2
-            const qx = Math.abs(px) - width / 2 + radius,
-              qy = Math.abs(py) - height / 2 + radius
-            const distance =
-              Math.min(Math.max(qx, qy), 0) + Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - radius
-            if (distance > -1.5 || distance < -7.5) continue
-            const k = (i * image.width + j) * 4,
-              rgb = [image.rgba[k]!, image.rgba[k + 1]!, image.rgba[k + 2]!]
-            chroma.push(Math.max(...rgb) - Math.min(...rgb))
-          }
-        chroma.sort((a, b) => a - b)
-        found[name] = chroma[Math.floor(0.99 * chroma.length)]!
-      }
-      evidence.chroma = found
-      for (const [name, value] of Object.entries(found))
-        expect(value, `${name}: no parted colours`).toBeLessThanOrEqual(4)
-    })
+    // 5: over a grey grid, no colour is parted in the band.
+    const { glass, image } = await scene(page, 'light', 'grid', 2)
+    const found: Record<string, number> = {}
+    for (const name of ['composer', 'card', 'folder']) {
+      const { x, y, width, height, radius } = glass[name]!
+      const chroma: number[] = []
+      for (let i = Math.floor(y * 2); i < (y + height) * 2; i++)
+        for (let j = Math.floor(x * 2); j < (x + width) * 2; j++) {
+          const px = (j + 0.5) / 2 - x - width / 2,
+            py = (i + 0.5) / 2 - y - height / 2
+          const qx = Math.abs(px) - width / 2 + radius,
+            qy = Math.abs(py) - height / 2 + radius
+          const distance =
+            Math.min(Math.max(qx, qy), 0) + Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - radius
+          if (distance > -1.5 || distance < -13) continue
+          const k = (i * image.width + j) * 4,
+            rgb = [image.rgba[k]!, image.rgba[k + 1]!, image.rgba[k + 2]!]
+          chroma.push(Math.max(...rgb) - Math.min(...rgb))
+        }
+      chroma.sort((a, b) => a - b)
+      found[name] = chroma[Math.floor(0.99 * chroma.length)]!
+    }
+    evidence.chroma = found
+    for (const [name, value] of Object.entries(found))
+      expect(value, `${name}: no parted colours`).toBeLessThanOrEqual(4)
   })
 
   test.describe('bent over a grid', () => {
