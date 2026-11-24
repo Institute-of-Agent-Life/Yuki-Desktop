@@ -178,6 +178,34 @@
     repeating-linear-gradient(0deg, var(--grid-line) 0 1px, transparent 1px 24px),
     repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px 24px);
   --grid-line: rgb(20 30 50 / 0.14);
+  /* The patterns as the bubbles' frost blurs them (a Gaussian of 12px): blurred once, here, as
+     gradients, so no bubble filters its backdrop. A soft gradient is its own blur; a hard edge
+     becomes a ramp as steep as the blur's at it (σ√2π ≈ 30px wide); a 1px line spreads into a
+     band of the same ink; a 24px grid blurs into its average. */
+  --frost-ramp: 15px;
+  --frost-line: color-mix(in srgb, var(--lens-line) calc(100% / 15), transparent);
+  --backdrop-lens-frost:
+    linear-gradient(
+      132deg,
+      transparent calc(31% - var(--frost-ramp)),
+      var(--frost-line) calc(31% + 0.5px),
+      transparent calc(31% + var(--frost-ramp)) calc(66% - var(--frost-ramp)),
+      var(--frost-line) calc(66% + 0.5px),
+      transparent calc(66% + var(--frost-ramp))
+    ),
+    radial-gradient(
+      ellipse at 106% 120%,
+      color-mix(in srgb, var(--accent) 16%, transparent) calc(48.1% - var(--frost-ramp)),
+      transparent calc(48.1% + var(--frost-ramp))
+    ),
+    radial-gradient(
+      ellipse at -16% 70%,
+      color-mix(in srgb, var(--accent) 9%, transparent) calc(49.125% - var(--frost-ramp)),
+      transparent calc(49.125% + var(--frost-ramp))
+    );
+  --backdrop-grid-frost:
+    linear-gradient(var(--grid-frost) 0 0), linear-gradient(var(--grid-frost) 0 0);
+  --grid-frost: color-mix(in srgb, var(--grid-line) calc(100% / 24), transparent);
   --glass-calm: contrast(0.9) brightness(1.03);
   /* Frost: small things floating over content that need no lens (notices, a message's actions,
      hints). It holds no pane's own lens, so it is one value for the whole page. */
@@ -200,6 +228,28 @@
  * rounds at 8px and Windows 10 and most Linux window managers not at all: there the sidebar lies
  * flush, divided by a hairline, as an inset pane would need a corner of 2px or less.
  */
+/* The conversation's backdrop (Conversation.module.css), and the same blurred for its bubbles'
+   frost (ConversationGlass.module.css); a picture of one's own is drawn there. */
+:root {
+  --backdrop-shown: var(--backdrop-lens);
+  --backdrop-frost: var(--backdrop-lens-frost);
+}
+:root[data-backdrop='plain'] {
+  --backdrop-shown: var(--backdrop-plain);
+  --backdrop-frost: none;
+}
+:root[data-backdrop='aurora'] {
+  --backdrop-shown: var(--backdrop-aurora);
+  --backdrop-frost: var(--backdrop-aurora);
+}
+:root[data-backdrop='sunset'] {
+  --backdrop-shown: var(--backdrop-sunset);
+  --backdrop-frost: var(--backdrop-sunset);
+}
+:root[data-backdrop='grid'] {
+  --backdrop-shown: var(--backdrop-grid);
+  --backdrop-frost: var(--backdrop-grid-frost);
+}
 :root[data-platform='darwin'] {
   --r-window: 16px;
   --inset: 6px;

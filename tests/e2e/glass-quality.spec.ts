@@ -28,8 +28,9 @@ test('resting bubbles are shaped by their radius, and lit glass has its light at
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await openConversation(page)
   const resting = page.locator('article[data-event-id="34"] [data-surface="bubble"]')
-  // Q1 of the 液态玻璃组件统一 task book: a bubble is content, a frosted, tinted pane with no lens.
-  await expect(resting).toHaveCSS('backdrop-filter', 'blur(12px)')
+  // Q1 of the 液态玻璃组件统一 task book: a bubble is content, a frosted, tinted pane with no lens
+  // (frosted by the backdrop blurred once: frosted-bubbles).
+  await expect(resting).toHaveCSS('backdrop-filter', 'none')
   // 1: at rest the radius alone shapes the glass, never a clip-path with its square backdrop.
   const shape = await resting.evaluate((surface) => ({
     clip: getComputedStyle(surface).clipPath,

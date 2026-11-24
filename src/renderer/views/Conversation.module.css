@@ -4,19 +4,10 @@
   flex: 1;
   min-height: 0;
   position: relative;
-  background: var(--backdrop-lens);
-}
-:global([data-backdrop='plain']) .chat {
-  background: var(--backdrop-plain);
-}
-:global([data-backdrop='aurora']) .chat {
-  background: var(--backdrop-aurora);
-}
-:global([data-backdrop='sunset']) .chat {
-  background: var(--backdrop-sunset);
-}
-:global([data-backdrop='grid']) .chat {
-  background: var(--backdrop-grid);
+  /* Laid out on the window, as the bubbles' blurred copy of it is: the two line up wherever the
+     conversation has scrolled. */
+  background-image: var(--backdrop-shown);
+  background-attachment: fixed;
 }
 /* A picture of one's own (materials/backdrop.ts, App.tsx): a layer of its own behind everything
    in the chat, the page's colour laid over it as much as it is dimmed; a blurred picture is a

@@ -108,9 +108,12 @@ export function shownBackdrop(backdrop: CustomBackdrop, theme: 'light' | 'dark')
 }
 
 /** The page's variables for a custom backdrop (Conversation.module.css draws them). */
+const shownFile = (backdrop: CustomBackdrop, id: string) =>
+  backdrop.blur ? `${id}-blur${backdrop.blur}.webp` : `${id}.webp`
+
 export function backdropVariables(backdrop: CustomBackdrop, theme: 'light' | 'dark') {
   const shown = shownBackdrop(backdrop, theme)
-  const file = backdrop.blur ? `${shown.id}-blur${backdrop.blur}.webp` : `${shown.id}.webp`
+  const file = shownFile(backdrop, shown.id)
   return {
     '--backdrop-image': `url("${backdropUrl(file)}")`,
     '--backdrop-size': { fill: 'cover', fit: 'contain', tile: 'auto' }[backdrop.fit],
@@ -166,7 +169,9 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
   let table: BackdropTable | undefined,
     size: { width: number; height: number } | undefined,
     frame = 0,
-    live = true
+    live = true,
+    frosted = 0,
+    frostUrl = ''
   const panes = new Set<HTMLElement>()
   const clear = (pane: HTMLElement) => {
     for (const name of ['--mat-pane', '--mat-glass', '--glass-blur'])
@@ -245,9 +250,17 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
       }
     }
     const colour = (alpha: number) => `rgb(${tint.colour.join(' ')} / ${alpha.toFixed(3)})`
-    const content = alphaOver(chat.getBoundingClientRect(), 0, 1)
+    const content = alphaOver(chat.getBoundingClientRect(), 0, 1),
+      blur = 8 + 8 * content.spread
     main.style.setProperty('--content-tint', colour(content.alpha))
-    main.style.setProperty('--content-blur', `${8 + 8 * content.spread}px`)
+    main.style.setProperty('--content-blur', `${blur}px`)
+    // The bubbles' frost: the picture blurred once by the content's blur, as it is drawn.
+    main.style.setProperty('--backdrop-frost-size', `${drawn.width}px ${drawn.height}px`)
+    const radius = Math.round(blur / scale)
+    if (radius !== frosted) {
+      frosted = radius
+      void frost(radius)
+    }
     const current = new Set(
       main.querySelectorAll<HTMLElement>(
         '[data-glass="composer"][data-refracting], [data-glass="toolbar"][data-refracting]',
@@ -265,6 +278,36 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
       pane.style.setProperty('--glass-blur', `${tint.blur + 4 * spread}px`)
     }
   }
+  // The picture blurred by `radius` of its own pixels, made smaller first as far as the blur
+  // allows (what it removes is finer than any pixel it drops), so it is made in a few ms.
+  const frost = async (radius: number) => {
+    const reduce = Math.max(1, Math.floor(radius / 4)),
+      width = Math.max(1, Math.round(image.naturalWidth / reduce)),
+      height = Math.max(1, Math.round(image.naturalHeight / reduce))
+    // What lies past its edges, for the blur to reach: itself again when tiled, else its edges'
+    // colour (a stretched copy under it).
+    const margin = Math.ceil((3 * radius) / reduce),
+      around = new OffscreenCanvas(width + 2 * margin, height + 2 * margin),
+      drawing = around.getContext('2d')!
+    drawing.imageSmoothingQuality = 'high'
+    if (backdrop.fit === 'tile')
+      for (const dx of [-width, 0, width])
+        for (const dy of [-height, 0, height])
+          drawing.drawImage(image, margin + dx, margin + dy, width, height)
+    else {
+      drawing.drawImage(image, 0, 0, around.width, around.height)
+      drawing.drawImage(image, margin, margin, width, height)
+    }
+    const canvas = new OffscreenCanvas(width, height),
+      context = canvas.getContext('2d')!
+    context.filter = `blur(${radius / reduce}px)`
+    context.drawImage(around, -margin, -margin)
+    const url = URL.createObjectURL(await canvas.convertToBlob({ type: 'image/png' }))
+    if (!live || radius !== frosted) return URL.revokeObjectURL(url)
+    if (frostUrl) URL.revokeObjectURL(frostUrl)
+    frostUrl = url
+    main.style.setProperty('--backdrop-frost-image', `url("${url}")`)
+  }
   const schedule = () => {
     frame ||= requestAnimationFrame(update)
   }
@@ -279,7 +322,7 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
     schedule()
   })
   const image = new Image()
-  image.src = backdropUrl(`${shown.id}.webp`)
+  image.src = backdropUrl(shownFile(backdrop, shown.id))
   void image.decode().then(() => {
     size = { width: image.naturalWidth, height: image.naturalHeight }
     schedule()
@@ -293,6 +336,9 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
     chat.style.removeProperty('--backdrop-fill')
     main.style.removeProperty('--content-tint')
     main.style.removeProperty('--content-blur')
+    main.style.removeProperty('--backdrop-frost-size')
+    main.style.removeProperty('--backdrop-frost-image')
+    if (frostUrl) URL.revokeObjectURL(frostUrl)
     for (const pane of panes) clear(pane)
   }
 }

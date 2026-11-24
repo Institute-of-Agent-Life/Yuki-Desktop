@@ -141,12 +141,12 @@ test('every floating conversation pane is lit liquid glass', async ({ page }) =>
   const composer = page.locator('[data-region="composer"]')
   await expectLiquidGlass('composer', composer)
   // Q1 of the 液态玻璃组件统一 task book: bubbles and work cards are content, with no lens: only
-  // frosted.
+  // frosted, by the backdrop blurred once (frosted-bubbles), not a filter of their own.
   for (const content of [
     page.locator('article[data-event-id="34"] [data-surface="bubble"]'),
     page.locator('[data-surface="work-card"]').first(),
   ])
-    await expect(content).toHaveCSS('backdrop-filter', 'blur(12px)')
+    await expect(content).toHaveCSS('backdrop-filter', 'none')
   await page.screenshot({ path: test.info().outputPath('conversation-light.png') })
   await page.evaluate(() => (document.documentElement.dataset.theme = 'dark'))
   await expectLiquidGlass('composer-dark', composer)
@@ -272,10 +272,9 @@ test('no pane disperses, and blue buttons are tinted glass lit like the rest', a
   evidence.bends = { composer: await bends(composer) }
   // The bevel's bend alone.
   expect(await bends(composer)).toEqual({ bends: 1, colours: 0 })
-  // Content bends nothing at all (Q1 of the 液态玻璃组件统一 task book): it is only frosted.
-  expect(await bubble.evaluate((element) => getComputedStyle(element).backdropFilter)).toMatch(
-    /^blur\([\d.]+px\)$/,
-  )
+  // Content bends nothing at all (Q1 of the 液态玻璃组件统一 task book): it is only frosted, by the
+  // backdrop blurred once, with no filter of its own.
+  expect(await bubble.evaluate((element) => getComputedStyle(element).backdropFilter)).toBe('none')
 
   await page.goto(gallery)
   const primary = page.getByRole('button', { name: '開啟對話框', exact: true })

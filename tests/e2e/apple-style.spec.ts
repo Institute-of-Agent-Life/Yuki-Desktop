@@ -5,6 +5,7 @@ import { activeCharacterName } from '../fixtures/active-character'
 import { contentSize } from '../fixtures/visual'
 import { legible } from '../fixtures/legibility'
 import { closeUps } from '../fixtures/edges'
+import { frost } from '../fixtures/frost'
 import { picture } from '../fixtures/pictures'
 
 /*
@@ -348,6 +349,12 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
             lift: getComputedStyle(surface.parentElement!).boxShadow,
             filter: style.backdropFilter,
             fill: style.backgroundColor,
+            // The tint, laid over the backdrop blurred once (frosted-bubbles measures the frost).
+            tint:
+              style.backgroundImage.match(
+                /^linear-gradient\((rgba?\([^)]*\)|color\([^)]*\))/,
+              )?.[1] ?? null,
+            attachment: style.backgroundAttachment,
           }
         }),
     )
@@ -359,7 +366,7 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
       document.documentElement.matches('[data-opaque="true"], [data-gpu-compositing="false"]'),
     )
     // The fourth component of rgb()/rgba()/color(), 1 when there is none.
-    const alphaOf = (colour: string) => Number(colour.match(/[\d.]+/g)![3] ?? 1)
+    const alphaOf = (colour: string) => Number(colour.match(/[\d.]+/g)?.[3] ?? 1)
     for (const bubble of bubbles) {
       expect.soft(bubble.glass, 'a bubble is content, not glass').toBeNull()
       expect.soft(bubble.rim, 'no lit rim').toBe('none')
@@ -369,12 +376,13 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
         expect.soft(bubble.filter, 'opaque: no blur').toBe('none')
         expect.soft(alphaOf(bubble.fill), 'opaque: a solid fill').toBe(1)
       } else {
-        expect.soft(bubble.filter, 'frosted').toMatch(/blur\(/)
-        expect.soft(alphaOf(bubble.fill), 'a translucent tint').toBeLessThan(1)
+        expect.soft(bubble.filter, 'frosted without a filter of its own').toBe('none')
+        expect.soft(bubble.attachment, 'the blurred backdrop, laid on the window').toMatch(/fixed/)
+        expect.soft(alphaOf(bubble.tint ?? ''), 'a translucent tint').toBeLessThan(1)
       }
     }
-    const ownFill = bubbles.find((bubble) => bubble.own)?.fill,
-      otherFill = bubbles.find((bubble) => !bubble.own)?.fill
+    const ownFill = bubbles.find((bubble) => bubble.own)?.[opaque ? 'fill' : 'tint'],
+      otherFill = bubbles.find((bubble) => !bubble.own)?.[opaque ? 'fill' : 'tint']
     expect.soft(ownFill, "one's own tint is the accent's, not the neutral one").not.toBe(otherFill)
     await page.evaluate(() => (document.documentElement.dataset.backdrop = 'plain'))
     const preferences = await page.evaluate(async () => (await window.yuki.boot()).preferences)
@@ -565,6 +573,47 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
       await expect(reply).toBeVisible()
       await shot(page, `chat-custom-${theme}`)
       await closeUps(page, page.locator('[data-region="composer"]'), `composer-custom-${theme}`)
+    }
+    // The bubbles' frost over the picture: the picture blurred once by the content's blur, lined
+    // up with it, at the end of the conversation and scrolled. Measured with the picture at its own
+    // pixels (tiled), so that it is compared with the picture blurred, not with a resampling of
+    // its fine hatching (which a smaller drawing aliases). The conversation fades at its edges, so
+    // each bubble's tint is taken from what it shows: what is measured is the blur and its place.
+    if (!opaque) {
+      const main = page.locator('[data-region="main"]'),
+        log = page.getByRole('log').first()
+      const frostImage = () =>
+        main.evaluate((main) => main.style.getPropertyValue('--backdrop-frost-image'))
+      for (const theme of ['dark', 'light'] as const) {
+        const previous = await frostImage()
+        await page.keyboard.press('ControlOrMeta+,')
+        await appearance(page, theme)
+        if (theme === 'dark')
+          await page
+            .getByRole('radiogroup', { name: '顯示方式', exact: true })
+            .getByRole('radio', { name: '並排', exact: true })
+            .click()
+        await page.getByRole('button', { name: '返回', exact: true }).click()
+        await expect(reply).toBeVisible()
+        await expect.poll(frostImage).not.toBe('')
+        await expect.poll(frostImage).not.toBe(previous)
+        const blur = await main.evaluate((main) =>
+          parseFloat(main.style.getPropertyValue('--content-blur')),
+        )
+        for (const where of ['end', 'scrolled']) {
+          if (where === 'scrolled') await log.evaluate((log) => (log.scrollTop -= 97.5))
+          const result = await frost(page, blur, 'fitted')
+          evidence[`frost custom ${theme} ${where}`] = { blur, ...result }
+          const name = `custom ${theme} ${where}`
+          expect.soft(result.bubbles, `${name}: bubbles measured`).toBeGreaterThan(0)
+          // With each tint fitted, only the blur and its place are left: a frost a few pixels out
+          // of place leaves about 3 at the 99th percentile, a frost not blurred far more.
+          expect.soft(result.mean, `${name}: frost mean`).toBeLessThanOrEqual(1)
+          expect.soft(result.p99, `${name}: frost p99`).toBeLessThanOrEqual(3)
+        }
+        await shot(page, `chat-custom-tiled-${theme}`)
+        await log.evaluate((log) => (log.scrollTop = log.scrollHeight))
+      }
     }
     await page.keyboard.press('ControlOrMeta+,')
     await appearance(page, 'light')
