@@ -176,6 +176,13 @@ test('a picture of ones own lies behind every page, seen through its glass, its 
     const segment = await legible(page, chosen)
     evidence['works forest'] = { segment }
     expect.soft(segment, 'the chosen segment over a dark page').toBeGreaterThanOrEqual(4.5)
+    // And the settings' menus on the dark page's glass.
+    await page.keyboard.press('ControlOrMeta+,')
+    await page.getByRole('tab', { name: '一般', exact: true }).click()
+    await page.waitForTimeout(1200)
+    const menu = await legible(page, page.locator('#settings-panel select').first())
+    ;(evidence['works forest'] as Record<string, unknown>).menu = menu
+    expect.soft(menu, 'a menu over a dark page').toBeGreaterThanOrEqual(4.5)
     success = true
   } finally {
     await app.close()

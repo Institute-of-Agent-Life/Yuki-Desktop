@@ -91,6 +91,7 @@
   --track: rgba(20, 34, 64, 0.14);
   --toggle-off: rgba(20, 34, 64, 0.16);
   --seg-thumb: #ffffff;
+  --field: rgb(255 255 255 / 0.55);
 }
 [data-appearance='dark'] {
   color-scheme: dark;
@@ -108,6 +109,7 @@
   --track: rgba(255, 255, 255, 0.16);
   --toggle-off: rgba(255, 255, 255, 0.18);
   --seg-thumb: rgba(255, 255, 255, 0.16);
+  --field: rgb(255 255 255 / 0.07);
 }
 /* Over a picture of one's own, every page lies on it (App.module.css): no page colour of its own,
    but without transparency, where pages are solid and the picture is not shown. */

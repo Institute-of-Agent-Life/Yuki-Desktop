@@ -15,7 +15,7 @@ export const contrast = (a: number[], b: number[]) => {
 
 /**
  * A text's colour against everything shown behind its glyphs, the text hidden: the worst 1% of
- * the pixels in the box of its glyphs (a text field's text is its own box). A translucent text's
+ * the pixels in the box of its glyphs (a text field's or a menu button's text is its own box). A translucent text's
  * colour is what it gives over each of those pixels (its alpha laid over the pixel), not its
  * colour alone.
  */
@@ -35,7 +35,9 @@ export async function legible(page: Page, text: Locator) {
     const range = document.createRange()
     range.selectNodeContents(element)
     const { x, y, width, height } = (
-      element instanceof HTMLTextAreaElement ? element : range
+      element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement
+        ? element
+        : range
     ).getBoundingClientRect()
     return { x, y, width, height }
   })
