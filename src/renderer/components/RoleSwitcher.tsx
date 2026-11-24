@@ -169,7 +169,7 @@ export function RoleSwitcher({
         <div id={description} className={styles.triggerContent}>
           {trigger}
         </div>
-        <ChevronsUpDown size={14} strokeWidth={1.5} aria-hidden="true" />
+        <ChevronsUpDown size={14} aria-hidden="true" />
       </button>
       {open && active && (
         <GlassMenu

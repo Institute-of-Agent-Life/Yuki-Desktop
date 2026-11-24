@@ -1107,7 +1107,7 @@ export function Conversation({
                     })
                   }
                 >
-                  <MessageCircle size={16} strokeWidth={1.5} />
+                  <MessageCircle size={16} />
                   {t('conversation:privateChat', {
                     platform: item.platform.toUpperCase(),
                     name: item.display_name,

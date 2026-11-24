@@ -77,14 +77,14 @@ export function Composer({
           disabled={!onAttach}
           onClick={onAttach}
         >
-          <Plus size={18} strokeWidth={1.6} />
+          <Plus size={18} />
         </IconButton>
         <IconButton
           label={t('conversation:composer.voice')}
           disabled={!onRecord}
           onClick={onRecord}
         >
-          <Mic size={18} strokeWidth={1.6} />
+          <Mic size={18} />
         </IconButton>
         <textarea
           rows={1}
@@ -147,7 +147,7 @@ export function Composer({
           disabled={sending || blocked || (!normalizeMessageText(draft) && !hasContent)}
           onClick={() => void submit()}
         >
-          <ArrowUp size={18} strokeWidth={1.6} />
+          <ArrowUp size={18} />
         </IconButton>
       </div>
       <p className={styles.composerError} id={feedbackId} aria-live="polite">

@@ -241,7 +241,7 @@ export function Workspace(props: Props) {
         }
         onClick={() => selectView('chat')}
       >
-        <MessageCircle size={16} strokeWidth={1.5} />
+        <MessageCircle size={16} />
         {t('workspace:view.chat')}
       </button>
       {props.entries}
@@ -253,7 +253,7 @@ export function Workspace(props: Props) {
           aria-current={selectedView === view ? 'page' : undefined}
           onClick={() => selectView(view)}
         >
-          <Icon size={16} strokeWidth={1.5} />
+          <Icon size={16} />
           {view === 'computer'
             ? t('workspace:computerOf', { name: props.name })
             : t(`workspace:view.${view}`)}
@@ -265,7 +265,7 @@ export function Workspace(props: Props) {
         aria-current={selectedView === 'about' ? 'page' : undefined}
         onClick={() => selectView('about')}
       >
-        <Snowflake size={16} strokeWidth={1.5} />
+        <Snowflake size={16} />
         {t('workspace:aboutOf', { name: props.name })}
       </button>
       <button
@@ -277,7 +277,7 @@ export function Workspace(props: Props) {
           })
         }}
       >
-        <Settings2 size={16} strokeWidth={1.5} />
+        <Settings2 size={16} />
         {t('workspace:view.settings')}
       </button>
     </>
@@ -371,7 +371,7 @@ export function Workspace(props: Props) {
               aria-expanded={!focusMode && sidebar}
               onClick={toggleSidebar}
             >
-              <PanelLeft size={16} strokeWidth={1.5} />
+              <PanelLeft size={16} />
             </IconButton>
           </Capsule>
           {props.toolbar ?? (
@@ -391,7 +391,7 @@ export function Workspace(props: Props) {
                   label={t('workspace:search')}
                   onClick={() => window.dispatchEvent(new Event('yuki:search'))}
                 >
-                  <Search size={16} strokeWidth={1.5} />
+                  <Search size={16} />
                 </IconButton>
                 <IconButton
                   label={t('workspace:inspector')}
@@ -399,7 +399,7 @@ export function Workspace(props: Props) {
                   aria-expanded={inspector || focusMode}
                   onClick={toggleInspector}
                 >
-                  <PanelRight size={16} strokeWidth={1.5} />
+                  <PanelRight size={16} />
                 </IconButton>
               </Capsule>
             </>
@@ -432,7 +432,7 @@ export function Workspace(props: Props) {
                   aria-label={t('workspace:closeInspector')}
                   onClick={closeInspector}
                 >
-                  <ArrowLeft size={16} strokeWidth={1.5} />
+                  <ArrowLeft size={16} />
                   {t('common:action.back')}
                 </Button>
               )}
@@ -454,14 +454,10 @@ export function Workspace(props: Props) {
                     }
                     onClick={() => state.toggle('focusMode')}
                   >
-                    {focusMode ? (
-                      <Minimize2 size={16} strokeWidth={1.5} />
-                    ) : (
-                      <Maximize2 size={16} strokeWidth={1.5} />
-                    )}
+                    {focusMode ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                   </IconButton>
                   <IconButton label={t('workspace:closeInspector')} onClick={closeInspector}>
-                    <X size={16} strokeWidth={1.5} />
+                    <X size={16} />
                   </IconButton>
                 </>
               )}

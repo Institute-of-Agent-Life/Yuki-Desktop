@@ -209,7 +209,7 @@ export function CommandPalette({
                         onMouseMove={() => setSelected(item.id)}
                         onClick={(event) => void execute(item, event.metaKey || event.ctrlKey)}
                       >
-                        <Icon size={14} strokeWidth={1.5} />
+                        <Icon size={14} />
                         <span className={styles.label}>
                           <span className={styles.title}>{item.title}</span>
                           {item.detail && <span className={styles.detail}>{item.detail}</span>}

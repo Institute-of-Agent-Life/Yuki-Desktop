@@ -80,7 +80,6 @@ export function StepRow({
     <div className={styles.step}>
       <Icon
         size={14}
-        strokeWidth={1.4}
         color={`var(--status-${status})`}
         fill={status === 'running' ? `var(--status-${status})` : 'none'}
         role="img"
@@ -158,7 +157,7 @@ export function FileRow({
       title={title}
       aria-current={selected ? 'true' : undefined}
     >
-      <File size={20} strokeWidth={1.5} />
+      <File size={20} />
       <span className={styles.fileText}>
         <FileName name={name} />
         <small title={`${identity} · ${detail}`}>

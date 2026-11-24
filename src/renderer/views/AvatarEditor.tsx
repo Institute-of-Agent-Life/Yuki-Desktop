@@ -384,7 +384,7 @@ export function AvatarEditor({
                 </>
               ) : (
                 <div className={styles.choose}>
-                  <ImagePlus size={32} strokeWidth={1.5} />
+                  <ImagePlus size={32} />
                   <span>{t('avatar:chooseOrDrop')}</span>
                   <small>{t('avatar:pasteHint')}</small>
                 </div>

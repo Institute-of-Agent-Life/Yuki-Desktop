@@ -317,7 +317,7 @@ export function Computer({
         />
       ) : (
         <div className={styles.resting}>
-          {state.display === 'starting' ? <Spinner /> : <Moon size={40} strokeWidth={1} />}
+          {state.display === 'starting' ? <Spinner /> : <Moon size={40} strokeWidth={1.5} />}
           <h3>
             {state.display === 'starting'
               ? t('computer:state.starting')
@@ -647,7 +647,7 @@ function RemoteScreen({
       />
       {!connected && (
         <div className={styles.connecting}>
-          <Monitor size={32} strokeWidth={1} />
+          <Monitor size={32} strokeWidth={1.5} />
           <span>{problem || t('computer:connectingScreen')}</span>
           <IconButton
             label={t('computer:reconnectScreen')}

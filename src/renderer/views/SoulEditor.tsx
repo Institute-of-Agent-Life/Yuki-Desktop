@@ -352,7 +352,7 @@ export function SoulEditor({
             }
           }}
         >
-          <Info size={16} strokeWidth={1.5} aria-hidden="true" />
+          <Info size={16} aria-hidden="true" />
         </Button>
         <span id={hintId} role="tooltip" className={styles.hintText}>
           {effectExplanation} {cacheExplanation}
