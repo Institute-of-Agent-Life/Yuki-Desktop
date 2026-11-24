@@ -55,7 +55,13 @@ async function themed(app: ElectronApplication, page: Page, theme: 'light' | 'da
   await page.evaluate((theme) => window.yuki.preferences({ theme }), theme)
   await page.reload()
   await expect(page.locator(`html[data-theme="${theme}"]`)).toBeAttached()
-  await contentSize(app, page, 1100, 760)
+  // A native window within the screen's work area (emulating a larger one does not survive the
+  // reload, and the composer would lie below a small screen).
+  const area = await app.evaluate(
+    ({ BrowserWindow, screen }) =>
+      screen.getDisplayMatching(BrowserWindow.getAllWindows()[0]!.getBounds()).workArea,
+  )
+  await contentSize(app, page, Math.min(1100, area.width), Math.min(760, area.height - 40))
 }
 async function appearance(page: Page, theme: 'light' | 'dark') {
   await page.getByRole('tab', { name: '外觀', exact: true }).click()
@@ -347,20 +353,25 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
     )
     evidence.bubbles = bubbles
     expect.soft(bubbles.length).toBeGreaterThan(0)
-    const alphaOf = (colour: string) =>
-      Number(
-        colour
-          .match(/\/\s*([\d.]+)\)$|,\s*([\d.]+)\)$/)
-          ?.slice(1)
-          .find(Boolean) ?? 1,
-      )
+    // Without transparency (the system's Reduce Transparency, as on CI's Macs) or without GPU
+    // compositing (CI's Linux and Windows) the bubbles are solid.
+    const opaque = await page.evaluate(() =>
+      document.documentElement.matches('[data-opaque="true"], [data-gpu-compositing="false"]'),
+    )
+    // The fourth component of rgb()/rgba()/color(), 1 when there is none.
+    const alphaOf = (colour: string) => Number(colour.match(/[\d.]+/g)![3] ?? 1)
     for (const bubble of bubbles) {
       expect.soft(bubble.glass, 'a bubble is content, not glass').toBeNull()
       expect.soft(bubble.rim, 'no lit rim').toBe('none')
       expect.soft(bubble.lift, 'no shadow').toBe('none')
-      expect.soft(bubble.filter, 'frosted').toMatch(/blur\(/)
       expect.soft(bubble.filter, 'no lens').not.toMatch(/yuki-glass-/)
-      expect.soft(alphaOf(bubble.fill), 'a translucent tint').toBeLessThan(1)
+      if (opaque) {
+        expect.soft(bubble.filter, 'opaque: no blur').toBe('none')
+        expect.soft(alphaOf(bubble.fill), 'opaque: a solid fill').toBe(1)
+      } else {
+        expect.soft(bubble.filter, 'frosted').toMatch(/blur\(/)
+        expect.soft(alphaOf(bubble.fill), 'a translucent tint').toBeLessThan(1)
+      }
     }
     const ownFill = bubbles.find((bubble) => bubble.own)?.fill,
       otherFill = bubbles.find((bubble) => !bubble.own)?.fill
