@@ -383,9 +383,9 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  gap: var(--space-1);
-  height: 34px;
-  padding: 3px;
+  /* macOS 26's toolbar glass: 36pt tall, its buttons side by side within (a lone one a circle). */
+  height: 36px;
+  padding: 4px;
   border-radius: var(--r-capsule);
   background: var(--mat-glass);
   backdrop-filter: var(--glass-regular);

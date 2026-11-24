@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
+import { dockGlass } from '../fixtures/dock-glass'
 
 const regressions = 'http://127.0.0.1:4178/renderer-regressions.html'
 const gallery = 'http://127.0.0.1:4178/components.html'
@@ -12,85 +13,22 @@ test.afterAll(async () => {
   )
 })
 
-// Light map alpha along each straight edge, on the four corner arcs (45° round each corner, half a
-// pixel in) and 3px inside the top edge.
-function rimLight(pane: Locator) {
-  return pane.evaluate(async (element) => {
-    const style = getComputedStyle(element)
-    const image = new Image()
-    image.src = style.getPropertyValue('--rim').match(/url\("?(.*?)"?\)$/)![1]!
-    await image.decode()
-    const canvas = document.createElement('canvas')
-    canvas.width = image.width
-    canvas.height = image.height
-    const context = canvas.getContext('2d')!
-    context.drawImage(image, 0, 0)
-    // The map is a tile of the glass's corners (glass.ts): its scale is a sliced side's slice over
-    // its border, or the whole map over the glass where neither side is sliced.
-    const [sliceY, sliceX] = style.getPropertyValue('--rim-slice').trim().split(/\s+/).map(Number)
-    const [borderY, borderX] = style
-      .getPropertyValue('--rim-border')
-      .trim()
-      .split(/\s+/)
-      .map((value) => parseFloat(value))
-    const scale = sliceX
-      ? sliceX / borderX!
-      : sliceY
-        ? sliceY / borderY!
-        : image.width / (element as HTMLElement).offsetWidth
-    const radius = Math.min(
-      parseFloat(style.borderTopLeftRadius),
-      (element as HTMLElement).offsetWidth / 2,
-      (element as HTMLElement).offsetHeight / 2,
-    )
-    const alpha = (x: number, y: number) =>
-      Math.max(
-        ...[-1, 0, 1].flatMap((dx) =>
-          [-1, 0, 1].map(
-            (dy) =>
-              context.getImageData(Math.round(x + dx), Math.round(y + dy), 1, 1).data[3]! / 255,
-          ),
-        ),
-      )
-    const along = (radius - (radius - 0.5) * Math.SQRT1_2) * scale
-    return {
-      top: alpha(image.width / 2, 1),
-      inside:
-        context.getImageData(Math.round(image.width / 2), Math.round(3 * scale) + 1, 1, 1)
-          .data[3]! / 255,
-      bottom: alpha(image.width / 2, image.height - 2),
-      left: alpha(1, image.height / 2),
-      right: alpha(image.width - 2, image.height / 2),
-      upperRight: alpha(image.width - along, along),
-      upperLeft: alpha(along, along),
-      lowerLeft: alpha(along, image.height - along),
-      lowerRight: alpha(image.width - along, image.height - along),
-    }
-  })
-}
-
-async function expectLiquidGlass(name: string, pane: Locator) {
+// The macOS Dock's glass (glass.ts, dock.ts): it bends once, its rim adds 52 levels at the top's
+// outermost pixel and 6 at 3pt, and a pane takes the Dock's colour (a held control stays clear).
+async function expectLiquidGlass(name: string, pane: Locator, docked = true) {
+  const theme = await pane.evaluate(() => document.documentElement.dataset.theme)
   // 1: refracting glass.
   await expect(pane).toHaveAttribute('data-refracting', 'true', { timeout: 5000 })
   // A pane growing out of a button is read once it has its own corners.
   await expect.poll(() => pane.evaluate((element) => element.getAnimations().length)).toBe(0)
-  const filter = await pane.evaluate((element) => getComputedStyle(element).backdropFilter)
-  expect(filter).toMatch(/url\(/)
-  // 3–4, as revised by the iOS 26 measurement (glass.ts `lights`): lit from the upper left: the
-  // upper-left and lower-right corners brightest, the sides at about half of them, the upper-right
-  // and lower-left dark.
-  const rim = await rimLight(pane)
-  evidence[name] = { filter, rim }
-  // (The arcs are read a pixel off the diagonal, where the light has begun to rise again.)
-  expect(rim.upperRight).toBeLessThan(rim.upperLeft * 0.3)
-  expect(rim.lowerLeft).toBeLessThan(rim.lowerRight * 0.3)
-  for (const side of [rim.top, rim.bottom, rim.left, rim.right]) {
-    // Dimmer than the brightest corner (about 0.6 of it on the top and bottom, 0.4 on the sides; a
-    // small held control's corner is read off its brightest pixel, so only the order is kept).
-    expect(side).toBeLessThan(Math.max(rim.upperLeft, rim.lowerRight))
-    expect(Math.abs(side - rim.top)).toBeLessThanOrEqual(0.06)
-  }
-  expect(rim.inside).toBeLessThan(rim.top * 0.4)
+  const glass = await dockGlass(pane)
+  evidence[name] = glass
+  expect(glass.backdrop).toMatch(/url\(/)
+  expect(glass.bends).toBe(1)
+  expect(glass.rim?.added).toBe(true)
+  expect(Math.abs(glass.rim!.edge - 52)).toBeLessThanOrEqual(2)
+  expect(Math.abs(glass.rim!.inside - 6)).toBeLessThanOrEqual(1)
+  expect(glass.gain).toBe(docked ? (theme === 'dark' ? 1.08 : 1.2) : 1)
 }
 
 // 2: transparency off turns every pane into solid material.
@@ -200,10 +138,10 @@ test('dialogs, the command palette and controls share the glass without long tas
     const box = (await control.boundingBox())!
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
     await page.mouse.down()
-    await expectLiquidGlass(kind, page.locator(`[data-glass="${kind}"]`).first())
+    await expectLiquidGlass(kind, page.locator(`[data-glass="${kind}"]`).first(), false)
     await page.mouse.up()
   }
-  // The slider's held thumb bends too, but draws its own rim (slider-v2.md), not the map's.
+  // The slider's held thumb bends too, but draws its own rim (slider-v2.md), none in the map.
   const slider = page.getByRole('slider').first(),
     thumb = slider.locator('[data-glass="slider"]'),
     box = (await thumb.boundingBox())!
@@ -213,9 +151,7 @@ test('dialogs, the command palette and controls share the glass without long tas
   expect(await thumb.evaluate((element) => getComputedStyle(element).backdropFilter)).toMatch(
     /^url\(/,
   )
-  expect(await thumb.evaluate((element) => getComputedStyle(element, '::after').display)).toBe(
-    'none',
-  )
+  expect((await dockGlass(thumb)).rim!.edge).toBe(0)
   await page.mouse.up()
 
   await page.goto(`${regressions}?case=palette`)
@@ -231,47 +167,39 @@ test('dialogs, the command palette and controls share the glass without long tas
   await page.screenshot({ path: test.info().outputPath('pairing.png') })
 })
 
-test('the floating macOS sidebar has a rim lit from the upper left; a flush one has none', async ({
+test("the floating macOS sidebar is the Dock's glass, untinted; a flush one is not glass", async ({
   page,
 }) => {
   await page.goto(`${regressions}?case=settings-transition`)
   const sidebar = page.locator('[data-glass="sidebar"]')
   await expect(sidebar).toBeVisible()
-  const rim = (platform: string) =>
+  const glass = (platform: string) =>
     sidebar.evaluate((element, platform) => {
       document.documentElement.dataset.platform = platform
-      const style = getComputedStyle(element, '::before')
-      return { display: style.display, image: style.backgroundImage }
+      const style = getComputedStyle(element)
+      return { filter: style.backdropFilter, fill: style.backgroundColor, shadow: style.boxShadow }
     }, platform)
-  // 9: the same light direction as every refracting pane; with no light map of its own the
-  // floating sidebar draws that rim, which refracting glass never does.
-  const floating = await rim('darwin')
-  expect(floating.display).toBe('block')
-  expect(floating.image).toMatch(/^linear-gradient\(154deg/)
+  // 9: on macOS it floats as the Dock's glass (a little blur, no tint, no shadow).
+  const floating = await glass('darwin')
+  expect(floating.filter).toMatch(/^blur\(2px\)/)
+  expect(floating.fill).toBe('rgba(0, 0, 0, 0)')
+  expect(floating.shadow).toBe('none')
   // On Windows and Linux the sidebar lies flush with the window, divided by a hairline.
-  expect((await rim('win32')).display).toBe('none')
+  expect((await glass('win32')).filter).toBe('none')
 })
 
 test('no pane disperses, and blue buttons are tinted glass lit like the rest', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 820 })
   await page.goto(`${regressions}?case=conversation-glass`)
   await expect(page.getByText('幫我整理一下這週的訪談筆記。', { exact: true })).toBeVisible()
-  // Dispersion cost a red and a blue bend on every frame; iOS 26 parts no colours (measured).
-  const bends = (pane: Locator) =>
-    pane.evaluate((element) => {
-      const id = getComputedStyle(element).backdropFilter.match(/url\("?#([^")]+)/)![1]!
-      const filter = document.getElementById(id)!
-      return {
-        bends: filter.querySelectorAll('feDisplacementMap').length,
-        colours: filter.querySelectorAll('feColorMatrix').length,
-      }
-    })
+  // Dispersion cost a red and a blue bend on every frame; the Dock parts no colours (measured).
   const composer = page.locator('[data-region="composer"]')
   await expect(composer).toHaveAttribute('data-refracting', 'true')
   const bubble = page.locator('article[data-event-id="34"] [data-surface="bubble"]')
-  evidence.bends = { composer: await bends(composer) }
+  const glass = await dockGlass(composer)
+  evidence.bends = { composer: glass }
   // The bevel's bend alone.
-  expect(await bends(composer)).toEqual({ bends: 1, colours: 0 })
+  expect(glass.bends).toBe(1)
   // Content bends nothing at all (Q1 of the 液态玻璃组件统一 task book): it is only frosted, by the
   // backdrop blurred once, with no filter of its own.
   expect(await bubble.evaluate((element) => getComputedStyle(element).backdropFilter)).toBe('none')

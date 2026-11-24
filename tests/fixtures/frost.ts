@@ -36,7 +36,7 @@ async function shot(page: Page) {
   return (await page.screenshot({ animations: 'disabled', caret: 'hide' })).toString('base64')
 }
 
-/** `radius`: the frost's blur in CSS pixels (12 over a pattern; `--content-blur` over a picture). */
+/** `radius`: the frost's blur in CSS pixels (the glass's, 2: `--glass-blur`). */
 export async function frost(
   page: Page,
   radius: number,

@@ -33,9 +33,10 @@ test.afterAll(async () => {
   )
 })
 
+// The macOS Dock's glass (materials/dock.ts): a little blur, and no tint of its own.
 const final = {
-  light: { blur: '3px', tint: 0.16, text: 0.24 },
-  dark: { blur: '3px', tint: 0.42, text: 0.74 },
+  light: { blur: '2px', tint: 0, text: 0 },
+  dark: { blur: '2px', tint: 0, text: 0 },
 } as const
 
 const alpha = (colour: string) => Number(colour.match(/rgba?\([^)]*?,\s*([\d.]+)\)$/)?.[1] ?? 1)
@@ -50,7 +51,6 @@ function readFilter(element: HTMLElement) {
     backdrop,
     refract: element.style.getPropertyValue('--refract'),
     background: getComputedStyle(element).backgroundColor,
-    rim: getComputedStyle(element, '::after').webkitMaskBoxImageSource,
     primitives: nodes.map((node) => ({
       name: node.localName,
       result: node.getAttribute('result'),
@@ -58,8 +58,10 @@ function readFilter(element: HTMLElement) {
       in2: node.getAttribute('in2'),
       operator: node.getAttribute('operator'),
       k1: node.getAttribute('k1'),
+      k3: Number(node.getAttribute('k3')),
+      k4: Number(node.getAttribute('k4')),
+      table: node.querySelector('feFuncR')?.getAttribute('tableValues') ?? null,
       scale: Number(node.getAttribute('scale')),
-      intercept: Number(node.querySelector('feFuncR')?.getAttribute('intercept') ?? 0),
       inputs: [...node.querySelectorAll('feMergeNode')].map((merge) => merge.getAttribute('in')),
     })),
     images: nodes
@@ -101,27 +103,28 @@ async function expectFinalGlass(
   const blur = sheet?.blur ?? final[theme].blur
   const filter: Filter = await pane.evaluate(readFilter)
   const look = final[theme]
-  // 1: blurred first, then bent, then lit.
+  // 1: blurred first, then bent, then given the Dock's colour, then lit.
   expect(filter.backdrop).toMatch(new RegExp(`^blur\\(${blur}\\) url\\(`))
   const primitives = filter.primitives
-  // 3: no dispersion: no colour matrix, and every bend reads its own map.
-  expect(primitives.filter((node) => node.name === 'feColorMatrix')).toEqual([])
+  // 3: no dispersion: one bend, reading the map put together from its across and down.
   const bends = primitives.filter((node) => node.name === 'feDisplacementMap')
-  expect(bends.length).toBeGreaterThanOrEqual(1)
-  expect(new Set(bends.map((node) => node.in2)).size).toBe(bends.length)
-  // 2: an even lift after the bend (about 20 levels), and the rim's light laid on top of it.
-  const lift = primitives.find((node) => node.name === 'feComponentTransfer')
-  expect(lift, 'lift').toBeTruthy()
-  expect(lift!.intercept * 255).toBeCloseTo(20, 0)
+  expect(bends.length).toBe(1)
+  expect(bends[0]!.in2).toBe('bevel')
+  // 2: the Dock's colour after the bend: each channel tone(Y) + g·(C − Y), the curve less g·Y in
+  // a table on the luminance; over grey 128 the tone gives 112.4 in dark (11 + 0.919·Y −
+  // 0.000992·Y²) and 137.4 in light (48.4 + 0.695·Y). Then the rim added to it.
+  const toned = primitives.find((node) => node.result === 'toned')!,
+    curve = primitives.find((node) => node.result === toned.in)!
+  const lifted = Number(curve.table!.split(' ')[128]) * 255 + toned.k4 * 255
+  expect(lifted + toned.k3 * 128).toBeCloseTo(theme === 'dark' ? 112.4 : 137.4, 0)
+  expect(toned.k3).toBe(theme === 'dark' ? 1.08 : 1.2)
   const rim = primitives.find(
-    (node) =>
-      node.name === 'feComposite' && node.operator === 'arithmetic' && node.in2 === lift!.result,
+    (node) => node.name === 'feComposite' && node.operator === 'arithmetic' && node.in2 === 'toned',
   )
-  expect(rim?.in, 'the rim laid on the lifted bend').toBe('rim')
-  // 4: the bevel's bend map is assembled from pieces painted at no less than 2x: each piece is
-  // at least twice its CSS size, except a strip one CSS pixel wide stretched along a straight edge.
-  const merge = primitives.find((node) => node.name === 'feMerge')!
-  const pieces = filter.images.filter((image) => merge.inputs.includes(image.result))
+  expect(rim?.in, 'the rim laid on the toned bend').toBe('rimGrey')
+  // 4: the maps are assembled from pieces painted at no less than 2x: each piece is at least twice
+  // its CSS size, except a strip one CSS pixel wide stretched along a straight edge.
+  const pieces = filter.images
   expect(pieces.length).toBeGreaterThan(0)
   const sizes = await imageSizes(
     page,
@@ -350,15 +353,14 @@ for (const compositing of ['gpu', 'software'] as const)
       const filter: Filter = await toolbar.evaluate(readFilter)
       evidence[`welcome-${compositing}`] = { status, filter }
       await page.screenshot({ path: test.info().outputPath(`welcome-${compositing}.png`) })
-      // Blur, tint and rim always; the bend only on the GPU.
+      // Blur and the Dock's colour always, no tint; the bend and rim only on the GPU.
       expect(filter.backdrop).toContain(`blur(${final[theme].blur})`)
       expect(alpha(filter.background)).toBeCloseTo(final[theme].tint, 2)
-      expect(filter.rim).toMatch(/^url\(/)
       // (The window's frost, where it is on, still ends every filter in its seal.)
-      if (bends) expect(filter.backdrop).toMatch(/url\("?#yuki-glass-/)
+      if (bends) expect(filter.backdrop).toMatch(/url\("?#yuki-glass-\d/)
       else {
         expect(filter.refract).toBe('')
-        expect(filter.backdrop).not.toContain('#yuki-glass-')
+        expect(filter.backdrop).toContain('#yuki-glass-tone')
       }
     } finally {
       await app.close()

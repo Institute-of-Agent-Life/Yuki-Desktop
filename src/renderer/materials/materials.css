@@ -18,6 +18,10 @@
   --glass-sheet: blur(32px) var(--refract, var(--glass-native)) var(--seal,);
   --glass-lens: blur(0.4px) var(--refract,) var(--seal,);
 }
+/* Increased contrast draws the glass's edge, which the Dock's glass otherwise shows by its rim. */
+:root[data-contrast='true'] [data-glass] {
+  box-shadow: 0 0 0 var(--line) var(--edge);
+}
 /*
  * Text on the Dock's glass, as the system draws it: the main text black or white; the quieter text
  * the glass's own colour, darkened (light: black at 0.4, as multiplying by 0.6) or lightened

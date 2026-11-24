@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
-import { readRim } from '../fixtures/rim'
+import { dockGlass } from '../fixtures/dock-glass'
 
 const evidence: Record<string, unknown> = {}
 test.afterAll(async () => {
@@ -42,72 +42,41 @@ test('resting bubbles are shaped by their radius, and lit glass has its light at
   expect(shape.clip).toBe('none')
   expect(shape.radius).toBe('16px')
   expect(shape.surface).toBe(shape.bubble)
-  // 2, as revised by the 液态玻璃组件统一 task book: the light is a slice drawn at the display's
-  // own pixels, so the rim stays smooth on Retina screens at any size.
+  // 2, as revised by the 液态玻璃组件统一 task book: the rim's map is drawn at the display's own
+  // pixels, so the rim stays smooth on Retina screens at any size.
   const lit = page.locator('[data-region="composer"]')
   await expect(lit).toHaveAttribute('data-refracting', 'true')
-  const size = await lit.evaluate((element: HTMLElement) => ({
-    width: element.offsetWidth,
-    height: element.offsetHeight,
-    ratio: devicePixelRatio,
-  }))
-  const pixel = 1 / size.ratio
-  const rim = await lit.evaluate(readRim, [
-    [size.width / 2, pixel],
-    [size.width / 2, 4 * pixel],
-    [size.width - 2 * pixel, size.height / 2],
-    [pixel, size.height / 2],
-    [size.width / 2, size.height - 2 * pixel],
-  ] as [number, number][])
-  evidence.restingLightMap = { size, rim }
-  for (const [axis, length] of [
-    [0, size.height],
-    [1, size.width],
-  ] as const)
-    if (rim.slice[axis]) expect(rim.slice[axis]! / rim.border[axis]!).toBe(size.ratio)
-    else expect(rim.image[1 - axis]).toBe(Math.round(length * size.ratio))
-  // 10, as revised by the iOS 26 measurement (glass.ts `lights`): lit from the upper left:
-  // brightest on the upper-left and lower-right arcs, none on the other two, about 0.6 of that
-  // along the top and bottom and 0.4 along the sides; no outline on top.
-  const radius = await lit.evaluate((element) =>
-    parseFloat(getComputedStyle(element).borderTopLeftRadius),
+  const resolution = await lit.evaluate(async (element) => {
+    const id = getComputedStyle(element).backdropFilter.match(/url\("?#(yuki-glass-[^")]+)/)![1]!
+    const pieces = [...document.getElementById(id)!.querySelectorAll('feImage')].filter((node) =>
+      node.getAttribute('result')!.startsWith('bevel-'),
+    )
+    const scales = await Promise.all(
+      pieces.map(async (piece) => {
+        const image = new Image()
+        image.src = piece.getAttribute('href')!
+        await image.decode()
+        // A piece stretched along a straight side is a CSS pixel long; across, at full scale.
+        return Math.max(
+          image.width / Number(piece.getAttribute('width')),
+          image.height / Number(piece.getAttribute('height')),
+        )
+      }),
+    )
+    return { ratio: devicePixelRatio, scales }
+  })
+  evidence.restingLightMap = resolution
+  for (const scale of resolution.scales) expect(scale).toBeGreaterThanOrEqual(resolution.ratio)
+  // 10, as revised by the Dock's measurement (dock.ts): the rim is added to what the tone gives,
+  // 52 levels at the top's outermost pixel and 6 at 3pt; no outline on top.
+  const glass = await dockGlass(lit)
+  evidence.restingLight = glass.rim
+  expect(glass.rim?.added).toBe(true)
+  expect(Math.abs(glass.rim!.edge - 52)).toBeLessThanOrEqual(2)
+  expect(Math.abs(glass.rim!.inside - 6)).toBeLessThanOrEqual(1)
+  expect(await lit.evaluate((surface) => getComputedStyle(surface, '::before').content)).toBe(
+    'none',
   )
-  const arc = (right: boolean, below: boolean): [number, number] => {
-    const along = radius - (radius - 0.5) * Math.SQRT1_2
-    return [right ? size.width - along : along, below ? size.height - along : along]
-  }
-  const arcs = await lit.evaluate(readRim, [
-    arc(true, false),
-    arc(false, false),
-    arc(false, true),
-    arc(true, true),
-  ])
-  const [top, inward, side, left, bottom] = rim.light
-  const [upperRight, upperLeft, lowerLeft, lowerRight] = arcs.light
-  const light = {
-    top: top!,
-    inward: inward!,
-    side: side!,
-    left: left!,
-    bottom: bottom!,
-    upperRight: upperRight!,
-    upperLeft: upperLeft!,
-    lowerLeft: lowerLeft!,
-    lowerRight: lowerRight!,
-    outline: await lit.evaluate((surface) => getComputedStyle(surface, '::before').backgroundImage),
-  }
-  evidence.restingLight = light
-  expect(light.upperLeft).toBeGreaterThanOrEqual(36)
-  expect(Math.abs(light.upperLeft - light.lowerRight)).toBeLessThanOrEqual(8)
-  expect(light.upperRight).toBeLessThan(light.upperLeft * 0.1)
-  expect(light.lowerLeft).toBeLessThan(light.lowerRight * 0.1)
-  expect(light.upperLeft).toBeGreaterThan(light.top)
-  expect(Math.abs(light.bottom - light.top)).toBeLessThanOrEqual(8)
-  expect(Math.abs(light.left - light.side)).toBeLessThanOrEqual(8)
-  expect(light.top).toBeGreaterThan(light.side)
-  // A line about a display pixel thick: three pixels in, its light is mostly gone.
-  expect(light.inward).toBeLessThan(light.top * 0.4)
-  expect(light.outline).toBe('none')
 
   // An entering reply reaches past its bubble only while it enters.
   await page.evaluate(() =>
@@ -134,32 +103,24 @@ test('floating panes blur before they bend, never disperse, and draw no ring', a
       scales: [...filter.querySelectorAll('feDisplacementMap')].map((map) =>
         Number(map.getAttribute('scale')),
       ),
-      colours: filter.querySelectorAll('feColorMatrix').length,
     }
   })
   evidence.composerBends = bends
-  // The bevel's bend alone (iOS 26 shows no wobble), and no colour is parted.
+  // The bevel's bend alone (the Dock shows no wobble), so no colour is parted.
   expect(bends.scales).toHaveLength(1)
-  expect(bends.colours).toBe(0)
-  // 3: the rim shapes the glass: no ring lies around it, light or dark (iOS 26 draws none);
-  // increased contrast draws its own edge instead.
+  // 3: the rim shapes the glass: no ring or shadow lies around it, light or dark (the Dock draws
+  // none); increased contrast draws its own edge instead.
   const edge = () =>
     composer.evaluate((element) => ({
       shadow: getComputedStyle(element).boxShadow,
       outline: `${getComputedStyle(element).outlineStyle} ${getComputedStyle(element).outlineColor}`,
     }))
   await page.evaluate(() => (document.documentElement.dataset.theme = 'light'))
-  expect(await edge()).toEqual({
-    shadow: expect.stringMatching(/^rgba\(0, 0, 0, 0\) 0px 0px 0px/),
-    outline: expect.stringMatching(/^none/),
-  })
+  expect(await edge()).toEqual({ shadow: 'none', outline: expect.stringMatching(/^none/) })
   await page.evaluate(() => (document.documentElement.dataset.theme = 'dark'))
-  expect(await edge()).toEqual({
-    shadow: expect.stringMatching(/^rgba\(0, 0, 0, 0\) 0px 0px 0px/),
-    outline: expect.stringMatching(/^none/),
-  })
+  expect(await edge()).toEqual({ shadow: 'none', outline: expect.stringMatching(/^none/) })
   await page.evaluate(() => (document.documentElement.dataset.contrast = 'true'))
-  expect((await edge()).shadow).not.toMatch(/^rgba\(0, 0, 0, 0\) 0px 0px 0px/)
+  expect((await edge()).shadow).not.toBe('none')
   await page.evaluate(() => (document.documentElement.dataset.theme = 'light'))
   expect((await edge()).outline).toMatch(/^none/)
 })
@@ -259,9 +220,8 @@ test('dark glass does not darken what lies behind it', async ({ page }) => {
     }, shot.toString('base64'))
   }
   const composer = page.locator('[data-region="composer"]')
-  // Over the page itself. Over a bright backdrop the final glass's text tint (0.74 of a dark
-  // blue-grey) darkens it on purpose, which keeps the composer's text legible
-  // (docs/reports/2026-11-23-liquid-glass §15).
+  // Over the page itself, which the Dock's dark tone (20 + 0.67·B) lifts; over a bright backdrop
+  // it darkens it, as the Dock's does (materials/dock.ts).
   for (const backdrop of ['plain']) {
     await page.evaluate((backdrop) => {
       document.documentElement.dataset.theme = 'dark'

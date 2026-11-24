@@ -1,6 +1,6 @@
 import type { BackdropTable, CustomBackdrop } from '../../shared/desktop'
 import { unwrap } from '../queries/client'
-import { dockMatrix } from './dock'
+import { dockColour } from './dock'
 
 /*
  * A picture of the person's own behind the conversation (docs/reports/2026-11-23-liquid-glass
@@ -333,22 +333,14 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
     context.filter = `blur(${radius / reduce}px)`
     context.drawImage(around, -margin, -margin)
     // The Dock's colour (dock.ts), as the glass's filter gives it.
-    const matrix = dockMatrix(theme, Number(document.documentElement.dataset.glassTint ?? 0.49))
-        .split(' ')
-        .map(Number),
+    const colour = dockColour(theme, Number(document.documentElement.dataset.glassTint ?? 0.49)),
       pixels = context.getImageData(0, 0, width, height),
       data = pixels.data
     for (let k = 0; k < data.length; k += 4) {
-      const red = data[k]! / 255,
-        green = data[k + 1]! / 255,
-        blue = data[k + 2]! / 255
-      for (let c = 0; c < 3; c++)
-        data[k + c] =
-          255 *
-          (matrix[c * 5]! * red +
-            matrix[c * 5 + 1]! * green +
-            matrix[c * 5 + 2]! * blue +
-            matrix[c * 5 + 4]!)
+      const [red, green, blue] = colour(data[k]!, data[k + 1]!, data[k + 2]!)
+      data[k] = red!
+      data[k + 1] = green!
+      data[k + 2] = blue!
     }
     context.putImageData(pixels, 0, 0)
     const url = URL.createObjectURL(await canvas.convertToBlob({ type: 'image/png' }))

@@ -1,9 +1,16 @@
 import { useLayoutEffect, useRef } from 'react'
 import { reducedMotion } from '../motion/hooks'
 import { sampleSpring, springs } from '../motion/spring'
-import { dockLens, dockMatrix, dockRim, dockRimDepth } from './dock'
+import { dockFilter, dockLens, dockLift, dockRim } from './dock'
+import { encodings, mapValues } from './display'
 
 const NS = 'http://www.w3.org/2000/svg'
+
+const primitive = (name: string, attributes: Record<string, string>) => {
+  const node = document.createElementNS(NS, name)
+  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value)
+  return node
+}
 
 /*
  * A backdrop filter draws its result over what lies beneath rather than in its place. Over a
@@ -32,25 +39,65 @@ const theme = () => (document.documentElement.dataset.theme === 'dark' ? 'dark' 
 const glassTint = () => Number(document.documentElement.dataset.glassTint ?? 0.49)
 
 /*
- * The Dock's colour (dock.ts) for glass that carries no filter of its own (`--glass-native`,
- * materials.css): its tone, for the theme and the slider shown now.
+ * The Dock's colour (dock.ts) as filter primitives reading `input`: its luminance, the tone curve
+ * less the colour's gain on it (a table), added to the colour times its gain. `set` gives it the
+ * theme's and slider's; a held control's is none (the colour passes as it is).
+ */
+function dockColour(input: string, prefix: string) {
+  const luma = primitive('feColorMatrix', { in: input, type: 'matrix', result: `${prefix}luma` }),
+    curve = primitive('feComponentTransfer', { in: `${prefix}luma`, result: `${prefix}curve` }),
+    combine = primitive('feComposite', {
+      in: `${prefix}curve`,
+      in2: input,
+      operator: 'arithmetic',
+      k2: '1',
+      k4: String(-dockLift / 255),
+      result: `${prefix}toned`,
+    })
+  for (const name of ['feFuncR', 'feFuncG', 'feFuncB'])
+    curve.append(primitive(name, { type: 'table' }))
+  return {
+    nodes: [luma, curve, combine],
+    input(name: string) {
+      luma.setAttribute('in', name)
+      combine.setAttribute('in2', name)
+    },
+    set(docked: boolean) {
+      const look = dockFilter(theme(), glassTint())
+      luma.setAttribute('values', look.luma)
+      for (const func of curve.children)
+        func.setAttribute(
+          'tableValues',
+          docked ? look.curve : `${dockLift / 255} ${dockLift / 255}`,
+        )
+      combine.setAttribute('k3', String(docked ? look.gain : 1))
+    },
+  }
+}
+
+/*
+ * The Dock's colour for glass that carries no filter of its own (`--glass-native`,
+ * materials.css), for the theme and the slider shown now.
  */
 {
   const svg = document.createElementNS(NS, 'svg'),
-    filter = document.createElementNS(NS, 'filter'),
-    tone = document.createElementNS(NS, 'feColorMatrix')
+    filter = document.createElementNS(NS, 'filter')
   svg.setAttribute('aria-hidden', 'true')
   svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none'
   filter.id = 'yuki-glass-tone'
   filter.setAttribute('color-interpolation-filters', 'sRGB')
-  tone.setAttribute('type', 'matrix')
-  const update = () => tone.setAttribute('values', dockMatrix(theme(), glassTint()))
+  const colour = dockColour('SourceGraphic', '')
+  // What nothing lies behind stays clear: the sums give back the backdrop's alpha.
+  filter.append(
+    ...colour.nodes,
+    primitive('feComposite', { in: 'toned', in2: 'SourceGraphic', operator: 'in' }),
+  )
+  const update = () => colour.set(true)
   update()
   new MutationObserver(update).observe(document.documentElement, {
     attributes: true,
     attributeFilter: ['data-theme', 'data-glass-tint'],
   })
-  filter.append(tone)
   svg.append(filter)
   document.body.append(svg)
 }
@@ -130,9 +177,8 @@ const place = (span: Span, size: number) =>
     Math.max(0, span.length ?? size - 2 * span.offset),
   ] as const
 interface Lens {
-  pieces: { href: string; x: Span; y: Span }[]
-  /** The rim's map cut the same way, laid over a neutral face for the filter. */
-  rimPieces: { href: string; x: Span; y: Span }[]
+  /** The bend across (x) and down (y) and the rim's factor, each cut into pieces. */
+  maps: Record<'bevel', { href: string; x: Span; y: Span }[]>
   /** The bend map's full scale: the largest bend, twice over (a map value runs ±0.5 of it). */
   span: number
 }
@@ -162,12 +208,14 @@ function lens(width: number, height: number, radius: number, kind: GlassKind): L
     down = height > tile
   const w = across ? tile : width,
     h = down ? tile : height
-  const key = `${w}/${h}/${radius}/${kind}/${scale}`
+  const space = document.documentElement.dataset.displayColorSpace
+  const look = theme()
+  const key = `${w}/${h}/${radius}/${kind}/${scale}/${space}/${look}`
   const cached = lenses.get(key)
   if (cached) return cached
   const hx = w / 2,
     hy = h / 2,
-    neutral = new Uint32Array(new Uint8ClampedArray([128, 128, 128, 255]).buffer)[0]!
+    values = mapValues(space)
   // The outward normal of a rounded rectangle with corners `corner`: straight off a side, or off
   // a corner's centre.
   const normal = (x: number, y: number, corner: number) => {
@@ -203,24 +251,27 @@ function lens(width: number, height: number, radius: number, kind: GlassKind): L
     context.putImageData(image, 0, 0)
     return canvas
   }
-  const bend = paint(neutral, (data, k, x, y, distance) => {
-    // Inward, as far as the lens says for this depth, along the rounder shape's normal.
-    const amount = shape.bend(-distance, radius) / span,
-      [nx, ny] = normal(x, y, turned)
-    const noise = ((k * 2654435761) >>> 0) / 4294967296 - 0.5
-    data[k] = Math.round(128 - amount * nx * 255 + noise)
-    data[k + 1] = Math.round(128 - amount * ny * 255 - noise)
-  })
-  // The rim's factor m = k(θ)·r(d), as grey 128 + 255·m (the filter multiplies by 1 + m), with
-  // θ the outward normal's angle. The outermost pixel is covered only partly, which smooths the
-  // curve.
-  const rim = paint(neutral, (data, k, x, y, distance) => {
-    if (!rimmed[kinds[kind]]) return
-    const [nx, ny] = normal(x, y, radius),
-      coverage = Math.max(0, Math.min(1, 0.5 - distance * scale)),
-      factor = dockRim(Math.atan2(-ny, nx)) * dockRimDepth(-distance) * coverage
-    data[k] = data[k + 1] = data[k + 2] = Math.round(128 + 255 * factor)
-  })
+  // One map: the bend inward, as far as the lens says for this depth, along the rounder shape's
+  // normal, across in red and down in green, made (display.ts) to read as meant where the display
+  // converts them; the rim, in levels added to what the tone gives, as 128 + levels in alpha
+  // (which no colour management touches), by the outward normal's angle and the depth. The rim's
+  // outermost pixel is covered only partly, which smooths the curve.
+  const rest = values(0.5, 0.5).map((value) => Math.round(value * 255))
+  const bend = paint(
+    new Uint32Array(new Uint8ClampedArray([rest[0]!, rest[1]!, 0, 128]).buffer)[0]!,
+    (data, k, x, y, distance) => {
+      const amount = shape.bend(-distance, radius) / span,
+        [nx, ny] = normal(x, y, turned)
+      const noise = (((k * 2654435761) >>> 0) / 4294967296 - 0.5) / 255
+      const [vx, vy] = values(0.5 - amount * nx + noise, 0.5 - amount * ny - noise)
+      data[k] = Math.round(vx * 255)
+      data[k + 1] = Math.round(vy * 255)
+      if (!rimmed[kinds[kind]]) return
+      const [rx, ry] = normal(x, y, radius),
+        coverage = Math.max(0, Math.min(1, 0.5 - distance * scale))
+      data[k + 3] = Math.round(128 + dockRim(look, Math.atan2(-ry, rx), -distance) * coverage)
+    },
+  )
   // Each axis cut into its start, a middle one CSS pixel long that stretches along a straight
   // side, and its end; or kept whole where the glass is no longer than its tile.
   const cuts = (sliced: boolean, size: number) =>
@@ -231,12 +282,11 @@ function lens(width: number, height: number, radius: number, kind: GlassKind): L
           [(border + 1) * scale, border * scale, { offset: border, length: border, end: true }],
         ] as const)
       : ([[0, size, { offset: 0, length: null, end: false }]] as const)
-  // The face, the middle of both sliced axes, bends nothing and has no rim.
+  // Every piece, the face too: the map's alpha is laid over nothing, so it is all there is.
   const cut = (map: HTMLCanvasElement) => {
-    const pieces: Lens['pieces'] = []
+    const pieces: Lens['maps']['bevel'] = []
     for (const [sx, sw, x] of cuts(across, map.width))
       for (const [sy, sh, y] of cuts(down, map.height)) {
-        if (across && down && x.length === null && y.length === null) continue
         const canvas = document.createElement('canvas')
         canvas.width = sw
         canvas.height = sh
@@ -245,11 +295,7 @@ function lens(width: number, height: number, radius: number, kind: GlassKind): L
       }
     return pieces
   }
-  const result: Lens = {
-    pieces: cut(bend),
-    rimPieces: cut(rim),
-    span,
-  }
+  const result: Lens = { maps: { bevel: cut(bend) }, span }
   // A handful of kinds, radii and short sides: kept.
   lenses.set(key, result)
   return result
@@ -293,12 +339,6 @@ export function followPointer(element: HTMLElement) {
   return () => {
     lit.delete(element)
   }
-}
-
-const primitive = (name: string, attributes: Record<string, string>) => {
-  const node = document.createElementNS(NS, name)
-  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value)
-  return node
 }
 
 /**
@@ -353,14 +393,12 @@ export function useGlass<T extends HTMLElement>(
       primitiveUnits: 'userSpaceOnUse',
       'color-interpolation-filters': 'sRGB',
     })
-    // The bevel's map and the rim's, each of its pieces merged over a neutral face. The blurred
-    // backdrop (materials.css) is bent by the bevel's map, given the Dock's colour (a pane's own:
-    // a held control stays clear), and multiplied by the rim's: X·(1 + m), with the map holding
-    // 128/255 + m, as k1·map·X + k3·X.
+    // The bend and the rim, each its pieces merged (they tile the glass; lens()). The blurred
+    // backdrop (materials.css) is bent by the one, given the Dock's colour (a pane's own: a held
+    // control stays clear), and the other's levels added to it.
     // A displacement map moves whole pixels: a fine line bent across the bevel steps and breaks
-    // up, where Apple's stays a smooth curve. Half a pixel of blur after the bend joins it again.
-    const merge = primitive('feMerge', { result: 'bevel' }),
-      rimMerge = primitive('feMerge', { result: 'rim' })
+    // up, where Apple's stays a smooth curve. A pixel's smoothing after the bend joins it again.
+    const merges = { bevel: primitive('feMerge', { result: 'bevel' }) }
     const bevelBend = primitive('feDisplacementMap', {
       in: 'SourceGraphic',
       in2: 'bevel',
@@ -368,35 +406,61 @@ export function useGlass<T extends HTMLElement>(
       yChannelSelector: 'G',
       result: 'stepped',
     })
+    // The half pixel of blur reaches past the glass's edge, where the filter has nothing: the
+    // outermost pixels made whole again keep the colour of what lies within.
     const smooth = primitive('feGaussianBlur', {
       in: 'stepped',
       stdDeviation: '0.5',
+      result: 'soft',
+    })
+    const cover = primitive('feComponentTransfer', { in: 'SourceGraphic', result: 'cover' })
+    cover.append(primitive('feFuncA', { type: 'discrete', tableValues: '0 1 1 1 1 1 1 1' }))
+    const whole = primitive('feColorMatrix', {
+      in: 'soft',
+      type: 'matrix',
+      values: '1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 1',
       result: 'bent',
     })
     const docked = kinds[kind] === 'pane'
-    // The Dock's colour (a held control stays clear); the alpha made whole, as the half pixel of
-    // blur reaches past the glass's edge, where the filter has nothing.
-    const tone = primitive('feColorMatrix', {
-      in: 'bent',
-      type: 'matrix',
-      values: '1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 1',
-      result: 'toned',
-    })
-    const rimLight = primitive('feComposite', {
-      in: 'rim',
-      in2: 'toned',
-      operator: 'arithmetic',
-      k1: '1',
-      k3: String(1 - 128 / 255),
-    })
+    // The Dock's colour (a held control stays clear), worked out in sRGB (display.ts): the
+    // backdrop taken from the display's encoding into sRGB's before, and back after.
+    const encoding = (input: string, result: string) => {
+      const node = primitive('feComponentTransfer', { in: input, result })
+      for (const name of ['feFuncR', 'feFuncG', 'feFuncB'])
+        node.append(primitive(name, { type: 'identity' }))
+      return node
+    }
+    const intoSRGB = encoding('bent', 'srgb'),
+      outOfSRGB = encoding('lit', 'shown')
+    const colour = dockColour('srgb', '')
     filter.append(
-      primitive('feFlood', { 'flood-color': '#808080', result: 'flat' }),
-      merge,
-      rimMerge,
+      merges.bevel,
       bevelBend,
       smooth,
-      tone,
-      rimLight,
+      whole,
+      intoSRGB,
+      ...colour.nodes,
+      // The rim added: the map's alpha as a grey (128 the neutral), on red, green and blue alike.
+      primitive('feColorMatrix', {
+        in: 'bevel',
+        type: 'matrix',
+        values: '0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 1',
+        result: 'rimGrey',
+      }),
+      primitive('feComposite', {
+        in: 'rimGrey',
+        in2: 'toned',
+        operator: 'arithmetic',
+        k2: '1',
+        k3: '1',
+        k4: String(-128 / 255),
+        result: 'added',
+      }),
+      // What nothing lies behind stays clear; what anything lies behind is whole (the backdrop's
+      // own edge is half covered where the glass's lies between device pixels).
+      cover,
+      primitive('feComposite', { in: 'added', in2: 'cover', operator: 'in', result: 'lit' }),
+      outOfSRGB,
     )
     svg.append(filter)
     if (bending) document.body.append(svg)
@@ -404,48 +468,36 @@ export function useGlass<T extends HTMLElement>(
     let size = '',
       shown = false,
       first = made,
-      current: Lens | undefined,
-      pieces: SVGElement[] = [],
-      rimPieces: SVGElement[] = []
+      current: Lens | undefined
     // Gives the filter the pieces of a new lens.
+    let images: Record<keyof Lens['maps'], SVGElement[]> = { bevel: [] }
     const assemble = (next: Lens) => {
-      for (const piece of [...pieces, ...rimPieces]) piece.remove()
-      const images = (list: Lens['pieces'], name: string) =>
-        list.map((piece, index) =>
+      for (const list of Object.values(images)) for (const image of list) image.remove()
+      images = { bevel: [] }
+      for (const name of ['bevel'] as const) {
+        images[name] = next.maps[name].map((piece, index) =>
           primitive('feImage', {
             href: piece.href,
             preserveAspectRatio: 'none',
             result: `${name}-${index}`,
           }),
         )
-      pieces = images(next.pieces, 'bevel')
-      rimPieces = images(next.rimPieces, 'rim')
-      merge.before(...pieces)
-      merge.replaceChildren(
-        ...['flat', ...pieces.map((_, index) => `bevel-${index}`)].map((input) =>
-          primitive('feMergeNode', { in: input }),
-        ),
-      )
-      rimMerge.before(...rimPieces)
-      rimMerge.replaceChildren(
-        ...['flat', ...rimPieces.map((_, index) => `rim-${index}`)].map((input) =>
-          primitive('feMergeNode', { in: input }),
-        ),
-      )
+        merges[name].before(...images[name])
+        merges[name].replaceChildren(
+          ...images[name].map((_, index) => primitive('feMergeNode', { in: `${name}-${index}` })),
+        )
+      }
     }
     // Lays the current pieces over a glass `w` by `h`.
     const layout = (w: number, h: number) => {
       filter.setAttribute('width', String(w))
       filter.setAttribute('height', String(h))
-      for (const [list, nodes] of [
-        [current!.pieces, pieces],
-        [current!.rimPieces, rimPieces],
-      ] as const)
-        list.forEach((piece, index) => {
+      for (const name of ['bevel'] as const)
+        current!.maps[name].forEach((piece, index) => {
           const [x, width] = place(piece.x, w),
             [y, height] = place(piece.y, h)
           for (const [key, value] of Object.entries({ x, y, width, height }))
-            nodes[index]!.setAttribute(key, String(value))
+            images[name][index]!.setAttribute(key, String(value))
         })
     }
     // A pane appears by bending in, as Apple's glass materialises: its bend rises on the emerging
@@ -512,7 +564,24 @@ export function useGlass<T extends HTMLElement>(
       }
       if (next !== size) layout(w, h)
       size = next
-      if (docked) tone.setAttribute('values', dockMatrix(theme(), glassTint()))
+      colour.set(docked)
+      // On an sRGB display the encodings are not in the chain at all.
+      const tables = encodings(root.dataset.displayColorSpace)
+      for (const [node, values] of [
+        [intoSRGB, tables?.toSRGB],
+        [outOfSRGB, tables?.fromSRGB],
+      ] as const) {
+        for (const func of node.children) {
+          func.setAttribute('type', 'table')
+          if (values) func.setAttribute('tableValues', values)
+        }
+        if (!values) node.remove()
+      }
+      if (tables) {
+        whole.after(intoSRGB)
+        filter.append(outOfSRGB)
+      }
+      colour.input(tables ? 'srgb' : 'bent')
       if (bending) element.style.setProperty('--refract', `url(#${id})`)
       element.dataset.refracting = 'true'
       // While it bends in, the rising spring alone sets its strength.
@@ -521,7 +590,7 @@ export function useGlass<T extends HTMLElement>(
     // Transparency, the theme and the system's slider change the glass; a page writing the same
     // value again changes nothing.
     const appearanceOf = () =>
-      `${root.dataset.opaque}/${theme()}/${root.dataset.material}/${root.dataset.glassTint}`
+      `${root.dataset.opaque}/${theme()}/${root.dataset.material}/${root.dataset.glassTint}/${root.dataset.displayColorSpace}`
     let shownAs = appearanceOf()
     const resize = new ResizeObserver(sync),
       appearance = new MutationObserver(() => {
@@ -534,7 +603,13 @@ export function useGlass<T extends HTMLElement>(
     resize.observe(element, { box: 'border-box' })
     appearance.observe(root, {
       attributes: true,
-      attributeFilter: ['data-opaque', 'data-theme', 'data-material', 'data-glass-tint'],
+      attributeFilter: [
+        'data-opaque',
+        'data-theme',
+        'data-material',
+        'data-glass-tint',
+        'data-display-color-space',
+      ],
     })
     sync()
     const dispose = () => {

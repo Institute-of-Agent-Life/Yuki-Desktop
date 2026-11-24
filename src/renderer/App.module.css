@@ -576,7 +576,7 @@
   position: relative;
   justify-content: center;
   height: 36px;
-  padding: 0 14px;
+  padding: 0 12px;
   border-radius: var(--r-capsule);
   background: var(--mat-glass);
   backdrop-filter: var(--glass-regular);

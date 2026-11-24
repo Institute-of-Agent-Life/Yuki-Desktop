@@ -263,7 +263,10 @@ const bridge: DesktopBridge = {
   onTheme(callback) {
     const listener = (
       _event: Electron.IpcRendererEvent,
-      theme: Pick<BootInfo, 'dark' | 'reducedTransparency' | 'highContrast' | 'glassTint'>,
+      theme: Pick<
+        BootInfo,
+        'dark' | 'reducedTransparency' | 'highContrast' | 'glassTint' | 'displayColorSpace'
+      >,
     ) => callback(theme)
     ipcRenderer.on('yuki:theme', listener)
     return () => ipcRenderer.removeListener('yuki:theme', listener)

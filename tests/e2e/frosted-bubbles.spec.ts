@@ -72,7 +72,7 @@ for (const scale of [1, 2])
         ]
         for (const [where, move] of moves) {
           await move()
-          const result = await frost(page, backdrop === 'plain' ? 0 : 12)
+          const result = await frost(page, backdrop === 'plain' ? 0 : 2)
           evidence[`${scale}x ${theme} ${backdrop} ${where}`] = result
           const name = `${scale}x ${theme} ${backdrop} ${where}`
           expect.soft(result.bubbles, `${name}: bubbles measured`).toBeGreaterThan(0)

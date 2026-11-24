@@ -12,25 +12,25 @@ import { closeUps, enlarge, pixels, type Pixels } from '../fixtures/edges'
  * real Dock, then the Dock's edge measured; glass.ts). Failure cases, written before the glass was
  * changed:
  *   1. the face is not the Dock's tone of what lies behind it: over flat greys of 21, 128 and 255
- *      the face is not 20 + 0.67·B (dark) or 122 + 0.48·B (light, provisional) within 2.5 levels:
- *      a tint, a fill or a lift is still laid on, or a brightness filter;
+ *      the face is not 11 + 0.919·B − 0.000992·B² (dark) or 48.4 + 0.695·B (light) within 2.5
+ *      levels: a tint, a fill or a lift is still laid on, or a brightness filter;
  *   2. anything is drawn outside the glass: within 4pt of its edge the page differs from the page
  *      farther out by more than 1 level (a hairline, a ring, a shadow);
  *   3. the band does not mirror what lies inside as the Dock's lens does: over a ramp darkening
  *      toward the edge the rim shows no deeper (brighter) a sample than 6pt in, by at least 8
  *      levels; past the band (13pt) the ramp does not resume; or a pane's bend at the rim is not
  *      the Dock's 24.5pt (a map's full scale of 49.0);
- *   4. the rim is not the Dock's: lit along the vertical axis and multiplying what the lens shows
- *      (keeping its colour), not adding white. Over mid grey the top's outermost device pixel is not
- *      at least 1.15 times the face, the bottom's 1.1 times, a side's under 0.95 times; the top is
- *      not brighter than the bottom; over near-black the rim lifts the face by more than 0.35 of
- *      it (a white add lifts dark glass by tens of levels); over blue inside an orange outside, the
- *      top rim is not blue;
+ *   4. the rim is not the Dock's, added to what the tone gives (the same on red, green and blue, so
+ *      it keeps the colour within): over mid grey the outermost device pixel of the top or the
+ *      bottom is not 52 levels over the face, or a side's not 64 (light) or 39 (dark) under it,
+ *      within 5; 2.25pt in at the top not about 8 over (the tail: 9 at 2pt, 6 at 3pt), within
+ *      2.5; 7pt in more than 2.5 from it (a sheet's shadow nearby shades the page a little); over
+ *      blue inside an orange outside, the top rim is not blue;
  *   5. colours are parted: over a grey grid the 99th percentile of chroma in the band exceeds 4;
  *   6. a line bent across the band steps and breaks: the band's finest detail over a grid (99th
- *      percentile of each pixel's distance from its 3×3 mean) exceeds 2.3 levels on a pane, 9.5 on
+ *      percentile of each pixel's distance from its 3×3 mean) exceeds 2.6 levels on a pane, 9.5 on
  *      a held control;
- *   7. nothing joins the bent pixels again: no blur after the bend.
+ *   7. nothing joins the bent pixels again: no smoothing after the bend.
  * The real app's close-ups (6x: the sidebar's pane, toolbar, composer, sheet, the held slider and
  * the segmented control, light, dark and over a line-art backdrop) are written as the test's output.
  */
@@ -98,7 +98,12 @@ interface Glass {
 const panes = ['button', 'toolbar', 'composer', 'card', 'sheet', 'folder']
 // The Dock's glass: every pane but a sheet (which opens over the page, thicker, to be read).
 const docked = panes.filter((name) => name !== 'sheet')
-const tone = { dark: [0.67, 20], light: [0.48, 0.478 * 255] } as const
+// The Dock's tone over grey, in levels (dock.ts): light 48.4 + 0.695·Y, dark 11 + 0.919·Y −
+// 0.000992·Y².
+const tone = {
+  light: (y: number) => 48.4 + 0.695 * y,
+  dark: (y: number) => 11 + 0.919 * y - 0.000992 * y * y,
+} as const
 
 async function scene(page: Page, theme: 'light' | 'dark', background: string, scale: number) {
   await page.setViewportSize({ width: 800, height: 520 })
@@ -155,7 +160,6 @@ test.describe('the edges of the glass', () => {
     test(`${theme} glass is the Dock's: its tone, nothing outside, and its rim`, async ({
       page,
     }) => {
-      const [slope, intercept] = tone[theme]
       const found: Record<string, unknown> = {}
       // 1, 2
       for (const [background, level] of [
@@ -179,34 +183,31 @@ test.describe('the edges of the glass', () => {
           found[`${background} ${name}`] = { face, drawn }
           expect
             .soft(face, `${theme} over ${level}: ${name}'s face`)
-            .toBeCloseTo(intercept + slope * level, -0.7)
+            .toBeCloseTo(tone[theme](level), -0.7)
           expect.soft(drawn, `${theme} over ${level}: ${name} draws outside`).toBeLessThanOrEqual(1)
         }
       }
-      // 4: over mid grey, the rim against the face.
+      // 4: over mid grey, the rim against the face, in levels.
       const grey = await scene(page, theme, 'gray', 2)
-      const black = await scene(page, theme, 'dark', 2)
       for (const name of docked) {
         const { x, y, width, height } = grey.glass[name]!
         const face = luminance(grey.image, x + width / 2, y + height / 2)
-        const at = (px: number, py: number) => luminance(grey.image, px, py) / face
+        const at = (px: number, py: number) => luminance(grey.image, px, py) - face
         const rim = {
           top: at(x + width / 2, y + 0.25),
           bottom: at(x + width / 2, y + height - 0.25),
           side: at(x + 0.25, y + height / 2),
+          tail: at(x + width / 2, y + 2.25),
+          past: at(x + width / 2, y + 7),
         }
-        const darkFace = luminance(black.image, x + width / 2, y + height / 2)
-        const lift = luminance(black.image, x + width / 2, y + 0.25) - darkFace
-        found[`rim ${name}`] = { ...rim, lift, darkFace }
-        expect.soft(rim.top, `${theme} ${name}: the top`).toBeGreaterThanOrEqual(1.15)
-        expect.soft(rim.bottom, `${theme} ${name}: the bottom`).toBeGreaterThanOrEqual(1.1)
+        found[`rim ${name}`] = rim
+        expect.soft(rim.top, `${theme} ${name}: the top`).toBeCloseTo(52, -1)
+        expect.soft(rim.bottom, `${theme} ${name}: the bottom`).toBeCloseTo(52, -1)
         expect
-          .soft(rim.top, `${theme} ${name}: the top over the bottom`)
-          .toBeGreaterThan(rim.bottom)
-        expect.soft(rim.side, `${theme} ${name}: a side`).toBeLessThan(0.95)
-        expect
-          .soft(lift, `${theme} ${name}: multiplied, not white added`)
-          .toBeLessThanOrEqual(0.35 * darkFace)
+          .soft(rim.side, `${theme} ${name}: a side`)
+          .toBeCloseTo(theme === 'light' ? -64 : -39, -1)
+        expect.soft(rim.tail, `${theme} ${name}: the top's tail`).toBeCloseTo(8.25, -0.7)
+        expect.soft(Math.abs(rim.past), `${theme} ${name}: past the rim`).toBeLessThanOrEqual(2.5)
       }
       // 4: the rim keeps the colour the lens brings from inside.
       const band = await scene(page, theme, 'band', 2)
@@ -282,8 +283,9 @@ test.describe('the edges of the glass', () => {
       for (const name of [...panes.filter((name) => name !== 'sheet'), 'segment']) {
         const { x, y, width, height, radius } = glass[name]!
         const band: number[] = []
-        // Within the band: from 1.5pt in to 7.5pt (a held control's: 0.45 of its radius).
-        const deepest = name === 'segment' ? 0.45 * radius : 7.5
+        // Within the band, past the rim (whose edge is sharp, as the Dock's): from 2pt in to 13pt
+        // (a held control's: to 0.45 of its radius).
+        const [shallowest, deepest] = name === 'segment' ? [2, 0.45 * radius] : [2, 13]
         for (let i = Math.floor(y * 2); i < (y + height) * 2; i++)
           for (let j = Math.floor(x * 2); j < (x + width) * 2; j++) {
             const px = (j + 0.5) / 2 - x - width / 2,
@@ -292,7 +294,7 @@ test.describe('the edges of the glass', () => {
               qy = Math.abs(py) - height / 2 + radius
             const distance =
               Math.min(Math.max(qx, qy), 0) + Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - radius
-            if (distance > -1.5 || distance < -deepest) continue
+            if (distance > -shallowest || distance < -deepest) continue
             let sum = 0
             for (let di = -1; di <= 1; di++)
               for (let dj = -1; dj <= 1; dj++)
@@ -305,14 +307,15 @@ test.describe('the edges of the glass', () => {
       evidence.bent = found
       // 7
       for (const [name, detail] of Object.entries(found))
-        expect(detail, name).toBeLessThanOrEqual(name === 'segment' ? 9.5 : 2.3)
+        // (The rim's tail falls a few levels across the band, which this counts too.)
+        expect(detail, name).toBeLessThanOrEqual(name === 'segment' ? 9.5 : 2.6)
       // 8
       const order = await page.locator('[data-name="card"]').evaluate((element) => {
         const id = getComputedStyle(element).backdropFilter.match(/#([^")]+)/)![1]!
         return [...document.getElementById(id)!.children].map((node) => node.localName)
       })
       const bend = order.lastIndexOf('feDisplacementMap')
-      expect(order.slice(bend + 1)).toContain('feGaussianBlur')
+      expect(order.slice(bend + 1)).toContain('feConvolveMatrix')
     })
   })
 })

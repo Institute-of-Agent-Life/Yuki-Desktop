@@ -119,6 +119,8 @@ export interface BootInfo {
   highContrast: boolean
   /** macOS's Liquid Glass slider, 0 (clear) to 1 (tinted); 0.49 where there is none. */
   glassTint: number
+  /** The colour space of the display the window is on, as Chromium describes it. */
+  displayColorSpace: string
   preferences: Preferences
   /** The language shown now: the preference, or the system's when it follows the system. */
   language: Language
@@ -168,7 +170,10 @@ export interface DesktopBridge {
   onWindowShown(callback: (shown: boolean) => void): () => void
   onTheme(
     callback: (
-      theme: Pick<BootInfo, 'dark' | 'reducedTransparency' | 'highContrast' | 'glassTint'>,
+      theme: Pick<
+        BootInfo,
+        'dark' | 'reducedTransparency' | 'highContrast' | 'glassTint' | 'displayColorSpace'
+      >,
     ) => void,
   ): () => void
   onLanguage(callback: (language: Language) => void): () => void

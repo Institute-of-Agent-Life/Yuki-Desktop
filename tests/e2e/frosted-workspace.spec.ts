@@ -140,13 +140,14 @@ test('frosted workspace keeps its paper, floating controls, real receipts and dr
         expect(geometry.bottom).toBeCloseTo(14, 0)
         expect(geometry.toolbarPosition).toBe('absolute')
         expect(geometry.toolbarHeight).toBe(52)
-        expect(geometry.capsuleHeight).toBe(34)
+        // macOS 26's toolbar glass: 36pt.
+        expect(geometry.capsuleHeight).toBe(36)
         expect(geometry.logPadding).toBeGreaterThanOrEqual(geometry.footerHeight + 26)
         expect(geometry.htmlWidth).toBe(geometry.viewport)
         if (geometry.opaque === 'true') expect(geometry.filter).toBe('none')
         else {
           // The final glass blurs first; it bends only where the window composites on the GPU.
-          expect(geometry.filter).toMatch(/^blur\([23]px\) /)
+          expect(geometry.filter).toMatch(/^blur\(2px\) /)
           if (geometry.gpu === 'true') expect(geometry.refract).toContain('url(')
           else expect(geometry.refract).toBe('')
         }

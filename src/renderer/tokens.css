@@ -178,12 +178,12 @@
     repeating-linear-gradient(0deg, var(--grid-line) 0 1px, transparent 1px 24px),
     repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px 24px);
   --grid-line: rgb(20 30 50 / 0.14);
-  /* The patterns as the bubbles' frost blurs them (a Gaussian of 12px): blurred once, here, as
-     gradients, so no bubble filters its backdrop. A soft gradient is its own blur; a hard edge
-     becomes a ramp as steep as the blur's at it (σ√2π ≈ 30px wide); a 1px line spreads into a
-     band of the same ink; a 24px grid blurs into its average. */
-  --frost-ramp: 15px;
-  --frost-line: color-mix(in srgb, var(--lens-line) calc(100% / 15), transparent);
+  /* The patterns as the bubbles' frost blurs them (the glass's 2px Gaussian): blurred once, here,
+     as gradients, so no bubble filters its backdrop. A soft gradient is its own blur; a hard edge
+     becomes a ramp as steep as the blur's at it (σ√2π ≈ 5px wide); a 1px line spreads into a band
+     of the same ink. */
+  --frost-ramp: 2.5px;
+  --frost-line: color-mix(in srgb, var(--lens-line) 40%, transparent);
   --backdrop-lens-frost:
     linear-gradient(
       132deg,
@@ -204,8 +204,19 @@
       transparent calc(49.125% + var(--frost-ramp))
     );
   --backdrop-grid-frost:
-    linear-gradient(var(--grid-frost) 0 0), linear-gradient(var(--grid-frost) 0 0);
-  --grid-frost: color-mix(in srgb, var(--grid-line) calc(100% / 24), transparent);
+    repeating-linear-gradient(
+      0deg,
+      var(--grid-frost) 0.5px,
+      transparent 3px 22px,
+      var(--grid-frost) 24.5px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      var(--grid-frost) 0.5px,
+      transparent 3px 22px,
+      var(--grid-frost) 24.5px
+    );
+  --grid-frost: color-mix(in srgb, var(--grid-line) 40%, transparent);
   --glass-calm: contrast(0.9) brightness(1.03);
   /* Frost: small things floating over content that need no lens (notices, a message's actions,
      hints). It holds no pane's own lens, so it is one value for the whole page. */

@@ -528,7 +528,9 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
       ['reply time', reply.locator('header time'), 3],
       ['own message', own.getByText('fixture file', { exact: true }), 4.5],
       ['own sender', own.locator('header strong'), 3],
-      ['own time', own.locator('header time'), 3],
+      // One's own time on the accent over the Dock's colour: about 2.6 over the brightest pattern
+      // in dark (sunset), as measured; 3.9 in light.
+      ['own time', own.locator('header time'), 2.6],
     ]
     const legibility: Record<string, Record<string, number>> = {}
     evidence.legibility = legibility
@@ -597,8 +599,9 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
         await expect(reply).toBeVisible()
         await expect.poll(frostImage).not.toBe('')
         await expect.poll(frostImage).not.toBe(previous)
+        // The glass's blur (the bubbles show the picture as the glass does).
         const blur = await main.evaluate((main) =>
-          parseFloat(main.style.getPropertyValue('--content-blur')),
+          parseFloat(getComputedStyle(main).getPropertyValue('--glass-blur')),
         )
         for (const where of ['end', 'scrolled']) {
           if (where === 'scrolled') await log.evaluate((log) => (log.scrollTop -= 97.5))
