@@ -1,23 +1,35 @@
+/*
+ * Springs as SwiftUI states them (`Spring(duration:bounce:)`): `duration` is the perceived time in
+ * seconds and `bounce` how far it overshoots, 0 for none. SwiftUI's own: `.smooth` 0.5 / 0,
+ * `.snappy` 0.5 / 0.15, `.bouncy` 0.5 / 0.3, `interactiveSpring` about 0.15. A desktop's controls
+ * are denser than a phone's, so transitions are a little quicker than 0.5, and none bounces more
+ * than `.snappy` except what a hand lets go of (hig-audit.md §8).
+ */
 export const springs = {
-  pressDown: { k: 1400, damping: 1 },
-  pressUp: { k: 520, damping: 0.62 },
-  select: { k: 480, damping: 0.8 },
-  thumb: { k: 620, damping: 0.66 },
-  highlight: { k: 300, damping: 0.6 },
-  settle: { k: 380, damping: 0.74 },
-  toggle: { k: 520, damping: 0.7 },
-  bubble: { k: 190, damping: 0.72 },
-  emerge: { k: 300, damping: 0.76 },
-  withdraw: { k: 520, damping: 1 },
-  busy: { k: 420, damping: 0.62 },
+  pressDown: { duration: 0.17, bounce: 0 },
+  pressUp: { duration: 0.3, bounce: 0.2 },
+  select: { duration: 0.35, bounce: 0.15 },
+  thumb: { duration: 0.3, bounce: 0.2 },
+  highlight: { duration: 0.35, bounce: 0.15 },
+  settle: { duration: 0.35, bounce: 0.15 },
+  toggle: { duration: 0.3, bounce: 0.2 },
+  bubble: { duration: 0.45, bounce: 0.15 },
+  emerge: { duration: 0.35, bounce: 0.15 },
+  withdraw: { duration: 0.28, bounce: 0 },
+  busy: { duration: 0.3, bounce: 0.15 },
   // The glass slider, fitted to WWDC25 219's front-on release (slider-v2.md §3.3): let go, it
   // returns to its size and frosts over; the press is read off its toggle and is an estimate.
-  sliderPress: { k: 990, damping: 0.8 },
-  sliderRelease: { k: 165, damping: 0.69 },
-  sliderFrost: { k: 248, damping: 0.81 },
-  sliderStretch: { k: 400, damping: 1 },
+  sliderPress: { duration: 0.2, bounce: 0.2 },
+  sliderRelease: { duration: 0.49, bounce: 0.31 },
+  sliderFrost: { duration: 0.4, bounce: 0.19 },
+  sliderStretch: { duration: 0.31, bounce: 0 },
 } as const
-export type SpringConfig = { k: number; damping: number }
+export type SpringConfig = { duration: number; bounce: number }
+/** Stiffness and damping ratio for unit mass: k = (2π / duration)², ζ = 1 − bounce. */
+export const physics = ({ duration, bounce }: SpringConfig) => ({
+  k: ((2 * Math.PI) / duration) ** 2,
+  damping: 1 - bounce,
+})
 
 export class Spring {
   velocity = 0
@@ -41,9 +53,10 @@ export class Spring {
     const dt = Math.min(1 / 30, Math.max(0, seconds)),
       steps = Math.max(1, Math.ceil(dt * 240)),
       h = dt / steps
-    const drag = 2 * this.config.damping * Math.sqrt(this.config.k)
+    const { k, damping } = physics(this.config),
+      drag = 2 * damping * Math.sqrt(k)
     for (let i = 0; i < steps; i++) {
-      this.velocity += (-this.config.k * (this.value - this.target) - drag * this.velocity) * h
+      this.velocity += (-k * (this.value - this.target) - drag * this.velocity) * h
       this.value += this.velocity * h
     }
     if (this.settled) this.snap()
@@ -63,4 +76,13 @@ export function sampleSpring(config: SpringConfig, from = 0, to = 1) {
     samples.push({ value: spring.value, velocity: spring.velocity })
   }
   return samples
+}
+/** A CSS `linear()` easing that follows `config`'s spring, and how long it lasts: CSS transitions
+ * move as the springs do (`--ease-pop`, `--motion-pop`). */
+export function springEasing(config: SpringConfig) {
+  const samples = sampleSpring(config)
+  return {
+    easing: `linear(${samples.map((sample) => +sample.value.toFixed(4)).join(', ')})`,
+    duration: `${Math.round(((samples.length - 1) * 1000) / 60)}ms`,
+  }
 }

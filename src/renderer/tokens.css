@@ -18,7 +18,7 @@
   --font-ui:
     -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
     'Zapf Dingbats', 'Apple Symbols', 'Segoe UI Variable Text', 'Segoe UI', 'Microsoft JhengHei UI',
-    system-ui, 'Noto Sans CJK TC', 'Noto Sans TC', sans-serif;
+    system-ui, Inter, 'Noto Sans', 'Noto Sans CJK TC', 'Noto Sans TC', sans-serif;
   --font-mono:
     'SF Mono', ui-monospace, Menlo, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'PingFang TC',
     'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Zapf Dingbats', 'Apple Symbols',
@@ -36,6 +36,12 @@
   --fill-selected: rgba(58, 107, 214, 0.14);
   --fill-inactive: rgba(20, 34, 64, 0.07);
   --fill-code: rgba(20, 34, 64, 0.055);
+  /* A grouped inset list's fill (settings, forms), and a plain control on it. */
+  --grouped: rgb(0 0 0 / 0.035);
+  --control: #ffffff;
+  --control-edge: rgb(0 0 0 / 0.12);
+  /* Content: another's message on a plain fill (one's own is on the accent, Conversation). */
+  --fill-bubble: rgb(20 34 64 / 0.06);
   --text-primary: #1b1c20;
   --text-secondary: #5b5e66;
   --text-tertiary: #5f626a;
@@ -53,24 +59,38 @@
   --status-failed: #c70013;
   --status-unknown: #6b4cc6;
   --status-offline: #64676e;
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
-  --radius-sheet: 22px;
+  /*
+   * Shapes (WWDC25 356): nested shapes are concentric. The window's corner is the system's
+   * (`--r-window`, per platform below); a pane inset into it takes the window's corner less the
+   * inset (`--r-pane`). Controls follow AppKit's sizes: regular 24 with a 6pt corner, large 28 and
+   * extra large 36 as capsules.
+   */
+  --r-window: 0px;
+  --inset: 0px;
+  --r-pane: max(0px, calc(var(--r-window) - var(--inset)));
+  --r-xs: 3px;
+  --r-sm: 4px;
+  --r-control: 6px;
+  --r-row: 8px;
+  --r-group: 10px;
+  --r-card: 12px;
+  --r-panel: 14px;
+  --r-popover: 16px;
+  --r-sheet: 20px;
+  --r-capsule: 999px;
+  --h-small: 20px;
+  --h-regular: 24px;
+  --h-large: 28px;
+  --h-xl: 36px;
   --space-1: 2px;
   --space-2: 4px;
   --space-3: 6px;
   --space-4: 8px;
-  --space-5: 10px;
-  --space-6: 12px;
-  --space-7: 16px;
-  --space-8: 20px;
-  --space-9: 24px;
-  --space-10: 32px;
-  --space-11: 40px;
-  --space-12: 48px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-9: 32px;
   --motion-fast: 120ms;
   --motion-base: 180ms;
   --motion-slow: 240ms;
@@ -78,7 +98,9 @@
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
   --shadow-composer: var(--shadow-glass);
   --motion-swap: 200ms;
+  /* Replaced at start with the toggle spring's own curve (src.tsx: springEasing). */
   --ease-pop: cubic-bezier(0.22, 1.12, 0.36, 1);
+  --motion-pop: 240ms;
   --shadow-popover: 0 0 0 0.5px rgba(20, 30, 50, 0.12), 0 10px 28px rgba(16, 24, 40, 0.14);
   --shadow-sheet: 0 0 0 0.5px rgba(20, 30, 50, 0.12), 0 24px 60px rgba(16, 24, 40, 0.22);
   /* Over light content a floating pane has a thin dark ring just outside its rim, as on Apple's
@@ -102,6 +124,8 @@
   --focus-ring: color-mix(in srgb, var(--accent) 45%, transparent);
   --mat-ground: rgba(229, 234, 242, 0.84);
   --mat-sidebar: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.48));
+  /* The macOS sidebar floats as large glass, more opaque than a control's (HIG Color). */
+  --mat-sidebar-glass: color-mix(in srgb, var(--bg-sidebar) 86%, transparent);
   --mat-chrome: rgba(255, 255, 255, 0.66);
   --mat-sheet: rgba(255, 255, 255, 0.97);
   /* The glass's tint (materials.css): clear, and a little more where it carries text. */
@@ -162,9 +186,6 @@
   --stroke-hi: rgba(255, 255, 255, 0.95);
   --stroke-lo: rgba(255, 255, 255, 0.28);
   --edge: rgba(20, 30, 50, 0.1);
-  --shadow-panel:
-    0 0 0 0.5px rgba(20, 30, 50, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04),
-    0 8px 24px rgba(16, 24, 40, 0.05);
   --shadow-glass:
     0 0 0 var(--line) var(--glass-hairline, transparent), 0 1px 2px rgba(16, 24, 40, 0.06),
     0 6px 18px rgba(16, 24, 40, 0.08);
@@ -174,12 +195,25 @@
   --toggle-off: rgba(20, 34, 64, 0.16);
   --seg-thumb: #ffffff;
 }
+/*
+ * The window's own corner, measured on the system: macOS 26 and later round an Electron window
+ * (hidden inset title bar) at about 16pt, and its sidebar floats inset within it. Windows 11
+ * rounds at 8px and Windows 10 and most Linux window managers not at all: there the sidebar lies
+ * flush, divided by a hairline, as an inset pane would need a corner of 2px or less.
+ */
+:root[data-platform='darwin'] {
+  --r-window: 16px;
+  --inset: 6px;
+}
+:root[data-platform='win32'] {
+  --r-window: 8px;
+}
 /* Simplified Chinese uses SC glyphs; the html lang follows the interface language. */
 :root:lang(zh-Hans) {
   --font-ui:
     -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
     'Zapf Dingbats', 'Apple Symbols', 'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei UI',
-    'Microsoft YaHei', system-ui, 'Noto Sans CJK SC', 'Noto Sans SC', sans-serif;
+    'Microsoft YaHei', system-ui, Inter, 'Noto Sans', 'Noto Sans CJK SC', 'Noto Sans SC', sans-serif;
   --font-mono:
     'SF Mono', ui-monospace, Menlo, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'PingFang SC',
     'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Zapf Dingbats', 'Apple Symbols',
@@ -197,6 +231,10 @@
   --fill-selected: rgba(127, 164, 255, 0.18);
   --fill-inactive: rgba(255, 255, 255, 0.08);
   --fill-code: rgba(255, 255, 255, 0.07);
+  --grouped: rgb(255 255 255 / 0.05);
+  --control: rgb(255 255 255 / 0.1);
+  --control-edge: rgb(255 255 255 / 0.08);
+  --fill-bubble: rgb(255 255 255 / 0.08);
   --text-primary: #f1f2f5;
   --text-secondary: #a4a7af;
   --text-tertiary: #a0a3ab;
@@ -246,9 +284,6 @@
   --stroke-hi: rgba(255, 255, 255, 0.18);
   --stroke-lo: rgba(255, 255, 255, 0.04);
   --edge: rgba(0, 0, 0, 0.45);
-  --shadow-panel:
-    0 0 0 0.5px rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.3),
-    0 8px 24px rgba(0, 0, 0, 0.28);
   --shadow-glass:
     0 0 0 var(--line) var(--glass-hairline, transparent), 0 1px 2px rgba(0, 0, 0, 0.3),
     0 6px 18px rgba(0, 0, 0, 0.32);
@@ -268,6 +303,7 @@
   --seal: url(#yuki-backdrop-seal);
   --mat-ground: transparent;
   --mat-sidebar: color-mix(in srgb, var(--bg-sidebar) var(--wash-sidebar), transparent);
+  --mat-sidebar-glass: var(--mat-sidebar);
   --surface-page: color-mix(in srgb, var(--bg-content) var(--wash-page), transparent);
   --surface-pane: color-mix(in srgb, var(--bg-inspector) var(--wash-pane), transparent);
   --wash-sidebar: max(0%, 100% - 84% * var(--window-transparency) / 0.7);
@@ -339,10 +375,10 @@ select {
   input[type='search'],
   input[type='email']
 ) {
-  min-height: 28px;
-  padding: 3px 8px;
+  min-height: var(--h-regular);
+  padding: var(--space-1) var(--space-4);
   border: var(--line) solid var(--field-line);
-  border-radius: 8px;
+  border-radius: var(--r-control);
   background: var(--field);
 }
 :where(input[type='checkbox']) {
@@ -355,7 +391,7 @@ select {
   margin: 0 6px 0 0;
   vertical-align: -3px;
   border: var(--line) solid var(--field-line);
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   background: var(--field);
   transition: background var(--motion-fast) var(--ease-standard);
 }
@@ -373,7 +409,7 @@ select {
   rotate: -45deg;
   translate: 0 -1px;
   scale: 0;
-  transition: scale var(--motion-fast) var(--ease-pop);
+  transition: scale var(--motion-pop) var(--ease-pop);
 }
 :where(input[type='checkbox']:checked)::before {
   scale: 1;
@@ -455,8 +491,8 @@ h3 {
   font-weight: 600;
 }
 h1 {
-  font-size: 28px;
-  line-height: 34px;
+  font-size: 26px;
+  line-height: 32px;
 }
 h2 {
   font-size: 17px;

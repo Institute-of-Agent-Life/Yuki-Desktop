@@ -19,7 +19,7 @@
 }
 .card {
   border: var(--line) solid var(--separator);
-  border-radius: 12px;
+  border-radius: var(--r-card);
   background: var(--bg-raised);
   overflow: hidden;
 }
@@ -125,7 +125,7 @@
 .fieldset {
   padding: 12px;
   border: 1px solid var(--separator);
-  border-radius: 8px;
+  border-radius: var(--r-row);
 }
 .editor {
   border: 0;

@@ -7,7 +7,7 @@
   max-height: calc(100dvh - 152px);
   padding: 0;
   border: 0;
-  border-radius: 20px;
+  border-radius: var(--r-sheet);
   background: var(--mat-sheet-glass);
   backdrop-filter: var(--glass-sheet);
   color: var(--text-primary);

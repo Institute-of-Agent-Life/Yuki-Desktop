@@ -8,14 +8,13 @@
      than where it sits, and a label longer than that wraps inside it, centred and balanced. */
   flex-shrink: 0;
   max-width: 100%;
-  /* As tall as its label, not stretched to a taller neighbour such as a 36px field. */
+  /* As tall as its label, not stretched to a taller neighbour such as a 36px field. AppKit's
+     regular push button: 24pt, a rounded rectangle with a 6pt corner (hig-audit.md §4). */
   height: fit-content;
-  min-height: 28px;
-  padding: 5px 14px;
-  border-radius: 999px;
+  min-height: var(--h-regular);
+  padding: 3px var(--space-5);
+  border-radius: var(--r-control);
   font-weight: 500;
-  /* Han characters in a 13px label read as one blot without a little air between them. */
-  letter-spacing: 0.03em;
   line-height: 18px;
   text-align: center;
   text-wrap: balance;
@@ -36,20 +35,34 @@
   /* A two-character label still reads as a button, not a chip. */
   min-width: 64px;
 }
+/* A secondary button is a plain control: white (dark: a tenth of white) with a hairline edge. */
 .secondary {
-  background: var(--fill-control);
-  box-shadow: inset 0 0 0 var(--line) var(--separator);
+  background: var(--control);
+  box-shadow:
+    0 0 0 var(--line) var(--control-edge),
+    0 0.5px 1px rgb(0 0 0 / 0.08);
+}
+.secondary:hover {
+  background: color-mix(in srgb, var(--control) 92%, var(--text-primary));
 }
 .plain {
   color: var(--accent);
-  padding-inline: 10px;
+  padding-inline: var(--space-4);
 }
 .destructive {
   color: var(--status-failed);
 }
-.large {
-  min-height: 36px;
-  padding: 8px 20px;
+/* Large: a page's actions, a 28pt capsule; extra large: its one main action, 36pt. */
+.large,
+.dialogFooter .button {
+  min-height: var(--h-large);
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--r-capsule);
+}
+.xl {
+  min-height: var(--h-xl);
+  padding: var(--space-4) var(--space-7);
+  border-radius: var(--r-capsule);
   font-size: 14px;
   line-height: 20px;
   min-width: 80px;
@@ -114,9 +127,9 @@
   align-items: center;
   white-space: nowrap;
   gap: 6px;
-  height: 20px;
-  border-radius: 10px;
-  padding: 0 8px;
+  height: var(--h-small);
+  border-radius: var(--r-capsule);
+  padding: 0 var(--space-4);
   font-size: 11px;
   font-weight: 600;
   color: var(--status);
@@ -144,7 +157,7 @@
   width: min(480px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   border: 0;
-  border-radius: 22px;
+  border-radius: var(--r-sheet);
   padding: 0;
   color: var(--text-primary);
   background: var(--mat-sheet-glass);
@@ -184,11 +197,10 @@
   /* A button that does not fit moves to the next line instead of squeezing the others. */
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
-  padding: 16px 24px;
-  border-top: var(--line) solid var(--separator);
+  gap: var(--space-4);
+  padding: var(--space-7) var(--space-8) var(--space-8);
 }
+/* A sheet's own buttons are large (above), the main one last (HIG Sheets). */
 .empty {
   display: flex;
   flex-direction: column;
@@ -371,10 +383,10 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  gap: 2px;
+  gap: var(--space-1);
   height: 34px;
   padding: 3px;
-  border-radius: 17px;
+  border-radius: var(--r-capsule);
   background: var(--mat-glass);
   box-shadow: var(--shadow-glass);
   backdrop-filter: var(--glass-regular);

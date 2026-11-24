@@ -43,7 +43,7 @@
   white-space: nowrap;
   font-size: 12px;
   padding: 4px 10px;
-  border-radius: 14px;
+  border-radius: var(--r-panel);
   background: var(--mat-chrome);
   opacity: 0;
   transition: opacity 120ms ease;
@@ -53,7 +53,7 @@
   opacity: 1;
 }
 .portrait > span {
-  border-radius: 28px;
+  border-radius: var(--r-capsule);
 }
 .introduction {
   min-width: 0;
@@ -115,7 +115,7 @@
 .tag {
   display: inline-flex;
   background: var(--fill-code);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   color: var(--text-secondary);
   font-size: 11px;
   line-height: 14px;
@@ -135,7 +135,7 @@
   border-left: 2px solid var(--separator);
   padding: 8px 12px;
   text-align: left;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -177,12 +177,12 @@
   height: 28px;
   padding: 2px;
   border: 1px solid var(--separator);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: transparent;
 }
 .original {
   padding: 12px;
-  border-radius: 8px;
+  border-radius: var(--r-row);
   background: var(--bg-raised);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -228,7 +228,7 @@
   gap: 12px;
   padding: 12px;
   background: var(--bg-raised);
-  border-radius: 8px;
+  border-radius: var(--r-row);
   margin-top: 12px;
   font-size: 13px;
 }

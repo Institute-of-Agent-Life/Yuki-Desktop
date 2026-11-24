@@ -60,7 +60,7 @@
   max-height: calc(var(--remote-height) * 1px);
   overflow: auto;
   border: 2px solid transparent;
-  border-radius: 12px;
+  border-radius: var(--r-card);
 }
 .held .screen {
   border-color: var(--accent);
@@ -93,7 +93,7 @@
   gap: 16px;
   color: #eee;
   background: #1c1c1e;
-  border-radius: 12px;
+  border-radius: var(--r-card);
   font-size: 13px;
 }
 .status {
@@ -145,7 +145,7 @@
   /* Frost over the screen, darkened and tinted with failure, as clear glass over media. */
   background: color-mix(in srgb, var(--status-failed) 30%, rgb(28 28 30 / 0.6));
   backdrop-filter: var(--glass-frost);
-  border-radius: 8px;
+  border-radius: var(--r-row);
   padding: 8px 12px;
   font-size: 12px;
 }

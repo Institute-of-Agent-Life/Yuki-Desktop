@@ -87,7 +87,7 @@
   flex: 1;
   min-width: 40px;
   height: 5px;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   overflow: hidden;
   background: var(--fill-inactive);
 }
@@ -95,7 +95,7 @@
   display: block;
   height: 100%;
   background: var(--accent);
-  border-radius: 5px;
+  border-radius: var(--r-sm);
 }
 .coverage {
   margin: 9px 0 0;
@@ -174,13 +174,13 @@
   max-width: 260px;
   margin-top: 7px;
   background: var(--fill-inactive);
-  border-radius: 3px;
+  border-radius: var(--r-xs);
   overflow: hidden;
 }
 .shareTrack > span {
   display: block;
   height: 100%;
-  border-radius: 3px;
+  border-radius: var(--r-xs);
   background: var(--accent);
   opacity: 0.65;
 }
@@ -215,7 +215,7 @@
   margin: 0;
   padding: 14px 16px;
   background: var(--fill-hover);
-  border-radius: 8px;
+  border-radius: var(--r-row);
 }
 .detailStats dt {
   font-size: 11px;

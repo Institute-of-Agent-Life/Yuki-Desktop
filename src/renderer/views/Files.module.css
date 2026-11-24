@@ -38,7 +38,7 @@
   gap: 16px;
 }
 .list [data-selected='true'] {
-  border-radius: 6px;
+  border-radius: var(--r-control);
   background: var(--fill-selected);
 }
 .stage {
@@ -84,7 +84,7 @@
   margin: 0 20px;
   padding: 12px 14px;
   border: var(--line) solid var(--separator);
-  border-radius: 12px;
+  border-radius: var(--r-card);
   background: var(--surface-page);
 }
 .preview {
@@ -109,7 +109,7 @@
   align-self: center;
   background: var(--bg-content);
   padding: 40px 44px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   box-shadow:
     0 0 0 var(--line) var(--separator),
     0 4px 16px rgba(0, 0, 0, 0.06);

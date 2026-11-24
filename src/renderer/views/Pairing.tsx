@@ -255,11 +255,11 @@ export function Pairing({
         {step === 'welcome' ? (
           <>
             <div className={styles.entryChoices}>
-              <Button variant="primary" large onClick={() => setStep('connect')}>
+              <Button variant="primary" size="xl" onClick={() => setStep('connect')}>
                 {t('pairing:connectExisting')}
               </Button>
               {onDeploy && (
-                <Button large onClick={onDeploy}>
+                <Button size="large" onClick={onDeploy}>
                   {t('pairing:deployLocal')}
                 </Button>
               )}

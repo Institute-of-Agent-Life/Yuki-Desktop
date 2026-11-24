@@ -65,13 +65,13 @@ export function DisconnectedHome({
         <h1 id="disconnected-heading">{t(`home:heading.${page}`)}</h1>
         <p className={styles.description}>{t(`home:description.${page}`)}</p>
         <div className={styles.actions}>
-          <Button variant="primary" large onClick={connect}>
+          <Button variant="primary" size="xl" onClick={connect}>
             {t('home:connect')}
           </Button>
-          <Button large onClick={deploy}>
+          <Button size="large" onClick={deploy}>
             {t('home:deploy')}
           </Button>
-          <Button large onClick={deployRemote}>
+          <Button size="large" onClick={deployRemote}>
             {t('remoteDeploy:deploy')}
           </Button>
         </div>

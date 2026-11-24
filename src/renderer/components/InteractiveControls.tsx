@@ -4,6 +4,8 @@ import { capturePointer, reducedMotion, swallowDragClick, useSprings } from '../
 import { clamp, rubber, springs } from '../motion/spring'
 import styles from './InteractiveControls.module.css'
 
+// A switch 40 by 22 (hig-audit.md decision 10): its 18pt thumb travels 18.
+const travel = 18
 export function Toggle({
   label,
   checked,
@@ -23,19 +25,19 @@ export function Toggle({
   useLayoutEffect(() => {
     latest.current = { checked, onChange }
   })
-  const { values, wake } = useSprings({ x: checked ? 16 : 0, press: 0 }, (s, reduced) => {
+  const { values, wake } = useSprings({ x: checked ? travel : 0, press: 0 }, (s, reduced) => {
     if (!glass.ref.current) return
     const pressure = clamp(s.press.value, 0, 1),
       p = reduced ? 0 : pressure
     const x = s.x.value
-    glass.ref.current.style.transform = `translateX(${x - (p * 6 * x) / 16}px)`
+    glass.ref.current.style.transform = `translateX(${x - (p * 6 * x) / travel}px)`
     glass.ref.current.style.width = `${18 + p * 6}px`
     glass.setStrength(pressure)
-    host.current?.style.setProperty('--toggle-progress', String(clamp(x / 16, 0, 1)))
+    host.current?.style.setProperty('--toggle-progress', String(clamp(x / travel, 0, 1)))
   })
   useLayoutEffect(() => {
     if (!drag.current) {
-      values.x.aim(checked ? 16 : 0, springs.toggle)
+      values.x.aim(checked ? travel : 0, springs.toggle)
       wake()
     }
   }, [checked])
@@ -57,7 +59,7 @@ export function Toggle({
         if (disabled || event.button !== 0 || !event.isPrimary) return
         cancel.current?.()
         const start = event.clientX,
-          initial = checked ? 16 : 0
+          initial = checked ? travel : 0
         let moved = false
         drag.current = true
         values.press.aim(1, springs.thumb)
@@ -69,7 +71,7 @@ export function Toggle({
             const dx = move.clientX - start
             if (!moved && Math.abs(dx) < 3) return
             moved = true
-            values.x.snap(clamp(initial + dx, 0, 16))
+            values.x.snap(clamp(initial + dx, 0, travel))
             wake()
           },
           (reason) => {
@@ -81,8 +83,8 @@ export function Toggle({
             if (moved && reason === 'up') {
               swallowDragClick()
               if (next !== latest.current.checked) latest.current.onChange(next)
-              values.x.aim(next ? 16 : 0, springs.toggle)
-            } else values.x.aim(latest.current.checked ? 16 : 0, springs.toggle)
+              values.x.aim(next ? travel : 0, springs.toggle)
+            } else values.x.aim(latest.current.checked ? travel : 0, springs.toggle)
             wake()
           },
         )
