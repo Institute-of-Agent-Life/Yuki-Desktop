@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Preferences } from '../../shared/desktop'
+import type { Preferences, PreferencesPatch } from '../../shared/desktop'
 import { useUpdates } from '../state/updates'
 import { unwrap } from '../queries/client'
 import { Banner, Button, Capsule, Segmented, Sheet, Spinner } from './Controls'
@@ -36,7 +36,7 @@ export function UpdatePanel({
   save,
 }: {
   preferences: Preferences
-  save(patch: Partial<Preferences>): Promise<void>
+  save(patch: PreferencesPatch): Promise<void>
 }) {
   const { t } = useTranslation(['updates', 'common'])
   const { state, failed: loadFailed, reload } = useUpdates()

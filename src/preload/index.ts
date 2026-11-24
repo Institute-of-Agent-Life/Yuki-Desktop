@@ -229,6 +229,14 @@ const bridge: DesktopBridge = {
     },
   },
   boot: () => ipcRenderer.invoke('yuki:boot'),
+  backgrounds: {
+    pick: () => ipcRenderer.invoke('yuki:pick-background'),
+    drop: (file) => ipcRenderer.invoke('yuki:drop-background', webUtils.getPathForFile(file)),
+    store: (original, copy, table) =>
+      ipcRenderer.invoke('yuki:background-store', original, copy, table),
+    blur: (id, radius, copy) => ipcRenderer.invoke('yuki:background-blur', id, radius, copy),
+    menu: () => ipcRenderer.invoke('yuki:background-menu'),
+  },
   onLeaveRequest(callback) {
     const listener = (_event: Electron.IpcRendererEvent, request: string) => callback(request)
     ipcRenderer.on('yuki:leave-request', listener)

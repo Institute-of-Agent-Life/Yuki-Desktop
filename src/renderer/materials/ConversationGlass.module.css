@@ -31,6 +31,14 @@
 :global([data-opaque='true']) .surface {
   background: var(--glass-solid, var(--bg-elevated));
 }
+/* Over a picture of one's own the conversation's text needs more than the pattern's thin tint: one
+   thick enough for the picture (materials/backdrop.ts), over a light blur of it. */
+:global([data-backdrop='custom']) .root {
+  --glass-neutral-tint: var(--content-tint);
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .surface {
+  backdrop-filter: blur(var(--content-blur));
+}
 :global([data-opaque='true']) .surface::before {
   display: block;
   background: var(--separator-strong);

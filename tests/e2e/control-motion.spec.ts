@@ -114,8 +114,9 @@ test('slider follows the pointer with no value spring and survives cancellation,
   await page.goto(gallery)
   const slider = page.getByRole('slider', { name: '測試縮放' }),
     bounds = (await slider.boundingBox())!
-  const x = (fraction: number) => bounds.x + 14 + (bounds.width - 28) * fraction,
-    y = bounds.y + 15
+  // The thumb's centre runs from half its resting width (24) in from either end.
+  const x = (fraction: number) => bounds.x + 12 + (bounds.width - 24) * fraction,
+    y = bounds.y + bounds.height / 2
   await page.mouse.move(x(0.5), y)
   await page.mouse.down()
   await expect
@@ -194,11 +195,25 @@ test('SVG lens really displaces backdrop pixels while foreground text stays shar
       }
       const a = await decode(on),
         b = await decode(off)
-      let changed = 0,
-        foreground = 0,
-        movedForeground = 0,
-        fringe = 0
-      for (let k = 0; k < a.data.length; k += 4) {
+      let changed = 0
+      // The red text sits in the middle third: where its solid strokes lie, in each picture.
+      const text = (picture: typeof a) => {
+        const box = { left: Infinity, right: -Infinity, top: Infinity, bottom: -Infinity, ink: 0 }
+        for (let k = 0; k < picture.data.length; k += 4) {
+          const x = (k / 4) % picture.width,
+            y = Math.floor(k / 4 / picture.width)
+          if (x < picture.width / 3 || x > (2 * picture.width) / 3) continue
+          if (picture.data[k]! > 180 && picture.data[k + 1]! < 80 && picture.data[k + 2]! < 80) {
+            box.ink++
+            box.left = Math.min(box.left, x)
+            box.right = Math.max(box.right, x)
+            box.top = Math.min(box.top, y)
+            box.bottom = Math.max(box.bottom, y)
+          }
+        }
+        return box
+      }
+      for (let k = 0; k < a.data.length; k += 4)
         if (
           Math.abs(a.data[k]! - b.data[k]!) +
             Math.abs(a.data[k + 1]! - b.data[k + 1]!) +
@@ -206,27 +221,16 @@ test('SVG lens really displaces backdrop pixels while foreground text stays shar
           30
         )
           changed++
-        // The red text sits in the middle third; dispersion colours only the rounded ends.
-        const x = (k / 4) % a.width
-        if (x < a.width / 3 || x > (2 * a.width) / 3) {
-          const red = a.data[k]!,
-            green = a.data[k + 1]!,
-            blue = a.data[k + 2]!
-          if (Math.max(red, green, blue) - Math.min(red, green, blue) > 120) fringe++
-          continue
-        }
-        const redA = a.data[k]! > 180 && a.data[k + 1]! < 80 && a.data[k + 2]! < 80
-        const redB = b.data[k]! > 180 && b.data[k + 1]! < 80 && b.data[k + 2]! < 80
-        if (redA) foreground++
-        if (redA !== redB) movedForeground++
-      }
-      return { changed, foreground, movedForeground, fringe }
+      return { changed, on: text(a), off: text(b) }
     },
     { on: on.toString('base64'), off: off.toString('base64') },
   )
   expect(pixels.changed).toBeGreaterThan(100)
-  expect(pixels.foreground).toBeGreaterThan(20)
-  expect(pixels.movedForeground).toBe(0)
-  // The backdrop is black and white: any strong colour at the ends comes from dispersion.
-  expect(pixels.fringe).toBeGreaterThan(20)
+  expect(pixels.on.ink).toBeGreaterThan(20)
+  // The text is drawn over the glass, not through it: it stays exactly where it was. (Its
+  // antialiased edge blends with a backdrop the glass has bent and lit, so only solid ink counts.)
+  const { ink: inkOn, ...placeOn } = pixels.on,
+    { ink: inkOff, ...placeOff } = pixels.off
+  expect(placeOn).toEqual(placeOff)
+  expect(Math.abs(inkOn - inkOff)).toBeLessThanOrEqual(inkOff * 0.1)
 })

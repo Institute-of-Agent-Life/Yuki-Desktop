@@ -9,6 +9,7 @@ import { launchShell } from '../fixtures/shell-app'
 import { captureViewport, contentSize } from '../fixtures/visual'
 import { windowsFileDialogOwner } from '../fixtures/windows-file-dialog'
 import { nativeWindowsControls } from '../fixtures/windows-window-controls'
+import { chooseTransparency } from '../fixtures/transparency'
 
 function contrast(foreground: number[], background: number[]) {
   const luminance = (rgb: number[]) => {
@@ -89,10 +90,7 @@ test('native About follows compact role layout and preserves memory evidence int
       await page
         .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
         .click()
-      await page
-        .getByRole('radiogroup', { name: '視窗材質', exact: true })
-        .getByRole('radio', { name: mode === 'opaque' ? '不透明' : '透明磨砂', exact: true })
-        .click()
+      await chooseTransparency(page, mode === 'opaque' ? 0 : 70)
       for (const [label, checked] of [['增加對比', mode === 'contrast']] as const) {
         const toggle = page.getByRole('switch', { name: label, exact: true })
         if ((await toggle.getAttribute('aria-checked')) !== String(checked)) await toggle.click()

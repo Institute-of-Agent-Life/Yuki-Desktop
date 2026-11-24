@@ -9,6 +9,7 @@ import { launchShell } from '../fixtures/shell-app'
 import { captureViewport, contentSize } from '../fixtures/visual'
 import { windowsFileDialogOwner } from '../fixtures/windows-file-dialog'
 import { nativeWindowsControls } from '../fixtures/windows-window-controls'
+import { chooseTransparency } from '../fixtures/transparency'
 
 test('native work list and inspector preserve step layout, keyboard focus and original work continuation across appearances', async () => {
   test.setTimeout(240000)
@@ -103,10 +104,7 @@ test('native work list and inspector preserve step layout, keyboard focus and or
       await page
         .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
         .click()
-      await page
-        .getByRole('radiogroup', { name: '視窗材質', exact: true })
-        .getByRole('radio', { name: mode === 'opaque' ? '不透明' : '透明磨砂', exact: true })
-        .click()
+      await chooseTransparency(page, mode === 'opaque' ? 0 : 70)
       for (const [name, checked] of [
         ['增加對比', mode === 'contrast'],
         ['減少動態', true],

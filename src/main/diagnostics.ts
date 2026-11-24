@@ -25,7 +25,7 @@ export function diagnostics(
     preferences: {
       theme: preferences.theme,
       time_zone: preferences.timeZone,
-      opaque: preferences.opaque,
+      transparency: preferences.transparency,
       reduced_motion: preferences.reducedMotion,
       high_contrast: preferences.highContrast,
       keep_in_tray: preferences.keepInTray,

@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { isolatedDesktop } from '../fixtures/isolated-desktop'
 import { sidebar } from '../fixtures/navigation'
+import { chooseTransparency } from '../fixtures/transparency'
 
 // 全局透明磨砂与统一顶部淡出任务书 (2026-11-12), failure cases 1, 5 and 12–14, in a real window:
 // the system's frost is composited outside the page, so only the screen shows what a person sees.
@@ -75,17 +76,14 @@ test('the real window frosts what lies behind it, and its glass hides what lies 
         },
         { file, points },
       )
-    const appearance = async (theme: string, material: string) => {
+    const appearance = async (theme: string, material: '透明磨砂' | '不透明') => {
       await page.keyboard.press('Meta+,')
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
       await page
         .getByRole('radiogroup', { name: '主題', exact: true })
         .getByRole('radio', { name: theme, exact: true })
         .click()
-      await page
-        .getByRole('radiogroup', { name: '視窗材質', exact: true })
-        .getByRole('radio', { name: material, exact: true })
-        .click()
+      await chooseTransparency(page, material === '不透明' ? 0 : 70)
       await page.getByRole('button', { name: '返回', exact: true }).click()
       await page.waitForTimeout(500)
     }
@@ -96,7 +94,7 @@ test('the real window frosts what lies behind it, and its glass hides what lies 
       [900, 600],
     ]
     for (const theme of ['淺色', '深色']) {
-      for (const material of ['透明磨砂', '不透明']) {
+      for (const material of ['透明磨砂', '不透明'] as const) {
         await appearance(theme, material)
         const [sidebar, left, right] = await pixels(
           app,

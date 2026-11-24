@@ -88,7 +88,10 @@ test(
         await expect(floating).toHaveCSS('backdrop-filter', 'none')
       else {
         await expect(floating).toHaveAttribute('data-refracting', 'true')
-        await expect(floating).toHaveCSS('backdrop-filter', /url\(/)
+        // It bends only where the window composites on the GPU (BootInfo.gpuCompositing).
+        if (await pa.evaluate(() => document.documentElement.dataset.gpuCompositing === 'true'))
+          await expect(floating).toHaveCSS('backdrop-filter', /url\("?#yuki-glass-/)
+        else await expect(floating).not.toHaveCSS('backdrop-filter', /#yuki-glass-/)
       }
       const beforeZoom = (await facts()).control
       await fit.click()

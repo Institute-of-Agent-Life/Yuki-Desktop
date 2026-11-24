@@ -373,16 +373,20 @@ test('the floating composer lets the conversation backdrop through in both theme
       return sample.getImageData(0, 0, 1, 1).data[3]! / 255
     })
 
-  for (const theme of ['light', 'dark']) {
+  // The final glass's tint for panes that carry text (docs/reports/2026-11-23-liquid-glass §15).
+  for (const [theme, tint] of [
+    ['light', 0.24],
+    ['dark', 0.74],
+  ] as const) {
     await page.evaluate((value) => (document.documentElement.dataset.theme = value), theme)
     await expect(composer).toHaveCSS('backdrop-filter', /url\(/)
-    await expect.poll(backgroundOpacity).toBeLessThan(0.6)
+    await expect.poll(backgroundOpacity).toBeCloseTo(tint, 2)
     await page.screenshot({ path: test.info().outputPath(`composer-${theme}.png`) })
   }
   await draft.fill('下一次訪談的問題\n先確認上次記錄的細節。')
   await expect(draft).toBeFocused()
   await expect(composer.getByRole('button', { name: '送出', exact: true })).toBeEnabled()
-  await expect.poll(backgroundOpacity).toBeLessThan(0.6)
+  await expect.poll(backgroundOpacity).toBeCloseTo(0.74, 2)
   await page.screenshot({ path: test.info().outputPath('composer-dark-draft.png') })
 
   await page.evaluate(() => (document.documentElement.dataset.opaque = 'true'))

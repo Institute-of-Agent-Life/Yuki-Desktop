@@ -12,6 +12,7 @@ import {
   yukiFixture,
 } from '../fixtures/backend'
 import { forwardProxy } from '../fixtures/forward-proxy'
+import { chooseTransparency } from '../fixtures/transparency'
 async function open(page: Page, text = '') {
   await page.keyboard.press('ControlOrMeta+k')
   const dialog = page.getByRole('dialog', { name: '指令面板', exact: true }),
@@ -284,10 +285,7 @@ test('palette geometry, keyboard focus and footer remain usable across themes, s
       await page
         .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
         .click()
-      await page
-        .getByRole('radiogroup', { name: '視窗材質', exact: true })
-        .getByRole('radio', { name: mode === 'opaque' ? '不透明' : '透明磨砂', exact: true })
-        .click()
+      await chooseTransparency(page, mode === 'opaque' ? 0 : 70)
       for (const [label, value] of [
         ['增加對比', mode === 'contrast'],
         ['減少動態', true],

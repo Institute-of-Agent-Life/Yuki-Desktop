@@ -46,7 +46,7 @@ it.each([
 })
 
 it.each([
-  'opaque',
+  'transparency',
   'highContrast',
   'prefersReducedTransparency',
   'shouldUseHighContrastColors',
@@ -54,7 +54,8 @@ it.each([
   platform('win32')
   system.shouldUseDarkColors = true
   const preferences = { ...defaultPreferences }
-  if (setting === 'opaque' || setting === 'highContrast') preferences[setting] = true
+  if (setting === 'transparency') preferences.transparency = 0
+  else if (setting === 'highContrast') preferences.highContrast = true
   else system[setting] = true
   expect(windowAppearance(preferences)).toMatchObject({
     backgroundMaterial: 'none',

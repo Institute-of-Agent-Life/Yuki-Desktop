@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { launchShell } from '../fixtures/shell-app'
 import { pairUI } from '../fixtures/backend'
+import { chooseTransparency } from '../fixtures/transparency'
 
 test('native conversation wheel scrolling applies toolbar material and preserves opaque accessibility modes', async () => {
   const base = process.env.YUKI_DESKTOP_NATIVE_BACKEND_URL?.replace(/\/+$/, '')
@@ -107,10 +108,7 @@ test('native conversation wheel scrolling applies toolbar material and preserves
         .getByRole('radiogroup', { name: '主題', exact: true })
         .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
         .click()
-      await page
-        .getByRole('radiogroup', { name: '視窗材質', exact: true })
-        .getByRole('radio', { name: mode === 'opaque' ? '不透明' : '透明磨砂', exact: true })
-        .click()
+      await chooseTransparency(page, mode === 'opaque' ? 0 : 70)
       for (const [label, checked] of [['增加對比', mode === 'contrast']] as const) {
         const control = page.getByRole('switch', { name: label, exact: true })
         if (((await control.getAttribute('aria-checked')) === 'true') !== checked)
@@ -163,10 +161,7 @@ test('native conversation wheel scrolling applies toolbar material and preserves
     ) {
       await page.keyboard.press('ControlOrMeta+,')
       await page.getByRole('tab', { name: '外觀', exact: true }).click()
-      await page
-        .getByRole('radiogroup', { name: '視窗材質', exact: true })
-        .getByRole('radio', { name: '透明磨砂', exact: true })
-        .click()
+      await chooseTransparency(page, 70)
       const contrast = page.getByRole('switch', { name: '增加對比', exact: true })
       if ((await contrast.getAttribute('aria-checked')) === 'true') await contrast.click()
       await page.getByRole('button', { name: '返回', exact: true }).click()

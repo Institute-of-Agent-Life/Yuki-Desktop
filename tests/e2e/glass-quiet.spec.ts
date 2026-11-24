@@ -111,8 +111,16 @@ test('holding, dragging and switching controls make no new maps once a control h
     await page.mouse.up()
     await page.waitForTimeout(600)
   }
-  // Each control is held once, which is when its maps are first made.
+  // Each control is held once, which is when its maps are first made. The gallery's segmented
+  // control switches its theme, and each theme lights glass with maps of its own: both are shown
+  // once before counting.
   for (const kind of kinds) await press(kind, 200)
+  const segments = page.locator('[data-glass="segment"]').first().locator('..').locator('button')
+  for (const turn of [1, 0]) {
+    await segments.nth(turn).click()
+    await page.waitForTimeout(250)
+  }
+  await page.waitForTimeout(600)
   const before = await made()
   // 15: then a long hold, a drag of twenty steps and four switches make none.
   await press('toggle', 500)
@@ -126,7 +134,6 @@ test('holding, dragging and switching controls make no new maps once a control h
     )
   await page.mouse.up()
   await page.waitForTimeout(600)
-  const segments = page.locator('[data-glass="segment"]').first().locator('..').locator('button')
   for (let turn = 0; turn < 4; turn++) {
     await segments.nth(turn % 2 ? 0 : 1).click()
     await page.waitForTimeout(250)

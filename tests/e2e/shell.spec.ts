@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { launchShell } from '../fixtures/shell-app'
+import { chooseTransparency } from '../fixtures/transparency'
 
 test('native startup, actual button and keyboard paths, preferences survive restart', async () => {
   const data = await mkdtemp(join(tmpdir(), 'yuki-desktop-test-'))
@@ -64,11 +65,11 @@ test('native startup, actual button and keyboard paths, preferences survive rest
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
     await page.getByRole('radio', { name: '深色', exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
-    const opaque = page
-      .getByRole('radiogroup', { name: '視窗材質', exact: true })
-      .getByRole('radio', { name: '不透明', exact: true })
-    await opaque.click()
-    await expect(opaque).toBeChecked()
+    await chooseTransparency(page, 0)
+    await expect(page.getByRole('slider', { name: '透明度', exact: true })).toHaveAttribute(
+      'aria-valuetext',
+      '不透明',
+    )
     await page.screenshot({
       animations: 'disabled',
       path: test.info().outputPath('settings-dark.png'),

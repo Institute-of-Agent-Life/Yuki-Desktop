@@ -198,15 +198,18 @@ test('the menu and sheets draw no frame, and a focused composer stays its own sh
 
   await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=conversation-glass')
   const composer = page.locator('[data-region="composer"]')
-  await page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true }).click()
+  await expect(composer).toHaveAttribute('data-refracting', 'true')
   const focused = () =>
     composer.evaluate((element) => ({
       outline: getComputedStyle(element).outlineStyle,
       shadow: getComputedStyle(element).boxShadow,
     }))
+  // The final glass's own thin ring in light (glass-quality.spec.ts), the same before focus.
+  const resting = await focused()
+  await page.getByRole('textbox', { name: '和 Yuki 說點什麼', exact: true }).click()
   const normal = await focused()
-  evidence.composer = normal
-  expect(normal.outline).toBe('none')
+  evidence.composer = { resting, normal }
+  expect(normal).toEqual(resting)
   expect(rings(normal.shadow)).toBe(0)
   expect(normal.shadow).not.toContain('inset')
   // Increased contrast marks focus with a line on the glass edge itself, not one outside it.

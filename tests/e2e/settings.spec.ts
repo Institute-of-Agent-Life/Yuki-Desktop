@@ -4,6 +4,7 @@ import { expect, test } from '@playwright/test'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { currentConnection, pairUI, yukiFixture } from '../fixtures/backend'
+import { chooseTransparency } from '../fixtures/transparency'
 
 test('actual settings paths retain native preferences, timezone, notifications and private diagnostic export', async () => {
   test.setTimeout(120000)
@@ -114,20 +115,21 @@ test('actual settings paths retain native preferences, timezone, notifications a
     const backdrops = page.getByRole('radiogroup', { name: '對話背景', exact: true })
     await expect(backdrops.getByRole('radio', { name: '光線', exact: true })).toBeChecked()
     // 6 (全局透明磨砂 task book): the frost is the window's own choice; the backdrop is only a
-    // pattern laid over the conversation, or none.
+    // pattern laid over the conversation, none, or a picture of one's own (custom-backdrop.spec.ts).
     expect(await backdrops.getByRole('radio').allInnerTexts()).toEqual([
       '無',
       '光線',
       '極光',
       '晚霞',
       '格線',
+      '自訂圖片',
     ])
-    const material = page.getByRole('radiogroup', { name: '視窗材質', exact: true })
-    await expect(material.getByRole('radio', { name: '透明磨砂', exact: true })).toBeChecked()
+    const transparency = page.getByRole('slider', { name: '透明度', exact: true })
+    await expect(transparency).toHaveAttribute('aria-valuenow', '70')
     await backdrops.getByRole('radio', { name: '極光', exact: true }).click()
     await expect(backdrops.getByRole('radio', { name: '極光', exact: true })).toBeChecked()
     await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'aurora')
-    await material.getByRole('radio', { name: '不透明', exact: true }).click()
+    await chooseTransparency(page, 0)
     await page.getByRole('switch', { name: '減少動態', exact: true }).click()
     await page.getByRole('tab', { name: '通知', exact: true }).click()
     await page.getByRole('switch', { name: 'Yuki 主動傳來的訊息', exact: true }).click()
@@ -175,7 +177,7 @@ test('actual settings paths retain native preferences, timezone, notifications a
       timeZone: 'system',
       theme: 'dark',
       backdrop: 'aurora',
-      opaque: true,
+      transparency: 0,
       reducedMotion: true,
       notifyProactive: false,
       sendKey: 'command-enter',
@@ -254,10 +256,7 @@ test('settings categories remain keyboard reachable in all four themes and small
       await page
         .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
         .click()
-      await page
-        .getByRole('radiogroup', { name: '視窗材質', exact: true })
-        .getByRole('radio', { name: mode === 'opaque' ? '不透明' : '透明磨砂', exact: true })
-        .click()
+      await chooseTransparency(page, mode === 'opaque' ? 0 : 70)
       for (const [label, value] of [
         ['增加對比', mode === 'contrast'],
         ['減少動態', true],

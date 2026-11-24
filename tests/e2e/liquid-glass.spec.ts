@@ -12,7 +12,8 @@ test.afterAll(async () => {
   )
 })
 
-// Light map alpha along each edge, plus 3px inside the lit edge where the bezel carries light.
+// Light map alpha along each straight edge, on the four corner arcs (45° round each corner, half a
+// pixel in) and 3px inside the top edge.
 function rimLight(pane: Locator) {
   return pane.evaluate(async (element) => {
     const style = getComputedStyle(element)
@@ -24,12 +25,24 @@ function rimLight(pane: Locator) {
     canvas.height = image.height
     const context = canvas.getContext('2d')!
     context.drawImage(image, 0, 0)
-    // Layout size, so a pane still growing in is measured at its own scale.
-    const scale = image.width / (element as HTMLElement).offsetWidth
-    // Conversation glass bleeds past its bubble; other panes fill their own box.
-    const bleed = ['bubble', 'work-card'].includes(element.dataset.glass ?? '')
-    const inline = bleed ? parseFloat(style.paddingInlineStart) * scale : 0
-    const bottom = image.height - (bleed ? parseFloat(style.paddingBottom) * scale : 0)
+    // The map is a tile of the glass's corners (glass.ts): its scale is a sliced side's slice over
+    // its border, or the whole map over the glass where neither side is sliced.
+    const [sliceY, sliceX] = style.getPropertyValue('--rim-slice').trim().split(/\s+/).map(Number)
+    const [borderY, borderX] = style
+      .getPropertyValue('--rim-border')
+      .trim()
+      .split(/\s+/)
+      .map((value) => parseFloat(value))
+    const scale = sliceX
+      ? sliceX / borderX!
+      : sliceY
+        ? sliceY / borderY!
+        : image.width / (element as HTMLElement).offsetWidth
+    const radius = Math.min(
+      parseFloat(style.borderTopLeftRadius),
+      (element as HTMLElement).offsetWidth / 2,
+      (element as HTMLElement).offsetHeight / 2,
+    )
     const alpha = (x: number, y: number) =>
       Math.max(
         ...[-1, 0, 1].flatMap((dx) =>
@@ -39,31 +52,40 @@ function rimLight(pane: Locator) {
           ),
         ),
       )
+    const along = (radius - (radius - 0.5) * Math.SQRT1_2) * scale
     return {
       top: alpha(image.width / 2, 1),
       inside:
         context.getImageData(Math.round(image.width / 2), Math.round(3 * scale) + 1, 1, 1)
           .data[3]! / 255,
-      bottom: alpha(image.width / 2, bottom - 2),
-      left: alpha(inline + 1, bottom / 2),
-      right: alpha(image.width - inline - 2, bottom / 2),
+      bottom: alpha(image.width / 2, image.height - 2),
+      left: alpha(1, image.height / 2),
+      right: alpha(image.width - 2, image.height / 2),
+      upperRight: alpha(image.width - along, along),
+      upperLeft: alpha(along, along),
+      lowerLeft: alpha(along, image.height - along),
+      lowerRight: alpha(image.width - along, image.height - along),
     }
   })
 }
 
 async function expectLiquidGlass(name: string, pane: Locator) {
-  // 1: refracting glass with the calmed backdrop.
+  // 1: refracting glass.
   await expect(pane).toHaveAttribute('data-refracting', 'true', { timeout: 5000 })
+  // A pane growing out of a button is read once it has its own corners.
+  await expect.poll(() => pane.evaluate((element) => element.getAnimations().length)).toBe(0)
   const filter = await pane.evaluate((element) => getComputedStyle(element).backdropFilter)
   expect(filter).toMatch(/url\(/)
-  // 3–4, as revised by the 苹果式打光 task book: lit from the upper left with a softer glow on the
-  // far edge, in a thin line rather than a band.
+  // 3–4, as revised by the final glass (docs/reports/2026-11-23-liquid-glass §15): a thin line lit
+  // most on the upper-right and lower-left arcs, less on the other two, dim and even along the sides.
   const rim = await rimLight(pane)
   evidence[name] = { filter, rim }
-  // An evenly lit outline measures about 1 on both ratios.
-  expect(rim.bottom).toBeLessThan(rim.top)
-  expect(rim.bottom).toBeGreaterThanOrEqual(rim.top * 0.35)
-  expect(rim.right).toBeLessThan(rim.left * 0.75)
+  expect(rim.upperLeft).toBeLessThan(rim.upperRight)
+  expect(rim.lowerRight).toBeLessThan(rim.lowerLeft)
+  for (const side of [rim.top, rim.bottom, rim.left, rim.right]) {
+    expect(side).toBeLessThan(rim.upperRight * 0.75)
+    expect(Math.abs(side - rim.top)).toBeLessThanOrEqual(0.06)
+  }
   expect(rim.inside).toBeLessThan(rim.top * 0.4)
 }
 
@@ -103,9 +125,7 @@ async function brightness(
   }, shot.toString('base64'))
 }
 
-test('every floating conversation pane is lit, calmed liquid glass that follows the pointer', async ({
-  page,
-}) => {
+test('every floating conversation pane is lit liquid glass', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 820 })
   await page.goto(`${regressions}?case=conversation-glass`)
   await expect(page.getByText('幫我整理一下這週的訪談筆記。', { exact: true })).toBeVisible()
@@ -116,9 +136,6 @@ test('every floating conversation pane is lit, calmed liquid glass that follows 
   )
   const composer = page.locator('[data-region="composer"]')
   await expectLiquidGlass('composer', composer)
-  expect(await composer.evaluate((element) => getComputedStyle(element).backdropFilter)).toMatch(
-    /contrast\(/,
-  )
   // Q1 of the 液态玻璃组件统一 task book: bubbles and work cards are content, with no lens.
   for (const content of [
     page.locator('article[data-event-id="34"] [data-glass="bubble"]'),
@@ -126,48 +143,9 @@ test('every floating conversation pane is lit, calmed liquid glass that follows 
   ])
     await expect(content).toHaveCSS('backdrop-filter', 'none')
   await page.screenshot({ path: test.info().outputPath('conversation-light.png') })
-
-  // 5: the rim nearest the pointer catches more light.
   await page.evaluate(() => (document.documentElement.dataset.theme = 'dark'))
-  const box = (await composer.boundingBox())!
-  const edge = { x: box.x + 60, y: box.y, width: 24, height: 3 }
-  await page.mouse.move(5, 5)
-  await page.waitForTimeout(100)
-  const far = await brightness(page, edge)
-  await page.mouse.move(edge.x + 12, edge.y - 4)
-  await page.waitForTimeout(100)
-  const near = await brightness(page, edge)
-  evidence.pointer = { far, near }
-  expect(near).toBeGreaterThan(far + 3)
-  await page.screenshot({ path: test.info().outputPath('conversation-dark-lit.png') })
-
-  // 7: the calmed backdrop under the composer has less contrast than without calming.
-  const under = { x: box.x + 4, y: box.y + 2, width: box.width - 8, height: 4 }
-  const spread = async () => {
-    const shot = await page.screenshot({ clip: under })
-    return page.evaluate(async (bytes) => {
-      const image = new Image()
-      image.src = 'data:image/png;base64,' + bytes
-      await image.decode()
-      const canvas = document.createElement('canvas')
-      canvas.width = image.width
-      canvas.height = image.height
-      const context = canvas.getContext('2d')!
-      context.drawImage(image, 0, 0)
-      const data = context.getImageData(0, 0, image.width, image.height).data
-      const values: number[] = []
-      for (let k = 0; k < data.length; k += 4) values.push(data[k]! + data[k + 1]! + data[k + 2]!)
-      values.sort((a, b) => a - b)
-      return values[Math.floor(values.length * 0.98)]! - values[Math.floor(values.length * 0.02)]!
-    }, shot.toString('base64'))
-  }
-  await page.mouse.move(5, 5)
-  const calmed = await spread()
-  await page.evaluate(() => document.documentElement.style.setProperty('--glass-calm', 'none'))
-  const raw = await spread()
-  await page.evaluate(() => document.documentElement.style.removeProperty('--glass-calm'))
-  evidence.calm = { calmed, raw }
-  expect(calmed).toBeLessThan(raw)
+  await expectLiquidGlass('composer-dark', composer)
+  await page.screenshot({ path: test.info().outputPath('conversation-dark.png') })
 
   await expectSolid(page, composer)
 })
@@ -213,7 +191,6 @@ test('dialogs, the command palette, pairing and controls share the glass without
       'segment',
       page.locator('[data-glass="segment"]').first().locator('..').locator('button').first(),
     ],
-    ['slider', page.getByRole('slider').first()],
   ] as const) {
     const box = (await control.boundingBox())!
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
@@ -221,6 +198,20 @@ test('dialogs, the command palette, pairing and controls share the glass without
     await expectLiquidGlass(kind, page.locator(`[data-glass="${kind}"]`).first())
     await page.mouse.up()
   }
+  // The slider's held thumb bends too, but draws its own rim (slider-v2.md), not the map's.
+  const slider = page.getByRole('slider').first(),
+    thumb = slider.locator('[data-glass="slider"]'),
+    box = (await thumb.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await expect(thumb).toHaveAttribute('data-refracting', 'true')
+  expect(await thumb.evaluate((element) => getComputedStyle(element).backdropFilter)).toMatch(
+    /^url\(/,
+  )
+  expect(await thumb.evaluate((element) => getComputedStyle(element, '::after').display)).toBe(
+    'none',
+  )
+  await page.mouse.up()
 
   await page.goto(`${regressions}?case=palette`)
   const palette = page.locator('dialog[data-glass="sheet"]')
@@ -248,23 +239,26 @@ test('the sidebar keeps its native material with a rim lit from the upper left',
   ).toMatch(/^linear-gradient\(154deg/)
 })
 
-test('only panes over moving content disperse, and blue buttons are tinted glass lit like the rest', async ({
-  page,
-}) => {
+test('no pane disperses, and blue buttons are tinted glass lit like the rest', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 820 })
   await page.goto(`${regressions}?case=conversation-glass`)
   await expect(page.getByText('幫我整理一下這週的訪談筆記。', { exact: true })).toBeVisible()
-  // Dispersion costs a red and a blue bend, spent only where an edge can cross a moving backdrop.
+  // Dispersion cost a red and a blue bend on every frame; the final glass parts no colours.
   const bends = (pane: Locator) =>
     pane.evaluate((element) => {
       const id = getComputedStyle(element).backdropFilter.match(/url\("?#([^")]+)/)![1]!
-      return document.getElementById(id)!.querySelectorAll('feDisplacementMap').length
+      const filter = document.getElementById(id)!
+      return {
+        bends: filter.querySelectorAll('feDisplacementMap').length,
+        colours: filter.querySelectorAll('feColorMatrix').length,
+      }
     })
   const composer = page.locator('[data-region="composer"]')
   await expect(composer).toHaveAttribute('data-refracting', 'true')
   const bubble = page.locator('article[data-event-id="34"] [data-glass="bubble"]')
   evidence.bends = { composer: await bends(composer) }
-  expect(await bends(composer)).toBe(3)
+  // The faint wobble and the bevel.
+  expect(await bends(composer)).toEqual({ bends: 2, colours: 0 })
   // Content bends nothing at all (Q1 of the 液态玻璃组件统一 task book).
   await expect(bubble).toHaveCSS('backdrop-filter', 'none')
 

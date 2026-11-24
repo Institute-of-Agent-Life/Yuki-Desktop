@@ -5,6 +5,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pairUI, yukiFixture } from '../fixtures/backend'
+import { chooseTransparency } from '../fixtures/transparency'
 
 async function add(page: Page) {
   await (await sidebar(page)).getByRole('button', { name: '切換 Yuki', exact: true }).click()
@@ -256,10 +257,7 @@ test('two real roles retain their own drafts, layout, editor and avatar dialogs 
       await page
         .getByRole('radio', { name: mode === 'dark' ? '深色' : '淺色', exact: true })
         .click()
-      await page
-        .getByRole('radiogroup', { name: '視窗材質', exact: true })
-        .getByRole('radio', { name: mode === 'opaque' ? '不透明' : '透明磨砂', exact: true })
-        .click()
+      await chooseTransparency(page, mode === 'opaque' ? 0 : 70)
       for (const [name, checked] of [
         ['增加對比', mode === 'contrast'],
         ['減少動態', true],

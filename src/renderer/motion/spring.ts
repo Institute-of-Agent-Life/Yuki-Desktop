@@ -10,6 +10,12 @@ export const springs = {
   emerge: { k: 300, damping: 0.76 },
   withdraw: { k: 520, damping: 1 },
   busy: { k: 420, damping: 0.62 },
+  // The glass slider, fitted to WWDC25 219's front-on release (slider-v2.md §3.3): let go, it
+  // returns to its size and frosts over; the press is read off its toggle and is an estimate.
+  sliderPress: { k: 990, damping: 0.8 },
+  sliderRelease: { k: 165, damping: 0.69 },
+  sliderFrost: { k: 248, damping: 0.81 },
+  sliderStretch: { k: 400, damping: 1 },
 } as const
 export type SpringConfig = { k: number; damping: number }
 

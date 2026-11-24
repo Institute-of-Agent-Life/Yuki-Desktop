@@ -100,8 +100,18 @@
   --mat-sidebar: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.48));
   --mat-chrome: rgba(255, 255, 255, 0.66);
   --mat-sheet: rgba(255, 255, 255, 0.97);
-  /* A floating glass pane, and how much of the backdrop's contrast it lets through. */
-  --mat-pane: rgba(255, 255, 255, 0.6);
+  /* The glass's tint (materials.css): clear, and a little more where it carries text. */
+  --mat-glass: rgb(255 255 255 / 0.16);
+  --mat-pane: rgb(255 255 255 / 0.24);
+  /* Glass that opens over the page (dialogs, the palette, menus): thicker, so the page's text
+     beneath cannot be read through its own. */
+  --mat-sheet-glass: rgb(255 255 255 / 0.5);
+  --glass-blur: 2px;
+  --glass-brightness: 1.02;
+  --glass-saturation: 1.05;
+  /* How much of the desktop shows through the window, 0–1 (the Transparency setting; App.tsx). The
+     frost's washes below are today's at 0.7, thinner above it and thicker below. */
+  --window-transparency: 0.7;
   /* The surfaces pages lie on: solid here, a thin wash of their colour over the window's frost. */
   --surface-page: var(--bg-content);
   --surface-pane: var(--bg-inspector);
@@ -208,7 +218,12 @@
   --mat-sidebar: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.05));
   --mat-chrome: rgba(46, 48, 55, 0.62);
   --mat-sheet: rgba(38, 40, 46, 0.97);
-  --mat-pane: rgba(38, 40, 46, 0.64);
+  --mat-glass: rgb(30 32 50 / 0.42);
+  --mat-pane: rgb(30 32 50 / 0.74);
+  --mat-sheet-glass: rgb(30 32 50 / 0.74);
+  --glass-blur: 3px;
+  --glass-brightness: 1;
+  --glass-saturation: 1.1;
   --backdrop-aurora:
     radial-gradient(60% 55% at 12% 18%, rgb(70 110 230 / 0.42), transparent 70%),
     radial-gradient(50% 50% at 88% 22%, rgb(150 90 230 / 0.36), transparent 70%),
@@ -244,9 +259,12 @@
   background: transparent;
   --seal: url(#yuki-backdrop-seal);
   --mat-ground: transparent;
-  --mat-sidebar: color-mix(in srgb, var(--bg-sidebar) 16%, transparent);
-  --surface-page: color-mix(in srgb, var(--bg-content) 35%, transparent);
-  --surface-pane: color-mix(in srgb, var(--bg-inspector) 25%, transparent);
+  --mat-sidebar: color-mix(in srgb, var(--bg-sidebar) var(--wash-sidebar), transparent);
+  --surface-page: color-mix(in srgb, var(--bg-content) var(--wash-page), transparent);
+  --surface-pane: color-mix(in srgb, var(--bg-inspector) var(--wash-pane), transparent);
+  --wash-sidebar: max(0%, 100% - 84% * var(--window-transparency) / 0.7);
+  --wash-page: max(0%, 100% - 65% * var(--window-transparency) / 0.7);
+  --wash-pane: max(0%, 100% - 75% * var(--window-transparency) / 0.7);
   --bg-raised: rgb(255 255 255 / 0.4);
   --bg-stage: rgb(20 30 50 / 0.03);
   --field: rgb(255 255 255 / 0.55);
@@ -261,6 +279,7 @@
   /* Glass is shaped by its lit rim; increased contrast adds back a drawn outline. */
   --glass-hairline: var(--edge);
   --mat-pane: var(--mat-sheet);
+  --mat-sheet-glass: var(--mat-sheet);
   --edge: var(--separator-strong);
   --separator: rgba(20, 30, 50, 0.27);
   --separator-strong: rgba(20, 30, 50, 0.42);
