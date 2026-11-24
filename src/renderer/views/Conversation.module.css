@@ -147,21 +147,30 @@
   margin-left: auto;
   max-width: min(560px, 88%);
 }
-/* One's own message is filled with the accent, deepened until white text keeps 4.5:1. */
+/* One's own message is frosted in the accent's tint (another's in the neutral one, tokens.css):
+   thick enough that its text keeps 4.5:1 over the plain page and every pattern; over a picture
+   of one's own, the picture's own readability tint (materials/backdrop.ts). */
 .ownMessage .bubble {
-  --glass-tint: oklch(from var(--accent) min(l, 0.52) calc(c * 1.25) h);
-  --glass-solid: var(--glass-tint);
-  color: #fff;
+  --glass-tint: color-mix(in srgb, var(--accent) var(--bubble-accent), var(--fill-bubble));
+  --glass-solid: color-mix(in srgb, var(--accent) 14%, var(--bg-elevated));
 }
-.ownMessage .bubble :is(header, time) {
-  color: rgb(255 255 255 / 0.8);
+:global([data-backdrop='custom']) .ownMessage .bubble {
+  --glass-tint: color-mix(in srgb, var(--accent) 14%, var(--content-tint));
 }
-.ownMessage .bubble :is(a, a:visited) {
-  color: inherit;
-  text-decoration: underline;
+/* What happened to a message is said below it, on the page, as Messages says "Not Delivered":
+   a problem in the danger colour, a pending one quietly; one's own at the bubble's trailing edge. */
+.messageNote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
 }
-.ownMessage .bubble :is(code, pre) {
-  background: rgb(255 255 255 / 0.16);
+.ownMessage .messageNote {
+  align-items: flex-end;
+  text-align: right;
+}
+.pending[data-problem] {
+  color: var(--status-failed);
 }
 /* The selection frames the bubble itself, not the avatar beside it. */
 .selected .bubble {
@@ -256,7 +265,7 @@
   text-decoration: underline;
 }
 .pending {
-  min-height: 28px;
+  min-height: var(--h-regular);
   display: flex;
   gap: 8px;
   align-items: center;

@@ -3,6 +3,9 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { activeCharacterName } from '../fixtures/active-character'
 import { contentSize } from '../fixtures/visual'
+import { legible } from '../fixtures/legibility'
+import { closeUps } from '../fixtures/edges'
+import { picture } from '../fixtures/pictures'
 
 /*
  * Apple's design language, phases 3, 4 and 6 (docs/reports/2026-11-23-liquid-glass §15 and
@@ -22,13 +25,19 @@ import { contentSize } from '../fixtures/visual'
  *      border or are not grouped inset lists (radius 10, rows of at least 40pt, separators
  *      starting at the text);
  *   5. pages: the welcome, the connection form or any page still lies on a card of its own;
- *   6. the content layer: a bubble or a work card is still glass (a lit rim), one's own bubble is
- *      not filled with the accent, or a new profile's conversation still shows the light pattern;
+ *   6. the content layer: a bubble or a work card is still glass (a lit rim, a lens, a shadow), or
+ *      not frosted (no blur behind a translucent tint: one's own the accent's, another's neutral);
+ *      a new profile's conversation still shows the light pattern; over the plain page or any
+ *      pattern, light or dark, a message's text falls below 4.5:1 (its sender and time below 3:1)
+ *      against the worst 1% of what lies behind it;
  *   7. a picture of one's own does not reach the window's edges under the sidebar;
  *   8. icons: a sidebar, toolbar or settings icon is drawn thinner than 2 (SF Symbols' Regular);
  *   9. on macOS the application menu shows no SF Symbols (and elsewhere it shows any);
  *  10. the font chain lacks the platform's own: SF / PingFang on macOS, Segoe UI Variable on
- *      Windows, system-ui, Inter, Noto Sans and Noto Sans CJK on Linux.
+ *      Windows, system-ui, Inter, Noto Sans and Noto Sans CJK on Linux;
+ *  11. a message that could not be sent says so inside its bubble, where the danger colour and the
+ *      check link are lost on the tint, rather than below it as Messages says "Not Delivered"; or
+ *      what is said there falls below 4.5:1.
  * Screenshots of every page, light and dark, are written first, so the run before the change
  * leaves the "before" pictures as well (assertions are soft).
  */
@@ -314,38 +323,49 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
     expect.soft(usage.unused, 'tokens defined and never used').toEqual([])
     expect.soft(usage.bare, 'radii written as bare lengths').toEqual([])
 
-    // 6: the content layer is not glass.
+    // 6: the content layer is not glass, but frosted: a blur behind a translucent tint (over a
+    // pattern; over the plain page there is nothing to soften, and the tint lies alone).
     await expect(page.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible()
+    await page.evaluate(() => (document.documentElement.dataset.backdrop = 'aurora'))
     const bubbles = await page.locator('article[data-event-id]').evaluateAll((articles) =>
-      articles.map((article) => {
-        const surface = article.querySelector<HTMLElement>('[data-glass], [data-surface]')
-        return {
-          own: article.matches('[class*="_ownMessage_"]'),
-          glass: surface?.dataset.glass ?? null,
-          rim: surface ? getComputedStyle(surface, '::before').content : null,
-          fill: surface ? getComputedStyle(surface).backgroundColor : null,
-        }
-      }),
+      articles
+        .filter((article) =>
+          article.querySelector('[data-surface="bubble"], [data-glass="bubble"]'),
+        )
+        .map((article) => {
+          const surface = article.querySelector<HTMLElement>('[data-surface], [data-glass]')!
+          const style = getComputedStyle(surface)
+          return {
+            own: article.matches('[class*="_ownMessage_"]'),
+            glass: surface.dataset.glass ?? null,
+            rim: getComputedStyle(surface, '::before').content,
+            lift: getComputedStyle(surface.parentElement!).boxShadow,
+            filter: style.backdropFilter,
+            fill: style.backgroundColor,
+          }
+        }),
     )
     evidence.bubbles = bubbles
     expect.soft(bubbles.length).toBeGreaterThan(0)
+    const alphaOf = (colour: string) =>
+      Number(
+        colour
+          .match(/\/\s*([\d.]+)\)$|,\s*([\d.]+)\)$/)
+          ?.slice(1)
+          .find(Boolean) ?? 1,
+      )
     for (const bubble of bubbles) {
       expect.soft(bubble.glass, 'a bubble is content, not glass').toBeNull()
       expect.soft(bubble.rim, 'no lit rim').toBe('none')
+      expect.soft(bubble.lift, 'no shadow').toBe('none')
+      expect.soft(bubble.filter, 'frosted').toMatch(/blur\(/)
+      expect.soft(bubble.filter, 'no lens').not.toMatch(/yuki-glass-/)
+      expect.soft(alphaOf(bubble.fill), 'a translucent tint').toBeLessThan(1)
     }
-    const own = bubbles.find((bubble) => bubble.own)
-    const accent = await page
-      .locator('article[data-event-id][class*="_ownMessage_"]')
-      .first()
-      .evaluate((article) => {
-        const probe = document.createElement('span')
-        probe.style.color = 'oklch(from var(--accent) min(l, 0.52) calc(c * 1.25) h)'
-        article.append(probe)
-        const colour = getComputedStyle(probe).color
-        probe.remove()
-        return colour
-      })
-    expect.soft(own?.fill, 'own bubble').toBe(accent)
+    const ownFill = bubbles.find((bubble) => bubble.own)?.fill,
+      otherFill = bubbles.find((bubble) => !bubble.own)?.fill
+    expect.soft(ownFill, "one's own tint is the accent's, not the neutral one").not.toBe(otherFill)
+    await page.evaluate(() => (document.documentElement.dataset.backdrop = 'plain'))
     const preferences = await page.evaluate(async () => (await window.yuki.boot()).preferences)
     expect.soft(preferences.backdrop, 'a new conversation shows no pattern').toBe('plain')
 
@@ -476,6 +496,95 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
     })
     evidence.customLayer = layer
     expect.soft(layer.position, 'the picture lies under the whole window').toBe('fixed')
+    await page.evaluate(() => (document.documentElement.dataset.backdrop = 'plain'))
+
+    // 6: a message's text over the plain page and every pattern, light and dark.
+    const reply = page
+        .locator('article[data-event-id]')
+        .filter({ hasText: 'Desktop reference reply' })
+        .first(),
+      own = page.locator('article[data-event-id]').filter({ hasText: 'fixture file' }).first()
+    const texts: [string, Locator, number][] = [
+      ['reply', reply.getByText('Desktop reference reply', { exact: true }), 4.5],
+      ['reply time', reply.locator('header time'), 3],
+      ['own message', own.getByText('fixture file', { exact: true }), 4.5],
+      ['own sender', own.locator('header strong'), 3],
+      ['own time', own.locator('header time'), 3],
+    ]
+    const legibility: Record<string, Record<string, number>> = {}
+    evidence.legibility = legibility
+    for (const theme of ['light', 'dark'] as const) {
+      await themed(app, page, theme)
+      await expect(reply).toBeVisible()
+      for (const backdrop of ['plain', 'lens', 'aurora', 'sunset', 'grid']) {
+        await page.evaluate(
+          (backdrop) => (document.documentElement.dataset.backdrop = backdrop),
+          backdrop,
+        )
+        await page.waitForTimeout(300)
+        if (backdrop === 'plain' || backdrop === 'aurora')
+          await shot(page, `bubbles-${backdrop}-${theme}`)
+        const seen: Record<string, number> = {}
+        for (const [name, text] of texts) seen[name] = await legible(page, text)
+        legibility[`${theme} ${backdrop}`] = seen
+        for (const [name, , least] of texts)
+          expect.soft(seen[name], `${theme} ${backdrop} ${name}`).toBeGreaterThanOrEqual(least)
+      }
+    }
+    await page.evaluate(() => (document.documentElement.dataset.backdrop = 'plain'))
+    await themed(app, page, 'light')
+    await closeUps(page, page.locator('[data-region="composer"]'), 'composer-light')
+
+    // The chat over a picture of one's own (line art drawn for the test), light and dark.
+    const lineart = test.info().outputPath('lineart.png')
+    await writeFile(lineart, await picture(page, 'lineart'))
+    await app.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [path] })) as never
+    }, lineart)
+    for (const theme of ['light', 'dark'] as const) {
+      await page.keyboard.press('ControlOrMeta+,')
+      await appearance(page, theme)
+      if (theme === 'light')
+        await page
+          .getByRole('radiogroup', { name: '對話背景', exact: true })
+          .getByRole('radio', { name: '自訂圖片', exact: true })
+          .click()
+      await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'custom')
+      await page.getByRole('button', { name: '返回', exact: true }).click()
+      await expect(reply).toBeVisible()
+      await shot(page, `chat-custom-${theme}`)
+      await closeUps(page, page.locator('[data-region="composer"]'), `composer-custom-${theme}`)
+    }
+    await page.keyboard.press('ControlOrMeta+,')
+    await appearance(page, 'light')
+    await page
+      .getByRole('radiogroup', { name: '對話背景', exact: true })
+      .getByRole('radio', { name: '無', exact: true })
+      .click()
+    await page.getByRole('button', { name: '返回', exact: true }).click()
+
+    // 11: a message sent while the server is away waits, and says so below its bubble.
+    await rig.stop()
+    const waiting = '伺服器離線時送出的訊息'
+    await page
+      .getByRole('textbox', { name: `和 ${await activeCharacterName(page)} 說點什麼` })
+      .fill(waiting)
+    await page.getByRole('button', { name: '送出', exact: true }).click()
+    const pending = page.locator('article').filter({ hasText: waiting }).last()
+    const note = pending.locator('[data-message-note]')
+    await expect(note).toBeVisible({ timeout: 20000 })
+    await shot(page, 'chat-unsent-light')
+    expect
+      .soft(await note.evaluate((node) => !!node.closest('[data-bubble-copy]')), 'below the bubble')
+      .toBe(false)
+    const notes: Record<string, number> = {}
+    for (const text of await note.locator('span, button').filter({ hasText: /\S/ }).all())
+      notes[(await text.textContent())!.trim()] = await legible(page, text)
+    evidence.unsent = notes
+    expect.soft(Object.keys(notes).length, 'a note').toBeGreaterThan(0)
+    for (const [text, ratio] of Object.entries(notes))
+      expect.soft(ratio, `the note: ${text}`).toBeGreaterThanOrEqual(4.5)
+    await rig.restart()
     success = true
   } finally {
     await writeFile(output('apple-style.json'), JSON.stringify(evidence, null, 2) + '\n')

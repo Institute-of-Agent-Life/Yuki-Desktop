@@ -1691,7 +1691,7 @@ function Pending({ item, verify }: { item: Receipt; verify(): Promise<void> }) {
               : 'conversation:receipt.result',
       )
   return (
-    <div className={styles.pending}>
+    <div className={styles.pending} data-problem={item.problem ? '' : undefined}>
       <span>{label}</span>
       {item.state !== 'result' && !item.sending && (
         <Button
@@ -1852,10 +1852,6 @@ export function Message({
               className={styles.markdown}
               onProblem={setError}
             />
-            {error && <Banner status="failed">{error}</Banner>}
-            {own && receipt && needsAttention(receipt) && (
-              <Pending item={receipt} verify={() => verify(receipt.requestId)} />
-            )}
             {event?.attachments.map((attachment) => (
               <MessageAttachment
                 key={attachment.attachment_index}
@@ -1872,6 +1868,14 @@ export function Message({
               </p>
             ))}
           </MessageBubble>
+        )}
+        {!(sticker && event) && (error || (own && receipt && needsAttention(receipt))) && (
+          <div className={styles.messageNote} data-message-note>
+            {error && <Banner status="failed">{error}</Banner>}
+            {own && receipt && needsAttention(receipt) && (
+              <Pending item={receipt} verify={() => verify(receipt.requestId)} />
+            )}
+          </div>
         )}
         {event && (
           <div className={styles.messageActions} data-message-actions>

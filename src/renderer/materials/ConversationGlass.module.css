@@ -8,6 +8,8 @@
   --glass-edge: rgba(221, 236, 255, 0.4);
   --glass-edge-shadow: rgba(177, 198, 242, 0.12);
 }
+/* Frosted, not glass: a blur behind a translucent tint, with no lens, rim or shadow (HIG keeps
+   Liquid Glass out of the content layer). */
 .surface {
   position: absolute;
   inset: 0;
@@ -15,6 +17,11 @@
   border-radius: var(--glass-radius, var(--r-panel));
   pointer-events: none;
   background: var(--glass-tint, var(--glass-neutral-tint));
+  backdrop-filter: blur(12px) var(--seal,);
+}
+/* Over the plain page there is nothing for the frost to soften: the tint alone. */
+:global([data-backdrop='plain']) .surface {
+  backdrop-filter: none;
 }
 /* Only an entering drop reaches past its bubble, for the tail it stretches into. */
 .surface:global([data-liquid]) {
@@ -28,16 +35,19 @@
 .surface:global([data-liquid])::before {
   inset: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
 }
-:global([data-opaque='true']) .surface {
+/* Without transparency, or without GPU compositing to blur every bubble, they are solid. */
+:global(:is([data-opaque='true'], [data-gpu-compositing='false'])) .surface {
   background: var(--glass-solid, var(--bg-elevated));
+  backdrop-filter: none;
 }
 /* Over a picture of one's own the conversation's text needs more than the pattern's thin tint: one
    thick enough for the picture (materials/backdrop.ts), over a light blur of it. */
 :global([data-backdrop='custom']) .root {
   --glass-neutral-tint: var(--content-tint);
 }
-:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .surface {
-  backdrop-filter: blur(var(--content-blur));
+:global(:root[data-backdrop='custom']:not([data-opaque='true'], [data-gpu-compositing='false']))
+  .surface {
+  backdrop-filter: blur(var(--content-blur)) var(--seal,);
 }
 @media (forced-colors: active) {
   .surface {

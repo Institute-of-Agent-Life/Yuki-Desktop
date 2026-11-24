@@ -224,7 +224,8 @@ test('clear lenses bend the backdrop and a sent message rises from the composer 
     const glass = page.locator(`article[data-event-id="${eventId}"] [data-surface="bubble"]`)
     await expect(glass).not.toHaveAttribute('data-refracting')
     await expect(glass).not.toHaveAttribute('data-glass')
-    await expect(glass).toHaveCSS('backdrop-filter', 'none')
+    // Frosted: a blur behind its tint, never a lens.
+    await expect(glass).toHaveCSS('backdrop-filter', 'blur(12px)')
     expect(await glass.evaluate((surface) => getComputedStyle(surface, '::before').content)).toBe(
       'none',
     )
@@ -345,7 +346,7 @@ test('a receipt after the tail settles preserves the bubble size and the convers
     has: page.getByRole('heading', { name: '整理訪談筆記', exact: true }),
   })
   const glass = card.locator('[data-surface="work-card"]')
-  await expect(glass).toHaveCSS('backdrop-filter', 'none')
+  await expect(glass).toHaveCSS('backdrop-filter', 'blur(12px)')
   await page.screenshot({ path: test.info().outputPath('clear-work-card.png') })
   await page.evaluate(() => {
     document.documentElement.dataset.opaque = 'true'

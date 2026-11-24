@@ -8,6 +8,7 @@ import { activeCharacterName } from '../fixtures/active-character'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { contentSize } from '../fixtures/visual'
 import { picture } from '../fixtures/pictures'
+import { legible } from '../fixtures/legibility'
 
 /*
  * A custom chat background (docs/reports/2026-11-23-liquid-glass §12, phase 5). Failure cases,
@@ -223,19 +224,6 @@ test('a picture of ones own is kept once, fitted, blurred, dimmed per theme and 
   }
 })
 
-// WCAG contrast between two sRGB colours.
-const contrast = (a: number[], b: number[]) => {
-  const luminance = (rgb: number[]) => {
-    const [r, g, bl] = rgb.map((value) => {
-      const c = value / 255
-      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-    })
-    return 0.2126 * r! + 0.7152 * g! + 0.0722 * bl!
-  }
-  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p)
-  return (x! + 0.05) / (y! + 0.05)
-}
-
 test('text on the glass stays legible over a high-contrast picture of ones own', async () => {
   test.setTimeout(240000)
   const rig = await yukiFixture(),
@@ -267,53 +255,7 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
     await composer.fill('邊緣應該把後面的內容彎過去，文字仍然要看得清楚。')
     const measured: Record<string, unknown> = {}
     evidence.legibility = measured
-    // The text's colour against everything shown behind its glyphs, the text hidden: the worst 1%.
-    const legibility = async (text: Locator) => {
-      await text.scrollIntoViewIfNeeded()
-      const colour = await text.evaluate((element) => getComputedStyle(element).color)
-      await text.evaluate((element) => {
-        element.setAttribute('data-measured', '')
-        const style = document.createElement('style')
-        style.id = 'measured-style'
-        style.textContent =
-          '[data-measured], [data-measured] * { color: transparent !important; caret-color: transparent !important }'
-        document.head.append(style)
-      })
-      await page.waitForTimeout(100)
-      // Behind the text itself: the box of its glyphs, not the padding or corners around it; a
-      // text field's text is its own box.
-      const clip = await text.evaluate((element) => {
-        const range = document.createRange()
-        range.selectNodeContents(element)
-        const { x, y, width, height } = (
-          element instanceof HTMLTextAreaElement ? element : range
-        ).getBoundingClientRect()
-        return { x, y, width, height }
-      })
-      const shot = await page.screenshot({ clip })
-      await text.evaluate((element) => {
-        element.removeAttribute('data-measured')
-        document.getElementById('measured-style')!.remove()
-      })
-      const pixels = await page.evaluate(async (data) => {
-        const image = new Image()
-        image.src = `data:image/png;base64,${data}`
-        await image.decode()
-        const canvas = new OffscreenCanvas(image.width, image.height),
-          context = canvas.getContext('2d')!
-        context.drawImage(image, 0, 0)
-        const all = context.getImageData(0, 0, image.width, image.height).data,
-          list: number[][] = []
-        for (let k = 0; k < all.length; k += 4) list.push([all[k]!, all[k + 1]!, all[k + 2]!])
-        return list
-      }, shot.toString('base64'))
-      const rgb = colour
-        .match(/\d+(\.\d+)?/g)!
-        .slice(0, 3)
-        .map(Number)
-      const ratios = pixels.map((pixel) => contrast(rgb, pixel)).sort((a, b) => a - b)
-      return Math.round(ratios[Math.floor(ratios.length * 0.01)]! * 100) / 100
-    }
+    const legibility = (text: Locator) => legible(page, text)
     const messages = page.locator('[role="log"]').first(),
       toolbar = page.locator('[data-region="toolbar"]').first()
     const reply = messages
