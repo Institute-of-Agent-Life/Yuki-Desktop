@@ -28,62 +28,76 @@ const NS = 'http://www.w3.org/2000/svg'
 }
 
 /*
- * The final glass (docs/reports/2026-11-23-liquid-glass, §11 and §15). The backdrop is blurred
- * first (materials.css), then bent inward over a wide band along the edge: the blur's soft shapes
- * are pressed together there into the melted, uneven look of thick glass. A faint low-frequency
- * wobble keeps the face from looking perfectly flat, and the body gathers light toward its middle.
+ * Liquid Glass as measured on iOS 26 (the owner's screenshots registered against their own
+ * wallpapers): the backdrop is blurred (materials.css), then bent inward over a band along the
+ * edge, lifted a little and lit at the rim.
  *
- * Shapes, fitted to Apple's glass: `band` is the bending band's width as a part of the corner's
- * radius, `bend` the pull at the rim in band widths, falling as (1 − t)^profile across the band.
- *   pane: toolbars, the composer, cards and sheets, after the iOS 26 folders and Dock;
- *   lens: a control held under the finger, the clear lens of WWDC25 219.
+ * The bend always samples from further inside, along the inward normal: a pixel at depth d shows
+ * what lies D(d) deeper, D(d) = A·(e^(−d/λ) − e^(−w/λ)) up to the band's width w. D falls faster
+ * than d grows near the rim, so the band shows the strip just inside it mirrored and pressed
+ * together, as the rounded rim of real glass reflects it. The lens is a part's own, not its
+ * radius's or height's:
+ *   pane: toolbars, the composer, cards and sheets, after the Lock Screen's platters and buttons
+ *     (A 21.1, λ 2.62, w 7.5pt: 19.9pt at the rim, the fold at 5.5pt);
+ *   lens: a control held under the finger, the clear lens of WWDC25 219;
+ *   slider: its held thumb (slider-v2.md §3.2): a rim a tenth of the radius wide showing what lies
+ *     0.6 of the radius in.
+ * Near a corner the bend follows a rounder shape (the normal of a corner `turn` times as large):
+ * iOS's corners bend so, not along the visible circle's own normal.
  */
+interface Shape {
+  /** How far a pixel at depth `d` (CSS px) from the edge samples deeper, for a corner `radius`. */
+  bend(d: number, radius: number): number
+  /** Where the band ends. */
+  reach(radius: number): number
+  turn: number
+}
+const exponential = (amplitude: number, decay: number, width: number): Shape => ({
+  bend: (d) =>
+    d >= width ? 0 : amplitude * (Math.exp(-Math.max(0, d) / decay) - Math.exp(-width / decay)),
+  reach: () => width,
+  turn: 1.4,
+})
+const power = (band: number, pull: number, profile: number, least: number): Shape => ({
+  bend: (d, radius) => {
+    const width = Math.max(least, band * radius),
+      t = Math.max(0, d) / width
+    return t >= 1 ? 0 : pull * width * (1 - t) ** profile
+  },
+  reach: (radius) => Math.max(least, band * radius),
+  turn: 1,
+})
 const shapes = {
-  pane: { band: 0.45, bend: 1.2, profile: 2, wobble: 0.3, least: 3 },
-  lens: { band: 0.19, bend: 2.16, profile: 4, wobble: 0, least: 3 },
-  // The slider's held thumb, measured on WWDC25 219's front-on slider (slider-v2.md §3.2): a flat
-  // face and a rim a tenth of the radius wide, whose edge shows what lies 0.6 of the radius in.
-  slider: { band: 0.1, bend: 6, profile: 0.5, wobble: 0, least: 1 },
-} as const
+  pane: exponential(21.1, 2.62, 7.5),
+  lens: power(0.19, 2.16, 4, 3),
+  slider: power(0.1, 6, 0.5, 1),
+} satisfies Record<string, Shape>
 /*
- * The rim's light, measured on the same glass: a line along the edge, brightest on the upper-right
- * and lower-left arcs (`lobe` sharpens them, `other` lights the opposite pair; the straight sides
- * keep half, so the line runs on unbroken around the glass as on the iOS Dock and folders), a
- * Fresnel band over a few percent of the radius and a glow fading inward. `body` is how much the
- * middle is brightened. The line is as wide as the bevel (`bevelOf`): thicker on larger glass, and
- * never thinner than a pixel on a 1x screen.
+ * The light, measured on the same glass. The face is lifted evenly by `lift` (about 20 levels,
+ * neutral: no tint and no extra saturation). The rim adds the same to red, green and blue on top of
+ * what the bend shows, so it keeps the colour of what lies just inside: E·f(θ)·r(d), with θ the
+ * outward normal's angle (0° right, 90° up), the light fixed at the upper left:
+ *   f(θ) = clamp(0.5 + cos 2(θ − 135°), 0, 1)·(0.8 + 0.4·sin²θ): brightest on the upper-left and
+ *     lower-right corners, about 0.7 along the top and bottom, 0.5 along the sides, nothing on the
+ *     upper-right and lower-left;
+ *   r(d) = clamp(1.15 − 0.88·d, 0, 1): about 1.2pt wide, brightest at the outermost pixel.
+ * It is laid on as white of that strength (X + a·(1 − X)), which iOS's grey rows prefer and which
+ * never clips a pale page to white; E is iOS's 72 on dark glass and 60 on light, whose white tint
+ * already lies close to white over a pale page. No colours are parted, no shade lies within and no ring
+ * around it.
  */
 const lights = {
-  pane: {
-    light: { line: 0.4, other: 0.45, lobe: 2, fresnel: 0.3, glow: 0.03, glowWidth: 1, body: 0.28 },
-    dark: { line: 0.3, other: 0.45, lobe: 2, fresnel: 0.16, glow: 0.12, glowWidth: 1.3, body: 0.2 },
-  },
-  lens: {
-    light: {
-      line: 0.6,
-      other: 0.25,
-      lobe: 1.2,
-      fresnel: 0.3,
-      glow: 0.03,
-      glowWidth: 1,
-      body: 0.28,
-    },
-    dark: {
-      line: 0.6,
-      other: 0.25,
-      lobe: 1.2,
-      fresnel: 0.16,
-      glow: 0.12,
-      glowWidth: 1.3,
-      body: 0.2,
-    },
-  },
-  // The slider's thumb draws its own rim (InteractiveControls.module.css) and gathers no light.
-  slider: {
-    light: { line: 0, other: 0, lobe: 1, fresnel: 0, glow: 0, glowWidth: 1, body: 0 },
-    dark: { line: 0, other: 0, lobe: 1, fresnel: 0, glow: 0, glowWidth: 1, body: 0 },
-  },
+  pane: { light: { lift: 20, rim: 60 }, dark: { lift: 20, rim: 72 } },
+  lens: { light: { lift: 20, rim: 60 }, dark: { lift: 20, rim: 72 } },
+  // The slider's thumb draws its own rim (InteractiveControls.module.css).
+  slider: { light: { lift: 0, rim: 0 }, dark: { lift: 0, rim: 0 } },
 } as const
+/** The rim's strength by the outward normal's angle (radians, 0 right, π/2 up). */
+export const rimAngle = (theta: number) =>
+  Math.min(1, Math.max(0, 0.5 + Math.cos(2 * (theta - (3 * Math.PI) / 4)))) *
+  (0.8 + 0.4 * Math.sin(theta) ** 2)
+/** The rim's strength by depth (CSS px). */
+export const rimDepth = (d: number) => Math.min(1, Math.max(0, 1.15 - 0.88 * d))
 const kinds = {
   toolbar: 'pane',
   composer: 'pane',
@@ -95,11 +109,6 @@ const kinds = {
 } as const
 export type GlassKind = keyof typeof kinds
 const theme = () => (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light')
-
-/** The bevel's lit line, in CSS pixels: a twentieth of the corner's radius, within 0.6–1.4. */
-const bevelOf = (radius: number) => Math.min(1.4, Math.max(0.6, radius * 0.045))
-/** The shade just within the lit line, in CSS pixels: wider on larger glass, within 1.5–4. */
-const shadeOf = (radius: number) => Math.min(4, Math.max(1.5, radius * 0.12))
 
 export function roundedDistance(x: number, y: number, hx: number, hy: number, radius: number) {
   const qx = Math.abs(x) - hx + radius,
@@ -121,11 +130,13 @@ const place = (span: Span, size: number) =>
   ] as const
 interface Lens {
   pieces: { href: string; x: Span; y: Span }[]
+  /** The rim's light map cut the same way, laid over a clear face for the filter. */
+  rimPieces: { href: string; x: Span; y: Span }[]
   rim: string
   slice: [number, number]
   border: [number, number]
-  band: number
-  shade: number
+  /** The bend map's full scale: the largest bend, twice over (a map value runs ±0.5 of it). */
+  span: number
 }
 const lenses = new Map<string, Lens>()
 let sequence = 0
@@ -133,18 +144,21 @@ let sequence = 0
 /*
  * A rounded rectangle's bend and light depend only on the edge's direction and the distance to
  * it, the same all along a straight edge. So a glass is painted once as a tile just larger than
- * its corners along each side it is longer than that: its light is laid around the edge by the
- * browser (a mask border), and its bend is put together in the filter from the tile's corners and
- * edges over a neutral face. A new size only moves the pieces; nothing is painted again.
+ * its corners along each side it is longer than that, and put together in the filter from the
+ * tile's corners and edges over a neutral (or clear) face. A new size only moves the pieces;
+ * nothing is painted again. The light is cut the same way; where nothing bends (no GPU
+ * compositing) the browser lays it around the edge itself, as a mask border.
  *
  * The bend is painted at no less than 2x and dithered: a strong bend from a coarse 8-bit map steps
  * a pixel at a time into dashed rings near the rim.
  */
 function lens(width: number, height: number, radius: number, kind: GlassKind): Lens {
   const scale = Math.min(3, Math.max(2, Math.ceil(devicePixelRatio))),
-    shape = shapes[kinds[kind]],
-    band = Math.max(shape.least, shape.band * radius),
-    border = Math.ceil(Math.max(radius, band) + 2),
+    shape: Shape = shapes[kinds[kind]],
+    reach = shape.reach(radius)
+  // The rounder shape whose normal the bend follows near a corner.
+  const turned = Math.min(radius * shape.turn, width / 2, height / 2),
+    border = Math.ceil(Math.max(turned, reach) + 2),
     tile = 2 * border + 1
   const across = width > tile,
     down = height > tile
@@ -157,16 +171,18 @@ function lens(width: number, height: number, radius: number, kind: GlassKind): L
   const light = lights[kinds[kind]][look],
     hx = w / 2,
     hy = h / 2
-  // The signed distance field's own gradient: straight off a side, or off a corner's centre.
-  const normal = (x: number, y: number) => {
-    const qx = Math.abs(x) - hx + radius,
-      qy = Math.abs(y) - hy + radius
+  // The outward normal of a rounded rectangle with corners `corner`: straight off a side, or off
+  // a corner's centre.
+  const normal = (x: number, y: number, corner: number) => {
+    const qx = Math.abs(x) - hx + corner,
+      qy = Math.abs(y) - hy + corner
     if (qx > 0 && qy > 0) {
       const length = Math.hypot(qx, qy)
       return [(Math.sign(x) * qx) / length, (Math.sign(y) * qy) / length] as const
     }
     return qx > qy ? ([Math.sign(x), 0] as const) : ([0, Math.sign(y)] as const)
   }
+  const span = 2 * Math.max(1, shape.bend(0, radius))
   // Paints a map over the tile, visiting only pixels from just outside the edge to just past the
   // band: the face keeps the map's starting value.
   const paint = (
@@ -184,7 +200,7 @@ function lens(width: number, height: number, radius: number, kind: GlassKind): L
         const x = (i + 0.5) / scale - hx,
           y = (j + 0.5) / scale - hy,
           distance = roundedDistance(x, y, hx, hy, radius)
-        if (distance > 1 / scale || -distance > band + 2) continue
+        if (distance > 1 / scale || -distance > reach + 2) continue
         draw(image.data, (j * canvas.width + i) * 4, x, y, distance)
       }
     context.putImageData(image, 0, 0)
@@ -193,29 +209,23 @@ function lens(width: number, height: number, radius: number, kind: GlassKind): L
   const bend = paint(
     new Uint32Array(new Uint8ClampedArray([128, 128, 128, 255]).buffer)[0]!,
     (data, k, x, y, distance) => {
-      const t = -distance / band,
-        amount = t >= 1 ? 0 : (1 - Math.max(0, t)) ** shape.profile,
-        [nx, ny] = normal(x, y)
+      // Inward, as far as the lens says for this depth, along the rounder shape's normal.
+      const amount = shape.bend(-distance, radius) / span,
+        [nx, ny] = normal(x, y, turned)
       const noise = ((k * 2654435761) >>> 0) / 4294967296 - 0.5
-      data[k] = Math.round(128 - amount * nx * 127 + noise)
-      data[k + 1] = Math.round(128 - amount * ny * 127 - noise)
+      data[k] = Math.round(128 - amount * nx * 255 + noise)
+      data[k + 1] = Math.round(128 - amount * ny * 255 - noise)
     },
   )
+  // The rim's light: white whose alpha is its strength (premultiplied, it adds evenly to red,
+  // green and blue).
   const rim = paint(0, (data, k, x, y, distance) => {
-    const inset = Math.max(0, -distance),
-      [nx, ny] = normal(x, y)
-    const diagonal = 2 * nx * ny,
-      lobes =
-        Math.max(0, -diagonal) ** light.lobe + light.other * Math.max(0, diagonal) ** light.lobe
-    const weight = 0.5 + 0.5 * lobes,
-      bevel = bevelOf(radius)
-    const line = Math.exp(-(((inset - 0.6 * bevel) / bevel) ** 2)) * light.line * weight,
-      fresnel = light.fresnel * weight * Math.exp(-inset / Math.max(0.8, radius * 0.06)),
-      glow = light.glow * Math.exp(-inset / light.glowWidth)
+    const [nx, ny] = normal(x, y, radius),
+      strength = (light.rim / 255) * rimAngle(Math.atan2(-ny, nx)) * rimDepth(-distance)
     // The outermost pixel is covered only partly, which smooths the curve.
     const coverage = Math.max(0, Math.min(1, 0.5 - distance * scale))
     data[k] = data[k + 1] = data[k + 2] = 255
-    data[k + 3] = Math.round(Math.min(1, line + fresnel + glow) * coverage * 255)
+    data[k + 3] = Math.round(strength * coverage * 255)
   })
   // Each axis cut into its start, a middle one CSS pixel long that stretches along a straight
   // side, and its end; or kept whole where the glass is no longer than its tile.
@@ -227,63 +237,32 @@ function lens(width: number, height: number, radius: number, kind: GlassKind): L
           [(border + 1) * scale, border * scale, { offset: border, length: border, end: true }],
         ] as const)
       : ([[0, size, { offset: 0, length: null, end: false }]] as const)
-  const pieces: Lens['pieces'] = []
-  for (const [sx, sw, x] of cuts(across, bend.width))
-    for (const [sy, sh, y] of cuts(down, bend.height)) {
-      // The face, the middle of both sliced axes, bends nothing: the neutral flood shows there.
-      if (across && down && x.length === null && y.length === null) continue
-      const canvas = document.createElement('canvas')
-      canvas.width = sw
-      canvas.height = sh
-      canvas.getContext('2d')!.drawImage(bend, sx, sy, sw, sh, 0, 0, sw, sh)
-      pieces.push({ href: canvas.toDataURL(), x, y })
-    }
+  // The face, the middle of both sliced axes, bends nothing and has no rim.
+  const cut = (map: HTMLCanvasElement) => {
+    const pieces: Lens['pieces'] = []
+    for (const [sx, sw, x] of cuts(across, map.width))
+      for (const [sy, sh, y] of cuts(down, map.height)) {
+        if (across && down && x.length === null && y.length === null) continue
+        const canvas = document.createElement('canvas')
+        canvas.width = sw
+        canvas.height = sh
+        canvas.getContext('2d')!.drawImage(map, sx, sy, sw, sh, 0, 0, sw, sh)
+        pieces.push({ href: canvas.toDataURL(), x, y })
+      }
+    return pieces
+  }
   const result: Lens = {
-    pieces,
+    pieces: cut(bend),
+    rimPieces: cut(rim),
     rim: rim.toDataURL(),
     slice: [down ? border * scale : 0, across ? border * scale : 0],
     border: [down ? border : 0, across ? border : 0],
-    band,
-    shade: shadeOf(radius),
+    span,
   }
   // A handful of kinds, radii and short sides: kept.
   lenses.set(key, result)
   return result
 }
-
-// Small maps stretched over a whole pane, as they change only slowly across it.
-function smallMap(paint: (u: number, v: number) => number[]) {
-  const size = 64,
-    canvas = document.createElement('canvas')
-  canvas.width = canvas.height = size
-  const context = canvas.getContext('2d')!,
-    image = context.createImageData(size, size)
-  for (let j = 0; j < size; j++)
-    for (let i = 0; i < size; i++)
-      image.data.set(
-        [...paint(((i + 0.5) / size) * 2 - 1, ((j + 0.5) / size) * 2 - 1), 255],
-        (j * size + i) * 4,
-      )
-  context.putImageData(image, 0, 0)
-  return canvas.toDataURL()
-}
-let wobbleMap = '',
-  bodyMap = ''
-// A weak, low-frequency wobble: the slab is not quite even.
-const wobble = () =>
-  (wobbleMap ||= smallMap((i, j) => {
-    const u = i * 1.6,
-      v = j * 1.6
-    const dx = (Math.sin(2.3 * u + 1.1 * v + 0.7) + 0.6 * Math.sin(1.3 * u - 2.9 * v + 2.1)) / 1.6,
-      dy = (Math.sin(1.7 * u - 2.1 * v + 1.9) + 0.6 * Math.sin(-2.6 * u + 1.4 * v + 0.4)) / 1.6
-    return [Math.round(128 + dx * 127), Math.round(128 + dy * 127), 128]
-  }))
-// The body's light: a Gaussian of the distance from a point a little below the middle.
-const body = () =>
-  (bodyMap ||= smallMap((u, v) => {
-    const value = Math.round(255 * Math.exp(-(u * u + (v - 0.15) ** 2) / 0.49))
-    return [value, value, value]
-  }))
 
 // One listener moves the light source for the lit rims of buttons: a fixed-position gradient
 // centred on the pointer. The position is written only on the elements that show it (registered,
@@ -344,15 +323,11 @@ export function useGlass<T extends HTMLElement>(
 ) {
   const ref = useRef<T>(null),
     strength = useRef(dynamic ? 0 : 1)
-  const bends = useRef<{ wobble?: SVGElement; bevel: SVGElement; amount: number } | null>(null)
+  const bends = useRef<{ bevel: SVGElement; span: number } | null>(null)
   const bend = (value: number) => {
     const current = bends.current
     if (!current) return
-    current.bevel.setAttribute('scale', String(2 * current.amount * value))
-    current.wobble?.setAttribute(
-      'scale',
-      String(2 * shapes[kinds[kind]].wobble * current.amount * value),
-    )
+    current.bevel.setAttribute('scale', String(current.span * value))
   }
   const setStrength = (value: number) => {
     const rising = !strength.current !== !value
@@ -371,8 +346,7 @@ export function useGlass<T extends HTMLElement>(
     attachment.current?.dispose()
     attachment.current = undefined
     if (!element || !CSS.supports('backdrop-filter', 'url(#glass)')) return
-    const root = document.documentElement,
-      shape = shapes[kinds[kind]]
+    const root = document.documentElement
     // Without GPU compositing (as the main process found at boot) every frame of a bend is drawn
     // on the CPU: the glass keeps its blur, tint and lit rim, and does not bend.
     const bending = root.dataset.gpuCompositing !== 'false'
@@ -388,25 +362,16 @@ export function useGlass<T extends HTMLElement>(
       primitiveUnits: 'userSpaceOnUse',
       'color-interpolation-filters': 'sRGB',
     })
-    // The bevel's map: its pieces merged over a neutral face. Then the whole pane wobbles a
-    // little, the bevel bends what the wobble left, and the body's light brightens the middle.
+    // The bevel's map: its pieces merged over a neutral face; the rim's light, over a clear one.
+    // The blurred backdrop (materials.css) is bent by the map, lifted evenly, and the rim's light
+    // added to it: the same on red, green and blue, so the rim keeps the colour of what the bend
+    // brought to it.
     // A displacement map moves whole pixels: a fine line bent across the bevel steps and breaks
     // up, where Apple's stays a smooth curve. Half a pixel of blur after the bend joins it again.
-    const merge = primitive('feMerge', { result: 'bevel' })
-    const stretched = (href: string, result: string) =>
-      primitive('feImage', { href, x: '0', y: '0', preserveAspectRatio: 'none', result })
-    const wobbleImage = shape.wobble ? stretched(wobble(), 'wobble-map') : undefined,
-      wobbleBend = shape.wobble
-        ? primitive('feDisplacementMap', {
-            in: 'SourceGraphic',
-            in2: 'wobble-map',
-            xChannelSelector: 'R',
-            yChannelSelector: 'G',
-            result: 'wobbled',
-          })
-        : undefined
+    const merge = primitive('feMerge', { result: 'bevel' }),
+      rimMerge = primitive('feMerge', { result: 'rim' })
     const bevelBend = primitive('feDisplacementMap', {
-      in: wobbleBend ? 'wobbled' : 'SourceGraphic',
+      in: 'SourceGraphic',
       in2: 'bevel',
       xChannelSelector: 'R',
       yChannelSelector: 'G',
@@ -417,54 +382,77 @@ export function useGlass<T extends HTMLElement>(
       stdDeviation: '0.5',
       result: 'bent',
     })
-    const bodyImage = stretched(body(), 'body'),
-      gain = primitive('feComposite', { in: 'bent', in2: 'body', operator: 'arithmetic', k2: '1' })
+    const lift = primitive('feComponentTransfer', { in: 'bent', result: 'lifted' })
+    for (const name of ['feFuncR', 'feFuncG', 'feFuncB'])
+      lift.append(primitive(name, { type: 'linear', slope: '1' }))
+    // White of the rim's strength a over what was lifted: X + a·(1 − X), as k1·a·X + k2·a + k3·X.
+    // The pane's tint (its background) lies over all this: the rim is strengthened by as much as
+    // the tint takes away (`1 / (1 − tint)`), so the same light reaches the eye.
+    const rimLight = primitive('feComposite', {
+      in: 'rim',
+      in2: 'lifted',
+      operator: 'arithmetic',
+      k3: '1',
+    })
     filter.append(
       primitive('feFlood', { 'flood-color': '#808080', result: 'flat' }),
       merge,
-      ...(wobbleImage && wobbleBend ? [wobbleImage, wobbleBend] : []),
+      primitive('feFlood', { 'flood-opacity': '0', result: 'clear' }),
+      rimMerge,
       bevelBend,
       smooth,
-      bodyImage,
-      gain,
+      lift,
+      rimLight,
     )
     svg.append(filter)
     if (bending) document.body.append(svg)
-    bends.current = { wobble: wobbleBend, bevel: bevelBend, amount: 0 }
+    bends.current = { bevel: bevelBend, span: 0 }
     let size = '',
       shown = false,
       first = made,
       current: Lens | undefined,
-      pieces: SVGElement[] = []
+      pieces: SVGElement[] = [],
+      rimPieces: SVGElement[] = []
     // Gives the filter the pieces of a new lens.
     const assemble = (next: Lens) => {
-      for (const piece of pieces) piece.remove()
-      pieces = next.pieces.map((piece, index) =>
-        primitive('feImage', {
-          href: piece.href,
-          preserveAspectRatio: 'none',
-          result: `bevel-${index}`,
-        }),
-      )
+      for (const piece of [...pieces, ...rimPieces]) piece.remove()
+      const images = (list: Lens['pieces'], name: string) =>
+        list.map((piece, index) =>
+          primitive('feImage', {
+            href: piece.href,
+            preserveAspectRatio: 'none',
+            result: `${name}-${index}`,
+          }),
+        )
+      pieces = images(next.pieces, 'bevel')
+      rimPieces = images(next.rimPieces, 'rim')
       merge.before(...pieces)
       merge.replaceChildren(
         ...['flat', ...pieces.map((_, index) => `bevel-${index}`)].map((input) =>
           primitive('feMergeNode', { in: input }),
         ),
       )
+      rimMerge.before(...rimPieces)
+      rimMerge.replaceChildren(
+        ...['clear', ...rimPieces.map((_, index) => `rim-${index}`)].map((input) =>
+          primitive('feMergeNode', { in: input }),
+        ),
+      )
     }
     // Lays the current pieces over a glass `w` by `h`.
     const layout = (w: number, h: number) => {
-      for (const node of [filter, wobbleImage, bodyImage]) {
-        node?.setAttribute('width', String(w))
-        node?.setAttribute('height', String(h))
-      }
-      current!.pieces.forEach((piece, index) => {
-        const [x, width] = place(piece.x, w),
-          [y, height] = place(piece.y, h)
-        for (const [key, value] of Object.entries({ x, y, width, height }))
-          pieces[index]!.setAttribute(key, String(value))
-      })
+      filter.setAttribute('width', String(w))
+      filter.setAttribute('height', String(h))
+      for (const [list, nodes] of [
+        [current!.pieces, pieces],
+        [current!.rimPieces, rimPieces],
+      ] as const)
+        list.forEach((piece, index) => {
+          const [x, width] = place(piece.x, w),
+            [y, height] = place(piece.y, h)
+          for (const [key, value] of Object.entries({ x, y, width, height }))
+            nodes[index]!.setAttribute(key, String(value))
+        })
     }
     // A pane appears by bending in, as Apple's glass materialises: its bend rises on the emerging
     // spring from nothing to its full strength, rather than being there at once.
@@ -490,7 +478,6 @@ export function useGlass<T extends HTMLElement>(
       element.style.removeProperty('--rim')
       element.style.removeProperty('--rim-slice')
       element.style.removeProperty('--rim-border')
-      element.style.removeProperty('--bevel-shade')
       delete element.dataset.refracting
     }
     const sync = () => {
@@ -535,21 +522,27 @@ export function useGlass<T extends HTMLElement>(
             '--rim-border',
             fresh.border.map((value) => `${value}px`).join(' '),
           )
-          element.style.setProperty('--bevel-shade', `${fresh.shade}px`)
-          bends.current!.amount = fresh.band * shape.bend
+          bends.current!.span = fresh.span
         }
       }
       if (next !== size) layout(w, h)
       size = next
-      gain.setAttribute('k1', String(lights[kinds[kind]][theme()].body))
+      const look = lights[kinds[kind]][theme()]
+      for (const func of lift.children) func.setAttribute('intercept', String(look.lift / 255))
       if (bending) element.style.setProperty('--refract', `url(#${id})`)
+      const tint = Number(
+        getComputedStyle(element).backgroundColor.match(/[\d.]+(?=\)$)/)?.[0] ?? 0,
+      )
+      const through = 1 / Math.max(0.1, 1 - Math.min(1, tint))
+      rimLight.setAttribute('k1', String(-through))
+      rimLight.setAttribute('k2', String(through))
       element.dataset.refracting = 'true'
       // While it bends in, the rising spring alone sets its strength.
       if (!rising) bend(strength.current)
     }
     // Transparency and the theme's light change the maps; a page writing the same value again
     // changes nothing.
-    const appearanceOf = () => `${root.dataset.opaque}/${theme()}`
+    const appearanceOf = () => `${root.dataset.opaque}/${theme()}/${root.dataset.material}`
     let shownAs = appearanceOf()
     const resize = new ResizeObserver(sync),
       appearance = new MutationObserver(() => {
@@ -560,7 +553,10 @@ export function useGlass<T extends HTMLElement>(
       })
     // The border box: a drop entering adds padding around the same content, and its map must follow.
     resize.observe(element, { box: 'border-box' })
-    appearance.observe(root, { attributes: true, attributeFilter: ['data-opaque', 'data-theme'] })
+    appearance.observe(root, {
+      attributes: true,
+      attributeFilter: ['data-opaque', 'data-theme', 'data-material'],
+    })
     sync()
     const dispose = () => {
       cancelAnimationFrame(rising)

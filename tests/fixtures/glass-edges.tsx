@@ -158,6 +158,15 @@ function background(kind: string): CSSProperties {
   if (kind === 'white') return { background: '#ffffff' }
   if (kind === 'dark') return { background: '#15161a' }
   if (kind === 'gray') return { background: '#808080' }
+  if (kind === 'pale') return { background: '#d8d8d8' }
+  // Saturated colour: blue on the left half, orange on the right.
+  if (kind === 'duo') return { background: 'linear-gradient(90deg, #2f6bff 50%, #ff8a1f 50%)' }
+  // Orange above y = 40, blue below: the composer's top edge (y = 32) lies on orange, its inside
+  // on blue.
+  if (kind === 'band') return { background: 'linear-gradient(180deg, #ff8a1f 40px, #2f6bff 40px)' }
+  // A ramp from dark to light down the first 120px: depth inside the composer reads as brightness.
+  if (kind === 'ramp')
+    return { background: 'linear-gradient(180deg, #101010 0px, #f0f0f0 120px, #f0f0f0)' }
   return { background: `url(${query.get('img')}) center / cover` }
 }
 

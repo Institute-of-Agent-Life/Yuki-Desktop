@@ -76,14 +76,16 @@ async function expectLiquidGlass(name: string, pane: Locator) {
   await expect.poll(() => pane.evaluate((element) => element.getAnimations().length)).toBe(0)
   const filter = await pane.evaluate((element) => getComputedStyle(element).backdropFilter)
   expect(filter).toMatch(/url\(/)
-  // 3–4, as revised by the final glass (docs/reports/2026-11-23-liquid-glass §15): a thin line lit
-  // most on the upper-right and lower-left arcs, less on the other two, dim and even along the sides.
+  // 3–4, as revised by the iOS 26 measurement (glass.ts `lights`): lit from the upper left: the
+  // upper-left and lower-right corners brightest, the sides at about half of them, the upper-right
+  // and lower-left dark.
   const rim = await rimLight(pane)
   evidence[name] = { filter, rim }
-  expect(rim.upperLeft).toBeLessThan(rim.upperRight)
-  expect(rim.lowerRight).toBeLessThan(rim.lowerLeft)
+  // (The arcs are read a pixel off the diagonal, where the light has begun to rise again.)
+  expect(rim.upperRight).toBeLessThan(rim.upperLeft * 0.3)
+  expect(rim.lowerLeft).toBeLessThan(rim.lowerRight * 0.3)
   for (const side of [rim.top, rim.bottom, rim.left, rim.right]) {
-    expect(side).toBeLessThan(rim.upperRight * 0.75)
+    expect(side).toBeLessThan(rim.upperLeft * 0.8)
     expect(Math.abs(side - rim.top)).toBeLessThanOrEqual(0.06)
   }
   expect(rim.inside).toBeLessThan(rim.top * 0.4)
@@ -136,12 +138,13 @@ test('every floating conversation pane is lit liquid glass', async ({ page }) =>
   )
   const composer = page.locator('[data-region="composer"]')
   await expectLiquidGlass('composer', composer)
-  // Q1 of the 液态玻璃组件统一 task book: bubbles and work cards are content, with no lens.
+  // Q1 of the 液态玻璃组件统一 task book: bubbles and work cards are content, with no lens: only
+  // frosted.
   for (const content of [
     page.locator('article[data-event-id="34"] [data-surface="bubble"]'),
     page.locator('[data-surface="work-card"]').first(),
   ])
-    await expect(content).toHaveCSS('backdrop-filter', 'none')
+    await expect(content).toHaveCSS('backdrop-filter', 'blur(12px)')
   await page.screenshot({ path: test.info().outputPath('conversation-light.png') })
   await page.evaluate(() => (document.documentElement.dataset.theme = 'dark'))
   await expectLiquidGlass('composer-dark', composer)
@@ -251,7 +254,7 @@ test('no pane disperses, and blue buttons are tinted glass lit like the rest', a
   await page.setViewportSize({ width: 1280, height: 820 })
   await page.goto(`${regressions}?case=conversation-glass`)
   await expect(page.getByText('幫我整理一下這週的訪談筆記。', { exact: true })).toBeVisible()
-  // Dispersion cost a red and a blue bend on every frame; the final glass parts no colours.
+  // Dispersion cost a red and a blue bend on every frame; iOS 26 parts no colours (measured).
   const bends = (pane: Locator) =>
     pane.evaluate((element) => {
       const id = getComputedStyle(element).backdropFilter.match(/url\("?#([^")]+)/)![1]!
@@ -265,10 +268,12 @@ test('no pane disperses, and blue buttons are tinted glass lit like the rest', a
   await expect(composer).toHaveAttribute('data-refracting', 'true')
   const bubble = page.locator('article[data-event-id="34"] [data-surface="bubble"]')
   evidence.bends = { composer: await bends(composer) }
-  // The faint wobble and the bevel.
-  expect(await bends(composer)).toEqual({ bends: 2, colours: 0 })
-  // Content bends nothing at all (Q1 of the 液态玻璃组件统一 task book).
-  await expect(bubble).toHaveCSS('backdrop-filter', 'none')
+  // The bevel's bend alone.
+  expect(await bends(composer)).toEqual({ bends: 1, colours: 0 })
+  // Content bends nothing at all (Q1 of the 液态玻璃组件统一 task book): it is only frosted.
+  expect(await bubble.evaluate((element) => getComputedStyle(element).backdropFilter)).toMatch(
+    /^blur\([\d.]+px\)$/,
+  )
 
   await page.goto(gallery)
   const primary = page.getByRole('button', { name: '開啟對話框', exact: true })

@@ -40,7 +40,9 @@
     color-mix(in srgb, var(--stroke-hi) 40%, transparent)
   );
 }
-/* The rim's light: white, laid around the edge by the pane's own light map (glass.ts). */
+/* The rim's light where nothing bends (no GPU compositing): the pane's own light map (glass.ts)
+   laid around the edge in white. Where the glass bends, its filter adds the light itself, on top
+   of what the bend shows, so the rim keeps those colours. */
 [data-glass]::after {
   content: '';
   position: absolute;
@@ -51,6 +53,7 @@
   -webkit-mask-box-image: var(--rim) var(--rim-slice) fill / var(--rim-border);
 }
 [data-glass]:not([data-refracting])::after,
+:root:not([data-gpu-compositing='false']) [data-glass][data-refracting]::after,
 /* The slider's thumb draws its own rim (InteractiveControls.module.css). */
 [data-glass='slider']::after {
   display: none;
@@ -94,18 +97,6 @@ html[data-control-drag] * {
   user-select: none !important;
 }
 
-/*
- * Within the lit line the bevel turns away from the light: a soft shade, as wide as the bevel
- * (`--bevel-shade`, glass.ts), darker on dark glass, as on the iOS Dock and folders. The slider's
- * thumb draws its own.
- */
 [data-refracting]::before {
-  display: block;
-  padding: 0;
-  mask: none;
-  background: none;
-  box-shadow: inset 0 0 calc(var(--bevel-shade) * 2) calc(var(--bevel-shade) / 2) var(--glass-shade);
-}
-[data-glass='slider'][data-refracting]::before {
   display: none;
 }

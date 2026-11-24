@@ -28,8 +28,8 @@ test('resting bubbles are shaped by their radius, and lit glass has its light at
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await openConversation(page)
   const resting = page.locator('article[data-event-id="34"] [data-surface="bubble"]')
-  // Q1 of the 液态玻璃组件统一 task book: a bubble is content, a tinted pane with no lens.
-  await expect(resting).toHaveCSS('backdrop-filter', 'none')
+  // Q1 of the 液态玻璃组件统一 task book: a bubble is content, a frosted, tinted pane with no lens.
+  await expect(resting).toHaveCSS('backdrop-filter', 'blur(12px)')
   // 1: at rest the radius alone shapes the glass, never a clip-path with its square backdrop.
   const shape = await resting.evaluate((surface) => ({
     clip: getComputedStyle(surface).clipPath,
@@ -65,9 +65,9 @@ test('resting bubbles are shaped by their radius, and lit glass has its light at
   ] as const)
     if (rim.slice[axis]) expect(rim.slice[axis]! / rim.border[axis]!).toBe(size.ratio)
     else expect(rim.image[1 - axis]).toBe(Math.round(length * size.ratio))
-  // 10, as revised by the final glass (docs/reports/2026-11-23-liquid-glass §15): a thin line
-  // brightest on the upper-right and lower-left arcs, about half as bright on the other two, and
-  // even and dim along the straight sides; nothing draws an outline on top.
+  // 10, as revised by the iOS 26 measurement (glass.ts `lights`): lit from the upper left:
+  // brightest on the upper-left and lower-right arcs, none on the other two, about 0.6 of that
+  // along the top and bottom and 0.4 along the sides; no outline on top.
   const radius = await lit.evaluate((element) =>
     parseFloat(getComputedStyle(element).borderTopLeftRadius),
   )
@@ -96,14 +96,14 @@ test('resting bubbles are shaped by their radius, and lit glass has its light at
     outline: await lit.evaluate((surface) => getComputedStyle(surface, '::before').backgroundImage),
   }
   evidence.restingLight = light
-  expect(light.upperRight).toBeGreaterThan(128)
-  expect(Math.abs(light.upperRight - light.lowerLeft)).toBeLessThanOrEqual(8)
-  expect(light.upperLeft).toBeLessThan(light.upperRight * 0.75)
-  expect(light.lowerRight).toBeLessThan(light.lowerLeft * 0.75)
+  expect(light.upperLeft).toBeGreaterThanOrEqual(36)
+  expect(Math.abs(light.upperLeft - light.lowerRight)).toBeLessThanOrEqual(8)
+  expect(light.upperRight).toBeLessThan(light.upperLeft * 0.1)
+  expect(light.lowerLeft).toBeLessThan(light.lowerRight * 0.1)
   expect(light.upperLeft).toBeGreaterThan(light.top)
-  for (const straight of [light.side, light.left, light.bottom])
-    expect(Math.abs(straight - light.top)).toBeLessThanOrEqual(8)
-  expect(light.top).toBeLessThan(light.upperRight * 0.5)
+  expect(Math.abs(light.bottom - light.top)).toBeLessThanOrEqual(8)
+  expect(Math.abs(light.left - light.side)).toBeLessThanOrEqual(8)
+  expect(light.top).toBeGreaterThan(light.side)
   // A line about a display pixel thick: three pixels in, its light is mostly gone.
   expect(light.inward).toBeLessThan(light.top * 0.4)
   expect(light.outline).toBe('none')
@@ -119,9 +119,7 @@ test('resting bubbles are shaped by their radius, and lit glass has its light at
   expect(await reply.evaluate((surface) => getComputedStyle(surface).clipPath)).toBe('none')
 })
 
-test('floating panes blur before they bend, never disperse, and are ringed only in light', async ({
-  page,
-}) => {
+test('floating panes blur before they bend, never disperse, and draw no ring', async ({ page }) => {
   await openConversation(page)
   const composer = page.locator('[data-region="composer"]')
   await expect(composer).toHaveAttribute('data-refracting', 'true')
@@ -139,25 +137,19 @@ test('floating panes blur before they bend, never disperse, and are ringed only 
     }
   })
   evidence.composerBends = bends
-  // A faint wobble over the whole pane, then the bevel's bend; no colour is parted.
-  const [wobble, bevel] = bends.scales as [number, number]
-  expect(wobble / bevel).toBeCloseTo(0.3, 2)
+  // The bevel's bend alone (iOS 26 shows no wobble), and no colour is parted.
+  expect(bends.scales).toHaveLength(1)
   expect(bends.colours).toBe(0)
-  // 3: the rim shapes the glass; in light, a thin dark ring lies just outside it, as on Apple's
-  // glass: one device pixel of the pane's own shadow (an outline is rounded up to a whole CSS
-  // pixel); dark glass has none; increased contrast draws its own edge instead.
+  // 3: the rim shapes the glass: no ring lies around it, light or dark (iOS 26 draws none);
+  // increased contrast draws its own edge instead.
   const edge = () =>
     composer.evaluate((element) => ({
       shadow: getComputedStyle(element).boxShadow,
       outline: `${getComputedStyle(element).outlineStyle} ${getComputedStyle(element).outlineColor}`,
     }))
   await page.evaluate(() => (document.documentElement.dataset.theme = 'light'))
-  const ring =
-    (await page.evaluate(() => devicePixelRatio)) >= 2
-      ? '0.2) 0px 0px 0px 0.5px'
-      : '0.12) 0px 0px 0px 1px'
   expect(await edge()).toEqual({
-    shadow: expect.stringMatching(new RegExp(`^rgba\\(0, 0, 0, ${ring.replace(/[.()]/g, '\\$&')}`)),
+    shadow: expect.stringMatching(/^rgba\(0, 0, 0, 0\) 0px 0px 0px/),
     outline: expect.stringMatching(/^none/),
   })
   await page.evaluate(() => (document.documentElement.dataset.theme = 'dark'))

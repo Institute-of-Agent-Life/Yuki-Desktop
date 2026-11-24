@@ -11,7 +11,8 @@ import { contentSize } from '../fixtures/visual'
  * 液態玻璃 final（docs/reports/2026-11-23-liquid-glass §15, phase 1: the material only).
  * Failure cases, written before the material was changed:
  *   1. a pane bends before it blurs (the old order), so the blur's soft shapes are not melted;
- *   2. a pane has no body light: nothing brightens the backdrop toward its middle;
+ *   2. (as revised by the iOS 26 measurement, glass.ts) the face is not lifted evenly by about 20
+ *      levels after the bend, or the rim's light is not added on top of what the bend shows;
  *   3. a pane still disperses: colour matrices, or more than one bend drawn from the same map;
  *   4. a bend map is coarser than 2x, so a strong bend steps into dashed rings;
  *   5. text panes (composer, cards, sheets) take the clear glass's tint and lose their text;
@@ -32,7 +33,7 @@ test.afterAll(async () => {
 })
 
 const final = {
-  light: { blur: '2px', tint: 0.16, text: 0.24 },
+  light: { blur: '3px', tint: 0.16, text: 0.24 },
   dark: { blur: '3px', tint: 0.42, text: 0.74 },
 } as const
 
@@ -56,6 +57,8 @@ function readFilter(element: HTMLElement) {
       in2: node.getAttribute('in2'),
       operator: node.getAttribute('operator'),
       k1: node.getAttribute('k1'),
+      scale: Number(node.getAttribute('scale')),
+      intercept: Number(node.querySelector('feFuncR')?.getAttribute('intercept') ?? 0),
       inputs: [...node.querySelectorAll('feMergeNode')].map((merge) => merge.getAttribute('in')),
     })),
     images: nodes
@@ -105,12 +108,15 @@ async function expectFinalGlass(
   const bends = primitives.filter((node) => node.name === 'feDisplacementMap')
   expect(bends.length).toBeGreaterThanOrEqual(1)
   expect(new Set(bends.map((node) => node.in2)).size).toBe(bends.length)
-  // 2: the body's light, a gain map multiplied into what was bent.
-  const gain = primitives.find(
-    (node) => node.name === 'feComposite' && node.operator === 'arithmetic' && Number(node.k1) > 0,
+  // 2: an even lift after the bend (about 20 levels), and the rim's light laid on top of it.
+  const lift = primitives.find((node) => node.name === 'feComponentTransfer')
+  expect(lift, 'lift').toBeTruthy()
+  expect(lift!.intercept * 255).toBeCloseTo(20, 0)
+  const rim = primitives.find(
+    (node) =>
+      node.name === 'feComposite' && node.operator === 'arithmetic' && node.in2 === lift!.result,
   )
-  expect(gain, 'body light').toBeTruthy()
-  expect(filter.images.some((image) => image.result === gain!.in2)).toBe(true)
+  expect(rim?.in, 'the rim laid on the lifted bend').toBe('rim')
   // 4: the bevel's bend map is assembled from pieces painted at no less than 2x: each piece is
   // at least twice its CSS size, except a strip one CSS pixel wide stretched along a straight edge.
   const merge = primitives.find((node) => node.name === 'feMerge')!
@@ -189,7 +195,13 @@ async function scrolling(page: Page, mode: 'none' | 'fallback' | 'final') {
       state.maps++
       return url.apply(this, args)
     }
-    if (mode === 'fallback') document.documentElement.dataset.gpuCompositing = 'false'
+    // Before the page's own scripts run, once the parsed <html> exists (an init script runs
+    // before it is parsed, on an element the parser then replaces).
+    if (mode === 'fallback')
+      document.addEventListener('readystatechange', () => {
+        if (document.readyState === 'interactive')
+          document.documentElement.dataset.gpuCompositing = 'false'
+      })
   }, mode)
   await page.setViewportSize({ width: 1200, height: 640 })
   await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=conversation-glass')
