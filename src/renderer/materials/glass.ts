@@ -79,14 +79,15 @@ function dockColour(input: string, prefix: string) {
 
 /*
  * The Dock's colour for glass that carries no filter of its own (`--glass-native`,
- * materials.css), for the theme and the slider shown now.
+ * materials.css), one for each appearance (the theme's, or what a glass has taken: appearance.ts),
+ * for the slider shown now.
  */
-{
+for (const look of ['light', 'dark'] as const) {
   const svg = document.createElementNS(NS, 'svg'),
     filter = document.createElementNS(NS, 'filter')
   svg.setAttribute('aria-hidden', 'true')
   svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none'
-  filter.id = 'yuki-glass-tone'
+  filter.id = `yuki-glass-tone-${look}`
   filter.setAttribute('color-interpolation-filters', 'sRGB')
   const colour = dockColour('SourceGraphic', '')
   // What nothing lies behind stays clear: the sums give back the backdrop's alpha.
@@ -94,11 +95,11 @@ function dockColour(input: string, prefix: string) {
     ...colour.nodes,
     primitive('feComposite', { in: 'toned', in2: 'SourceGraphic', operator: 'in' }),
   )
-  const update = () => colour.set(true)
+  const update = () => colour.set(true, look)
   update()
   new MutationObserver(update).observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ['data-theme', 'data-glass-tint'],
+    attributeFilter: ['data-glass-tint'],
   })
   svg.append(filter)
   document.body.append(svg)
@@ -193,7 +194,7 @@ const place = (span: Span, size: number) =>
     Math.max(0, span.length ?? size - 2 * span.offset),
   ] as const
 interface Lens {
-  /** The bend across (x) and down (y) and the rim's factor, each cut into pieces. */
+  /** The bend across (x) and down (y) and the rim's mix and levels, each cut into pieces. */
   maps: Record<'bevel', { href: string; x: Span; y: Span }[]>
   /** The bend map's full scale: the largest bend, twice over (a map value runs ±0.5 of it). */
   span: number
@@ -426,7 +427,7 @@ export function useGlass<T extends HTMLElement>(
     })
     // The bend and the rim, each its pieces merged (they tile the glass; lens()). The blurred
     // backdrop (materials.css) is bent by the one, given the Dock's colour (a pane's own: a held
-    // control stays clear), and the other's levels added to it.
+    // control stays clear), then mixed toward black and lifted by the rim (the map's blue and alpha).
     // A displacement map moves whole pixels: a fine line bent across the bevel steps and breaks
     // up, where Apple's stays a smooth curve. A pixel's smoothing after the bend joins it again.
     const merges = { bevel: primitive('feMerge', { result: 'bevel' }) }

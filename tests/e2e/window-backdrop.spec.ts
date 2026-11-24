@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { contentSize } from '../fixtures/visual'
-import { legible } from '../fixtures/legibility'
+import { legible, throughGlass } from '../fixtures/legibility'
 import { picture } from '../fixtures/pictures'
 
 /*
@@ -137,7 +137,9 @@ test('a picture of ones own lies behind every page, seen through its glass, its 
       const main = await legible(page, heading),
         quieter = await legible(page, quiet)
       evidence[name] = { seen, drawn, main, quieter }
-      expect.soft(seen.chroma, `${name}: the picture shows through`).toBeGreaterThan(25)
+      // (Without transparency every page is solid, and the picture is not shown.)
+      if ((await throughGlass(page)).glass)
+        expect.soft(seen.chroma, `${name}: the picture shows through`).toBeGreaterThan(25)
       expect.soft(drawn, `${name}: the picture is drawn once`).toBe(1)
       expect.soft(main, `${name}: main text`).toBeGreaterThanOrEqual(4.5)
       expect.soft(quieter, `${name}: quiet text`).toBeGreaterThanOrEqual(3)
@@ -156,7 +158,8 @@ test('a picture of ones own lies behind every page, seen through its glass, its 
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await page.locator('[data-region="sidebar"]').getByText('工作', { exact: true }).click()
     const pane = page.locator('[data-region="content"]')
-    await expect(pane).toHaveAttribute('data-appearance', 'dark', { timeout: 20000 })
+    if ((await throughGlass(page)).glass)
+      await expect(pane).toHaveAttribute('data-appearance', 'dark', { timeout: 20000 })
     await page.waitForTimeout(600)
     await page.screenshot({ path: test.info().outputPath('works-forest-light.png') })
     const chosen = pane.locator('[aria-selected="true"], [aria-checked="true"]').first()

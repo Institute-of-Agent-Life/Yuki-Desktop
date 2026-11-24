@@ -147,7 +147,7 @@ test('the sidebar keeps its text legible over any picture, light and dark, and s
             ? { colour: [0x1b, 0x1d, 0x22], amount: 0.3 }
             : { colour: [255, 255, 255], amount: 0 },
         )
-        if (expected) expect.soft(shownAs, `${wallpaper} ${theme}: the appearance`).toBe(expected)
+
         evidence[`${wallpaper} ${theme}`] = {
           contrast: seen,
           glass,
@@ -158,6 +158,10 @@ test('the sidebar keeps its text legible over any picture, light and dark, and s
         expect
           .soft(Object.keys(seen).length, `${wallpaper} ${theme}: texts read`)
           .toBeGreaterThan(5)
+        // Where the sidebar is glass (macOS; elsewhere it lies flush and opaque), it takes the
+        // appearance what lies under it calls for.
+        if (glass.filter !== 'none' && expected)
+          expect.soft(shownAs, `${wallpaper} ${theme}: the appearance`).toBe(expected)
         if (glass.filter !== 'none')
           expect.soft(glass.alpha, `${wallpaper} ${theme}: the sidebar stays glass`).toBeLessThan(1)
       }

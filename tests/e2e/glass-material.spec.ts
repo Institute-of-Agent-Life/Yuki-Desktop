@@ -377,7 +377,7 @@ for (const compositing of ['gpu', 'software'] as const)
       if (bends) expect(filter.backdrop).toMatch(/url\("?#yuki-glass-\d/)
       else {
         expect(filter.refract).toBe('')
-        expect(filter.backdrop).toContain('#yuki-glass-tone')
+        expect(filter.backdrop).toContain(`#yuki-glass-tone-${theme}`)
       }
     } finally {
       await app.close()

@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { activeCharacterName } from '../fixtures/active-character'
 import { contentSize } from '../fixtures/visual'
-import { legible } from '../fixtures/legibility'
+import { legible, throughGlass } from '../fixtures/legibility'
 import { picture, type Picture } from '../fixtures/pictures'
 
 /*
@@ -110,6 +110,25 @@ const appearances = async (page: Page) =>
     ),
   )
 
+/**
+ * The appearance each piece takes here: `wanted` where it shows what lies under it, none where it
+ * is a fill of the theme (without transparency; a bubble without GPU compositing; the sidebar off
+ * macOS, where it lies flush and opaque).
+ */
+async function takes(page: Page) {
+  const through = await throughGlass(page),
+    sidebar = (await page.locator('[data-region="sidebar"]').getAttribute('data-glass')) !== null
+  const shows = (name: string) =>
+    name === 'reply' ? through.content : through.glass && (name !== 'sidebar' || sidebar)
+  return { through, take: (name: string, wanted: string) => (shows(name) ? wanted : null) }
+}
+const glassOf: Record<string, string> = {
+  composer: 'composer',
+  reply: 'reply',
+  title: 'toolbar',
+  sidebar: 'sidebar',
+}
+
 test('text-bearing glass turns dark over dark pictures and light over bright ones, with ink to match', async () => {
   test.setTimeout(300000)
   await mkdir(test.info().outputPath(), { recursive: true })
@@ -147,13 +166,18 @@ test('text-bearing glass turns dark over dark pictures and light over bright one
     await choose(app, page, 'nightlines', true)
     await back(page)
     await page.screenshot({ path: test.info().outputPath('nightlines-light.png') })
+    const { through, take } = await takes(page)
+    evidence.through = through
     const overNight = await appearances(page)
     evidence['nightlines light'] = { appearance: overNight }
     for (const [name, shown] of Object.entries(overNight))
-      expect.soft(shown, `nightlines light: ${name}`).toBe('dark')
+      expect.soft(shown, `nightlines light: ${name}`).toBe(take(name, 'dark'))
     const seenNight: Record<string, number> = {}
     for (const [name, text] of Object.entries(texts(page))) {
-      expect.soft(await ink(text), `nightlines light: ${name}'s ink is white`).toBeGreaterThan(200)
+      if (take(glassOf[name]!, 'dark'))
+        expect
+          .soft(await ink(text), `nightlines light: ${name}'s ink is white`)
+          .toBeGreaterThan(200)
       seenNight[name] = await legible(page, text)
       expect.soft(seenNight[name], `nightlines light: ${name}`).toBeGreaterThanOrEqual(4.5)
     }
@@ -188,15 +212,20 @@ test('text-bearing glass turns dark over dark pictures and light over bright one
     const { levels, transitions } = await fade
     evidence.fade = { levels, transitions }
     expect.soft(levels.at(-1), 'the ink ends black').toBeLessThan(40)
-    expect.soft(transitions, 'the ink cross-fades over 200ms').toContain('--text-primary 200')
-    expect
-      .soft(
-        levels.filter((level) => level > 50 && level < 205).length,
-        'the ink passes through greys rather than turning at once',
+    if (through.glass) {
+      expect.soft(transitions, 'the ink cross-fades over 200ms').toContain('--text-primary 200')
+      expect
+        .soft(
+          levels.filter((level) => level > 50 && level < 205).length,
+          'the ink passes through greys rather than turning at once',
+        )
+        .toBeGreaterThan(0)
+    }
+    await expect
+      .poll(async () => await appearances(page), { timeout: 20000 })
+      .toEqual(
+        Object.fromEntries(Object.keys(glass(page)).map((name) => [name, take(name, 'light')])),
       )
-      .toBeGreaterThan(0)
-    for (const [name, shown] of Object.entries(await appearances(page)))
-      expect.soft(shown, `snow light: ${name}`).toBe('light')
 
     // The dark theme over the very bright picture: light glass, black ink.
     await settings(page, 'dark')
@@ -205,10 +234,11 @@ test('text-bearing glass turns dark over dark pictures and light over bright one
     const darkOverSnow = await appearances(page)
     evidence['snow dark'] = { appearance: darkOverSnow }
     for (const [name, shown] of Object.entries(darkOverSnow))
-      expect.soft(shown, `snow dark: ${name}`).toBe('light')
+      expect.soft(shown, `snow dark: ${name}`).toBe(take(name, 'light'))
     const seenSnow: Record<string, number> = {}
     for (const [name, text] of Object.entries(texts(page))) {
-      expect.soft(await ink(text), `snow dark: ${name}'s ink is black`).toBeLessThan(60)
+      if (take(glassOf[name]!, 'light'))
+        expect.soft(await ink(text), `snow dark: ${name}'s ink is black`).toBeLessThan(60)
       seenSnow[name] = await legible(page, text)
       expect.soft(seenSnow[name], `snow dark: ${name}`).toBeGreaterThanOrEqual(4.5)
     }
@@ -217,8 +247,10 @@ test('text-bearing glass turns dark over dark pictures and light over bright one
     await fromMenu(app, page, 'nightlines')
     // Once the picture has been read (its blurred copy made).
     await expect
-      .poll(async () => Object.values(await appearances(page)), { timeout: 20000 })
-      .toEqual(['dark', 'dark', 'dark', 'dark'])
+      .poll(async () => await appearances(page), { timeout: 20000 })
+      .toEqual(
+        Object.fromEntries(Object.keys(glass(page)).map((name) => [name, take(name, 'dark')])),
+      )
     success = true
   } finally {
     await app.close()
@@ -237,6 +269,10 @@ test('near the threshold the glass keeps its appearance while the window resizes
     await contentSize(app, page, 1100, 760)
     await pairUI(page, rig.base, await rig.code())
     await expect(page.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible()
+    test.skip(
+      !(await throughGlass(page)).glass,
+      'Without transparency the glass is a fill of the theme, with no appearance of its own.',
+    )
     await settings(page, 'light')
     // Tiled at its own size, a grey running from level 77 at the left to 173 at the right: the
     // composer, centred in the chat beside the sidebar, lies over about level 118 (the threshold)
@@ -266,12 +302,16 @@ test('near the threshold the glass keeps its appearance while the window resizes
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
     await choose(app, page, 'level-150', false)
     await back(page)
-    expect.soft(await glass(page).composer.getAttribute('data-appearance')).toBe('light')
+    await expect(glass(page).composer).toHaveAttribute('data-appearance', 'light', {
+      timeout: 20000,
+    })
     await page.keyboard.press('ControlOrMeta+,')
     await page.getByRole('tab', { name: '外觀', exact: true }).click()
     await choose(app, page, 'level-86', false)
     await back(page)
-    expect.soft(await glass(page).composer.getAttribute('data-appearance')).toBe('dark')
+    await expect(glass(page).composer).toHaveAttribute('data-appearance', 'dark', {
+      timeout: 20000,
+    })
     success = true
   } finally {
     await app.close()

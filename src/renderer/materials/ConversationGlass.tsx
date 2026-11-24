@@ -7,7 +7,8 @@ import styles from './ConversationGlass.module.css'
 // appearance of what lies under it (appearance.ts), with its text.
 export function ConversationGlass({ kind }: { kind: 'bubble' | 'work-card' }) {
   const watch = useCallback(
-    (node: HTMLSpanElement | null) => (node ? watchAppearance(node.parentElement!) : undefined),
+    (node: HTMLSpanElement | null) =>
+      node ? watchAppearance(node.parentElement!, true) : undefined,
     [],
   )
   return <span ref={watch} data-surface={kind} className={styles.surface} aria-hidden="true" />

@@ -127,3 +127,17 @@ export async function appearanceFor(
   const expected = mean > 0.51 || high > 0.7 ? 'light' : mean < 0.41 && high < 0.65 ? 'dark' : null
   return { mean, high, expected }
 }
+
+/**
+ * Whether glass shows what lies under it here, and so takes its appearance from it
+ * (materials/appearance.ts): not without transparency (CI's macOS reduces it), and a bubble's
+ * frost not without GPU compositing (CI's Linux), where they are fills of the theme.
+ */
+export const throughGlass = (page: Page) =>
+  page.evaluate(() => {
+    const root = document.documentElement.dataset
+    return {
+      glass: root.opaque !== 'true',
+      content: root.opaque !== 'true' && root.gpuCompositing !== 'false',
+    }
+  })

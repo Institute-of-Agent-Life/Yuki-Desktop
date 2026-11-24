@@ -10,8 +10,13 @@
  *   lens: a control held under the finger, nearly clear.
  * No tint, hairline or shadow lies on the Dock's glass.
  */
-:root {
-  --glass-native: url(#yuki-glass-tone);
+:root,
+[data-appearance='light'] {
+  --glass-native: url(#yuki-glass-tone-light);
+}
+:root[data-theme='dark'],
+[data-appearance='dark'] {
+  --glass-native: url(#yuki-glass-tone-dark);
 }
 [data-glass] {
   --glass-regular: blur(var(--glass-blur)) var(--refract, var(--glass-native)) var(--seal,);
@@ -104,9 +109,11 @@
   --toggle-off: rgba(255, 255, 255, 0.18);
   --seg-thumb: rgba(255, 255, 255, 0.16);
 }
-/* Over a picture of one's own, every page lies on it (App.module.css): no page colour of its own. */
-:root[data-backdrop='custom'] {
+/* Over a picture of one's own, every page lies on it (App.module.css): no page colour of its own,
+   but without transparency, where pages are solid and the picture is not shown. */
+:root[data-backdrop='custom']:not([data-opaque='true']) {
   --surface-page: transparent;
+  --surface-pane: transparent;
 }
 /* As specific as the dark theme's materials (:root[data-theme='dark']), so opaque wins in dark too. */
 :root[data-opaque='true'] {

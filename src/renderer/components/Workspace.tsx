@@ -149,7 +149,9 @@ export function Workspace(props: Props) {
   // as large as the page (materials/glass.ts): the picture shows through it.
   const paged = useBackdrop() === 'custom' && selectedView !== 'chat'
   const pageRef = useGlass<HTMLDivElement>('page', false, paged).ref
-  const inspectorRef = useRef<HTMLElement>(null)
+  // The inspector beside it is read on the same glass.
+  const custom = useBackdrop() === 'custom'
+  const inspectorRef = useGlass<HTMLElement>('page', false, custom).ref
   const showInspector = useWorkspaceMotion(root, sidebarRef, inspectorRef, {
     active,
     view: selectedView,
@@ -437,6 +439,7 @@ export function Workspace(props: Props) {
             ref={inspectorRef}
             style={{ gridColumn: focusMode || detailLayer ? 3 : 5, gridRow: 1 }}
             data-region="inspector"
+            data-glass={custom ? 'page' : undefined}
             aria-label={t('workspace:inspector')}
             inert={!inspector && !focusMode}
             className={`${styles.inspector} ${detailLayer ? styles.detailPage : ''}`}

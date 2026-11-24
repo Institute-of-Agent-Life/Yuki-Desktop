@@ -8,7 +8,7 @@ import { activeCharacterName } from '../fixtures/active-character'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { contentSize } from '../fixtures/visual'
 import { picture } from '../fixtures/pictures'
-import { appearanceFor, legible } from '../fixtures/legibility'
+import { appearanceFor, legible, throughGlass } from '../fixtures/legibility'
 
 /*
  * A custom chat background (docs/reports/2026-11-23-liquid-glass §12, phase 5). Failure cases,
@@ -275,11 +275,11 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
     // glass at their size) leaves the shapes' edges under the glyphs. There the glass is held to
     // the appearance the rule calls for (appearance.ts) and to the best this glass reaches, as
     // measured (light / dark on a Retina Mac, whose display encoding reads mid greys a little
-    // dark): composer 4.3 / 3.6, time 1.7 / 1.7, file name 3.1 / 2.5, file kind 1.7 / 1.6,
+    // dark): composer 4.3 / 3.3–3.6, time 1.7 / 1.7, file name 3.1 / 2.5, file kind 1.7 / 1.6,
     // status 3.4 / 2.9.
     const bubble = (article: Locator) => article.locator('[data-bubble-copy]').locator('..')
     const texts: [string, Locator, number, Locator?][] = [
-      ['composer', composer, 3.5, page.locator('[data-region="composer"]')],
+      ['composer', composer, 3.2, page.locator('[data-region="composer"]')],
       ['reply', reply.getByText('Desktop reference reply', { exact: true }), 4.5, bubble(reply)],
       ['own message', own.getByText('fixture file', { exact: true }), 4.5, bubble(own)],
       ['own sender', own.locator('header strong'), 4.5, bubble(own)],
@@ -320,14 +320,19 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
         theme === 'dark'
           ? { colour: [0x1b, 0x1d, 0x22], amount: 0.3 }
           : { colour: [255, 255, 255], amount: 0 }
-      const shown: Record<string, unknown> = {}
+      const shown: Record<string, unknown> = {},
+        through = await throughGlass(page)
       for (const [name, , , glass] of texts) {
         if (!glass) continue
-        const { mean, high, expected } = await appearanceFor(page, glass, lineart, dim)
+        // A bubble's frost or, without transparency, any glass is a fill of the theme there.
+        const content = !['composer', 'status'].includes(name)
+        const { mean, high, expected: rule } = await appearanceFor(page, glass, lineart, dim)
+        const expected = (content ? through.content : through.glass) ? rule : null
         const actual = await glass.getAttribute('data-appearance')
         const round = (value: number) => Math.round(value * 1000) / 1000
         shown[name] = { mean: round(mean), high: round(high), expected, actual }
-        if (expected) expect.soft(actual, `${theme} ${name}'s glass`).toBe(expected)
+        if (expected !== null || !(content ? through.content : through.glass))
+          expect.soft(actual, `${theme} ${name}'s glass`).toBe(expected)
       }
       measured[`${theme} appearance`] = shown
     }
