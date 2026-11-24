@@ -31,8 +31,9 @@ const threshold = 0.46,
 
 let sample: Sample | undefined
 // What is watched (and whether it is content, whose frost is a fill without GPU compositing), and
-// of it what is in sight: only that is read as the conversation scrolls, so a frame costs the same
-// however long the conversation is.
+// of it what is in sight: only that is read as the conversation scrolls. Their sizes and sight are
+// observed only while a picture of one's own is shown, so that otherwise a long conversation costs
+// nothing more to scroll.
 const watched = new Map<HTMLElement, boolean>(),
   shown = new Set<HTMLElement>()
 let frame = 0
@@ -99,8 +100,20 @@ const sight = new IntersectionObserver((entries) => {
   }
 })
 
+const observe = (element: HTMLElement) => {
+  sizes.observe(element)
+  sight.observe(element)
+}
+const unobserve = (element: HTMLElement) => {
+  sizes.unobserve(element)
+  sight.unobserve(element)
+  shown.delete(element)
+}
+
 /** What lies under the glass, while a picture of one's own is shown (none: the theme's). */
 export function setBackdropSample(next: Sample | undefined) {
+  if (!sample && next) for (const element of watched.keys()) observe(element)
+  if (sample && !next) for (const element of watched.keys()) unobserve(element)
   sample = next
   if (!next) {
     cancelAnimationFrame(frame)
@@ -122,14 +135,11 @@ new MutationObserver(() => {
  */
 export function watchAppearance(element: HTMLElement, content = false) {
   watched.set(element, content)
-  sizes.observe(element)
-  sight.observe(element)
+  if (sample) observe(element)
   decide(element)
   return () => {
     watched.delete(element)
-    shown.delete(element)
-    sizes.unobserve(element)
-    sight.unobserve(element)
+    unobserve(element)
     delete element.dataset.appearance
   }
 }

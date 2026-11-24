@@ -59,15 +59,17 @@ test('the sidebar keeps its text legible over any picture, light and dark, and s
     const quiet = new Set(['status', 'header 對話', 'header 工作區'])
     // One sidebar over two pictures at once, larger than its 20pt blur evens out: the valley's
     // pale sky behind its top and dark hills behind its foot; the berries' red fruit and bright
-    // leaves. It takes the one appearance its mean calls for, and the rows over the other part
-    // reach only what that glass gives there, measured (light / dark): valley 設定 3.7 / 3.1;
-    // berries 工作區 2.8 / 3.5, 工作 4.1 / 5.6, 檔案與成果 4.3 / 5.9. Held to those floors and to
-    // the appearance.
+    // leaves; the manga's black strokes under the light glass's quiet header (dark theme). It takes
+    // the one appearance its mean calls for, and the rows over the other part reach only what that
+    // glass gives there, measured on a Retina Mac (light / dark; its display encoding reads mid
+    // greys a little dark): valley 設定 3.7 / 3.1; berries 工作區 2.6–2.8 / 3.5, 工作 3.9–4.1 /
+    // 5.6, 檔案與成果 4.3 / 5.9; manga 對話 3.4 / 2.9. Held to those floors and to the appearance.
     const split: Partial<Record<string, number>> = {
       'valley nav 設定': 3,
-      'berries header 工作區': 2.7,
-      'berries nav 工作': 4,
+      'berries header 工作區': 2.5,
+      'berries nav 工作': 3.8,
       'berries nav 檔案與成果': 4,
+      'manga header 對話': 2.8,
     }
     const texts = {
       name: sidebar.getByText(name, { exact: true }).first(),
