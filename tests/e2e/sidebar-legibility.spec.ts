@@ -82,17 +82,21 @@ test('the sidebar keeps its text legible over any picture, light and dark, and s
         await expect(
           page.getByText('Desktop reference reply', { exact: true }).first(),
         ).toBeVisible()
-        // On a small screen the sidebar is folded away over the page: opened to be read.
-        const toggle = page.locator('[data-region="toolbar"] [data-toggle="sidebar"]')
-        if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
-        await expect(texts.status).toBeVisible()
-        await page.mouse.move(700, 400)
         // The picture is read and the glass tinted once it has loaded.
         await page.waitForTimeout(1200)
+        // On a small screen the sidebar is folded away over the page: opened to be read, once the
+        // page has settled from coming back (which folds it again).
+        const toggle = page.locator('[data-region="toolbar"] [data-toggle="sidebar"]')
+        if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
+        await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+        await expect(sidebar).toHaveAttribute('data-pane-open', 'true')
+        // The pointer rests on the sidebar's empty middle, lighting no row.
+        const box = (await sidebar.boundingBox())!
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.75)
+        await page.waitForTimeout(600)
         await page.screenshot({ path: test.info().outputPath(`${wallpaper}-${theme}.png`) })
         const seen: Record<string, number> = {}
         for (const [label, text] of Object.entries(texts)) {
-          if (!(await text.isVisible())) continue
           seen[label] = Math.round((await legible(page, text)) * 100) / 100
           expect.soft(seen[label], `${wallpaper} ${theme}: ${label}`).toBeGreaterThanOrEqual(4.5)
         }
