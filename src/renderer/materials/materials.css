@@ -114,6 +114,12 @@
 :root[data-backdrop='custom']:not([data-opaque='true']) {
   --surface-page: transparent;
   --surface-pane: transparent;
+  --bg-stage: transparent;
+  /* A raised card on a page's glass is a grouped fill on it, as in a grouped list. */
+  --bg-raised: var(--grouped);
+  /* A sidebar that is not glass (flush, off macOS) stays its own solid colour over the picture,
+     not the window's thin frost. */
+  --mat-sidebar: var(--bg-sidebar);
 }
 /* As specific as the dark theme's materials (:root[data-theme='dark']), so opaque wins in dark too. */
 :root[data-opaque='true'] {

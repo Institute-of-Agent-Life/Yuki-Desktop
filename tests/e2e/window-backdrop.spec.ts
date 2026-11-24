@@ -23,6 +23,13 @@ test.afterAll(async () => {
   )
 })
 
+/** Opens the sidebar where a small screen has folded it away over the page. */
+async function sidebarShown(page: Page) {
+  const toggle = page.locator('[data-region="toolbar"] [data-toggle="sidebar"]')
+  if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
+  await expect(page.locator('[data-region="sidebar"]')).toHaveAttribute('data-pane-open', 'true')
+}
+
 /** The mean colour and chroma of a box of the window. */
 async function colourOf(page: Page, box: { x: number; y: number; width: number; height: number }) {
   const shot = await page.screenshot({ clip: box })
@@ -103,6 +110,7 @@ test('a picture of ones own lies behind every page, seen through its glass, its 
         'works',
         async () => {
           await page.getByRole('button', { name: '返回', exact: true }).click()
+          await sidebarShown(page)
           await page.locator('[data-region="sidebar"]').getByText('工作', { exact: true }).click()
         },
         page.locator('[data-region="content"]').locator('h1, h2, h3').first(),
@@ -111,6 +119,7 @@ test('a picture of ones own lies behind every page, seen through its glass, its 
       [
         'files',
         async () => {
+          await sidebarShown(page)
           await page
             .locator('[data-region="sidebar"]')
             .getByText('檔案與成果', { exact: true })
@@ -156,6 +165,7 @@ test('a picture of ones own lies behind every page, seen through its glass, its 
     await page.getByRole('button', { name: '選擇圖片…', exact: true }).click()
     await page.waitForTimeout(1500)
     await page.getByRole('button', { name: '返回', exact: true }).click()
+    await sidebarShown(page)
     await page.locator('[data-region="sidebar"]').getByText('工作', { exact: true }).click()
     const pane = page.locator('[data-region="content"]')
     if ((await throughGlass(page)).glass)

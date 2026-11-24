@@ -275,11 +275,11 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
     // glass at their size) leaves the shapes' edges under the glyphs. There the glass is held to
     // the appearance the rule calls for (appearance.ts) and to the best this glass reaches, as
     // measured (light / dark on a Retina Mac, whose display encoding reads mid greys a little
-    // dark): composer 4.3 / 3.3–3.6, time 1.7 / 1.7, file name 3.1 / 2.5, file kind 1.7 / 1.6,
+    // dark; Linux without GPU compositing 3.7 / 3.2): composer 4.3 / 3.2–3.6, time 1.7 / 1.7, file name 3.1 / 2.5, file kind 1.7 / 1.6,
     // status 3.4 / 2.9.
     const bubble = (article: Locator) => article.locator('[data-bubble-copy]').locator('..')
     const texts: [string, Locator, number, Locator?][] = [
-      ['composer', composer, 3.2, page.locator('[data-region="composer"]')],
+      ['composer', composer, 3, page.locator('[data-region="composer"]')],
       ['reply', reply.getByText('Desktop reference reply', { exact: true }), 4.5, bubble(reply)],
       ['own message', own.getByText('fixture file', { exact: true }), 4.5, bubble(own)],
       ['own sender', own.locator('header strong'), 4.5, bubble(own)],

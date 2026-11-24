@@ -122,6 +122,9 @@ test('frosted workspace keeps its paper, floating controls, real receipts and dr
             filter: styles.backdropFilter,
             size: [footer.width, footer.height] as const,
             refract: styles.getPropertyValue('--refract'),
+            bends: !!document
+              .getElementById(styles.getPropertyValue('--refract').match(/#([^)]+)\)/)?.[1] ?? '')
+              ?.querySelector('feDisplacementMap'),
             gpu: document.documentElement.dataset.gpuCompositing,
             footerHeight: footer.height,
             logPadding: parseFloat(getComputedStyle(log).paddingBottom),
@@ -148,11 +151,11 @@ test('frosted workspace keeps its paper, floating controls, real receipts and dr
         expect(geometry.htmlWidth).toBe(geometry.viewport)
         if (geometry.opaque === 'true') expect(geometry.filter).toBe('none')
         else {
-          // The final glass blurs first, as Apple's clear glass of its size; it bends only where
-          // the window composites on the GPU.
+          // The final glass blurs first, as Apple's clear glass of its size, and keeps its colour
+          // and rim; it bends only where the window composites on the GPU.
           expect(geometry.filter).toMatch(new RegExp(`^blur\\(${paneBlur(...geometry.size)}\\) `))
-          if (geometry.gpu === 'true') expect(geometry.refract).toContain('url(')
-          else expect(geometry.refract).toBe('')
+          expect(geometry.refract).toContain('url(')
+          expect(geometry.bends).toBe(geometry.gpu === 'true')
         }
         await expect(original).toHaveAttribute('data-event-id', event!)
         stages.push({ mode, width, height, method, geometry })

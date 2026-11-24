@@ -4,6 +4,7 @@ import { pairUI, yukiFixture } from '../fixtures/backend'
 import { activeCharacterName } from '../fixtures/active-character'
 import { contentSize } from '../fixtures/visual'
 import { picture, type Picture } from '../fixtures/pictures'
+import { throughGlass } from '../fixtures/legibility'
 
 /*
  * The composer's send button is glass of its own, nested in the composer's: at rest (nothing to
@@ -95,6 +96,10 @@ test('the send button is glass of its own: clear at rest, tinted through the gla
       name: `和 ${await activeCharacterName(page)} 說點什麼`,
     })
     await expect(page.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible()
+    test.skip(
+      !(await throughGlass(page)).glass,
+      'Without transparency there is no glass: the send button is a plain control.',
+    )
     const send = page.getByRole('button', { name: '送出', exact: true })
     const seen: Record<string, number[]> = {}
     // Two greys the light glass shows as such (appearance.ts): level 170 and 235.

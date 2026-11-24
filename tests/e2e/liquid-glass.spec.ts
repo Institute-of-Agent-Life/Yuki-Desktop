@@ -27,8 +27,13 @@ async function expectLiquidGlass(name: string, pane: Locator, docked = true) {
   expect(glass.backdrop).toMatch(/url\(/)
   expect(glass.bends).toBe(1)
   expect(glass.rim?.added).toBe(true)
-  expect(Math.abs(glass.rim!.edge - (theme === 'dark' ? 76 : 65))).toBeLessThanOrEqual(2)
-  expect(Math.abs(glass.rim!.inside - (theme === 'dark' ? 7 : 7.5))).toBeLessThanOrEqual(1)
+  // A held control is small: the middle of its top lies between device pixels, a degree or two
+  // off the vertical, where the rim falls 28 levels in 15° (dock.ts), so it reads a few under.
+  const slack = docked ? 0 : 2
+  expect(Math.abs(glass.rim!.edge - (theme === 'dark' ? 76 : 65))).toBeLessThanOrEqual(2 + slack)
+  expect(Math.abs(glass.rim!.inside - (theme === 'dark' ? 7 : 7.5))).toBeLessThanOrEqual(
+    1 + slack / 2,
+  )
   expect(glass.gain).toBe(docked ? (theme === 'dark' ? 1.08 : 1.2) : 1)
 }
 

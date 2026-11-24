@@ -411,7 +411,8 @@ export function useGlass<T extends HTMLElement>(
     if (!element || !CSS.supports('backdrop-filter', 'url(#glass)')) return
     const root = document.documentElement
     // Without GPU compositing (as the main process found at boot) every frame of a bend is drawn
-    // on the CPU: the glass keeps its blur, tint and lit rim, and does not bend.
+    // on the CPU: the glass keeps its blur, its colour and its rim, and does not bend (the chain
+    // below without its displacement and the smoothing after it).
     const bending = root.dataset.gpuCompositing !== 'false'
     const svg = document.createElementNS(NS, 'svg'),
       id = `yuki-glass-${++sequence}`
@@ -448,7 +449,7 @@ export function useGlass<T extends HTMLElement>(
     const cover = primitive('feComponentTransfer', { in: 'SourceGraphic', result: 'cover' })
     cover.append(primitive('feFuncA', { type: 'discrete', tableValues: '0 1 1 1 1 1 1 1' }))
     const whole = primitive('feColorMatrix', {
-      in: 'soft',
+      in: bending ? 'soft' : 'SourceGraphic',
       type: 'matrix',
       values: '1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 1',
       result: 'bent',
@@ -467,8 +468,7 @@ export function useGlass<T extends HTMLElement>(
     const colour = dockColour('srgb', '')
     filter.append(
       merges.bevel,
-      bevelBend,
-      smooth,
+      ...(bending ? [bevelBend, smooth] : []),
       whole,
       intoSRGB,
       ...colour.nodes,
@@ -513,7 +513,7 @@ export function useGlass<T extends HTMLElement>(
       outOfSRGB,
     )
     svg.append(filter)
-    if (bending) document.body.append(svg)
+    document.body.append(svg)
     bends.current = { bevel: bevelBend, span: 0 }
     let size = '',
       shown = false,
@@ -667,7 +667,7 @@ export function useGlass<T extends HTMLElement>(
         filter.append(outOfSRGB)
       }
       colour.input(tables ? 'srgb' : 'bent')
-      if (bending) element.style.setProperty('--refract', `url(#${id})`)
+      element.style.setProperty('--refract', `url(#${id})`)
       element.dataset.refracting = 'true'
       // While it bends in, the rising spring alone sets its strength.
       if (!rising) bend(strength.current)

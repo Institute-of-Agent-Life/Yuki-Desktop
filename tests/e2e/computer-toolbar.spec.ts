@@ -88,10 +88,19 @@ test(
         await expect(floating).toHaveCSS('backdrop-filter', 'none')
       else {
         await expect(floating).toHaveAttribute('data-refracting', 'true')
-        // It bends only where the window composites on the GPU (BootInfo.gpuCompositing).
-        if (await pa.evaluate(() => document.documentElement.dataset.gpuCompositing === 'true'))
-          await expect(floating).toHaveCSS('backdrop-filter', /url\("?#yuki-glass-/)
-        else await expect(floating).not.toHaveCSS('backdrop-filter', /#yuki-glass-/)
+        // It is its own glass (#yuki-glass-<n>), bending only where the window composites on the
+        // GPU (BootInfo.gpuCompositing); elsewhere it keeps its colour and rim, unbent.
+        await expect(floating).toHaveCSS('backdrop-filter', /url\("?#yuki-glass-\d/)
+        expect(
+          await floating.evaluate(
+            (element) =>
+              !!document
+                .getElementById(
+                  getComputedStyle(element).backdropFilter.match(/#(yuki-glass-\d+)/)![1]!,
+                )!
+                .querySelector('feDisplacementMap'),
+          ),
+        ).toBe(await pa.evaluate(() => document.documentElement.dataset.gpuCompositing === 'true'))
       }
       const beforeZoom = (await facts()).control
       await fit.click()

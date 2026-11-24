@@ -314,9 +314,10 @@ test('in software the bend adds little to a frame, and glass without it stays wi
     ).toEqual([])
     expect(result.mapsWhileScrolling, mode).toBe(0)
   }
-  // The bend, the wobble and the body's light are what the final glass adds to a blurred, tinted
-  // pane; locally they cost next to nothing over it (8.6 against 8.5ms at the 95th percentile on
-  // an M-series Mac, the page alone 4.6ms). Dispersion or live lighting would double a frame.
+  // The bend (and the smoothing after it) is what the final glass adds to the glass a machine
+  // without GPU compositing is given, blurred, in the Dock's colour and rimmed (glass.ts); locally
+  // it costs about a quarter more (10.4 against 8.3ms at the median on an M-series Mac, the page
+  // alone 3.8ms). Dispersion or live lighting would double a frame.
   for (const q of ['p50', 'p95'] as const) {
     expect(budget.final[q], `final ${q}`).toBeLessThanOrEqual(1.5 * budget.fallback[q])
     // What a machine without GPU compositing is given stays within a few times the page alone.
@@ -370,15 +371,17 @@ for (const compositing of ['gpu', 'software'] as const)
       const filter: Filter = await toolbar.evaluate(readFilter)
       evidence[`welcome-${compositing}`] = { status, filter }
       await page.screenshot({ path: test.info().outputPath(`welcome-${compositing}.png`) })
-      // Blur and the Dock's colour always, no tint; the bend and rim only on the GPU.
+      // Blur, the Dock's colour and its rim always, no tint; the bend only on the GPU.
       expect(filter.backdrop).toContain(`blur(${final[theme].blur})`)
       expect(alpha(filter.background)).toBeCloseTo(final[theme].tint, 2)
       // (The window's frost, where it is on, still ends every filter in its seal.)
-      if (bends) expect(filter.backdrop).toMatch(/url\("?#yuki-glass-\d/)
-      else {
-        expect(filter.refract).toBe('')
-        expect(filter.backdrop).toContain(`#yuki-glass-tone-${theme}`)
-      }
+      expect(filter.backdrop).toMatch(/url\("?#yuki-glass-\d/)
+      const names = filter.primitives.map((node) => node.name)
+      expect(names.includes('feDisplacementMap'), 'it bends').toBe(bends)
+      expect(
+        filter.primitives.some((node) => node.result === 'added'),
+        'its rim',
+      ).toBe(true)
     } finally {
       await app.close()
     }
