@@ -43,6 +43,16 @@ const answerWith = (app: ElectronApplication, path: string) =>
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [path] })) as never
   }, path)
 
+// As large as 1100 by 760 where the screen allows, at the window's own pixels: a close-up is cut from
+// a screenshot, which an emulated size larger than the window would not hold.
+async function windowSize(app: ElectronApplication, page: Page) {
+  const area = await app.evaluate(
+    ({ BrowserWindow, screen }) =>
+      screen.getDisplayMatching(BrowserWindow.getAllWindows()[0]!.getBounds()).workArea,
+  )
+  await contentSize(app, page, Math.min(1100, area.width), Math.min(760, area.height - 40))
+}
+
 // The page reads its preferences when it starts: written from outside, it is reloaded to show them,
 // at the size it had.
 async function themed(app: ElectronApplication, page: Page, theme: 'light' | 'dark') {
@@ -50,7 +60,7 @@ async function themed(app: ElectronApplication, page: Page, theme: 'light' | 'da
     await page.evaluate((theme) => window.yuki.preferences({ theme }), theme)
     await page.reload()
     await expect(page.locator(`html[data-theme="${theme}"]`)).toBeAttached()
-    await contentSize(app, page, 1100, 760)
+    await windowSize(app, page)
     await page.addStyleTag({ content: ':root { background: var(--bg-window) !important }' })
   }
   await page.waitForTimeout(800)
@@ -283,7 +293,7 @@ test('glass edges in the real app', async () => {
   let success = false
   try {
     const page = await app.firstWindow()
-    await contentSize(app, page, 1100, 760)
+    await windowSize(app, page)
     await page.addStyleTag({ content: ':root { background: var(--bg-window) !important }' })
     // The largest glass in the window: the sidebar's pane (macOS; elsewhere it lies flush).
     for (const theme of ['light', 'dark'] as const) {
@@ -302,7 +312,7 @@ test('glass edges in the real app', async () => {
       await page.getByRole('button', { name: '送出', exact: true }).click()
       await expect(page.getByText(text, { exact: true })).toBeVisible()
     }
-    await contentSize(app, page, 1100, 760)
+    await windowSize(app, page)
     // The theme is chosen in Appearance, as a person would: the page does not hear a preference
     // written behind its back once it has saved its own.
     const appearance = async (theme: 'light' | 'dark') => {

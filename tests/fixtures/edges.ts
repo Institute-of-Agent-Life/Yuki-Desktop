@@ -19,6 +19,16 @@ export async function pixels(
   page: Page,
   clip: { x: number; y: number; width: number; height: number },
 ): Promise<Pixels> {
+  // Kept within the window: a close-up of a glass at its edge stops at the window's edge.
+  const size = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
+  const x = Math.max(0, clip.x),
+    y = Math.max(0, clip.y)
+  clip = {
+    x,
+    y,
+    width: Math.min(clip.x + clip.width, size.width) - x,
+    height: Math.min(clip.y + clip.height, size.height) - y,
+  }
   const png = await page.screenshot({ clip, animations: 'disabled', caret: 'hide' })
   const decoded = await page.evaluate(async (data) => {
     const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0))

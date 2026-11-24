@@ -118,7 +118,6 @@
   position: relative;
   z-index: 2;
   margin: var(--inset);
-  border-radius: var(--r-pane);
   background: var(--bg-sidebar);
   border-right: var(--line) solid var(--separator);
   padding: 46px var(--space-4) var(--space-5);
@@ -228,6 +227,7 @@
 }
 :global([data-platform='darwin']) .sidebar:not(.sidebarOverlay) {
   border-right: 0;
+  border-radius: var(--r-pane);
   background: var(--mat-sidebar-glass);
   backdrop-filter: var(--glass-regular);
   box-shadow: var(--shadow-glass);
