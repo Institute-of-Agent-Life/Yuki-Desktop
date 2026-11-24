@@ -8,7 +8,7 @@ test('selecting a message frames its bubble, not the avatar beside it', async ({
   await reply.locator('[data-bubble-copy]').click()
   await expect(reply).toHaveClass(/selected/)
   const frame = await reply.evaluate((article) => {
-    const bubble = article.querySelector<HTMLElement>('[data-glass="bubble"]')!.parentElement!
+    const bubble = article.querySelector<HTMLElement>('[data-surface="bubble"]')!.parentElement!
     const avatar = article.querySelector('[role="img"]')!.getBoundingClientRect()
     const box = bubble.getBoundingClientRect()
     return {

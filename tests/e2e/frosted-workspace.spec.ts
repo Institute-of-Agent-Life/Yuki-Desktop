@@ -134,8 +134,9 @@ test('frosted workspace keeps its paper, floating controls, real receipts and dr
         if (geometry.material === 'none')
           expect(geometry.paper).toBe(mode === 'dark' ? 'rgb(27, 29, 34)' : 'rgb(255, 255, 255)')
         else expect(geometry.paper).toMatch(/\/ 0\.35\)$/)
-        expect(geometry.radius).toBe('14px')
-        expect(geometry.inset).toBe(6)
+        // The page reaches the window's edges: no card of its own (macOS 26's window structure).
+        expect(geometry.radius).toBe('0px')
+        expect(geometry.inset).toBe(0)
         expect(geometry.bottom).toBeCloseTo(14, 0)
         expect(geometry.toolbarPosition).toBe('absolute')
         expect(geometry.toolbarHeight).toBe(52)

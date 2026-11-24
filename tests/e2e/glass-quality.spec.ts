@@ -27,7 +27,7 @@ test('resting bubbles are shaped by their radius, and lit glass has its light at
 }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await openConversation(page)
-  const resting = page.locator('article[data-event-id="34"] [data-glass="bubble"]')
+  const resting = page.locator('article[data-event-id="34"] [data-surface="bubble"]')
   // Q1 of the 液态玻璃组件统一 task book: a bubble is content, a tinted pane with no lens.
   await expect(resting).toHaveCSS('backdrop-filter', 'none')
   // 1: at rest the radius alone shapes the glass, never a clip-path with its square backdrop.
@@ -39,7 +39,7 @@ test('resting bubbles are shaped by their radius, and lit glass has its light at
   }))
   evidence.restingShape = shape
   expect(shape.clip).toBe('none')
-  expect(shape.radius).toBe('18px')
+  expect(shape.radius).toBe('16px')
   expect(shape.surface).toBe(shape.bubble)
   // 2, as revised by the 液态玻璃组件统一 task book: the light is a slice drawn at the display's
   // own pixels, so the rim stays smooth on Retina screens at any size.
@@ -112,7 +112,7 @@ test('resting bubbles are shaped by their radius, and lit glass has its light at
   await page.evaluate(() =>
     (window as unknown as GlassWindow).regression.receiveGlassReply('已把問題放在摘要最後。'),
   )
-  const reply = page.locator('article[data-event-id="35"] [data-glass="bubble"]')
+  const reply = page.locator('article[data-event-id="35"] [data-surface="bubble"]')
   await expect(reply).toHaveAttribute('data-liquid', '')
   expect(await reply.evaluate((surface) => getComputedStyle(surface).clipPath)).not.toBe('none')
   await expect(reply).not.toHaveAttribute('data-liquid', '')
@@ -144,21 +144,29 @@ test('floating panes blur before they bend, never disperse, and are ringed only 
   expect(wobble / bevel).toBeCloseTo(0.3, 2)
   expect(bends.colours).toBe(0)
   // 3: the rim shapes the glass; in light, a thin dark ring lies just outside it, as on Apple's
-  // glass; increased contrast draws its own outline instead.
+  // glass: one device pixel of the pane's own shadow (an outline is rounded up to a whole CSS
+  // pixel); dark glass has none; increased contrast draws its own edge instead.
   const edge = () =>
     composer.evaluate((element) => ({
       shadow: getComputedStyle(element).boxShadow,
       outline: `${getComputedStyle(element).outlineStyle} ${getComputedStyle(element).outlineColor}`,
     }))
   await page.evaluate(() => (document.documentElement.dataset.theme = 'light'))
+  const ring =
+    (await page.evaluate(() => devicePixelRatio)) >= 2
+      ? '0.2) 0px 0px 0px 0.5px'
+      : '0.12) 0px 0px 0px 1px'
   expect(await edge()).toEqual({
-    shadow: expect.stringMatching(/^rgba\(0, 0, 0, 0\) 0px 0px 0px 0\.5px/),
-    outline: 'solid rgba(0, 0, 0, 0.16)',
+    shadow: expect.stringMatching(new RegExp(`^rgba\\(0, 0, 0, ${ring.replace(/[.()]/g, '\\$&')}`)),
+    outline: expect.stringMatching(/^none/),
   })
   await page.evaluate(() => (document.documentElement.dataset.theme = 'dark'))
-  expect((await edge()).outline).toMatch(/^none/)
+  expect(await edge()).toEqual({
+    shadow: expect.stringMatching(/^rgba\(0, 0, 0, 0\) 0px 0px 0px/),
+    outline: expect.stringMatching(/^none/),
+  })
   await page.evaluate(() => (document.documentElement.dataset.contrast = 'true'))
-  expect((await edge()).shadow).not.toMatch(/^rgba\(0, 0, 0, 0\) 0px 0px 0px 0\.5px/)
+  expect((await edge()).shadow).not.toMatch(/^rgba\(0, 0, 0, 0\) 0px 0px 0px/)
   await page.evaluate(() => (document.documentElement.dataset.theme = 'light'))
   expect((await edge()).outline).toMatch(/^none/)
 })

@@ -64,9 +64,10 @@ test('first-use artwork, pairing geometry and keyboard flow remain visible at na
         const input = page.getByLabel('配對連結、綁定碼或完整回覆', { exact: true })
         await expect(input).toHaveCSS('height', '36px')
         await expect(input).toHaveCSS('font-size', '13px')
+        // A field's own button is a regular control (24pt); the page's actions are large (28pt).
         await expect(page.getByRole('button', { name: '貼上', exact: true })).toHaveCSS(
           'height',
-          '28px',
+          '24px',
         )
         await expect(page.getByLabel('這台裝置的名稱')).toHaveCSS('height', '36px')
         await input.press('Tab')

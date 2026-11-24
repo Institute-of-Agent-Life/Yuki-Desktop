@@ -138,8 +138,8 @@ test('every floating conversation pane is lit liquid glass', async ({ page }) =>
   await expectLiquidGlass('composer', composer)
   // Q1 of the 液态玻璃组件统一 task book: bubbles and work cards are content, with no lens.
   for (const content of [
-    page.locator('article[data-event-id="34"] [data-glass="bubble"]'),
-    page.locator('[data-glass="work-card"]').first(),
+    page.locator('article[data-event-id="34"] [data-surface="bubble"]'),
+    page.locator('[data-surface="work-card"]').first(),
   ])
     await expect(content).toHaveCSS('backdrop-filter', 'none')
   await page.screenshot({ path: test.info().outputPath('conversation-light.png') })
@@ -162,7 +162,7 @@ test('a conversation from another platform ends in a glass notice, not a frosted
   await expectSolid(page, notice)
 })
 
-test('dialogs, the command palette, pairing and controls share the glass without long tasks', async ({
+test('dialogs, the command palette and controls share the glass without long tasks, and pairing lies on the window', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 960, height: 640 })
@@ -219,24 +219,32 @@ test('dialogs, the command palette, pairing and controls share the glass without
   await page.screenshot({ path: test.info().outputPath('palette.png') })
   await expectSolid(page, palette)
 
+  // Pairing is a page, not a pane over one (hig-audit.md §6): it lies on the window, no glass.
   await page.goto('http://127.0.0.1:4178/pairing-regressions.html')
-  const card = page.locator('[data-glass="card"]')
-  await expectLiquidGlass('pairing', card)
+  await expect(page.locator('[data-page="connection"]').first()).toBeVisible()
+  await expect(page.locator('[data-page="connection"] [data-glass]')).toHaveCount(0)
   await page.screenshot({ path: test.info().outputPath('pairing.png') })
-  await expectSolid(page, card)
 })
 
-test('the sidebar keeps its native material with a rim lit from the upper left', async ({
+test('the floating macOS sidebar has a rim lit from the upper left; a flush one has none', async ({
   page,
 }) => {
   await page.goto(`${regressions}?case=settings-transition`)
   const sidebar = page.locator('[data-glass="sidebar"]')
   await expect(sidebar).toBeVisible()
+  const rim = (platform: string) =>
+    sidebar.evaluate((element, platform) => {
+      document.documentElement.dataset.platform = platform
+      const style = getComputedStyle(element, '::before')
+      return { display: style.display, image: style.backgroundImage }
+    }, platform)
   // 9: the same light direction as every refracting pane; with no light map of its own the
-  // native sidebar draws that rim, which refracting glass never does.
-  expect(
-    await sidebar.evaluate((element) => getComputedStyle(element, '::before').backgroundImage),
-  ).toMatch(/^linear-gradient\(154deg/)
+  // floating sidebar draws that rim, which refracting glass never does.
+  const floating = await rim('darwin')
+  expect(floating.display).toBe('block')
+  expect(floating.image).toMatch(/^linear-gradient\(154deg/)
+  // On Windows and Linux the sidebar lies flush with the window, divided by a hairline.
+  expect((await rim('win32')).display).toBe('none')
 })
 
 test('no pane disperses, and blue buttons are tinted glass lit like the rest', async ({ page }) => {
@@ -255,7 +263,7 @@ test('no pane disperses, and blue buttons are tinted glass lit like the rest', a
     })
   const composer = page.locator('[data-region="composer"]')
   await expect(composer).toHaveAttribute('data-refracting', 'true')
-  const bubble = page.locator('article[data-event-id="34"] [data-glass="bubble"]')
+  const bubble = page.locator('article[data-event-id="34"] [data-surface="bubble"]')
   evidence.bends = { composer: await bends(composer) }
   // The faint wobble and the bevel.
   expect(await bends(composer)).toEqual({ bends: 2, colours: 0 })

@@ -136,9 +136,13 @@ test('the command palette scrim only dims', async ({ page }) => {
 })
 
 // A drawn ring: any box-shadow spread around the pane in a colour that is not transparent.
+// A frame drawn around a pane; the one-device-pixel dark ring light glass keeps just outside its
+// rim, as Apple's regular glass does (tokens.css `--glass-hairline`), is the glass's own edge.
 const rings = (shadow: string) =>
   [...shadow.matchAll(/(rgba?\([^)]*\)|color\([^)]*\)) 0px 0px 0px (\d+(?:\.\d+)?)px/g)].filter(
-    ([, colour]) => !/,\s*0\)$|\/ 0\)$/.test(colour!),
+    ([, colour, width]) =>
+      !/,\s*0\)$|\/ 0\)$/.test(colour!) &&
+      !(/^rgba\(0, 0, 0, 0\.(12|2)\)$/.test(colour!) && Number(width) <= 1),
   ).length
 
 test('glass panes draw no frame of their own around or across their edge', async ({ page }) => {
@@ -232,7 +236,7 @@ test('a sheet that grew out of a button is lit along its own corners once it has
   await expect(sheet).toHaveAttribute('data-refracting', 'true')
   await expect.poll(() => sheet.evaluate((element) => element.getAnimations().length)).toBe(0)
   await page.waitForTimeout(300)
-  // 12: 40px from the left the top edge is straight for a 22px corner, so its light is there;
+  // 12: 40px from the left the top edge is straight for a 20px corner, so its light is there;
   // a map drawn from the growing frame's far larger corner leaves it dark.
   const rim = await sheet.evaluate(readRim, [[40, 0.5]] as [number, number][])
   const light = {
@@ -240,6 +244,6 @@ test('a sheet that grew out of a button is lit along its own corners once it has
     edge: rim.light[0]!,
   }
   evidence.grownSheet = light
-  expect(light.radius).toBe('22px')
+  expect(light.radius).toBe('20px')
   expect(light.edge).toBeGreaterThan(16)
 })

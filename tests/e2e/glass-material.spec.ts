@@ -306,7 +306,7 @@ test('the final glass composites within 16.7ms at the 95th percentile on this ma
 
 // 7, 8: the real app, told by the main process whether it composites on the GPU.
 for (const compositing of ['gpu', 'software'] as const)
-  test(`the welcome card follows the main process's ${compositing} compositing`, async () => {
+  test(`the toolbar's glass follows the main process's ${compositing} compositing`, async () => {
     test.setTimeout(90000)
     const root = await mkdtemp(join(tmpdir(), 'yuki-glass-material-'))
     const app = await (
@@ -314,9 +314,9 @@ for (const compositing of ['gpu', 'software'] as const)
     ).launch('profile', compositing === 'software' ? ['--disable-gpu-compositing'] : [])
     try {
       const page = await app.firstWindow()
-      await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
-      const card = page.locator('[data-glass="card"]').first()
-      await expect(card).toBeVisible()
+      // Pages lie on the window (no card of their own): the toolbar's capsule is the glass.
+      const toolbar = page.locator('[data-region="toolbar"] [data-glass="toolbar"]').first()
+      await expect(toolbar).toBeVisible()
       const status = await app.evaluate(({ app }) => app.getGPUFeatureStatus().gpu_compositing)
       const boot = await page.evaluate(() => window.yuki.boot())
       const bends = status.startsWith('enabled')
@@ -327,19 +327,19 @@ for (const compositing of ['gpu', 'software'] as const)
         // The system reduces transparency (as CI's macOS does): no glass at all, bent or not.
         evidence[`welcome-${compositing}`] = { status, opaque: true }
         await expect(page.locator('html')).toHaveAttribute('data-opaque', 'true')
-        await expect(card).not.toHaveAttribute('data-refracting')
-        await expect(card).toHaveCSS('backdrop-filter', 'none')
+        await expect(toolbar).not.toHaveAttribute('data-refracting')
+        await expect(toolbar).toHaveCSS('backdrop-filter', 'none')
         return
       }
-      await expect(card).toHaveAttribute('data-refracting', 'true', { timeout: 30000 })
+      await expect(toolbar).toHaveAttribute('data-refracting', 'true', { timeout: 30000 })
       const theme = (await page.evaluate(() => document.documentElement.dataset.theme)) as
         'light' | 'dark'
-      const filter: Filter = await card.evaluate(readFilter)
+      const filter: Filter = await toolbar.evaluate(readFilter)
       evidence[`welcome-${compositing}`] = { status, filter }
       await page.screenshot({ path: test.info().outputPath(`welcome-${compositing}.png`) })
       // Blur, tint and rim always; the bend only on the GPU.
       expect(filter.backdrop).toContain(`blur(${final[theme].blur})`)
-      expect(alpha(filter.background)).toBeCloseTo(final[theme].text, 2)
+      expect(alpha(filter.background)).toBeCloseTo(final[theme].tint, 2)
       expect(filter.rim).toMatch(/^url\(/)
       // (The window's frost, where it is on, still ends every filter in its seal.)
       if (bends) expect(filter.backdrop).toMatch(/url\("?#yuki-glass-/)

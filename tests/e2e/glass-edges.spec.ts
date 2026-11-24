@@ -27,8 +27,8 @@ import { closeUps, enlarge, pixels, type Pixels } from '../fixtures/edges'
  *      percentile of each pixel's distance from its 3×3 mean) exceeds 2.3 levels on a pane, 9.5 on
  *      a held control;
  *   8. nothing joins the bent pixels again: no blur between the bevel's bend and the body's light.
- * The real app's close-ups (6x, every glass, light, dark and a line-art backdrop) are written as
- * the test's output.
+ * The real app's close-ups (6x: the sidebar's pane, toolbar, composer, sheet, the held slider and
+ * the segmented control, light, dark and over a line-art backdrop) are written as the test's output.
  */
 const evidence: Record<string, unknown> = {}
 test.afterAll(async () => {
@@ -267,10 +267,10 @@ test('glass edges in the real app', async () => {
     const page = await app.firstWindow()
     await contentSize(app, page, 1100, 760)
     await page.addStyleTag({ content: ':root { background: var(--bg-window) !important }' })
-    await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
+    // The largest glass in the window: the sidebar's pane (macOS; elsewhere it lies flush).
     for (const theme of ['light', 'dark'] as const) {
       await themed(page, theme)
-      await shoot(page, page.locator('[data-glass="card"]').first(), `card-${theme}`)
+      await shoot(page, page.locator('[data-region="sidebar"]'), `sidebar-${theme}`)
     }
     await pairUI(page, rig.base, await rig.code())
     const composer = page.getByRole('textbox', {
