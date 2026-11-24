@@ -46,10 +46,12 @@ const shapes = {
   slider: { band: 0.1, bend: 6, profile: 0.5, wobble: 0, least: 1 },
 } as const
 /*
- * The rim's light, measured on the same glass: a line half a point in from the edge, brightest on
- * the upper-right and lower-left arcs (`lobe` sharpens them, `other` lights the opposite pair; the
- * straight sides keep a quarter), a Fresnel band over a few percent of the radius and a glow fading
- * inward. `body` is how much the middle is brightened.
+ * The rim's light, measured on the same glass: a line along the edge, brightest on the upper-right
+ * and lower-left arcs (`lobe` sharpens them, `other` lights the opposite pair; the straight sides
+ * keep half, so the line runs on unbroken around the glass as on the iOS Dock and folders), a
+ * Fresnel band over a few percent of the radius and a glow fading inward. `body` is how much the
+ * middle is brightened. The line is as wide as the bevel (`bevelOf`): thicker on larger glass, and
+ * never thinner than a pixel on a 1x screen.
  */
 const lights = {
   pane: {
@@ -94,6 +96,11 @@ const kinds = {
 export type GlassKind = keyof typeof kinds
 const theme = () => (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light')
 
+/** The bevel's lit line, in CSS pixels: a twentieth of the corner's radius, within 0.6–1.4. */
+const bevelOf = (radius: number) => Math.min(1.4, Math.max(0.6, radius * 0.045))
+/** The shade just within the lit line, in CSS pixels: wider on larger glass, within 1.5–4. */
+const shadeOf = (radius: number) => Math.min(4, Math.max(1.5, radius * 0.12))
+
 export function roundedDistance(x: number, y: number, hx: number, hy: number, radius: number) {
   const qx = Math.abs(x) - hx + radius,
     qy = Math.abs(y) - hy + radius
@@ -118,6 +125,7 @@ interface Lens {
   slice: [number, number]
   border: [number, number]
   band: number
+  shade: number
 }
 const lenses = new Map<string, Lens>()
 let sequence = 0
@@ -199,8 +207,9 @@ function lens(width: number, height: number, radius: number, kind: GlassKind): L
     const diagonal = 2 * nx * ny,
       lobes =
         Math.max(0, -diagonal) ** light.lobe + light.other * Math.max(0, diagonal) ** light.lobe
-    const weight = 0.25 + 0.75 * lobes
-    const line = Math.exp(-(((inset - 0.5) / 0.6) ** 2)) * light.line * weight,
+    const weight = 0.5 + 0.5 * lobes,
+      bevel = bevelOf(radius)
+    const line = Math.exp(-(((inset - 0.6 * bevel) / bevel) ** 2)) * light.line * weight,
       fresnel = light.fresnel * weight * Math.exp(-inset / Math.max(0.8, radius * 0.06)),
       glow = light.glow * Math.exp(-inset / light.glowWidth)
     // The outermost pixel is covered only partly, which smooths the curve.
@@ -235,6 +244,7 @@ function lens(width: number, height: number, radius: number, kind: GlassKind): L
     slice: [down ? border * scale : 0, across ? border * scale : 0],
     border: [down ? border : 0, across ? border : 0],
     band,
+    shade: shadeOf(radius),
   }
   // A handful of kinds, radii and short sides: kept.
   lenses.set(key, result)
@@ -380,6 +390,8 @@ export function useGlass<T extends HTMLElement>(
     })
     // The bevel's map: its pieces merged over a neutral face. Then the whole pane wobbles a
     // little, the bevel bends what the wobble left, and the body's light brightens the middle.
+    // A displacement map moves whole pixels: a fine line bent across the bevel steps and breaks
+    // up, where Apple's stays a smooth curve. Half a pixel of blur after the bend joins it again.
     const merge = primitive('feMerge', { result: 'bevel' })
     const stretched = (href: string, result: string) =>
       primitive('feImage', { href, x: '0', y: '0', preserveAspectRatio: 'none', result })
@@ -398,6 +410,11 @@ export function useGlass<T extends HTMLElement>(
       in2: 'bevel',
       xChannelSelector: 'R',
       yChannelSelector: 'G',
+      result: 'stepped',
+    })
+    const smooth = primitive('feGaussianBlur', {
+      in: 'stepped',
+      stdDeviation: '0.5',
       result: 'bent',
     })
     const bodyImage = stretched(body(), 'body'),
@@ -407,6 +424,7 @@ export function useGlass<T extends HTMLElement>(
       merge,
       ...(wobbleImage && wobbleBend ? [wobbleImage, wobbleBend] : []),
       bevelBend,
+      smooth,
       bodyImage,
       gain,
     )
@@ -472,6 +490,7 @@ export function useGlass<T extends HTMLElement>(
       element.style.removeProperty('--rim')
       element.style.removeProperty('--rim-slice')
       element.style.removeProperty('--rim-border')
+      element.style.removeProperty('--bevel-shade')
       delete element.dataset.refracting
     }
     const sync = () => {
@@ -516,6 +535,7 @@ export function useGlass<T extends HTMLElement>(
             '--rim-border',
             fresh.border.map((value) => `${value}px`).join(' '),
           )
+          element.style.setProperty('--bevel-shade', `${fresh.shade}px`)
           bends.current!.amount = fresh.band * shape.bend
         }
       }

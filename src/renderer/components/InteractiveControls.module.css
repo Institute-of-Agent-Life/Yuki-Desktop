@@ -195,7 +195,8 @@
   background: white;
 }
 
-:is(.sliderThumb, .toggleThumb, .segmentThumb)::after {
+:is(.sliderThumb, .toggleThumb, .segmentThumb)::after,
+:is(.toggleThumb, .segmentThumb)::before {
   opacity: var(--glass-pressure, 0);
 }
 :global([data-theme='dark']) :is(.sliderThumb, .toggleThumb, .segmentThumb)::after {

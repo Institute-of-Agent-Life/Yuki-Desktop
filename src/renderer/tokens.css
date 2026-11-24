@@ -81,8 +81,12 @@
   --ease-pop: cubic-bezier(0.22, 1.12, 0.36, 1);
   --shadow-popover: 0 0 0 0.5px rgba(20, 30, 50, 0.12), 0 10px 28px rgba(16, 24, 40, 0.14);
   --shadow-sheet: 0 0 0 0.5px rgba(20, 30, 50, 0.12), 0 24px 60px rgba(16, 24, 40, 0.22);
-  /* A floating glass pane: its lit rim is its edge, so only increased contrast draws one. */
-  --shadow-pane: 0 0 0 0.5px var(--glass-hairline, transparent), 0 24px 60px rgba(16, 24, 40, 0.22);
+  /* Over light content a floating pane has a thin dark ring just outside its rim, as on Apple's
+     regular glass: one device pixel (`--line`), lighter on a 1x screen where the pixel is twice as
+     wide. Dark glass is shaped by its lit rim alone; increased contrast draws the edge. */
+  --glass-hairline: rgb(0 0 0 / 0.12);
+  --shadow-pane:
+    0 0 0 var(--line) var(--glass-hairline, transparent), 0 24px 60px rgba(16, 24, 40, 0.22);
   font-family: var(--font-ui);
   font-size: 13px;
   line-height: 18px;
@@ -107,6 +111,7 @@
      beneath cannot be read through its own. */
   --mat-sheet-glass: rgb(255 255 255 / 0.5);
   --glass-blur: 2px;
+  --glass-shade: rgb(0 0 0 / 0.1);
   --glass-brightness: 1.02;
   --glass-saturation: 1.05;
   /* How much of the desktop shows through the window, 0–1 (the Transparency setting; App.tsx). The
@@ -161,7 +166,7 @@
     0 0 0 0.5px rgba(20, 30, 50, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04),
     0 8px 24px rgba(16, 24, 40, 0.05);
   --shadow-glass:
-    0 0 0 0.5px var(--glass-hairline, transparent), 0 1px 2px rgba(16, 24, 40, 0.06),
+    0 0 0 var(--line) var(--glass-hairline, transparent), 0 1px 2px rgba(16, 24, 40, 0.06),
     0 6px 18px rgba(16, 24, 40, 0.08);
   --scrim: rgba(24, 30, 44, 0.16);
   --hl: rgba(255, 255, 255, 0.28);
@@ -210,7 +215,9 @@
   --status-offline: #a0a3ab;
   --shadow-popover: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 10px 30px rgba(0, 0, 0, 0.5);
   --shadow-sheet: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 24px 60px rgba(0, 0, 0, 0.58);
-  --shadow-pane: 0 0 0 0.5px var(--glass-hairline, transparent), 0 24px 60px rgba(0, 0, 0, 0.58);
+  --glass-hairline: transparent;
+  --shadow-pane:
+    0 0 0 var(--line) var(--glass-hairline, transparent), 0 24px 60px rgba(0, 0, 0, 0.58);
   --bg-raised: #212328;
   --bg-stage: #16181c;
   --fill-control: rgba(255, 255, 255, 0.09);
@@ -222,6 +229,7 @@
   --mat-pane: rgb(30 32 50 / 0.74);
   --mat-sheet-glass: rgb(30 32 50 / 0.74);
   --glass-blur: 3px;
+  --glass-shade: rgb(0 0 0 / 0.45);
   --glass-brightness: 1;
   --glass-saturation: 1.1;
   --backdrop-aurora:
@@ -242,7 +250,7 @@
     0 0 0 0.5px rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.3),
     0 8px 24px rgba(0, 0, 0, 0.28);
   --shadow-glass:
-    0 0 0 0.5px var(--glass-hairline, transparent), 0 1px 2px rgba(0, 0, 0, 0.3),
+    0 0 0 var(--line) var(--glass-hairline, transparent), 0 1px 2px rgba(0, 0, 0, 0.3),
     0 6px 18px rgba(0, 0, 0, 0.32);
   --scrim: rgba(0, 0, 0, 0.34);
   --hl: rgba(255, 255, 255, 0.16);
@@ -295,6 +303,7 @@
 @media (min-resolution: 2dppx) {
   :root {
     --line: 0.5px;
+    --glass-hairline: rgb(0 0 0 / 0.2);
   }
 }
 * {

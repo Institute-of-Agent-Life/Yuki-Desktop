@@ -55,17 +55,6 @@
 [data-glass='slider']::after {
   display: none;
 }
-/* Over light content a thin dark ring lies just outside the rim, as on Apple's regular glass. */
-:root:not([data-theme='dark'], [data-contrast='true'])
-  :is(
-    [data-glass='toolbar'],
-    [data-glass='composer'],
-    [data-glass='card'],
-    [data-glass='sheet']
-  )[data-refracting] {
-  outline: 0.5px solid rgb(0 0 0 / 0.16);
-  outline-offset: 0;
-}
 /* As specific as the dark theme's materials (:root[data-theme='dark']), so opaque wins in dark too. */
 :root[data-opaque='true'] {
   --mat-ground: var(--bg-window);
@@ -104,6 +93,18 @@ html[data-control-drag] * {
   user-select: none !important;
 }
 
+/*
+ * Within the lit line the bevel turns away from the light: a soft shade, as wide as the bevel
+ * (`--bevel-shade`, glass.ts), darker on dark glass, as on the iOS Dock and folders. The slider's
+ * thumb draws its own.
+ */
 [data-refracting]::before {
+  display: block;
+  padding: 0;
+  mask: none;
+  background: none;
+  box-shadow: inset 0 0 calc(var(--bevel-shade) * 2) calc(var(--bevel-shade) / 2) var(--glass-shade);
+}
+[data-glass='slider'][data-refracting]::before {
   display: none;
 }
