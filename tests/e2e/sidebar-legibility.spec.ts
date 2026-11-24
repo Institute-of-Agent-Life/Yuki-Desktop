@@ -82,6 +82,10 @@ test('the sidebar keeps its text legible over any picture, light and dark, and s
         await expect(
           page.getByText('Desktop reference reply', { exact: true }).first(),
         ).toBeVisible()
+        // On a small screen the sidebar is folded away over the page: opened to be read.
+        const toggle = page.locator('[data-region="toolbar"] [data-toggle="sidebar"]')
+        if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
+        await expect(texts.status).toBeVisible()
         await page.mouse.move(700, 400)
         // The picture is read and the glass tinted once it has loaded.
         await page.waitForTimeout(1200)

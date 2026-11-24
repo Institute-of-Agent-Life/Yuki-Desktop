@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { isolatedDesktop } from '../fixtures/isolated-desktop'
@@ -363,6 +364,39 @@ for (const compositing of ['gpu', 'software'] as const)
       await app.close()
     }
   })
+
+// macOS's Liquid Glass slider (Clear ↔ Tinted, System Settings › Appearance) reaches the page, as
+// the system reads it; and is read again when the window comes forward, as it can be moved while
+// Yuki is open. Elsewhere, and where it was never moved, its middle (0.49). Fails when the page is
+// never told, or told only once at start.
+test("the glass is told macOS's Liquid Glass slider, and told again as the window comes forward", async () => {
+  test.setTimeout(60000)
+  const root = await mkdtemp(join(tmpdir(), 'yuki-glass-tint-'))
+  const app = await (await isolatedDesktop(root)).launch('profile')
+  try {
+    const page = await app.firstWindow()
+    const html = page.locator('html')
+    let system = '0.49'
+    if (process.platform === 'darwin')
+      try {
+        system = String(Number(execFileSync('defaults', ['read', '-g', 'NSGlassTintAmount'])))
+      } catch {
+        // Never moved: the key is absent.
+      }
+    await expect(html).toHaveAttribute('data-glass-tint', system, { timeout: 30000 })
+    // Moved while Yuki was in the background: what the system answers now is read on focus.
+    await app.evaluate(({ app, systemPreferences, BrowserWindow }) => {
+      systemPreferences.getUserDefault = (() => '0.8') as never
+      app.emit('browser-window-focus', {}, BrowserWindow.getAllWindows()[0])
+    })
+    await expect(html).toHaveAttribute(
+      'data-glass-tint',
+      process.platform === 'darwin' ? '0.8' : '0.49',
+    )
+  } finally {
+    await app.close()
+  }
+})
 
 // The settings, chat and connection pages in both themes, from an isolated profile paired with
 // the real backend fixture: the screenshots compared against the final in the research.

@@ -191,6 +191,9 @@ export function App({ boot }: { boot: BootInfo }) {
       appearance.reducedTransparency ||
       appearance.highContrast
     root.dataset.opaque = String(opaque)
+    // macOS's Liquid Glass slider (Clear 0 ↔ Tinted 1), read again whenever the window comes
+    // forward, for the glass to follow.
+    root.dataset.glassTint = String(appearance.glassTint)
     root.style.setProperty('--window-transparency', String(preferences.transparency / 100))
     root.dataset.material = opaque ? 'none' : boot.nativeMaterial
     root.dataset.platform = boot.platform
