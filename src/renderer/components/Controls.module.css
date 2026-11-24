@@ -147,7 +147,7 @@
   border-radius: 22px;
   padding: 0;
   color: var(--text-primary);
-  background: var(--mat-pane);
+  background: var(--mat-sheet-glass);
   backdrop-filter: var(--glass-sheet);
   box-shadow: var(--shadow-pane);
 }

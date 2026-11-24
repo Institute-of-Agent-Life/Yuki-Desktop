@@ -415,6 +415,7 @@ export function useGlass<T extends HTMLElement>(
     bends.current = { wobble: wobbleBend, bevel: bevelBend, amount: 0 }
     let size = '',
       shown = false,
+      first = made,
       current: Lens | undefined,
       pieces: SVGElement[] = []
     // Gives the filter the pieces of a new lens.
@@ -497,11 +498,15 @@ export function useGlass<T extends HTMLElement>(
       )
       const next = `${w}/${h}/${r}`
       // A held control stretches as it is pressed and dragged: the maps it was first given
-      // stretch with it, and none are made while it moves.
+      // stretch with it, and none are made while it moves. Made again for another theme, they
+      // are made for that first size too, whatever size the control is caught at then.
       if (next !== size && !(dynamic && size)) {
         if (!shown && !dynamic && bending) materialise()
         shown = true
-        const fresh = made ? lens(made.width, made.height, made.radius, kind) : lens(w, h, r, kind)
+        if (dynamic) first ??= { width: w, height: h, radius: r }
+        const fresh = first
+          ? lens(first.width, first.height, first.radius, kind)
+          : lens(w, h, r, kind)
         if (fresh !== current) {
           current = fresh
           assemble(fresh)

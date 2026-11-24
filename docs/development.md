@@ -118,7 +118,7 @@ SSH 與「部署到我的伺服器」：`prepare-local-bot.mjs` 以後端自己�
 
 `control-motion.spec.ts` 驗證實際拖曳、取消、鍵盤與背景像素折射；`frosted-workspace.spec.ts` 使用隔離真後端核對四種外觀、三個尺寸、原回執與草稿。兩者均不呼叫付費模型，截圖只作本地審閱。
 
-`glass-material.spec.ts` 核對液態玻璃定稿（`docs/reports/2026-11-23-liquid-glass` §15）：濾鏡先模糊後位移、有體內光增益圖、沒有色散、位移圖至少 2x、帶文字的面板 tint；無頭 Chromium（軟體合成）下內容在玻璃下捲動時合成器每幀 p95 ≤ 16.7ms、沒有超過 100ms 的長任務（`frame-budget.json`）；實際 App 以 `--disable-gpu-compositing` 啟動時主程序回報沒有 GPU 合成，玻璃只保留模糊、tint 與邊光。另以真後端在隔離設定檔截取設定、聊天、連線三頁的淺色與深色畫面（系統材質無法截入頁面，截圖時以視窗底色代替）。`transparency.spec.ts` 以 renderer fixture 核對透明度滑塊的拖動、放手才保存、拖到 0 立即保存、鍵盤步進與焦點環，並以實際 App 核對舊 `opaque` 偏好的遷移、IPC 夾值與原生材質只在 0 與大於 0 之間切換。其他 spec 經 `tests/fixtures/transparency.ts` 以鍵盤設定透明度。
+`glass-material.spec.ts` 核對液態玻璃定稿（`docs/reports/2026-11-23-liquid-glass` §15）：濾鏡先模糊後位移、有體內光增益圖、沒有色散、位移圖至少 2x、帶文字的面板 tint；無頭 Chromium（軟體合成）下內容在玻璃下捲動時，同一次執行裡比較無玻璃、無位移的玻璃與定稿玻璃三種情況的合成器每幀耗時：位移、wobble 與體內光不得讓一幀超過無位移時的 1.5 倍，無位移的玻璃不超過無玻璃的 4 倍，捲動時不重畫貼圖、沒有超過 100ms 的長任務（`frame-budget.json`）；調研的絕對預算（p95 ≤ 16.7ms）只在桌機上以 `YUKI_GLASS_FRAME_BUDGET=1` 執行；實際 App 以 `--disable-gpu-compositing` 啟動時主程序回報沒有 GPU 合成，玻璃只保留模糊、tint 與邊光。另以真後端在隔離設定檔截取設定、聊天、連線三頁的淺色與深色畫面（系統材質無法截入頁面，截圖時以視窗底色代替）。`transparency.spec.ts` 以 renderer fixture 核對透明度滑塊的拖動、放手才保存、拖到 0 立即保存、鍵盤步進與焦點環，並以實際 App 核對舊 `opaque` 偏好的遷移、IPC 夾值與原生材質只在 0 與大於 0 之間切換。其他 spec 經 `tests/fixtures/transparency.ts` 以鍵盤設定透明度。
 
 `custom-backdrop.spec.ts` 以測試內畫出的線稿與漸層圖片（不用任何外部素材）核對自訂聊天背景：經實際 App 選圖（替換主程序的檔案對話框回傳）、原檔與 WebP 副本按 SHA-256 只存一份、原檔不經 `app://desktop/__backgrounds/` 提供、亮度表、填滿／完整顯示／並排、模糊副本、變暗、淺深色各一張與深色自動變暗、替換與移除後清理檔案、非法偏好不收；並以真後端從聊天區右鍵選單換成線稿背景，在淺色與深色下核對輸入框、氣泡（發送者、時間、檔名與類型、正文）、工具列標題與狀態、日期分隔和對話開頭的文字對其字形背後每個像素的對比（最差 1%；正文 ≥ 4.5:1，次要文字 ≥ 3:1）。
 

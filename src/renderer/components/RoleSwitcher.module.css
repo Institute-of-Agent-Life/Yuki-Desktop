@@ -42,7 +42,7 @@
   color: var(--text-primary);
   padding: 6px;
   border-radius: 14px;
-  background: var(--mat-pane);
+  background: var(--mat-sheet-glass);
   backdrop-filter: var(--glass-sheet);
   box-shadow: var(--shadow-pane);
   max-height: min(400px, calc(100vh - 130px));

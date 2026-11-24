@@ -103,6 +103,9 @@
   /* The glass's tint (materials.css): clear, and a little more where it carries text. */
   --mat-glass: rgb(255 255 255 / 0.16);
   --mat-pane: rgb(255 255 255 / 0.24);
+  /* Glass that opens over the page (dialogs, the palette, menus): thicker, so the page's text
+     beneath cannot be read through its own. */
+  --mat-sheet-glass: rgb(255 255 255 / 0.5);
   --glass-blur: 2px;
   --glass-brightness: 1.02;
   --glass-saturation: 1.05;
@@ -217,6 +220,7 @@
   --mat-sheet: rgba(38, 40, 46, 0.97);
   --mat-glass: rgb(30 32 50 / 0.42);
   --mat-pane: rgb(30 32 50 / 0.74);
+  --mat-sheet-glass: rgb(30 32 50 / 0.74);
   --glass-blur: 3px;
   --glass-brightness: 1;
   --glass-saturation: 1.1;
@@ -275,6 +279,7 @@
   /* Glass is shaped by its lit rim; increased contrast adds back a drawn outline. */
   --glass-hairline: var(--edge);
   --mat-pane: var(--mat-sheet);
+  --mat-sheet-glass: var(--mat-sheet);
   --edge: var(--separator-strong);
   --separator: rgba(20, 30, 50, 0.27);
   --separator-strong: rgba(20, 30, 50, 0.42);

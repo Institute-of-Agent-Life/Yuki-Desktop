@@ -6,7 +6,8 @@
  *   sheet: the same glass for panes that open over the page (dialogs, the palette, menus), blurred
  *     until the page's text beneath cannot be read through their own.
  *   lens: a control held under the finger, nearly clear.
- * The tint lies on each pane's own background: `--mat-glass`, or `--mat-pane` where it carries text.
+ * The tint lies on each pane's own background: `--mat-glass`, `--mat-pane` where it carries text,
+ * `--mat-sheet-glass` for sheets.
  */
 [data-glass] {
   --glass-regular: blur(var(--glass-blur)) var(--refract,) brightness(var(--glass-brightness))
@@ -73,6 +74,7 @@
   --mat-sheet: var(--bg-elevated);
   --mat-glass: var(--bg-elevated);
   --mat-pane: var(--bg-elevated);
+  --mat-sheet-glass: var(--bg-elevated);
   --stroke-hi: transparent;
   --stroke-lo: transparent;
   --scrim: rgba(24, 30, 44, 0.3);
