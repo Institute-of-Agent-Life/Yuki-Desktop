@@ -209,7 +209,11 @@ async function scrolling(page: Page, mode: 'none' | 'fallback' | 'final') {
     for (let copy = 0; copy < 6; copy++) for (const row of rows) element.append(row.cloneNode(true))
   })
   await page.waitForTimeout(300)
-  const maps = await page.evaluate(() => (window as unknown as { maps: number }).maps)
+  // Counted from here on: what scrolling costs, not opening the page.
+  const [maps, long] = await page.evaluate(() => {
+    const state = window as unknown as { long: number[]; maps: number }
+    return [state.maps, state.long.length]
+  })
   const browser = page.context().browser()!,
     output = test.info().outputPath()
   await mkdir(output, { recursive: true })
@@ -248,7 +252,7 @@ async function scrolling(page: Page, mode: 'none' | 'fallback' | 'final') {
     p50: at(0.5),
     p95: at(0.95),
     max: at(1),
-    longTasks: state.long,
+    longTasks: state.long.slice(long),
     // Maps painted while the content scrolled: none should be.
     mapsWhileScrolling: state.maps - maps,
   }
