@@ -70,7 +70,7 @@
   border-right: 0;
   border-radius: var(--r-pane);
   background: var(--mat-sidebar-glass);
-  backdrop-filter: blur(var(--glass-blur)) var(--glass-native) var(--seal,);
+  backdrop-filter: var(--glass-regular);
 }
 .categories button[role='tab'] {
   position: relative;
@@ -151,6 +151,9 @@
 }
 .pane > * {
   max-width: 720px;
+}
+.pane[data-glass] {
+  backdrop-filter: var(--glass-regular);
 }
 .pane h2 {
   font-size: 17px;

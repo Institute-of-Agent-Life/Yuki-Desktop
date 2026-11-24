@@ -5,7 +5,17 @@ import type { Page } from '@playwright/test'
 // the kinds of photographs and drawings people choose: busy manga-like line art with screen
 // tone, a saturated deep blue with an orange creature trailing red lines, a bright valley under a
 // pale sky, saturated red fruit on green leaves, and a dark forest with shafts of light.
-export type Picture = 'lineart' | 'gradient' | Wallpaper
+// For the glass's appearance: dark line art (white strokes and pale screen tone on black), a
+// very bright picture (pale shapes on white), and greys across the light/dark threshold: a level
+// `level-<n>` everywhere, or `ramp-<from>-<to>` running from left to right (sRGB levels).
+export type Picture =
+  | 'lineart'
+  | 'gradient'
+  | 'nightlines'
+  | 'snow'
+  | `level-${number}`
+  | `ramp-${number}-${number}`
+  | Wallpaper
 export const wallpapers = ['manga', 'jellyfish', 'valley', 'berries', 'forest'] as const
 export type Wallpaper = (typeof wallpapers)[number]
 
@@ -35,7 +45,35 @@ export async function picture(page: Page, kind: Picture) {
         context.lineTo((x += (random() - 0.5) * reach), (y += (random() - 0.5) * reach))
       context.stroke()
     }
-    if (kind === 'manga') {
+    const grey = kind.match(/^(?:level|ramp)-(\d+)(?:-(\d+))?$/)
+    if (grey) {
+      const from = Number(grey[1]),
+        to = Number(grey[2] ?? grey[1])
+      const ramp = context.createLinearGradient(0, 0, 1600, 0)
+      ramp.addColorStop(0, `rgb(${from} ${from} ${from})`)
+      ramp.addColorStop(1, `rgb(${to} ${to} ${to})`)
+      context.fillStyle = ramp
+      context.fillRect(0, 0, 1600, 1000)
+    } else if (kind === 'nightlines') {
+      context.fillStyle = '#0c0d11'
+      context.fillRect(0, 0, 1600, 1000)
+      context.fillStyle = '#5a5c63'
+      for (let y = 0; y < 1000; y += 7)
+        for (let x = 0; x < 1600; x += 7)
+          if (Math.sin(x / 210) + Math.cos(y / 150) > 0.9) context.fillRect(x, y, 2, 2)
+      for (let stroke = 0; stroke < 120; stroke++) wander(1 + random() * 2, '#f2f2f2', 8, 60)
+    } else if (kind === 'snow') {
+      context.fillStyle = '#fbfcfd'
+      context.fillRect(0, 0, 1600, 1000)
+      for (let drift = 0; drift < 40; drift++)
+        blob(
+          random() * 1600,
+          random() * 1000,
+          80 + random() * 160,
+          '#e6ebf1',
+          'rgba(230,235,241,0)',
+        )
+    } else if (kind === 'manga') {
       context.fillStyle = '#fbfbf8'
       context.fillRect(0, 0, 1600, 1000)
       // Screen tone: dots on a grid over half the page.

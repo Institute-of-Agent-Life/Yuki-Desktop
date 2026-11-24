@@ -9,28 +9,9 @@
   background-image: var(--backdrop-shown);
   background-attachment: fixed;
 }
-/* A picture of one's own (materials/backdrop.ts, App.tsx): a layer of its own behind everything
-   in the chat, the page's colour laid over it as much as it is dimmed; a blurred picture is a
-   blurred copy, never a live filter. Fitted inside, the rest takes its average colour. It reaches
-   the window's edges: the sidebar's glass floats over it. */
+/* Over a picture of one's own the chat lies on the window's backdrop (App.module.css). */
 :global([data-backdrop='custom']) .chat {
   background: none;
-  isolation: isolate;
-}
-:global([data-backdrop='custom']) .chat::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  will-change: transform;
-  background:
-    linear-gradient(
-      color-mix(in srgb, var(--bg-content) var(--backdrop-dim), transparent),
-      color-mix(in srgb, var(--bg-content) var(--backdrop-dim), transparent)
-    ),
-    var(--backdrop-image) center / var(--backdrop-size) var(--backdrop-repeat),
-    var(--backdrop-fill, var(--bg-content));
 }
 /* Over it, the text laid straight on the picture sits on a small glass of its own, tinted as the
    bubbles are; an own bubble keeps its accent over that tint. */
@@ -147,6 +128,11 @@
 }
 :global([data-backdrop='custom']) .ownMessage .bubble {
   --glass-tint: color-mix(in srgb, var(--accent) var(--bubble-accent), var(--bubble-material));
+}
+/* The accent's tint dims the quiet text over it: its time is half way to the main text, so it keeps
+   3:1 over the brightest pattern. */
+.ownMessage .bubble time {
+  color: color-mix(in srgb, var(--text-tertiary) 50%, var(--text-primary));
 }
 /* What happened to a message is said below it, on the page, as Messages says "Not Delivered":
    a problem in the danger colour, a pending one quietly; one's own at the bubble's trailing edge. */

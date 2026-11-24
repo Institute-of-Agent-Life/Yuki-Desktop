@@ -8,7 +8,7 @@ import { animateBubble, releaseDraft } from '../motion/bubble'
 import { glide, gliding, movedByApp, movedByOther, place } from '../motion/glide'
 import { sampleSpring, springs } from '../motion/spring'
 import { useGlass } from '../materials/glass'
-import { blurBackdrop, followBackdrop, importBackdrop } from '../materials/backdrop'
+import { blurBackdrop, importBackdrop } from '../materials/backdrop'
 import {
   Fragment,
   useCallback,
@@ -143,22 +143,6 @@ export function Conversation({
 }) {
   const { t } = useTranslation(['presence', 'conversation', 'computer', 'common'])
   const floatingRef = useFloatingInsets()
-  const [chat, setChat] = useState<HTMLDivElement | null>(null)
-  const chatRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      setChat(node)
-      return floatingRef(node)
-    },
-    [floatingRef],
-  )
-  // Over a picture of one's own, the glass follows what lies under it (materials/backdrop.ts).
-  useEffect(
-    () =>
-      chat && preferences.backdrop === 'custom'
-        ? followBackdrop(chat, preferences.customBackdrop)
-        : undefined,
-    [chat, preferences.backdrop, preferences.customBackdrop],
-  )
   const workspace = useWorkspace()
   const active = useSessionActive()
   const id = connection.characterId,
@@ -1296,7 +1280,7 @@ export function Conversation({
           )
         ) : (
           <div
-            ref={chatRef}
+            ref={floatingRef}
             className={styles.chat}
             onContextMenu={(click) => {
               // Only its empty space: messages, controls and the composer have menus of their own.

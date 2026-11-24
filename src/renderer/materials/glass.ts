@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { reducedMotion } from '../motion/hooks'
 import { sampleSpring, springs } from '../motion/spring'
+import { watchAppearance, type Appearance } from './appearance'
 import { dockFilter, dockLens, dockLift, dockRim } from './dock'
 import { encodings, mapValues } from './display'
 
@@ -40,8 +41,9 @@ const glassTint = () => Number(document.documentElement.dataset.glassTint ?? 0.4
 
 /*
  * The Dock's colour (dock.ts) as filter primitives reading `input`: its luminance, the tone curve
- * less the colour's gain on it (a table), added to the colour times its gain. `set` gives it the
- * theme's and slider's; a held control's is none (the colour passes as it is).
+ * less the colour's gain on it (a table), added to the colour times its gain. `set` gives it an
+ * appearance's and the slider's (or `toward` of the way there from another's, as it turns); a held
+ * control's is none (the colour passes as it is).
  */
 function dockColour(input: string, prefix: string) {
   const luma = primitive('feColorMatrix', { in: input, type: 'matrix', result: `${prefix}luma` }),
@@ -62,8 +64,8 @@ function dockColour(input: string, prefix: string) {
       luma.setAttribute('in', name)
       combine.setAttribute('in2', name)
     },
-    set(docked: boolean) {
-      const look = dockFilter(theme(), glassTint())
+    set(docked: boolean, appearance: Appearance = theme(), from = appearance, toward = 1) {
+      const look = dockFilter(appearance, glassTint(), from, toward)
       luma.setAttribute('values', look.luma)
       for (const func of curve.children)
         func.setAttribute(
@@ -141,8 +143,8 @@ const shapes = {
   slider: power(0.1, 6, 0.5, 1),
 } satisfies Record<string, Shape>
 /*
- * The rim (dock.ts): what the lens shows, multiplied by 1 + k(θ)·r(d), so it keeps its colour and
- * never turns white. The slider's thumb draws its own (InteractiveControls.module.css). Only panes
+ * The rim (dock.ts): what the lens shows, mixed toward black and lifted by the same levels on red,
+ * green and blue, so it keeps its colour. The slider's thumb draws its own (InteractiveControls.module.css). Only panes
  * take the Dock's colour; a held control stays clear.
  */
 const rimmed = { pane: true, lens: true, slider: false } as const
@@ -152,11 +154,25 @@ const kinds = {
   composer: 'pane',
   card: 'pane',
   sheet: 'pane',
+  send: 'pane',
+  page: 'pane',
   slider: 'slider',
   toggle: 'lens',
   segment: 'lens',
 } as const
 export type GlassKind = keyof typeof kinds
+// The glass that takes the appearance of what lies under it (appearance.ts): what carries text
+// (a page read over a picture of one's own too), and the send button nested in the composer.
+const adaptive = new Set<GlassKind>(['sidebar', 'toolbar', 'composer', 'send', 'page'])
+/*
+ * A pane that carries text is blurred as Apple's clear glass blurs a pane of its size, measured on
+ * NSGlassEffectView over the same pictures (the native captures, fitted with a Gaussian and a
+ * straight tone): 10pt for a pane 42pt across its short side (the composer), 20pt for 148pt (a
+ * bubble) and 245pt (the sidebar), every picture alike; so σ = min(20, 0.24 × the short side), in
+ * pt. Small controls (the toolbar's capsules, the send button, held controls) keep the Dock's 2pt.
+ */
+const sized = new Set<GlassKind>(['sidebar', 'composer', 'page'])
+export const paneBlur = (short: number) => Math.round(2 * Math.min(20, 0.24 * short)) / 2
 
 export function roundedDistance(x: number, y: number, hx: number, hy: number, radius: number) {
   const qx = Math.abs(x) - hx + radius,
@@ -183,6 +199,8 @@ interface Lens {
   span: number
 }
 const lenses = new Map<string, Lens>()
+// The rim's mix toward black where there is none, in the map's blue.
+const mixRest = 0.25
 let sequence = 0
 
 /*
@@ -196,7 +214,13 @@ let sequence = 0
  * The bend is painted at no less than 2x and dithered: a strong bend from a coarse 8-bit map steps
  * a pixel at a time into dashed rings near the rim.
  */
-function lens(width: number, height: number, radius: number, kind: GlassKind): Lens {
+function lens(
+  width: number,
+  height: number,
+  radius: number,
+  kind: GlassKind,
+  look: Appearance,
+): Lens {
   const scale = Math.min(3, Math.max(2, Math.ceil(devicePixelRatio))),
     shape: Shape = shapes[kinds[kind]],
     reach = shape.reach(radius)
@@ -209,7 +233,6 @@ function lens(width: number, height: number, radius: number, kind: GlassKind): L
   const w = across ? tile : width,
     h = down ? tile : height
   const space = document.documentElement.dataset.displayColorSpace
-  const look = theme()
   const key = `${w}/${h}/${radius}/${kind}/${scale}/${space}/${look}`
   const cached = lenses.get(key)
   if (cached) return cached
@@ -252,24 +275,32 @@ function lens(width: number, height: number, radius: number, kind: GlassKind): L
     return canvas
   }
   // One map: the bend inward, as far as the lens says for this depth, along the rounder shape's
-  // normal, across in red and down in green, made (display.ts) to read as meant where the display
-  // converts them; the rim, in levels added to what the tone gives, as 128 + levels in alpha
-  // (which no colour management touches), by the outward normal's angle and the depth. The rim's
-  // outermost pixel is covered only partly, which smooths the curve.
-  const rest = values(0.5, 0.5).map((value) => Math.round(value * 255))
+  // normal, across in red and down in green; the rim (dock.ts) by the outward normal's angle and
+  // the depth, its mix toward black in blue (as 0.25 + mix, so that it can be less than none),
+  // the three made (display.ts) to read as meant where the display converts them, and its added
+  // levels in alpha as 128 + levels (which no colour management touches). The rim's outermost
+  // pixel is covered only partly, which smooths the curve.
+  const rest = values(0.5, 0.5, mixRest).map((value) => Math.round(value * 255))
   const bend = paint(
-    new Uint32Array(new Uint8ClampedArray([rest[0]!, rest[1]!, 0, 128]).buffer)[0]!,
+    new Uint32Array(new Uint8ClampedArray([rest[0]!, rest[1]!, rest[2]!, 128]).buffer)[0]!,
     (data, k, x, y, distance) => {
       const amount = shape.bend(-distance, radius) / span,
         [nx, ny] = normal(x, y, turned)
       const noise = (((k * 2654435761) >>> 0) / 4294967296 - 0.5) / 255
-      const [vx, vy] = values(0.5 - amount * nx + noise, 0.5 - amount * ny - noise)
-      data[k] = Math.round(vx * 255)
-      data[k + 1] = Math.round(vy * 255)
-      if (!rimmed[kinds[kind]]) return
       const [rx, ry] = normal(x, y, radius),
         coverage = Math.max(0, Math.min(1, 0.5 - distance * scale))
-      data[k + 3] = Math.round(128 + dockRim(look, Math.atan2(-ry, rx), -distance) * coverage)
+      const rim = rimmed[kinds[kind]]
+        ? dockRim(look, Math.atan2(Math.abs(rx), Math.abs(ry)), -distance)
+        : { mix: 0, add: 0 }
+      const shown = values(
+        0.5 - amount * nx + noise,
+        0.5 - amount * ny - noise,
+        mixRest + rim.mix * coverage,
+      )
+      data[k] = Math.round(shown[0] * 255)
+      data[k + 1] = Math.round(shown[1] * 255)
+      data[k + 2] = Math.round(shown[2] * 255)
+      data[k + 3] = Math.round(128 + rim.add * coverage)
     },
   )
   // Each axis cut into its start, a middle one CSS pixel long that stretches along a straight
@@ -440,7 +471,25 @@ export function useGlass<T extends HTMLElement>(
       whole,
       intoSRGB,
       ...colour.nodes,
-      // The rim added: the map's alpha as a grey (128 the neutral), on red, green and blue alike.
+      // The rim (dock.ts), out = (1 − mix)·toned + added, on red, green and blue alike: the map's
+      // blue as the share kept (halved, so that a little more than all is kept where the mix is
+      // less than none), and its alpha as a grey (128 the neutral).
+      primitive('feColorMatrix', {
+        in: 'bevel',
+        type: 'matrix',
+        values: [0, 1, 2]
+          .map(() => `0 0 -0.5 0 ${(1 + mixRest) / 2}`)
+          .concat('0 0 0 0 1')
+          .join(' '),
+        result: 'kept',
+      }),
+      primitive('feComposite', {
+        in: 'toned',
+        in2: 'kept',
+        operator: 'arithmetic',
+        k1: '2',
+        result: 'mixed',
+      }),
       primitive('feColorMatrix', {
         in: 'bevel',
         type: 'matrix',
@@ -449,7 +498,7 @@ export function useGlass<T extends HTMLElement>(
       }),
       primitive('feComposite', {
         in: 'rimGrey',
-        in2: 'toned',
+        in2: 'mixed',
         operator: 'arithmetic',
         k2: '1',
         k3: '1',
@@ -519,8 +568,41 @@ export function useGlass<T extends HTMLElement>(
       bend(0)
       rising = requestAnimationFrame(step)
     }
+    // Glass that carries text takes the appearance of what lies under it (appearance.ts): its
+    // colour turns from the one to the other over 200ms, and its rim is made again for it once it
+    // has turned (made during the turn, it would hold up the turn's frames).
+    const unwatch = adaptive.has(kind) ? watchAppearance(element) : undefined
+    const appearanceNow = (): Appearance =>
+      (element.dataset.appearance as Appearance | undefined) ?? theme()
+    let shownAppearance = appearanceNow(),
+      turning = 0
+    const turned = () => {
+      turning = 0
+      size = ''
+      sync()
+    }
+    const turn = () => {
+      const next = appearanceNow()
+      if (next === shownAppearance) return
+      const from = shownAppearance
+      shownAppearance = next
+      cancelAnimationFrame(turning)
+      if (reducedMotion() || !docked) return turned()
+      const start = performance.now()
+      const step = (now: number) => {
+        const t = Math.min(1, Math.max(0, (now - start) / 200))
+        colour.set(docked, next, from, t * t * (3 - 2 * t))
+        if (t < 1) turning = requestAnimationFrame(step)
+        else turned()
+      }
+      colour.set(docked, next, from, 0)
+      turning = requestAnimationFrame(step)
+    }
+    const turns = new MutationObserver(turn)
+    turns.observe(element, { attributes: true, attributeFilter: ['data-appearance'] })
     const quiet = () => {
       element.style.removeProperty('--refract')
+      element.style.removeProperty('--glass-blur')
       delete element.dataset.refracting
     }
     const sync = () => {
@@ -554,8 +636,8 @@ export function useGlass<T extends HTMLElement>(
         shown = true
         if (dynamic) first ??= { width: w, height: h, radius: r }
         const fresh = first
-          ? lens(first.width, first.height, first.radius, kind)
-          : lens(w, h, r, kind)
+          ? lens(first.width, first.height, first.radius, kind, shownAppearance)
+          : lens(w, h, r, kind, shownAppearance)
         if (fresh !== current) {
           current = fresh
           assemble(fresh)
@@ -563,8 +645,10 @@ export function useGlass<T extends HTMLElement>(
         }
       }
       if (next !== size) layout(w, h)
+      if (sized.has(kind))
+        element.style.setProperty('--glass-blur', `${paneBlur(Math.min(w, h))}px`)
       size = next
-      colour.set(docked)
+      if (!turning) colour.set(docked, shownAppearance)
       // On an sRGB display the encodings are not in the chain at all.
       const tables = encodings(root.dataset.displayColorSpace)
       for (const [node, values] of [
@@ -596,6 +680,7 @@ export function useGlass<T extends HTMLElement>(
       appearance = new MutationObserver(() => {
         if (appearanceOf() === shownAs) return
         shownAs = appearanceOf()
+        shownAppearance = appearanceNow()
         size = ''
         sync()
       })
@@ -614,6 +699,9 @@ export function useGlass<T extends HTMLElement>(
     sync()
     const dispose = () => {
       cancelAnimationFrame(rising)
+      cancelAnimationFrame(turning)
+      turns.disconnect()
+      unwatch?.()
       resize.disconnect()
       appearance.disconnect()
       svg.remove()

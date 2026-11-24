@@ -6,10 +6,11 @@ import { expect, type Page } from '@playwright/test'
  * everything in the chat hidden, blurred here on a canvas, and the tint laid over it; the window
  * with the bubbles' text hidden is then compared with that, pixel by pixel, wherever a bubble is.
  *
- * `tint: 'fitted'` takes each bubble's tint from what it shows (the best straight line from the
- * blurred backdrop to it, per channel), for a window where something else also fades a bubble
- * (the conversation's edges): what is left is then only whether the bubble shows the backdrop
- * blurred by `radius`, and in its place.
+ * `tint: 'fitted'` (a picture of one's own) takes each bubble's tint from what it shows (the best
+ * straight line from the blurred backdrop, given the Dock's colour of the appearance the bubble
+ * has taken, to it, per channel: materials/dock.ts), for a window where something else also fades
+ * a bubble (the conversation's edges): what is left is then only whether the bubble shows the
+ * backdrop blurred by `radius`, and in its place.
  */
 export interface Frost {
   /** Bubbles measured: wholly in the open conversation, clear of the composer, toolbar and fades. */
@@ -36,7 +37,7 @@ async function shot(page: Page) {
   return (await page.screenshot({ animations: 'disabled', caret: 'hide' })).toString('base64')
 }
 
-/** `radius`: the frost's blur in CSS pixels (the glass's, 2: `--glass-blur`). */
+/** `radius`: the frost's blur in CSS pixels (a pattern's 2; a picture of one's own's `--bubble-blur`). */
 export async function frost(
   page: Page,
   radius: number,
@@ -78,6 +79,10 @@ export async function frost(
             height: rect.height,
             radius: parseFloat(getComputedStyle(surface).borderTopLeftRadius),
             tint,
+            appearance:
+              surface.parentElement!.dataset.appearance ??
+              document.documentElement.dataset.theme ??
+              'light',
           }
         })
         .filter(
@@ -126,8 +131,21 @@ export async function frost(
     for (const holder of document.querySelectorAll<HTMLElement>('[data-frost-keep]'))
       delete holder.dataset.frostKeep
   })
+  const glassTint = await page.evaluate(() =>
+    Number(document.documentElement.dataset.glassTint ?? 0.49),
+  )
   return page.evaluate(
-    async ({ shown, backdrop, bubbles, radius, tint }) => {
+    async ({ shown, backdrop, bubbles, radius, tint, glassTint }) => {
+      // The Dock's colour of an appearance (materials/dock.ts), for one sRGB colour in levels.
+      const toward = Math.min(1, Math.max(0, (glassTint - 0.49) / 0.51))
+      const dock = (appearance: string, r: number, g: number, b: number) => {
+        const y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        const [shade, gain] =
+          appearance === 'dark'
+            ? [(1 - toward) * (11 + 0.919 * y - 0.000992 * y * y) + toward * (34 + 0.32 * y), 1.08]
+            : [48.4 + 0.695 * y, 1.2]
+        return [r, g, b].map((c) => shade! + gain! * (c - y))
+      }
       const decode = (data: string) =>
         createImageBitmap(
           new Blob([Uint8Array.from(atob(data), (c) => c.charCodeAt(0))], { type: 'image/png' }),
@@ -176,6 +194,16 @@ export async function frost(
           }
         const known = tintOf(bubble.tint),
           fittedSlopes: number[] = []
+        // What the bubble's copy of the backdrop is made of: the blurred backdrop, given the
+        // Dock's colour where the picture is one's own.
+        const source = new Map<number, number[]>()
+        for (const k of inside)
+          source.set(
+            k,
+            tint === 'fitted'
+              ? dock(bubble.appearance, blurred[k]!, blurred[k + 1]!, blurred[k + 2]!)
+              : [blurred[k]!, blurred[k + 1]!, blurred[k + 2]!],
+          )
         for (let c = 0; c < 3; c++) {
           // shown = (1 − a)·blurred + a·tint: the line known, or the one that fits best.
           let slope = 1 - known.a,
@@ -186,7 +214,7 @@ export async function frost(
               sxx = 0,
               sxy = 0
             for (const k of inside) {
-              const x = blurred[k + c]!,
+              const x = source.get(k)![c]!,
                 y = seen[k + c]!
               sx += x
               sy += y
@@ -203,7 +231,7 @@ export async function frost(
             }
           }
           for (const k of inside)
-            differences.push(Math.abs(seen[k + c]! - (offset + slope * blurred[k + c]!)))
+            differences.push(Math.abs(seen[k + c]! - (offset + slope * source.get(k)![c]!)))
         }
         shows.push({
           x: Math.round(bubble.x),
@@ -222,6 +250,6 @@ export async function frost(
         shows,
       }
     },
-    { shown, backdrop, bubbles, radius, tint },
+    { shown, backdrop, bubbles, radius, tint, glassTint },
   )
 }

@@ -55,8 +55,8 @@ const srgbPrimaries: [number, number][] = [
 ]
 
 /**
- * For a display's colour space, what to produce for red and green so that, converted from sRGB to
- * the display, they read as `x` and `y` (blue held at 0). Identity on an sRGB display.
+ * For a display's colour space, what to produce for red, green and blue so that, converted from
+ * sRGB to the display, they read as `x`, `y` and `z`. Identity on an sRGB display.
  */
 export function mapValues(colorSpace: string | undefined) {
   const numbers = (name: string) =>
@@ -69,23 +69,19 @@ export function mapValues(colorSpace: string | undefined) {
     b = numbers('b'),
     w = numbers('w')
   const transfer = transfers[colorSpace?.match(/transfer:([A-Z0-9_]+)/)?.[1] ?? 'SRGB']
-  if (!r || !g || !b || !w || !transfer) return (x: number, y: number) => [x, y] as const
-  // sRGB linear to the display's linear: the red and green rows, for red and green alone.
-  const toDisplay = multiply(invert(toXYZ([r, g, b], w)), toXYZ(srgbPrimaries, w))
-  const two = invert([
-    [toDisplay[0]![0], toDisplay[0]![1], 0],
-    [toDisplay[1]![0], toDisplay[1]![1], 0],
-    [0, 0, 1],
-  ])
-  return (x: number, y: number) => {
-    const dx = transfer.decode(x),
-      dy = transfer.decode(y)
-    const red = two[0]![0] * dx + two[0]![1] * dy,
-      green = two[1]![0] * dx + two[1]![1] * dy
-    return [
-      Math.min(1, Math.max(0, srgbEncode(red))),
-      Math.min(1, Math.max(0, srgbEncode(green))),
-    ] as const
+  if (!r || !g || !b || !w || !transfer)
+    return (x: number, y: number, z: number) => [x, y, z] as const
+  // The display's linear back to sRGB's linear.
+  const fromDisplay = multiply(invert(toXYZ(srgbPrimaries, w)), toXYZ([r, g, b], w))
+  return (x: number, y: number, z: number) => {
+    const shown = [x, y, z].map((value) => transfer.decode(value))
+    const [red, green, blue] = fromDisplay.map((row) =>
+      Math.min(
+        1,
+        Math.max(0, srgbEncode(row.reduce((sum, value, k) => sum + value * shown[k]!, 0))),
+      ),
+    )
+    return [red!, green!, blue!] as const
   }
 }
 

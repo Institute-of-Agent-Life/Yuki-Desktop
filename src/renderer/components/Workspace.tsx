@@ -145,6 +145,10 @@ export function Workspace(props: Props) {
     false,
     !layout.overlaySidebar && document.documentElement.dataset.platform === 'darwin',
   ).ref
+  // Over a picture of one's own every page but the conversation is read on a pane of the glass,
+  // as large as the page (materials/glass.ts): the picture shows through it.
+  const paged = useBackdrop() === 'custom' && selectedView !== 'chat'
+  const pageRef = useGlass<HTMLDivElement>('page', false, paged).ref
   const inspectorRef = useRef<HTMLElement>(null)
   const showInspector = useWorkspaceMotion(root, sidebarRef, inspectorRef, {
     active,
@@ -416,7 +420,13 @@ export function Workspace(props: Props) {
             className={props.toolbar ? styles.toolbarMenu : ''}
           />
         </header>
-        <div className={styles.content} data-region="content" tabIndex={-1}>
+        <div
+          ref={pageRef}
+          className={styles.content}
+          data-region="content"
+          data-glass={paged ? 'page' : undefined}
+          tabIndex={-1}
+        >
           {props.children}
         </div>
       </section>
@@ -486,7 +496,7 @@ export function Workspace(props: Props) {
 }
 
 // The backdrop the conversation shows (App.tsx sets it on the root).
-function useBackdrop() {
+export function useBackdrop() {
   const read = () => document.documentElement.dataset.backdrop
   const [backdrop, setBackdrop] = useState(read)
   useEffect(() => {

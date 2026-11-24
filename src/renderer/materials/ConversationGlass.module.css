@@ -41,24 +41,44 @@
   inset: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
 }
 /* Over a picture of one's own the bubbles show the picture blurred once, with its dim and the
-   Dock's colour (materials/backdrop.ts). */
+   Dock's colour (materials/backdrop.ts): the light appearance's copy, and over it the dark one's,
+   shown as the bubble turns dark over a dark part of the picture (materials/appearance.ts) and
+   faded in and out over 200ms. */
 :global([data-backdrop='custom']) .root {
   /* The picture's copy carries the dim and the glass's colour itself (materials/backdrop.ts). */
   --bubble-material: transparent;
 }
-:global([data-backdrop='custom']) .surface {
+:global([data-backdrop='custom']) .surface,
+:global([data-backdrop='custom']) .surface::after {
   background-color: var(--backdrop-fill, var(--bg-content));
   background-image:
     linear-gradient(var(--glass-tint, var(--glass-neutral-tint)) 0 0),
-    var(--backdrop-frost-image, none);
+    var(--backdrop-frost-light, none);
   background-position: center;
   background-size: auto, var(--backdrop-frost-size, var(--backdrop-size));
   background-repeat: var(--backdrop-repeat);
   background-attachment: fixed;
 }
+:global([data-backdrop='custom']) .surface::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image:
+    linear-gradient(var(--glass-tint, var(--glass-neutral-tint)) 0 0),
+    var(--backdrop-frost-dark, none);
+  opacity: 0;
+  transition: opacity 200ms var(--ease-standard);
+}
+:global([data-backdrop='custom']) [data-appearance='dark'] > .surface::after {
+  opacity: 1;
+}
 /* Without transparency, or without GPU compositing, they are solid. */
 :global(:is([data-opaque='true'], [data-gpu-compositing='false'])) .surface {
   background: var(--glass-solid, var(--bg-elevated));
+}
+:global(:is([data-opaque='true'], [data-gpu-compositing='false'])) .surface::after {
+  display: none;
 }
 @media (forced-colors: active) {
   .surface {

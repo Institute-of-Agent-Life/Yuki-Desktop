@@ -1,5 +1,7 @@
 import { useTabMotion } from '../motion/tab'
 import { useRef, useState, type DragEvent } from 'react'
+import { useGlass } from '../materials/glass'
+import { useBackdrop } from '../components/Workspace'
 import { backdropUrl, blurBackdrop, importBackdrop } from '../materials/backdrop'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -153,6 +155,15 @@ export function Settings({
   const [error, setError] = useState<{ section: string; message: string }>()
   const [edge, scrolled] = useScrolledUnder<HTMLElement>()
   const [notice, setNotice] = useState('')
+  // The categories float as the workspace's sidebar does (macOS); over a picture of one's own the
+  // page is read on a pane of the glass (materials/glass.ts).
+  const custom = useBackdrop() === 'custom'
+  const categoriesGlass = useGlass<HTMLElement>(
+    'sidebar',
+    false,
+    document.documentElement.dataset.platform === 'darwin',
+  )
+  const paneGlass = useGlass<HTMLDivElement>('page', false, custom)
   const panelMotion = useTabMotion<HTMLDivElement>(
     shown,
     visible.map((item) => item.id),
@@ -251,6 +262,10 @@ export function Settings({
       </header>
       <div className={styles.layout}>
         <nav
+          ref={categoriesGlass.ref}
+          data-glass={
+            document.documentElement.dataset.platform === 'darwin' ? 'sidebar' : undefined
+          }
           className={styles.categories}
           role="tablist"
           aria-label={t('settings:categories')}
@@ -314,7 +329,11 @@ export function Settings({
           ))}
         </nav>
         <div
-          ref={panelMotion}
+          ref={(node) => {
+            panelMotion.current = node
+            paneGlass.ref.current = node
+          }}
+          data-glass={custom ? 'page' : undefined}
           id="settings-panel"
           role="tabpanel"
           aria-labelledby={`settings-${shown}`}

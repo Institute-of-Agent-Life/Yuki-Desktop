@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { paneBlur } from '../fixtures/dock-glass'
 import { expect, test } from '@playwright/test'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -119,6 +120,7 @@ test('frosted workspace keeps its paper, floating controls, real receipts and dr
             toolbarHeight: toolbar.getBoundingClientRect().height,
             capsuleHeight: glass.getBoundingClientRect().height,
             filter: styles.backdropFilter,
+            size: [footer.width, footer.height] as const,
             refract: styles.getPropertyValue('--refract'),
             gpu: document.documentElement.dataset.gpuCompositing,
             footerHeight: footer.height,
@@ -146,8 +148,9 @@ test('frosted workspace keeps its paper, floating controls, real receipts and dr
         expect(geometry.htmlWidth).toBe(geometry.viewport)
         if (geometry.opaque === 'true') expect(geometry.filter).toBe('none')
         else {
-          // The final glass blurs first; it bends only where the window composites on the GPU.
-          expect(geometry.filter).toMatch(/^blur\(2px\) /)
+          // The final glass blurs first, as Apple's clear glass of its size; it bends only where
+          // the window composites on the GPU.
+          expect(geometry.filter).toMatch(new RegExp(`^blur\\(${paneBlur(...geometry.size)}\\) `))
           if (geometry.gpu === 'true') expect(geometry.refract).toContain('url(')
           else expect(geometry.refract).toBe('')
         }

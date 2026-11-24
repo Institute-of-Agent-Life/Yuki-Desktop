@@ -67,13 +67,13 @@ test('resting bubbles are shaped by their radius, and lit glass has its light at
   })
   evidence.restingLightMap = resolution
   for (const scale of resolution.scales) expect(scale).toBeGreaterThanOrEqual(resolution.ratio)
-  // 10, as revised by the Dock's measurement (dock.ts): the rim is added to what the tone gives,
-  // 52 levels at the top's outermost pixel and 6 at 3pt; no outline on top.
+  // 10, as revised by the Dock's measurement (dock.ts): the rim adds to what the tone gives
+  // (light) 65 levels at the top's outermost pixel and 7.5 at 3pt; no outline on top.
   const glass = await dockGlass(lit)
   evidence.restingLight = glass.rim
   expect(glass.rim?.added).toBe(true)
-  expect(Math.abs(glass.rim!.edge - 52)).toBeLessThanOrEqual(2)
-  expect(Math.abs(glass.rim!.inside - 6)).toBeLessThanOrEqual(1)
+  expect(Math.abs(glass.rim!.edge - 65)).toBeLessThanOrEqual(2)
+  expect(Math.abs(glass.rim!.inside - 7.5)).toBeLessThanOrEqual(1)
   expect(await lit.evaluate((surface) => getComputedStyle(surface, '::before').content)).toBe(
     'none',
   )
@@ -154,13 +154,14 @@ test('a floating pane lets the backdrop through', async ({ page }) => {
   ] as const) {
     await page.emulateMedia({ colorScheme: theme })
     await openConversation(page)
-    // Bars broad enough to outlast the final glass's 2–3px blur and the body light in its middle.
+    // Bars broad enough to outlast the composer's blur (Apple's clear glass at its size, about
+    // 11pt: materials/glass.ts) and the body light in its middle.
     await page.evaluate((theme) => {
       document.documentElement.dataset.theme = theme
       document.documentElement.dataset.backdrop = 'grid'
       document.documentElement.style.setProperty(
         '--backdrop-grid',
-        `repeating-linear-gradient(90deg, ${theme === 'dark' ? 'rgb(255 255 255 / 0.3)' : 'rgb(20 30 50 / 0.3)'} 0 8px, transparent 8px 24px)`,
+        `repeating-linear-gradient(90deg, ${theme === 'dark' ? 'rgb(255 255 255 / 0.3)' : 'rgb(20 30 50 / 0.3)'} 0 48px, transparent 48px 144px)`,
       )
     }, theme)
     await page.mouse.move(10, 700)

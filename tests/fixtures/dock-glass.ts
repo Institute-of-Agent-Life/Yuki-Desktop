@@ -2,8 +2,8 @@ import type { Locator } from '@playwright/test'
 
 /*
  * What a glass's filter is made of (materials/glass.ts, the macOS Dock's glass): its blur, its
- * bends, its colour, and its rim, read off the rim's map (levels added, held in alpha as 128 +
- * levels) at the top's outermost pixel and 3pt in.
+ * bends, its colour, and its rim's added levels, read off the map (held in alpha as 128 + levels)
+ * at the top's outermost pixel and 3pt in.
  */
 export interface DockGlass {
   backdrop: string
@@ -11,7 +11,7 @@ export interface DockGlass {
   bends: number
   /** The gain the colour's distance from grey is raised by, or null with no filter of its own. */
   gain: number | null
-  /** The rim, added to what the tone gives (levels), or null where there is none. */
+  /** The rim's levels added after its mix (levels), or null where there is none. */
   rim: { added: boolean; edge: number; inside: number } | null
   tint: string
 }
@@ -41,7 +41,7 @@ export function dockGlass(pane: Locator): Promise<DockGlass> {
         context.getImageData(Math.floor(image.width / 2), Math.floor(depth * scale), 1, 1)
           .data[3]! - 128
       rim = {
-        added: composite.getAttribute('k2') === '1' && !composite.hasAttribute('k1'),
+        added: composite.getAttribute('result') === 'added',
         edge: at(0.25),
         inside: at(3),
       }
@@ -92,3 +92,13 @@ export function rimAt(pane: Locator, points: [number, number][]): Promise<number
     )
   }, points)
 }
+
+/**
+ * The blur of a pane that carries text (materials/glass.ts: the sidebar, the composer, a page's
+ * pane): Apple's clear glass at its size, min(20, 0.24 × its short side) pt, to the half
+ * point. Small controls keep the Dock's 2pt.
+ */
+export const paneBlur = (width: number, height: number) =>
+  `${Math.round(2 * Math.min(20, 0.24 * Math.min(width, height))) / 2}px`
+/** The glass that is blurred by its size (`data-glass`). */
+export const sizedGlass = ['sidebar', 'composer', 'page']

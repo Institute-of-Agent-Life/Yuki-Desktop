@@ -238,19 +238,25 @@
   background: var(--avatar-accent-dark, var(--accent));
 }
 
+/*
+ * The send button: glass of its own nested in the composer's, a circle with its own lens and rim
+ * (materials/glass.ts, the Dock's 2pt blur). At rest (nothing to send) clear, its arrow in the
+ * main ink; with something to send, or pressed, tinted glass (.glassProminent): the accent laid
+ * through the glass at about two thirds, so its lens and rim still show.
+ */
 .send {
   width: 30px;
   height: 30px;
-  background: var(--tinted);
-  color: #fff;
-  box-shadow: var(--tinted-lift);
+  color: var(--text-primary);
+  backdrop-filter: var(--glass-regular);
 }
-.send:hover {
-  background: var(--tinted);
-  color: #fff;
+.send:disabled {
+  opacity: 1;
 }
-.send:active {
-  background: var(--press-background);
+.send:enabled,
+.send[data-held='true'] {
+  background: color-mix(in srgb, var(--tinted) 66%, transparent);
+  color: #fff;
 }
 /*
  * Tinted glass, the same in both themes: one flat fill in the accent's own hue, deepened to at
@@ -265,8 +271,7 @@
     0 5px 14px -6px oklch(from var(--tinted) l c h / 0.7),
     inset 0 0 8px -3px oklch(from var(--tinted) 0.84 c h / 0.55);
 }
-.primary::before,
-.send::before {
+.primary::before {
   content: '';
   --pointer-x: inherit;
   --pointer-y: inherit;
@@ -311,13 +316,11 @@
 .icon[data-held='true'] {
   background: var(--press-background, var(--fill-pressed));
 }
-.primary,
-.send {
+.primary {
   --press-background: oklch(from var(--tinted) calc(l - 0.06) c h);
   --hl: rgba(255, 255, 255, 0.08);
 }
-.primary[data-held='true'],
-.send[data-held='true'] {
+.primary[data-held='true'] {
   box-shadow:
     inset 0 1px 3px rgba(12, 24, 58, 0.3),
     0 1px 1px rgba(12, 24, 58, 0.16);
@@ -341,8 +344,7 @@
   display: none;
 }
 @media (forced-colors: active) {
-  .primary::before,
-  .send::before {
+  .primary::before {
     display: none;
   }
 }

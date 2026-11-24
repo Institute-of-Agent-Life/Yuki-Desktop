@@ -507,14 +507,26 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
     await page.getByRole('button', { name: '返回', exact: true }).click()
     const layer = await page.evaluate(() => {
       document.documentElement.dataset.backdrop = 'custom'
-      const chat = document
-        .querySelector('[role="log"]')!
-        .closest<HTMLElement>('[class*="_chat_"]')!
-      const style = getComputedStyle(chat, '::before')
-      return { position: style.position, inset: [style.top, style.left] }
+      const root = document.documentElement.style
+      root.setProperty('--backdrop-image', 'url("__backgrounds/probe")')
+      root.setProperty('--backdrop-size', 'cover')
+      root.setProperty('--backdrop-repeat', 'no-repeat')
+      root.setProperty('--backdrop-dim', '0%')
+      // Drawn once, by the window's own root, whatever page is shown.
+      const drawn = [...document.querySelectorAll('*')].filter((node) =>
+        getComputedStyle(node).backgroundImage.includes('__backgrounds/probe'),
+      )
+      const rect = drawn[0]?.getBoundingClientRect()
+      for (const name of ['image', 'size', 'repeat', 'dim'])
+        root.removeProperty(`--backdrop-${name}`)
+      return {
+        drawn: drawn.length,
+        covers: !!rect && rect.width >= innerWidth && rect.height >= innerHeight,
+      }
     })
     evidence.customLayer = layer
-    expect.soft(layer.position, 'the picture lies under the whole window').toBe('fixed')
+    expect.soft(layer.drawn, 'the picture is drawn once').toBe(1)
+    expect.soft(layer.covers, 'the picture lies under the whole window').toBe(true)
     await page.evaluate(() => (document.documentElement.dataset.backdrop = 'plain'))
 
     // 6: a message's text over the plain page and every pattern, light and dark.
@@ -528,9 +540,7 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
       ['reply time', reply.locator('header time'), 3],
       ['own message', own.getByText('fixture file', { exact: true }), 4.5],
       ['own sender', own.locator('header strong'), 3],
-      // One's own time on the accent over the Dock's colour: about 2.6 over the brightest pattern
-      // in dark (sunset), as measured; 3.9 in light.
-      ['own time', own.locator('header time'), 2.6],
+      ['own time', own.locator('header time'), 3],
     ]
     const legibility: Record<string, Record<string, number>> = {}
     evidence.legibility = legibility
@@ -582,10 +592,11 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
     // its fine hatching (which a smaller drawing aliases). The conversation fades at its edges, so
     // each bubble's tint is taken from what it shows: what is measured is the blur and its place.
     if (!opaque) {
-      const main = page.locator('[data-region="main"]'),
-        log = page.getByRole('log').first()
+      const log = page.getByRole('log').first()
       const frostImage = () =>
-        main.evaluate((main) => main.style.getPropertyValue('--backdrop-frost-image'))
+        page.evaluate(() =>
+          document.documentElement.style.getPropertyValue('--backdrop-frost-light'),
+        )
       for (const theme of ['dark', 'light'] as const) {
         const previous = await frostImage()
         await page.keyboard.press('ControlOrMeta+,')
@@ -599,9 +610,9 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
         await expect(reply).toBeVisible()
         await expect.poll(frostImage).not.toBe('')
         await expect.poll(frostImage).not.toBe(previous)
-        // The glass's blur (the bubbles show the picture as the glass does).
-        const blur = await main.evaluate((main) =>
-          parseFloat(getComputedStyle(main).getPropertyValue('--glass-blur')),
+        // The bubbles' blur (they show the picture as a bubble's glass does).
+        const blur = await page.evaluate(() =>
+          parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bubble-blur')),
         )
         for (const where of ['end', 'scrolled']) {
           if (where === 'scrolled') await log.evaluate((log) => (log.scrollTop -= 97.5))

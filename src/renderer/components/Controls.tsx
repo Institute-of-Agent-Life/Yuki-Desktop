@@ -118,15 +118,17 @@ export function IconButton({
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; variant?: 'plain' | 'send' }) {
   const press = usePress<HTMLButtonElement>('compact')
-  useEffect(
-    () => (variant === 'send' ? followPointer(press.current!) : undefined),
-    [variant, press],
-  )
+  // The send button is glass of its own, nested in the composer's (Controls.module.css).
+  const glass = useGlass<HTMLButtonElement>('send', false, variant === 'send')
   return (
     <button
       {...props}
-      ref={press}
+      ref={(node) => {
+        press.current = node
+        glass.ref.current = node
+      }}
       data-press="icon"
+      data-glass={variant === 'send' ? 'send' : undefined}
       aria-label={label}
       title={label}
       className={`${styles.icon} ${variant === 'send' ? styles.send : ''} ${className}`}

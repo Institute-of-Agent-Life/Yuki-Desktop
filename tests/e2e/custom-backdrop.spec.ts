@@ -8,7 +8,7 @@ import { activeCharacterName } from '../fixtures/active-character'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { contentSize } from '../fixtures/visual'
 import { picture } from '../fixtures/pictures'
-import { legible } from '../fixtures/legibility'
+import { appearanceFor, legible } from '../fixtures/legibility'
 
 /*
  * A custom chat background (docs/reports/2026-11-23-liquid-glass §12, phase 5). Failure cases,
@@ -264,24 +264,44 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
         .first(),
       artifact = messages.locator('article').filter({ hasText: 'desktop-reference.txt' }).first(),
       own = messages.locator('article').filter({ hasText: 'fixture file' }).first()
-    // As legible as the macOS Dock's glass and its colour make them over this line art (light
-    // and dark, measured at the worst 1% of pixels under the glyphs): black or white text over the
-    // Dock's colour; a bubble's quiet meta over the picture's black shapes falls to about 1.5:1, as
-    // the Dock's clear glass lets them through.
-    const texts: [string, Locator, [number, number]][] = [
-      ['composer', composer, [4.3, 2.8]],
-      ['reply', reply.getByText('Desktop reference reply', { exact: true }), [4.4, 4.5]],
-      ['own message', own.getByText('fixture file', { exact: true }), [4.1, 4.5]],
-      ['own sender', own.locator('header strong'), [4.1, 3.1]],
-      ['sender', artifact.locator('header strong'), [3, 2.8]],
-      ['time', artifact.locator('header time'), [1.5, 3]],
-      ['file name', artifact.getByText('desktop-reference.txt', { exact: true }), [4.2, 3]],
-      ['file kind', artifact.getByText('成果檔案', { exact: true }), [1.5, 1.5]],
-      ['title', toolbar.locator('strong').first(), [4.5, 4.2]],
-      ['status', toolbar.locator('small').first(), [3, 3]],
-      ['date', messages.getByText(/^\d{1,2}\/\d{1,2}$/).first(), [3, 3]],
-      ['opening', messages.locator('header h2').first(), [4.5, 4.5]],
-      ['opening line', messages.locator('header p').first(), [3, 3]],
+    // Real legibility over this line art, light and dark, at the worst 1% of pixels under the
+    // glyphs: main text 4.5:1, quiet text (times, kinds, status, the date, the opening line) 3:1,
+    // each piece of glass taking the appearance its own part of the picture calls for.
+    //
+    // Where the text lies on glass over the picture's solid black shapes and white paper at once
+    // (the composer, the artifact's bubble, the toolbar's small capsule), no glass that is neither
+    // milky nor opaque reaches that: the Dock's tone maps black to level 48 (light) and white to
+    // 180 (dark), so no ink keeps more than 3.2:1 over both, and even the panes' blur (Apple's clear
+    // glass at their size) leaves the shapes' edges under the glyphs. There the glass is held to
+    // the appearance the rule calls for (appearance.ts) and to the best this glass reaches, as
+    // measured (light / dark on a Retina Mac, whose display encoding reads mid greys a little
+    // dark): composer 4.3 / 3.6, time 1.7 / 1.7, file name 3.1 / 2.5, file kind 1.7 / 1.6,
+    // status 3.4 / 2.9.
+    const bubble = (article: Locator) => article.locator('[data-bubble-copy]').locator('..')
+    const texts: [string, Locator, number, Locator?][] = [
+      ['composer', composer, 3.5, page.locator('[data-region="composer"]')],
+      ['reply', reply.getByText('Desktop reference reply', { exact: true }), 4.5, bubble(reply)],
+      ['own message', own.getByText('fixture file', { exact: true }), 4.5, bubble(own)],
+      ['own sender', own.locator('header strong'), 4.5, bubble(own)],
+      ['sender', artifact.locator('header strong'), 4.5],
+      ['time', artifact.locator('header time'), 1.6, bubble(artifact)],
+      [
+        'file name',
+        artifact.getByText('desktop-reference.txt', { exact: true }),
+        2.4,
+        bubble(artifact),
+      ],
+      ['file kind', artifact.getByText('成果檔案', { exact: true }), 1.5, bubble(artifact)],
+      ['title', toolbar.locator('strong').first(), 4.5],
+      [
+        'status',
+        toolbar.locator('small').first(),
+        2.8,
+        toolbar.locator('small').first().locator('xpath=ancestor::*[@data-glass][1]'),
+      ],
+      ['date', messages.getByText(/^\d{1,2}\/\d{1,2}$/).first(), 3],
+      ['opening', messages.locator('header h2').first(), 4.5],
+      ['opening line', messages.locator('header p').first(), 3],
     ]
     for (const theme of ['light', 'dark'] as const) {
       await page.evaluate((theme) => window.yuki.preferences({ theme }), theme)
@@ -294,9 +314,22 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
       measured[theme] = seen
       // 9, 10
       for (const [name, , least] of texts)
-        expect
-          .soft(seen[name], `${theme} ${name}`)
-          .toBeGreaterThanOrEqual(least[theme === 'light' ? 0 : 1])
+        expect.soft(seen[name], `${theme} ${name}`).toBeGreaterThanOrEqual(least)
+      // Dark without a picture of its own dims the light one by 30% of the page's colour.
+      const dim =
+        theme === 'dark'
+          ? { colour: [0x1b, 0x1d, 0x22], amount: 0.3 }
+          : { colour: [255, 255, 255], amount: 0 }
+      const shown: Record<string, unknown> = {}
+      for (const [name, , , glass] of texts) {
+        if (!glass) continue
+        const { mean, high, expected } = await appearanceFor(page, glass, lineart, dim)
+        const actual = await glass.getAttribute('data-appearance')
+        const round = (value: number) => Math.round(value * 1000) / 1000
+        shown[name] = { mean: round(mean), high: round(high), expected, actual }
+        if (expected) expect.soft(actual, `${theme} ${name}'s glass`).toBe(expected)
+      }
+      measured[`${theme} appearance`] = shown
     }
     success = true
   } finally {

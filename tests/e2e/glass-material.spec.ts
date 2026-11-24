@@ -1,3 +1,4 @@
+import { paneBlur, sizedGlass } from '../fixtures/dock-glass'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
@@ -33,7 +34,8 @@ test.afterAll(async () => {
   )
 })
 
-// The macOS Dock's glass (materials/dock.ts): a little blur, and no tint of its own.
+// The macOS Dock's glass (materials/dock.ts): a little blur on a control (a pane carrying text is
+// blurred by its size: paneBlur), and no tint of its own.
 const final = {
   light: { blur: '2px', tint: 0, text: 0 },
   dark: { blur: '2px', tint: 0, text: 0 },
@@ -100,7 +102,17 @@ async function expectFinalGlass(
   // through theirs.
   sheet?: { blur: string; tint: number },
 ) {
-  const blur = sheet?.blur ?? final[theme].blur
+  // A pane that carries text is blurred as Apple's clear glass of its size; a control, the Dock's.
+  const [kind, width, height] = await pane.evaluate((node: HTMLElement) => [
+    node.dataset.glass ?? '',
+    node.offsetWidth,
+    node.offsetHeight,
+  ])
+  const blur =
+    sheet?.blur ??
+    (sizedGlass.includes(kind as string)
+      ? paneBlur(width as number, height as number)
+      : final[theme].blur)
   const filter: Filter = await pane.evaluate(readFilter)
   const look = final[theme]
   // 1: blurred first, then bent, then given the Dock's colour, then lit.
@@ -112,16 +124,21 @@ async function expectFinalGlass(
   expect(bends[0]!.in2).toBe('bevel')
   // 2: the Dock's colour after the bend: each channel tone(Y) + g·(C − Y), the curve less g·Y in
   // a table on the luminance; over grey 128 the tone gives 112.4 in dark (11 + 0.919·Y −
-  // 0.000992·Y²) and 137.4 in light (48.4 + 0.695·Y). Then the rim added to it.
+  // 0.000992·Y²) and 137.4 in light (48.4 + 0.695·Y). Then the rim (dock.ts): mixed toward black
+  // by the map's share kept, and its levels added.
   const toned = primitives.find((node) => node.result === 'toned')!,
     curve = primitives.find((node) => node.result === toned.in)!
   const lifted = Number(curve.table!.split(' ')[128]) * 255 + toned.k4 * 255
   expect(lifted + toned.k3 * 128).toBeCloseTo(theme === 'dark' ? 112.4 : 137.4, 0)
   expect(toned.k3).toBe(theme === 'dark' ? 1.08 : 1.2)
-  const rim = primitives.find(
-    (node) => node.name === 'feComposite' && node.operator === 'arithmetic' && node.in2 === 'toned',
+  const mixed = primitives.find(
+    (node) => node.name === 'feComposite' && node.operator === 'arithmetic' && node.in === 'toned',
   )
-  expect(rim?.in, 'the rim laid on the toned bend').toBe('rimGrey')
+  expect(mixed?.in2, 'the rim mixes the toned bend').toBe('kept')
+  const rim = primitives.find(
+    (node) => node.name === 'feComposite' && node.operator === 'arithmetic' && node.in2 === 'mixed',
+  )
+  expect(rim?.in, 'the rim laid on the mixed bend').toBe('rimGrey')
   // 4: the maps are assembled from pieces painted at no less than 2x: each piece is at least twice
   // its CSS size, except a strip one CSS pixel wide stretched along a straight edge.
   const pieces = filter.images

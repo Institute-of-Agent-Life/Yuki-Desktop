@@ -13,8 +13,9 @@ test.afterAll(async () => {
   )
 })
 
-// The macOS Dock's glass (glass.ts, dock.ts): it bends once, its rim adds 52 levels at the top's
-// outermost pixel and 6 at 3pt, and a pane takes the Dock's colour (a held control stays clear).
+// The macOS Dock's glass (glass.ts, dock.ts): it bends once, its rim adds 76 (dark) or 65 (light)
+// levels at the top's outermost pixel and 7 or 7.5 at 3pt, and a pane takes the Dock's colour (a
+// held control stays clear).
 async function expectLiquidGlass(name: string, pane: Locator, docked = true) {
   const theme = await pane.evaluate(() => document.documentElement.dataset.theme)
   // 1: refracting glass.
@@ -26,8 +27,8 @@ async function expectLiquidGlass(name: string, pane: Locator, docked = true) {
   expect(glass.backdrop).toMatch(/url\(/)
   expect(glass.bends).toBe(1)
   expect(glass.rim?.added).toBe(true)
-  expect(Math.abs(glass.rim!.edge - 52)).toBeLessThanOrEqual(2)
-  expect(Math.abs(glass.rim!.inside - 6)).toBeLessThanOrEqual(1)
+  expect(Math.abs(glass.rim!.edge - (theme === 'dark' ? 76 : 65))).toBeLessThanOrEqual(2)
+  expect(Math.abs(glass.rim!.inside - (theme === 'dark' ? 7 : 7.5))).toBeLessThanOrEqual(1)
   expect(glass.gain).toBe(docked ? (theme === 'dark' ? 1.08 : 1.2) : 1)
 }
 

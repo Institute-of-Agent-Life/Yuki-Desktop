@@ -34,7 +34,7 @@ const ghost = (page: Page) =>
       const id = filter.match(/url\("?#([^")]+)/)?.[1]
       return {
         box: { x, y, width, height },
-        rim: !!id && !!document.getElementById(id)?.querySelector('feComposite[in="rim"]'),
+        rim: !!id && !!document.getElementById(id)?.querySelector('[result="added"]'),
         bend: !!id && document.getElementById(id) instanceof SVGFilterElement,
       }
     })
