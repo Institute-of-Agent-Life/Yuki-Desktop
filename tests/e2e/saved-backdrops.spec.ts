@@ -98,6 +98,26 @@ test('several pictures of ones own are kept, chosen, set apart, removed and kept
       .poll(async () => (await preferences(page)).customBackdrops)
       .toEqual([{ light: ids.lineart, fit: 'tile', blur: 0, dim: 60 }])
 
+    // Import and selection are separate IPC calls. A theme save between them must leave
+    // the newly stored picture available for selection.
+    const staged = await page.evaluate(
+      async (bytes) => {
+        const original = Uint8Array.from(bytes)
+        const image = await createImageBitmap(new Blob([original]))
+        const canvas = new OffscreenCanvas(image.width, image.height)
+        canvas.getContext('2d')!.drawImage(image, 0, 0)
+        const copy = new Uint8Array(
+          await (await canvas.convertToBlob({ type: 'image/webp' })).arrayBuffer(),
+        )
+        const result = await window.yuki.backgrounds.store(original, copy, { average: '#808080' })
+        await window.yuki.preferences({ theme: 'light' })
+        return result
+      },
+      [...gradient],
+    )
+    expect(staged).toMatchObject({ ok: true, value: ids.gradient })
+    expect(await files(app)).toContain(`${ids.gradient}.webp`)
+
     // 1: a second, from 「選擇圖片…」, kept beside the first and chosen.
     await answerWith(app, paths.gradient)
     await page.getByRole('button', { name: '選擇圖片…', exact: true }).click()

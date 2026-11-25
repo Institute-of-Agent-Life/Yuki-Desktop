@@ -96,20 +96,25 @@ export class Backgrounds {
     return accepted
   }
 
-  /** Removes every file but the pictures `kept` names, and of their blurs only those in use. */
-  async keep(kept: CustomBackdrop[]) {
-    const blurs = new Map<string, number[]>()
-    for (const picture of kept)
-      for (const name of [picture.light, picture.dark])
-        if (name) blurs.set(name, [...(blurs.get(name) ?? []), picture.blur])
-    const files = await readdir(this.root).catch(() => [] as string[])
+  /** Remove the files released by this edit. An import still awaiting selection owns its files. */
+  async removeUnused(previous: CustomBackdrop[], current: CustomBackdrop[]) {
+    const references = (pictures: CustomBackdrop[]) => {
+      const refs = new Set<string>()
+      for (const picture of pictures)
+        for (const name of [picture.light, picture.dark]) {
+          if (!name) continue
+          refs.add(name)
+          if (picture.blur) refs.add(`${name}-blur${picture.blur}`)
+        }
+      return refs
+    }
+    const kept = references(current)
+    const removed = references(previous).difference(kept)
+    if (!removed.size) return
+    const files = await readdir(this.root)
     await Promise.all(
       files
-        .filter((file) => {
-          const match = /^([0-9a-f]{64})(?:-blur(\d+))?\./.exec(file)
-          if (!match || !blurs.has(match[1]!)) return true
-          return match[2] !== undefined && !blurs.get(match[1]!)!.includes(Number(match[2]))
-        })
+        .filter((file) => removed.has(file.split('.')[0]!))
         .map((file) => rm(join(this.root, file), { force: true })),
     )
   }

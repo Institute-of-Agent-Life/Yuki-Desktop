@@ -26,7 +26,7 @@ async function move(button: Locator, reverse = false) {
     const frames: ReturnType<typeof read>[] = []
     let reversal = -1
     control.click()
-    // Place the real track transition halfway through for the reversal. A software renderer
+    // Place the real track transition partway through for the reversal. A software renderer
     // can otherwise present its next frame after the entire 205ms transition.
     if (reverse) {
       await Promise.resolve()
@@ -39,7 +39,7 @@ async function move(button: Locator, reverse = false) {
         )
       if (tracks) {
         tracks.pause()
-        tracks.currentTime = Number(tracks.effect!.getTiming().duration) / 2
+        tracks.currentTime = Number(tracks.effect!.getTiming().duration) / 3
       }
     }
     const until = performance.now() + 430
@@ -87,6 +87,10 @@ test('desktop panels and content move together and reverse from the visible posi
   const sidebar = page.getByRole('button', { name: '側邊欄', exact: true })
   const details = page.getByRole('button', { name: '詳情', exact: true })
   const reversal = await move(sidebar, true)
+  await writeFile(
+    test.info().outputPath('sidebar-reversal.json'),
+    JSON.stringify(reversal, null, 2),
+  )
   expect(reversal.reversal).toBeGreaterThanOrEqual(0)
   const pivot = reversal.frames[reversal.reversal]!
   expect(pivot.sidebarInert).toBe(true)

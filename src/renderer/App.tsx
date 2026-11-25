@@ -385,7 +385,7 @@ export function App({ boot }: { boot: BootInfo }) {
                       connection={item}
                       platform={boot.platform}
                       preferences={preferences}
-                      onBackground={(id) => void save(keepBackdrop(preferences, id))}
+                      onBackground={(id) => void save((current) => keepBackdrop(current, id))}
                       roleSwitcher={(trigger) => (
                         <RoleSwitcher
                           trigger={trigger}

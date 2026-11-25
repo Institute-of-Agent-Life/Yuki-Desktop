@@ -1210,7 +1210,11 @@ else {
     })
     ipcMain.handle('yuki:preferences', async (event, patch: PreferencesPatch) => {
       authorize(event)
+      const accepted = Array.isArray(patch.customBackdrops)
+        ? await backgrounds.accept(patch.customBackdrops)
+        : undefined
       const current = store.preferences()
+      const previousPictures = current.customBackdrops
       for (const key of [
         'reducedMotion',
         'highContrast',
@@ -1223,8 +1227,7 @@ else {
         if (typeof patch[key] === 'boolean') current[key] = patch[key]
       }
       if (['system', 'light', 'dark'].includes(patch.theme ?? '')) current.theme = patch.theme!
-      if (Array.isArray(patch.customBackdrops))
-        current.customBackdrops = await backgrounds.accept(patch.customBackdrops)
+      if (accepted) current.customBackdrops = accepted
       if (
         backdrops.includes(patch.backdrop as never) ||
         (patch.backdrop && chosenBackdrop({ ...current, backdrop: patch.backdrop }))
@@ -1252,7 +1255,7 @@ else {
       if (typeof patch.inspectorWidth === 'number' && Number.isFinite(patch.inspectorWidth))
         current.inspectorWidth = Math.max(320, Math.min(560, patch.inspectorWidth))
       store.set('appearance', current)
-      await backgrounds.keep(current.customBackdrops)
+      if (accepted) await backgrounds.removeUnused(previousPictures, accepted)
       native.update(current)
       nativeTheme.themeSource = current.theme
       if (win) applyWindowAppearance(win, current)

@@ -935,7 +935,8 @@ function Case() {
       onSelect={() => {}}
       connection={settingsConnection}
       preferences={preferences}
-      save={async (patch) => {
+      save={async (change) => {
+        const patch = typeof change === 'function' ? change(preferences) : change
         // Each save is what the app would send over `yuki:preferences`, recorded for the specs.
         ;((window as unknown as { preferenceSaves?: unknown[] }).preferenceSaves ??= []).push(patch)
         setPreferences((current) => ({ ...current, ...patch }))
