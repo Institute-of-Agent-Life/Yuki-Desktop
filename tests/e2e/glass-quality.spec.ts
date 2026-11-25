@@ -75,9 +75,17 @@ test('resting bubbles are shaped by their radius, and lit glass has its light at
   expect(glass.rim?.added).toBe(true)
   expect(Math.abs(glass.rim!.edge - 65)).toBeLessThanOrEqual(2)
   expect(Math.abs(glass.rim!.inside)).toBeLessThanOrEqual(1)
-  expect(await lit.evaluate((surface) => getComputedStyle(surface, '::before').content)).toBe(
-    'none',
-  )
+  // Nothing is drawn on it but the light the pointer may lay on its rim (materials.css).
+  const over = await lit.evaluate((surface) => {
+    const style = getComputedStyle(surface, '::before')
+    return {
+      border: style.borderTopStyle,
+      outline: style.outlineStyle,
+      image: style.backgroundImage,
+    }
+  })
+  expect(over).toMatchObject({ border: 'none', outline: 'none' })
+  expect(over.image).toMatch(/^(none|radial-gradient\()/)
 
   // An entering reply reaches past its bubble only while it enters.
   await page.evaluate(() =>

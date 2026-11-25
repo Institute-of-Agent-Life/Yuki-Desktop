@@ -373,43 +373,65 @@ function lens(
   return result
 }
 
-// One listener moves the light source for the lit rims of buttons: a fixed-position gradient
-// centred on the pointer. The position is written only on the elements that show it (registered,
-// not inherited), so moving the pointer restyles those few rather than every node of a long
-// conversation.
+/*
+ * Light catches a rim where the pointer is near (materials.css: `--rim-light`): one listener, a
+ * frame at a time, writes where the pointer is only on the rims within reach of it, and takes it
+ * back from those it has left; the rest of the page is never restyled. Off where the glass is not
+ * glass (without transparency or GPU compositing).
+ */
 const lit = new Set<HTMLElement>()
-let pointer: { x: number; y: number } | undefined
-const light = (element: HTMLElement) => {
-  if (pointer) {
-    element.style.setProperty('--pointer-x', `${pointer.x}px`)
-    element.style.setProperty('--pointer-y', `${pointer.y}px`)
-  } else {
-    element.style.removeProperty('--pointer-x')
-    element.style.removeProperty('--pointer-y')
+let near = new Set<HTMLElement>(),
+  pointer: { x: number; y: number } | undefined,
+  frame = 0
+// The light's reach (materials.css), and a little more.
+const reach = 120
+const light = () => {
+  frame = 0
+  const root = document.documentElement.dataset,
+    shown = pointer && root.opaque !== 'true' && root.gpuCompositing !== 'false'
+  // Every box read first, then written: the pointer's place within each rim it reaches.
+  const next = new Map<HTMLElement, DOMRect>()
+  if (shown)
+    for (const element of lit) {
+      const box = element.getBoundingClientRect()
+      const dx = Math.max(box.left - pointer!.x, 0, pointer!.x - box.right),
+        dy = Math.max(box.top - pointer!.y, 0, pointer!.y - box.bottom)
+      if (dx * dx + dy * dy <= reach * reach) next.set(element, box)
+    }
+  for (const element of near)
+    if (!next.has(element)) {
+      element.style.removeProperty('--pointer-x')
+      element.style.removeProperty('--pointer-y')
+    }
+  for (const [element, box] of next) {
+    element.style.setProperty('--pointer-x', `${pointer!.x - box.left}px`)
+    element.style.setProperty('--pointer-y', `${pointer!.y - box.top}px`)
   }
+  near = new Set(next.keys())
 }
-let frame = 0
 addEventListener(
   'pointermove',
   (event) => {
     pointer = { x: event.clientX, y: event.clientY }
-    frame ||= requestAnimationFrame(() => {
-      frame = 0
-      for (const element of lit) light(element)
-    })
+    frame ||= requestAnimationFrame(light)
   },
   { passive: true },
 )
 document.documentElement.addEventListener('pointerleave', () => {
   pointer = undefined
-  for (const element of lit) light(element)
+  frame ||= requestAnimationFrame(light)
 })
-/** Lets `element`'s rim follow the pointer's light until the returned call. */
+/** Lets light catch `element`'s rim where the pointer is near, until the returned call. */
 export function followPointer(element: HTMLElement) {
   lit.add(element)
-  light(element)
+  element.dataset.rimLight = ''
+  frame ||= requestAnimationFrame(light)
   return () => {
     lit.delete(element)
+    near.delete(element)
+    delete element.dataset.rimLight
+    element.style.removeProperty('--pointer-x')
+    element.style.removeProperty('--pointer-y')
   }
 }
 
@@ -556,6 +578,7 @@ export function useGlass<T extends HTMLElement>(
     document.body.append(svg)
     bends.current = { bevel: bevelBend, span: 0 }
     let size = '',
+      unfollow: (() => void) | undefined,
       shown = false,
       first = made,
       current: Lens | undefined
@@ -654,6 +677,13 @@ export function useGlass<T extends HTMLElement>(
         }
       }
       if (next !== size) layout(w, h)
+      // Light catches a rim (one the glass has: not a huge pane's) where the pointer is near.
+      const rim = rimmed[kinds[kind]] && !huge(kind, w, h)
+      if (rim && !unfollow) unfollow = followPointer(element)
+      if (!rim && unfollow) {
+        unfollow()
+        unfollow = undefined
+      }
       if (sized.has(kind))
         element.style.setProperty('--glass-blur', `${paneBlur(Math.min(w, h))}px`)
       size = next
@@ -713,6 +743,7 @@ export function useGlass<T extends HTMLElement>(
     sync()
     const dispose = () => {
       cancelAnimationFrame(rising)
+      unfollow?.()
       resize.disconnect()
       appearance.disconnect()
       svg.remove()

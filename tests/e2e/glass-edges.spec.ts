@@ -110,14 +110,22 @@ const tone = {
   dark: (y: number) => 11 + 0.919 * y - 0.000992 * y * y,
 } as const
 
-async function scene(page: Page, theme: 'light' | 'dark', background: string, scale: number) {
-  await page.setViewportSize({ width: 800, height: 520 })
-  await page.goto(
-    `http://127.0.0.1:4178/glass-edges.html?scene=set&theme=${theme}&bg=${background}&scale=${scale}`,
-  )
-  await expect(page.locator('html[data-ready]')).toBeAttached()
-  await page.mouse.move(-10, -10)
-  await page.waitForTimeout(600)
+async function scene(
+  page: Page,
+  theme: 'light' | 'dark',
+  background: string,
+  scale: number,
+  load = true,
+) {
+  if (load) {
+    await page.setViewportSize({ width: 800, height: 520 })
+    await page.goto(
+      `http://127.0.0.1:4178/glass-edges.html?scene=set&theme=${theme}&bg=${background}&scale=${scale}`,
+    )
+    await expect(page.locator('html[data-ready]')).toBeAttached()
+    await page.mouse.move(-10, -10)
+    await page.waitForTimeout(600)
+  }
   const glass: Glass[] = await page.locator('[data-name]').evaluateAll((nodes) =>
     nodes.map((node) => {
       const { x, y, width, height } = node.getBoundingClientRect()
@@ -235,6 +243,42 @@ test.describe('the edges of the glass', () => {
       found.colour = rim
       expect.soft(rim[2]! - rim[0]!, `${theme}: a blue rim`).toBeGreaterThan(0)
       evidence[`dock-${theme}`] = found
+    })
+
+  /*
+   * Light catches a rim where the pointer is near: on top of the Dock's rim, a gentle lift of the
+   * outermost pixels, 4–12 levels with the pointer just off the edge, fading out within about
+   * 120px. Fails when nothing is lifted, when it is a spotlight (more than 12), when the face is
+   * lit as well as the rim, or when the pointer far away leaves it lit.
+   */
+  for (const theme of ['dark', 'light'] as const)
+    test(`${theme}: light catches the rim near the pointer, and leaves it far away`, async ({
+      page,
+    }) => {
+      const at = async () => {
+        await page.waitForTimeout(250)
+        const { glass, image } = await scene(page, theme, 'gray', 2, false)
+        const { x, y, width, height } = glass.composer!
+        const face = luminance(image, x + width / 2, y + height / 2)
+        return {
+          rim: luminance(image, x + width / 2, y + 0.25) - face,
+          face,
+        }
+      }
+      await scene(page, theme, 'gray', 2)
+      const far = await at()
+      const box = (await page.locator('[data-name="composer"]').boundingBox())!
+      await page.mouse.move(box.x + box.width / 2, box.y - 6)
+      const near = await at()
+      await page.mouse.move(box.x + box.width / 2, box.y - 400 > 0 ? box.y - 400 : 515)
+      const away = await at()
+      evidence[`pointer-${theme}`] = { far, near, away }
+      expect.soft(near.rim - far.rim, 'the rim is lifted').toBeGreaterThanOrEqual(4)
+      expect.soft(near.rim - far.rim, 'gently').toBeLessThanOrEqual(12)
+      expect.soft(Math.abs(near.face - far.face), 'the face is not').toBeLessThanOrEqual(1)
+      expect
+        .soft(Math.abs(away.rim - far.rim), 'far away it is the plain law')
+        .toBeLessThanOrEqual(1)
     })
 
   test("the band mirrors what lies just inside, to the Dock's depth, and parts no colours", async ({

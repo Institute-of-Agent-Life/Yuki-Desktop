@@ -263,22 +263,16 @@
 }
 .primary::before {
   content: '';
-  --pointer-x: inherit;
-  --pointer-y: inherit;
   position: absolute;
   inset: 0;
   border-radius: inherit;
   padding: 1px;
   pointer-events: none;
-  /* Coloured glass bends light into its own colour: the rim glows a brighter shade of the tint,
-     on the edge facing the light and softer on the far one, as on every clear pane. */
+  /* Coloured glass bends light into its own colour: the rim a brighter shade of the tint, on the
+     edge facing the light and softer on the far one; where the pointer is near, light catches it
+     as it catches every rim (materials.css: `--rim-light`). */
   background:
-    radial-gradient(
-        circle 6rem at var(--pointer-x) var(--pointer-y),
-        oklch(from var(--tinted) 0.92 calc(c * 0.6) h / 0.85),
-        transparent
-      )
-      fixed,
+    var(--rim-light, none),
     linear-gradient(
       154deg,
       oklch(from var(--tinted) 0.88 calc(c * 0.75) h / 0.8),
