@@ -17,7 +17,6 @@
 :global([data-backdrop='custom']) :is(.dateSeparator, .conversationIntroduction) {
   width: fit-content;
   --frost-radius: var(--r-capsule);
-  --frost-corner: round;
 }
 :global([data-backdrop='custom']) .dateSeparator {
   margin-inline: auto;

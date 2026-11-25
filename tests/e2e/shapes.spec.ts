@@ -16,6 +16,10 @@ import { contentSize } from '../fixtures/visual'
  *      group, a Work row or card, an inspector card, an empty state, a file's preview, a frost
  *      block, a popover, a menu, a dialog) has corners smaller than the smallest container radius
  *      (`--r-container-s`, 18pt) or half its height.
+ *   3. a container's corner is drawn boxier than its radius says (a superellipse such as
+ *      `corner-shape: squircle`): over a picture of one's own, along the diagonal from a frost
+ *      block's top left corner, its frost begins sooner than 0.25 of its radius in (a circular arc
+ *      crosses the diagonal at 0.29 of the radius; squircle at 0.16).
  * Not counted, each for its reason: what fills the window or a whole column of it (the window's
  * own corners are the system's); the floating sidebar, whose corner is concentric with the
  * window's (`--r-pane`); a check box (macOS draws a rounded square); the scroll edge's fade under
@@ -92,6 +96,93 @@ async function square(page: Page, name: string) {
   return found.map((line) => `${name}: ${line}`)
 }
 
+/** Frost blocks whose drawn corner is boxier than a circular arc of their radius. */
+async function boxy(page: Page, name: string) {
+  const blocks = await page.evaluate(() =>
+    [
+      ...document.querySelectorAll<HTMLElement>(
+        '[data-frost], [data-frost-children] > :not([data-frost-children], [data-glass], dialog, [popover])',
+      ),
+    ]
+      .filter((node) => node.checkVisibility())
+      .map((node, index) => {
+        node.dataset.corner = String(index)
+        const r = node.getBoundingClientRect()
+        return {
+          index,
+          x: r.x,
+          y: r.y,
+          height: r.height,
+          radius: Math.min(
+            parseFloat(getComputedStyle(node).borderTopLeftRadius) || 0,
+            r.height / 2,
+          ),
+          label: (node.textContent ?? '').trim().slice(0, 24),
+        }
+      })
+      .filter(
+        (block) =>
+          block.height >= 40 &&
+          block.radius >= 12 &&
+          block.x >= 4 &&
+          block.y >= 4 &&
+          block.y < innerHeight - 60,
+      )
+      .slice(0, 12),
+  )
+  const shot = async (css: string) => {
+    const style = await page.addStyleTag({ content: css })
+    await page.waitForTimeout(150)
+    const png = (await page.screenshot({ animations: 'disabled', caret: 'hide' })).toString(
+      'base64',
+    )
+    await style.evaluate((node) => (node as HTMLElement).remove())
+    return png
+  }
+  const ink = '#root * { color: transparent !important } svg, img { visibility: hidden !important }'
+  const drawn = await shot(ink),
+    bare = await shot(`${ink} [data-corner] { visibility: hidden !important }`)
+  const found = await page.evaluate(
+    async ({ drawn, bare, blocks }) => {
+      const read = async (data: string) => {
+        const image = await createImageBitmap(
+          new Blob([Uint8Array.from(atob(data), (c) => c.charCodeAt(0))], { type: 'image/png' }),
+        )
+        const context = new OffscreenCanvas(image.width, image.height).getContext('2d')!
+        context.drawImage(image, 0, 0)
+        return {
+          data: context.getImageData(0, 0, image.width, image.height).data,
+          width: image.width,
+        }
+      }
+      const [a, b] = [await read(drawn), await read(bare)]
+      const scale = a.width / innerWidth
+      for (const node of document.querySelectorAll<HTMLElement>('[data-corner]'))
+        delete node.dataset.corner
+      return blocks.flatMap((block) => {
+        // Device pixels along the diagonal from the corner until the frost differs from the bare
+        // picture.
+        for (let k = 0; k < block.radius * scale; k++) {
+          const x = Math.floor(block.x * scale) + k,
+            y = Math.floor(block.y * scale) + k,
+            p = (y * a.width + x) * 4
+          const differs = [0, 1, 2].some((c) => Math.abs(a.data[p + c]! - b.data[p + c]!) > 6)
+          if (differs) {
+            const inset = k / scale
+            return inset < 0.25 * block.radius - 1
+              ? [`"${block.label}" r${block.radius} drawn from ${inset.toFixed(1)}`]
+              : []
+          }
+        }
+        return []
+      })
+    },
+    { drawn, bare, blocks },
+  )
+  evidence[`${name} corners`] = found
+  return found.map((line) => `${name} corner: ${line}`)
+}
+
 async function nav(page: Page, label: string | RegExp) {
   if (await page.locator('#settings-panel').count())
     await page.getByRole('button', { name: '返回', exact: true }).click()
@@ -153,6 +244,7 @@ test('every control is a capsule and every container a large rounded rectangle',
         const scan = async (name: string) => {
           const where = `${backdrop} ${shade} ${name}`
           found.push(...(await square(page, where)))
+          if (backdrop === 'picture') found.push(...(await boxy(page, where)))
           await page.screenshot({ path: test.info().outputPath(`${where}.png`) })
         }
         for (const tab of ['一般', '外觀', '通知', '更新', '連線', '平台', '裝置', '這台電腦'])

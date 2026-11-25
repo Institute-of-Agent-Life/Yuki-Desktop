@@ -69,9 +69,9 @@
    * shapes are concentric: a shape inside another takes the outer corner less the padding between
    * them (`calc(var(--r-container-m) - <padding>)`), never less than a control's capsule. The
    * window's corner is the system's (`--r-window`, per platform below); a pane inset into it takes
-   * the window's corner less the inset (`--r-pane`). Containers' corners are continuous where
-   * Chromium draws them (`corner-shape: squircle`, materials.css); glass keeps round corners,
-   * which its lens and rim maps follow.
+   * the window's corner less the inset (`--r-pane`). Corners are circular arcs: Chromium's
+   * `corner-shape: squircle` is a far boxier curve than Apple's continuous corner, and the glass's
+   * lens and rim maps follow circular arcs.
    */
   --r-window: 0px;
   --inset: 0px;

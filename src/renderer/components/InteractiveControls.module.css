@@ -2,7 +2,6 @@
 .segment {
   /* Over a picture of one's own its track is a piece of content's frost (materials.css). */
   --frost-radius: var(--r-capsule);
-  --frost-corner: round;
   --frost-fill: var(--fill-control);
   position: relative;
   display: inline-flex;
