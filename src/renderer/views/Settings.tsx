@@ -1,7 +1,7 @@
 import { useTabMotion } from '../motion/tab'
 import { useRef, useState, type DragEvent } from 'react'
 import { useGlass } from '../materials/glass'
-import { backdropUrl, blurBackdrop, importBackdrop } from '../materials/backdrop'
+import { backdropUrl, blurBackdrop, importBackdrop, keepBackdrop } from '../materials/backdrop'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ChevronLeft,
@@ -16,6 +16,8 @@ import {
   Snowflake,
   Cpu,
   MessagesSquare,
+  Plus,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import type { Connection } from '../../shared/api'
@@ -32,6 +34,7 @@ import { LogoutFlow } from './LogoutFlow'
 import { Row, SettingsSection } from './SettingsRow'
 import {
   backdrops,
+  chosenBackdrop,
   defaultPreferences,
   type Backdrop,
   type BootInfo,
@@ -189,9 +192,9 @@ export function Settings({
       setError({ section, message: t('settings:saveFailed') })
     }
   }
-  // A picture of one's own for a theme: chosen in the file dialog, or dropped. Its blur, if any, is
-  // drawn for it at once, so a new picture is never shown sharp under a blurred setting.
-  const pictureFor = async (picture?: File) => {
+  // A picture of one's own: chosen in the file dialog, or dropped. A blur its place has (the dark
+  // picture of one already blurred) is drawn for it at once, so it is never shown sharp under it.
+  const pictureFor = async (picture?: File, blur = 0) => {
     setError(undefined)
     try {
       const input = picture
@@ -201,7 +204,7 @@ export function Settings({
       const id = await importBackdrop(input.bytes).catch((error: unknown) => {
         throw error instanceof ClientProblem ? error : new ClientProblem('unsupported_image')
       })
-      if (preferences.customBackdrop.blur) await blurBackdrop(id, preferences.customBackdrop.blur)
+      if (blur) await blurBackdrop(id, blur)
       return id
     } catch (error) {
       setError({
@@ -211,6 +214,27 @@ export function Settings({
       return undefined
     }
   }
+  // One's own pictures, kept side by side: one added is kept beside the rest and shown; one
+  // removed that was shown gives way to the default backdrop.
+  // Each change is made to the pictures as they are when it is made, not as they were shown when it
+  // began (a picture is read, or a blur drawn, in between).
+  const latest = useRef(preferences)
+  latest.current = preferences
+  const chosen = chosenBackdrop(preferences)
+  const addPicture = (picture?: File) =>
+    void pictureFor(picture).then((id) => {
+      if (id) return change(keepBackdrop(latest.current, id), 'look')
+    })
+  const removePicture = (id: string) =>
+    void change(
+      {
+        customBackdrops: latest.current.customBackdrops.filter((picture) => picture.light !== id),
+        ...(chosenBackdrop(latest.current)?.light === id
+          ? { backdrop: defaultPreferences.backdrop }
+          : {}),
+      },
+      'look',
+    )
   const setLogin = async (enabled: boolean) => {
     setBusy(true)
     setError(undefined)
@@ -467,30 +491,29 @@ export function Settings({
               <Row title={t('settings:backdrop')} description={t('settings:backdropDescription')}>
                 <BackdropPicker
                   value={preferences.backdrop}
-                  custom={preferences.customBackdrop}
+                  custom={preferences.customBackdrops}
                   onChange={(backdrop) => void change({ backdrop }, 'look')}
-                  onPicture={(picture) =>
-                    void pictureFor(picture).then((light) => {
-                      if (light)
-                        return change({ backdrop: 'custom', customBackdrop: { light } }, 'look')
-                    })
-                  }
+                  onPicture={addPicture}
+                  onRemove={removePicture}
                 />
               </Row>
-              {preferences.backdrop === 'custom' && (
+              {chosen && (
                 <CustomBackdropRows
-                  backdrop={preferences.customBackdrop}
-                  pictureFor={pictureFor}
-                  change={(customBackdrop) => change({ customBackdrop }, 'look')}
-                  remove={() =>
-                    void change(
+                  key={chosen.light}
+                  backdrop={chosen}
+                  add={() => addPicture()}
+                  pictureFor={() => pictureFor(undefined, chosen.blur)}
+                  change={(part) =>
+                    change(
                       {
-                        backdrop: defaultPreferences.backdrop,
-                        customBackdrop: { light: undefined, dark: undefined },
+                        customBackdrops: latest.current.customBackdrops.map((picture) =>
+                          picture.light === chosen.light ? { ...picture, ...part } : picture,
+                        ),
                       },
                       'look',
                     )
                   }
+                  remove={() => removePicture(chosen.light)}
                 />
               )}
               <Row
@@ -748,34 +771,35 @@ function TransparencySlider({ value, onChange }: { value: number; onChange(value
 }
 
 /*
- * A picture of one's own: chosen again, a separate one for dark, how it fits, its blur and dim, or
- * removed. A blur is drawn into a copy of each picture when it is let go, then saved.
+ * The picture of one's own shown: another one added beside it, a separate one for dark, how it
+ * fits, its blur and dim, or removed; each kept picture has these of its own. A blur is drawn into
+ * a copy of each picture when it is let go, then saved.
  */
 function CustomBackdropRows({
   backdrop,
+  add,
   pictureFor,
   change,
   remove,
 }: {
   backdrop: CustomBackdrop
+  add(): void
   pictureFor(): Promise<string | undefined>
   change(part: Partial<CustomBackdrop>): Promise<void>
   remove(): void
 }) {
   const { t } = useTranslation(['settings'])
   const [separate, setSeparate] = useState(Boolean(backdrop.dark))
-  const choose = (theme: 'light' | 'dark') =>
-    void pictureFor().then((id) => {
-      if (id) return change({ [theme]: id })
+  const chooseDark = () =>
+    void pictureFor().then((dark) => {
+      if (dark) return change({ dark })
     })
   return (
     <>
       <Row title={t('settings:backdrops.custom')}>
         <div className={styles.customActions}>
-          <Button onClick={() => choose('light')}>{t('settings:backdropChoose')}</Button>
-          {separate && (
-            <Button onClick={() => choose('dark')}>{t('settings:backdropChooseDark')}</Button>
-          )}
+          <Button onClick={add}>{t('settings:backdropChoose')}</Button>
+          {separate && <Button onClick={chooseDark}>{t('settings:backdropChooseDark')}</Button>}
           <Button onClick={remove}>{t('settings:backdropRemove')}</Button>
         </div>
       </Row>
@@ -838,82 +862,113 @@ function CustomBackdropRows({
   )
 }
 
-// Each choice previews the backdrop itself, in the current theme; the last is a picture of one's
-// own, which also takes a picture dropped on it.
+// Each choice previews the backdrop itself, in the current theme: the patterns, then each picture
+// of one's own (removed from its corner), then a tile that adds another, which also takes a
+// picture dropped on it.
 function BackdropPicker({
   value,
   custom,
   onChange,
   onPicture,
+  onRemove,
 }: {
   value: Backdrop
-  custom: CustomBackdrop
+  custom: CustomBackdrop[]
   onChange(value: Backdrop): void
   onPicture(picture?: File): void
+  onRemove(id: string): void
 }) {
   const { t } = useTranslation(['settings'])
   const [dropping, setDropping] = useState(false)
-  const choices = [...backdrops, 'custom'] as const
+  const choices: Backdrop[] = [
+    ...backdrops,
+    ...custom.map((picture) => `custom:${picture.light}` as const),
+  ]
   return (
     <div role="radiogroup" aria-label={t('settings:backdrop')} className={styles.backdrops}>
-      {choices.map((backdrop, index) => (
-        <button
-          key={backdrop}
-          type="button"
-          role="radio"
-          aria-checked={value === backdrop}
-          tabIndex={value === backdrop ? 0 : -1}
-          className={styles.backdrop}
-          onClick={() =>
-            backdrop === 'custom' && !custom.light ? onPicture() : onChange(backdrop)
-          }
-          {...(backdrop === 'custom'
-            ? {
-                onDragOver: (event: DragEvent<HTMLButtonElement>) => {
-                  if (!event.dataTransfer.types.includes('Files')) return
-                  event.preventDefault()
-                  setDropping(true)
-                },
-                onDragLeave: () => setDropping(false),
-                onDrop: (event: DragEvent<HTMLButtonElement>) => {
-                  event.preventDefault()
-                  setDropping(false)
-                  const picture = event.dataTransfer.files[0]
-                  if (picture) onPicture(picture)
-                },
-              }
-            : {})}
-          onKeyDown={(event) => {
-            if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return
-            event.preventDefault()
-            const next =
-              choices[
-                (index + (event.key === 'ArrowRight' ? 1 : choices.length - 1)) % choices.length
-              ]!
-            if (next === 'custom' && !custom.light) onPicture()
-            else onChange(next)
-            const group = event.currentTarget.parentElement!
-            requestAnimationFrame(() =>
-              group.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus(),
-            )
-          }}
-        >
-          <span
-            className={styles.backdropSwatch}
-            data-dropping={backdrop === 'custom' && dropping ? '' : undefined}
-            title={backdrop === 'custom' && dropping ? t('settings:backdropDrop') : undefined}
-            style={{
-              background:
-                backdrop !== 'custom'
-                  ? `var(--backdrop-${backdrop}), var(--surface-page)`
-                  : custom.light
-                    ? `url("${backdropUrl(`${custom.light}.webp`)}") center / cover`
-                    : undefined,
+      {choices.map((backdrop, index) => {
+        const kept = index - backdrops.length,
+          picture = custom[kept]
+        const radio = (
+          <button
+            key={backdrop}
+            type="button"
+            role="radio"
+            aria-checked={value === backdrop}
+            tabIndex={value === backdrop ? 0 : -1}
+            className={styles.backdrop}
+            onClick={() => onChange(backdrop)}
+            onKeyDown={(event) => {
+              if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return
+              event.preventDefault()
+              onChange(
+                choices[
+                  (index + (event.key === 'ArrowRight' ? 1 : choices.length - 1)) % choices.length
+                ]!,
+              )
+              const group = event.currentTarget.closest('[role="radiogroup"]')!
+              requestAnimationFrame(() =>
+                group.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus(),
+              )
             }}
-          />
-          <span>{t(`settings:backdrops.${backdrop}`)}</span>
-        </button>
-      ))}
+          >
+            <span
+              className={styles.backdropSwatch}
+              style={{
+                background: picture
+                  ? `url("${backdropUrl(`${picture.light}.webp`)}") center / cover`
+                  : `var(--backdrop-${backdrop}), var(--surface-page)`,
+              }}
+            />
+            <span>
+              {picture
+                ? t('settings:backdropKept', { index: kept + 1 })
+                : t(`settings:backdrops.${backdrop as (typeof backdrops)[number]}`)}
+            </span>
+          </button>
+        )
+        return picture ? (
+          <span key={backdrop} className={styles.kept}>
+            {radio}
+            <button
+              type="button"
+              className={styles.forget}
+              aria-label={t('settings:backdropForget', { index: kept + 1 })}
+              onClick={() => onRemove(picture.light)}
+            >
+              <X size={10} strokeWidth={3} aria-hidden="true" />
+            </button>
+          </span>
+        ) : (
+          radio
+        )
+      })}
+      <button
+        type="button"
+        className={styles.backdrop}
+        onClick={() => onPicture()}
+        onDragOver={(event: DragEvent<HTMLButtonElement>) => {
+          if (!event.dataTransfer.types.includes('Files')) return
+          event.preventDefault()
+          setDropping(true)
+        }}
+        onDragLeave={() => setDropping(false)}
+        onDrop={(event: DragEvent<HTMLButtonElement>) => {
+          event.preventDefault()
+          setDropping(false)
+          const picture = event.dataTransfer.files[0]
+          if (picture) onPicture(picture)
+        }}
+      >
+        <span
+          className={`${styles.backdropSwatch} ${styles.add}`}
+          data-dropping={dropping ? '' : undefined}
+          title={dropping ? t('settings:backdropDrop') : undefined}
+        >
+          <Plus size={16} aria-hidden="true" />
+        </span>
+        <span>{t('settings:backdropAdd')}</span>
+      </button>
     </div>
   )
 }

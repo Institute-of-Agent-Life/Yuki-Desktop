@@ -397,6 +397,40 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/* A kept picture of one's own: removed from the control at its corner, shown while it is pointed
+   at or focused. */
+.kept {
+  position: relative;
+  display: flex;
+}
+.forget,
+.forget:hover {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: var(--r-capsule);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  box-shadow: 0 0 0 var(--line) var(--separator-strong);
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+.kept:hover .forget,
+.kept:focus-within .forget {
+  opacity: 1;
+}
+/* The tile that adds another picture. */
+.add {
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  background: var(--fill-control);
+}
 
 /* Over a picture of one's own the page's title, each section's title and note are small labels of
    frost and each group a block of it (materials.css); the picture lies between them. */

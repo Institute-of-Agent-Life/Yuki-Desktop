@@ -37,12 +37,7 @@ async function choose(app: ElectronApplication, page: Page, kind: Picture, first
     .getByRole('radiogroup', { name: '主題', exact: true })
     .getByRole('radio', { name: '淺色', exact: true })
     .click()
-  if (first)
-    await page
-      .getByRole('radiogroup', { name: '對話背景', exact: true })
-      .getByRole('radio', { name: '自訂圖片', exact: true })
-      .click()
-  else await page.getByRole('button', { name: '選擇圖片…', exact: true }).click()
+  await page.getByRole('button', { name: first ? '加入圖片…' : '選擇圖片…', exact: true }).click()
   await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'custom')
   await page.getByRole('button', { name: '返回', exact: true }).click()
   await expect(page.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible()

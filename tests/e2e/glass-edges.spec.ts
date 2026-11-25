@@ -431,10 +431,7 @@ test('glass edges in the real app', async () => {
     const lineart = join(test.info().outputPath(), 'lineart.png')
     await writeFile(lineart, await picture(page, 'lineart'))
     await answerWith(app, lineart)
-    await page
-      .getByRole('radiogroup', { name: '對話背景', exact: true })
-      .getByRole('radio', { name: '自訂圖片', exact: true })
-      .click()
+    await page.getByRole('button', { name: '加入圖片…', exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'custom')
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await chat('lineart')

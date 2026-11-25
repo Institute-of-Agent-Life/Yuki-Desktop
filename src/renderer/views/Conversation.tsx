@@ -8,7 +8,7 @@ import { animateBubble, releaseDraft } from '../motion/bubble'
 import { glide, gliding, movedByApp, movedByOther, place } from '../motion/glide'
 import { sampleSpring, springs } from '../motion/spring'
 import { useGlass } from '../materials/glass'
-import { blurBackdrop, importBackdrop } from '../materials/backdrop'
+import { importBackdrop } from '../materials/backdrop'
 import {
   Fragment,
   useCallback,
@@ -1296,10 +1296,7 @@ export function Conversation({
                 if (!unwrap(await window.yuki.backgrounds.menu())) return
                 const picture = unwrap(await window.yuki.backgrounds.pick())
                 if (!picture) return
-                const id = await importBackdrop(picture.bytes)
-                if (preferences.customBackdrop.blur)
-                  await blurBackdrop(id, preferences.customBackdrop.blur)
-                onBackground(id)
+                onBackground(await importBackdrop(picture.bytes))
               })().catch((error: unknown) =>
                 setMediaError(
                   error instanceof ClientProblem ? error.message : problemText('unsupported_image'),

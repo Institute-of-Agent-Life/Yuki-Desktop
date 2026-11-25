@@ -37,6 +37,7 @@ import { LocalStore } from './store'
 import { Backgrounds } from './backgrounds'
 import {
   backdrops,
+  chosenBackdrop,
   defaultPreferences,
   type BackdropTable,
   type BootInfo,
@@ -1222,15 +1223,15 @@ else {
         if (typeof patch[key] === 'boolean') current[key] = patch[key]
       }
       if (['system', 'light', 'dark'].includes(patch.theme ?? '')) current.theme = patch.theme!
-      if (backdrops.includes(patch.backdrop as never) || patch.backdrop === 'custom')
+      if (Array.isArray(patch.customBackdrops))
+        current.customBackdrops = await backgrounds.accept(patch.customBackdrops)
+      if (
+        backdrops.includes(patch.backdrop as never) ||
+        (patch.backdrop && chosenBackdrop({ ...current, backdrop: patch.backdrop }))
+      )
         current.backdrop = patch.backdrop!
-      if (typeof patch.customBackdrop === 'object' && patch.customBackdrop)
-        current.customBackdrop = await backgrounds.accept(
-          patch.customBackdrop,
-          current.customBackdrop,
-        )
-      // A picture of one's own is the backdrop only while there is one.
-      if (current.backdrop === 'custom' && !current.customBackdrop.light)
+      // A picture of one's own is the backdrop only while it is kept.
+      if (!backdrops.includes(current.backdrop as never) && !chosenBackdrop(current))
         current.backdrop = defaultPreferences.backdrop
       if (patch.timeZone === 'Asia/Taipei' || patch.timeZone === 'system')
         current.timeZone = patch.timeZone
@@ -1251,7 +1252,7 @@ else {
       if (typeof patch.inspectorWidth === 'number' && Number.isFinite(patch.inspectorWidth))
         current.inspectorWidth = Math.max(320, Math.min(560, patch.inspectorWidth))
       store.set('appearance', current)
-      await backgrounds.keep(current.customBackdrop)
+      await backgrounds.keep(current.customBackdrops)
       native.update(current)
       nativeTheme.themeSource = current.theme
       if (win) applyWindowAppearance(win, current)

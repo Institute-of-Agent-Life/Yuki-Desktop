@@ -18,9 +18,9 @@ import { picture } from '../fixtures/pictures'
  *   4. fit, blur and dim do not reach the page: fill/fit/tile are not cover/contain/repeat, a blur
  *      is drawn live rather than from a blurred copy, the dim is not laid over it;
  *   5. light and dark cannot have pictures of their own, or dark without one does not dim;
- *   6. a replaced or removed picture's files stay behind;
- *   7. preferences outside the allowed values are kept (paths, fits, blur > 20, dim > 60);
- *   8. the chat's own menu cannot change the background.
+ *   6. a removed picture's files stay behind;
+ *   7. the chat's own menu cannot change the background.
+ * Several pictures kept side by side, and values outside the allowed ones: saved-backdrops.spec.ts.
  */
 const evidence: Record<string, unknown> = {}
 test.afterAll(async () => {
@@ -76,14 +76,12 @@ test('a picture of ones own is kept once, fitted, blurred, dimmed per theme and 
 
     // 1
     await answerWith(app, files.lineart)
-    await pictures.getByRole('radio', { name: '自訂圖片', exact: true }).click()
-    await expect.poll(async () => (await preferences(page)).backdrop).toBe('custom')
-    expect((await preferences(page)).customBackdrop).toEqual({
-      light: ids.lineart,
-      fit: 'fill',
-      blur: 0,
-      dim: 0,
-    })
+    await page.getByRole('button', { name: '加入圖片…', exact: true }).click()
+    await expect.poll(async () => (await preferences(page)).backdrop).toBe(`custom:${ids.lineart}`)
+    expect((await preferences(page)).customBackdrops).toEqual([
+      { light: ids.lineart, fit: 'fill', blur: 0, dim: 0 },
+    ])
+    await expect(pictures.getByRole('radio', { name: '自訂圖片 1', exact: true })).toBeChecked()
     await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'custom')
     expect((await variables(page))['--backdrop-image']).toContain(
       `__backgrounds/${ids.lineart}.webp`,
@@ -136,7 +134,7 @@ test('a picture of ones own is kept once, fitted, blurred, dimmed per theme and 
     const blur = page.getByRole('slider', { name: '背景模糊', exact: true })
     await blur.focus()
     await page.keyboard.press('End')
-    await expect.poll(async () => (await preferences(page)).customBackdrop.blur).toBe(20)
+    await expect.poll(async () => (await preferences(page)).customBackdrops[0]!.blur).toBe(20)
     const blurred = (await variables(page))['--backdrop-image']
     expect(blurred!).toContain(`__backgrounds/${ids.lineart}-blur20.webp`)
     expect(
@@ -151,13 +149,13 @@ test('a picture of ones own is kept once, fitted, blurred, dimmed per theme and 
     const dim = page.getByRole('slider', { name: '變暗', exact: true })
     await dim.focus()
     await page.keyboard.press('End')
-    await expect.poll(async () => (await preferences(page)).customBackdrop.dim).toBe(60)
+    await expect.poll(async () => (await preferences(page)).customBackdrops[0]!.dim).toBe(60)
     await expect.poll(async () => (await variables(page))['--backdrop-dim']).toBe('60%')
     await page.keyboard.press('Home')
     await blur.focus()
     await page.keyboard.press('Home')
     await expect
-      .poll(async () => (await preferences(page)).customBackdrop)
+      .poll(async () => (await preferences(page)).customBackdrops[0])
       .toMatchObject({
         blur: 0,
         dim: 0,
@@ -168,14 +166,18 @@ test('a picture of ones own is kept once, fitted, blurred, dimmed per theme and 
     await separate.click()
     await answerWith(app, files.gradient)
     await page.getByRole('button', { name: '選擇深色圖片…', exact: true }).click()
-    await expect.poll(async () => (await preferences(page)).customBackdrop.dark).toBe(ids.gradient)
+    await expect
+      .poll(async () => (await preferences(page)).customBackdrops[0]!.dark)
+      .toBe(ids.gradient)
     await themes.getByRole('radio', { name: '深色', exact: true }).click()
     await expect
       .poll(async () => (await variables(page))['--backdrop-image'])
       .toContain(`__backgrounds/${ids.gradient}.webp`)
     await expect.poll(async () => (await variables(page))['--backdrop-dim']).toBe('0%')
     await separate.click()
-    await expect.poll(async () => (await preferences(page)).customBackdrop.dark).toBeUndefined()
+    await expect
+      .poll(async () => (await preferences(page)).customBackdrops[0]!.dark)
+      .toBeUndefined()
     await expect
       .poll(async () => (await variables(page))['--backdrop-image'])
       .toContain(`__backgrounds/${ids.lineart}.webp`)
@@ -184,29 +186,11 @@ test('a picture of ones own is kept once, fitted, blurred, dimmed per theme and 
     await themes.getByRole('radio', { name: '淺色', exact: true }).click()
 
     // 6
-    await answerWith(app, files.gradient)
-    await page.getByRole('button', { name: '選擇圖片…', exact: true }).first().click()
-    await expect.poll(async () => (await preferences(page)).customBackdrop.light).toBe(ids.gradient)
-    await expect
-      .poll(() => backgrounds(app))
-      .toEqual([`${ids.gradient}.webp`, `${ids.gradient}.json`, `${ids.gradient}.png`].sort())
     await page.screenshot({ path: test.info().outputPath('settings-custom-light.png') })
     await page.getByRole('button', { name: '移除自訂背景', exact: true }).click()
-    await expect.poll(async () => (await preferences(page)).backdrop).not.toBe('custom')
-    await expect.poll(async () => (await preferences(page)).customBackdrop.light).toBeUndefined()
+    await expect.poll(async () => (await preferences(page)).backdrop).toBe('plain')
+    expect((await preferences(page)).customBackdrops).toEqual([])
     await expect.poll(() => backgrounds(app)).toEqual([])
-
-    // 7
-    const kept7 = await page.evaluate(
-      async () =>
-        (
-          await window.yuki.preferences({
-            customBackdrop: { light: '../../escape', fit: 'zoom', blur: 99, dim: -3 },
-          } as never)
-        ).customBackdrop,
-    )
-    evidence.invalid = kept7
-    expect(kept7).toEqual({ fit: 'fill', blur: 20, dim: 0 })
   } finally {
     await app.close()
   }
@@ -224,7 +208,7 @@ test('the chat menu sets a picture of ones own as the backdrop', async () => {
     const lineart = await picture(page, 'lineart')
     const file = join(rig.root, 'lineart.png')
     await writeFile(file, lineart)
-    // 8: from the chat's own menu, over its empty space.
+    // 7: from the chat's own menu, over its empty space.
     await answerWith(app, file)
     await app.evaluate(({ Menu }) => {
       Menu.prototype.popup = function (this: Electron.Menu) {
@@ -235,7 +219,7 @@ test('the chat menu sets a picture of ones own as the backdrop', async () => {
     const box = (await log.boundingBox())!
     await page.mouse.click(box.x + 12, box.y + box.height / 2, { button: 'right' })
     await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'custom')
-    expect((await preferences(page)).customBackdrop.light).toBe(sha(lineart))
+    expect((await preferences(page)).backdrop).toBe(`custom:${sha(lineart)}`)
     for (const theme of ['light', 'dark'] as const) {
       await page.evaluate((theme) => window.yuki.preferences({ theme }), theme)
       await expect(page.locator(`html[data-theme="${theme}"]`)).toBeAttached()

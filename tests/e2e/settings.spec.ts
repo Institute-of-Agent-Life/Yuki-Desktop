@@ -116,15 +116,16 @@ test('actual settings paths retain native preferences, timezone, notifications a
     // A new profile's conversation has no pattern (hig-audit.md decision 4): content is content.
     await expect(backdrops.getByRole('radio', { name: '無', exact: true })).toBeChecked()
     // 6 (全局透明磨砂 task book): the frost is the window's own choice; the backdrop is only a
-    // pattern laid over the conversation, none, or a picture of one's own (custom-backdrop.spec.ts).
+    // pattern laid over the conversation, none, or a picture of one's own (saved-backdrops.spec.ts),
+    // of which a new profile keeps none yet.
     expect(await backdrops.getByRole('radio').allInnerTexts()).toEqual([
       '無',
       '光線',
       '極光',
       '晚霞',
       '格線',
-      '自訂圖片',
     ])
+    await expect(backdrops.getByRole('button', { name: '加入圖片…', exact: true })).toBeVisible()
     const transparency = page.getByRole('slider', { name: '透明度', exact: true })
     await expect(transparency).toHaveAttribute('aria-valuenow', '70')
     await backdrops.getByRole('radio', { name: '極光', exact: true }).click()

@@ -70,37 +70,45 @@ export class Backgrounds {
   }
 
   /**
-   * A preference's custom backdrop changed by `given`: a picture given is set if it is kept and
-   * removed otherwise, one not given stays; the other parts are taken where allowed.
+   * The pictures of one's own a preference may keep, from those `given`: each names a kept
+   * picture (its dark one too, or none), once; its other parts are taken where allowed.
    */
-  async accept(given: Partial<CustomBackdrop>, current: CustomBackdrop): Promise<CustomBackdrop> {
-    const number = (value: unknown, max: number, fallback: number) =>
+  async accept(given: unknown[]): Promise<CustomBackdrop[]> {
+    const number = (value: unknown, max: number) =>
       typeof value === 'number' && Number.isFinite(value)
         ? Math.max(0, Math.min(max, Math.round(value)))
-        : fallback
-    const picture = async (theme: 'light' | 'dark') => {
-      const name = theme in given ? given[theme] : current[theme]
-      return (await this.kept(name)) ? { [theme]: name! } : {}
+        : 0
+    const accepted: CustomBackdrop[] = []
+    for (const entry of given as Partial<CustomBackdrop>[]) {
+      if (
+        !(await this.kept(entry?.light)) ||
+        accepted.some((picture) => picture.light === entry.light)
+      )
+        continue
+      accepted.push({
+        light: entry.light!,
+        ...((await this.kept(entry.dark)) ? { dark: entry.dark! } : {}),
+        fit: backdropFits.includes(entry.fit!) ? entry.fit! : 'fill',
+        blur: number(entry.blur, 20),
+        dim: number(entry.dim, 60),
+      })
     }
-    return {
-      ...(await picture('light')),
-      ...(await picture('dark')),
-      fit: backdropFits.includes(given.fit!) ? given.fit! : current.fit,
-      blur: number(given.blur, 20, current.blur),
-      dim: number(given.dim, 60, current.dim),
-    }
+    return accepted
   }
 
-  /** Removes every file but the pictures `backdrop` names, and only their blur in use. */
-  async keep(backdrop: CustomBackdrop) {
-    const names = [backdrop.light, backdrop.dark].filter(Boolean) as string[]
+  /** Removes every file but the pictures `kept` names, and of their blurs only those in use. */
+  async keep(kept: CustomBackdrop[]) {
+    const blurs = new Map<string, number[]>()
+    for (const picture of kept)
+      for (const name of [picture.light, picture.dark])
+        if (name) blurs.set(name, [...(blurs.get(name) ?? []), picture.blur])
     const files = await readdir(this.root).catch(() => [] as string[])
     await Promise.all(
       files
         .filter((file) => {
           const match = /^([0-9a-f]{64})(?:-blur(\d+))?\./.exec(file)
-          if (!match || !names.includes(match[1]!)) return true
-          return match[2] !== undefined && Number(match[2]) !== backdrop.blur
+          if (!match || !blurs.has(match[1]!)) return true
+          return match[2] !== undefined && !blurs.get(match[1]!)!.includes(Number(match[2]))
         })
         .map((file) => rm(join(this.root, file), { force: true })),
     )

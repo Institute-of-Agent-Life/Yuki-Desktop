@@ -1,4 +1,9 @@
-import type { BackdropTable, CustomBackdrop } from '../../shared/desktop'
+import type {
+  BackdropTable,
+  CustomBackdrop,
+  Preferences,
+  PreferencesPatch,
+} from '../../shared/desktop'
 import { unwrap } from '../queries/client'
 import { dockColour } from './dock'
 
@@ -47,6 +52,20 @@ export async function importBackdrop(bytes: Uint8Array) {
   canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height)
   return unwrap(await window.yuki.backgrounds.store(bytes, await webp(canvas), measure(image)))
 }
+
+/**
+ * The change that keeps the picture `id` among one's own, once, with settings of its own, and
+ * makes it the backdrop.
+ */
+export const keepBackdrop = (
+  { customBackdrops }: Pick<Preferences, 'customBackdrops'>,
+  id: string,
+): PreferencesPatch => ({
+  customBackdrops: customBackdrops.some((picture) => picture.light === id)
+    ? customBackdrops
+    : [...customBackdrops, { light: id, fit: 'fill', blur: 0, dim: 0 }],
+  backdrop: `custom:${id}`,
+})
 
 /** Keeps a copy of a kept picture blurred by `radius` px, drawn once rather than every frame. */
 export async function blurBackdrop(id: string, radius: number) {

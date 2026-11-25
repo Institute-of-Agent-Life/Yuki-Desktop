@@ -750,11 +750,7 @@ window.yuki = {
     blur: async () => ({ ok: false, code: 'fixture_only' }),
     menu: async () => ({ ok: false, code: 'fixture_only' }),
   },
-  preferences: async (patch) => ({
-    ...defaultPreferences,
-    ...patch,
-    customBackdrop: { ...defaultPreferences.customBackdrop, ...patch.customBackdrop },
-  }),
+  preferences: async (patch) => ({ ...defaultPreferences, ...patch }),
   onCommand: () => () => {},
   exportDiagnostics: async () => ({ ok: true, value: false }),
   loginItem: async () => ({
