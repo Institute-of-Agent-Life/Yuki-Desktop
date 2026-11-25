@@ -163,6 +163,7 @@ export function Segmented<T extends string>({
     <div
       ref={root}
       className={styles.segment}
+      data-frost
       role={kind === 'tabs' ? 'tablist' : 'radiogroup'}
       aria-label={label}
     >

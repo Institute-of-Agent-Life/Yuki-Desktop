@@ -1,5 +1,8 @@
 /* AppKit's regular segmented control: 24pt, a 6pt corner, its segments concentric within. */
 .segment {
+  /* Over a picture of one's own its track is a piece of content's frost (materials.css). */
+  --frost-radius: var(--r-control);
+  --frost-fill: var(--fill-control);
   position: relative;
   display: inline-flex;
   gap: var(--space-1);

@@ -1377,6 +1377,7 @@ export function Conversation({
             </div>
             <div
               className={styles.messages}
+              data-frost-layer
               role="log"
               aria-label={t('conversation:messages')}
               aria-live="polite"

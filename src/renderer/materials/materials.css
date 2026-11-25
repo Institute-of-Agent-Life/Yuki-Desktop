@@ -173,10 +173,12 @@
   ) {
   --frost-fill: var(--fill-selected);
 }
-/* A page of such blocks is a layer of its own: painted into the window's, its frost (fixed to the
-   window) left the floating sidebar's glass beside it with nothing to show, and was drawn coarse. */
+/* A page of such blocks, and the conversation's bubbles (`data-frost-layer`), are a layer of their
+   own: painted into the window's, their frost (fixed to the window) left the glass beside and over
+   them (the sidebar, the toolbar's capsules, the composer) with nothing to show, and was drawn
+   coarse. */
 :root[data-backdrop='custom']:not([data-opaque='true'])
-  [data-frost-children]:not([data-frost-children] [data-frost-children]) {
+  :is([data-frost-children]:not([data-frost-children] [data-frost-children]), [data-frost-layer]) {
   will-change: transform;
 }
 /* A title on the picture is a small label of frost, as wide as its words. */
