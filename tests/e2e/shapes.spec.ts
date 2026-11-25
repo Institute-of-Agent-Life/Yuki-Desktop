@@ -202,6 +202,9 @@ async function nav(page: Page, label: string | RegExp) {
 async function settings(page: Page, tab: string) {
   if (!(await page.locator('#settings-panel').count())) await page.keyboard.press('ControlOrMeta+,')
   await page.getByRole('tab', { name: tab, exact: true }).click()
+  // The unpaired Connector's form moves the troubleshooting card when its IPC reply arrives.
+  if (tab === '這台電腦')
+    await expect(page.getByRole('button', { name: '連接這台電腦', exact: true })).toBeVisible()
 }
 async function theme(page: Page, name: '淺色' | '深色') {
   await settings(page, '外觀')

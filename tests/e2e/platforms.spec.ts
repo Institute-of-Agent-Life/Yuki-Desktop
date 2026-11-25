@@ -518,7 +518,7 @@ const rowMetrics = (page: Page) =>
 // levels differently between frames) lands anywhere; text seen through the dialog lands on and
 // around the text. `max` is the largest per-channel difference (0–255); `through` is how much
 // more the dialog changes over the page's text than away from it (mean luma levels).
-async function bleed(page: Page, dialog: Locator) {
+async function bleed(page: Page, dialog: Locator, evidenceName?: string) {
   const box = (await dialog.boundingBox())!
   const clip = {
     x: Math.round(box.x + 24),
@@ -554,6 +554,13 @@ async function bleed(page: Page, dialog: Locator) {
   await drop('bleed-text')
   const pageText = await shoot()
   await drop('bleed-dialog')
+  if (evidenceName) {
+    for (const [layer, png] of Object.entries({ over, alone, pageBare, pageText }))
+      await writeFile(
+        test.info().outputPath(`${evidenceName}-${layer}.png`),
+        Buffer.from(png, 'base64'),
+      )
+  }
   return page.evaluate(
     async (shots) => {
       const pixels = async (data: string) => {
@@ -686,13 +693,16 @@ for (const [look, theme, material] of looks)
       ] as const) {
         const dialog = await configure(page, name)
         if (mode) await dialog.getByRole('radio', { name: mode, exact: true }).click()
+        // Local Bot discovery replaces its spinner with the deployment command in this fixture.
+        if (mode === 'SnowLuma')
+          await expect(dialog.getByRole('button', { name: '複製指令', exact: true })).toBeVisible()
         // The guide and other notes are folded inside the dialog, so it opens short.
         for (const details of await dialog.locator('details').all())
           await expect(details).not.toHaveAttribute('open')
         await settle(page)
         const shot = `${name}${mode ? `-${mode}` : ''}`
         await page.screenshot({ path: test.info().outputPath(`dialog-${look}-${shot}.png`) })
-        bleeds[shot] = await bleed(page, dialog)
+        bleeds[shot] = await bleed(page, dialog, mode === 'SnowLuma' ? shot : undefined)
         await page.keyboard.press('Escape')
         await expect(dialog).toBeHidden()
       }

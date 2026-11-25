@@ -152,6 +152,12 @@
   justify-content: flex-end;
   opacity: 0;
 }
+/* Two 28px actions per message. A modal makes the whole history inert; the browser can
+   skip offscreen action bars without changing the message or its scroll geometry. */
+.message:not(:hover, :focus-within) .messageActions {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px auto 28px;
+}
 /* Frost only while shown: a filter on every hidden bar would cost each message a frame. */
 .message:hover .messageActions,
 .message:focus-within .messageActions {

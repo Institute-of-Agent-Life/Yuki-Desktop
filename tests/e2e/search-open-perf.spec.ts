@@ -181,6 +181,12 @@ test('opening the search panel over hundreds of loaded messages stays within the
     }
     // 3
     expect(summary.firstFrame.median).toBeLessThanOrEqual(100)
+    // A result outside the initial scrollport is still selectable when the keyboard wraps.
+    await page.getByRole('button', { name: '搜尋已載入內容', exact: true }).click()
+    const last = page.getByRole('dialog').getByRole('option').last()
+    await page.keyboard.press('ArrowUp')
+    await expect(last).toHaveAttribute('aria-selected', 'true')
+    await expect(last).toBeInViewport()
     success = true
   } finally {
     await writeFile(
