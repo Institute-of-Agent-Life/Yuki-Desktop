@@ -198,6 +198,12 @@ interface Lens {
   maps: Record<'bevel', { href: string; x: Span; y: Span }[]>
   /** The bend map's full scale: the largest bend, twice over (a map value runs ±0.5 of it). */
   span: number
+  /**
+   * Whether its pieces are decoded. A filter laid before its images have loaded reads an empty map
+   * (no bend, the rim's levels all −128) for as long as they take, which a slow machine shows as a
+   * dark flash: the glass is laid once they are.
+   */
+  decoded: Promise<void>
 }
 const lenses = new Map<string, Lens>()
 // The rim's mix toward black where there is none, in the map's blue.
@@ -327,7 +333,18 @@ function lens(
       }
     return pieces
   }
-  const result: Lens = { maps: { bevel: cut(bend) }, span }
+  const bevel = cut(bend)
+  const result: Lens = {
+    maps: { bevel },
+    span,
+    decoded: Promise.all(
+      bevel.map((piece) => {
+        const image = new Image()
+        image.src = piece.href
+        return image.decode()
+      }),
+    ).then(() => undefined),
+  }
   // A handful of kinds, radii and short sides: kept.
   lenses.set(key, result)
   return result
@@ -667,10 +684,16 @@ export function useGlass<T extends HTMLElement>(
         filter.append(outOfSRGB)
       }
       colour.input(tables ? 'srgb' : 'bent')
-      element.style.setProperty('--refract', `url(#${id})`)
-      element.dataset.refracting = 'true'
-      // While it bends in, the rising spring alone sets its strength.
-      if (!rising) bend(strength.current)
+      // Laid once its map has loaded (Lens.decoded); until then the glass keeps the colour alone.
+      const laying = current!
+      void laying.decoded.then(() => {
+        if (current !== laying || attachment.current?.sync !== sync) return
+        if (root.dataset.opaque === 'true' || (dynamic && !strength.current)) return
+        element.style.setProperty('--refract', `url(#${id})`)
+        element.dataset.refracting = 'true'
+        // While it bends in, the rising spring alone sets its strength.
+        if (!rising) bend(strength.current)
+      })
     }
     // Transparency, the theme and the system's slider change the glass; a page writing the same
     // value again changes nothing.
