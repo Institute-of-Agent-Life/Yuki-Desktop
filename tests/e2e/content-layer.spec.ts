@@ -21,9 +21,10 @@ const survey = (page: Page) =>
       )
         .trim()
         .slice(0, 24)
+    // (A select is a small piece of glass, as a button is: glass-controls.spec.ts.)
     const fields = [
       ...document.querySelectorAll<HTMLElement>(
-        'select, textarea, input:not([type]), input[type="text"], input[type="url"], input[type="password"], input[type="number"], input[type="search"], input[type="email"]',
+        'textarea, input:not([type]), input[type="text"], input[type="url"], input[type="password"], input[type="number"], input[type="search"], input[type="email"]',
       ),
     ]
       .filter(visible)
@@ -125,7 +126,7 @@ test('settings draw every field, check box and disclosure one way', async () => 
     )
     // C1 and 5: one look for every field, see-through over the window's frost; none cut short.
     expect([...looks]).toHaveLength(1)
-    expect(fields.length).toBeGreaterThan(5)
+    expect(fields.length).toBeGreaterThanOrEqual(3)
     if (all[0]![1].material !== 'none') {
       const alpha = await page.evaluate((colour) => {
         const context = new OffscreenCanvas(1, 1).getContext('2d')!
