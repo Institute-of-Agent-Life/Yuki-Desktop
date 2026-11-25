@@ -263,7 +263,12 @@
   padding: 12px 16px;
   margin-bottom: 12px;
 }
+/* A segmented control keeps its own track and padding: given a block's, its labels sit low. */
 :global(:root[data-backdrop='custom']:not([data-opaque='true'])) .panel > * {
-  padding: 12px 16px;
   margin-bottom: 12px;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true']))
+  .panel
+  > :not([role='radiogroup'], [role='tablist']) {
+  padding: 12px 16px;
 }
