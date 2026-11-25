@@ -1,5 +1,5 @@
 import { useTabMotion } from '../motion/tab'
-import { useRef, useState, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { useGlass } from '../materials/glass'
 import { backdropUrl, blurBackdrop, importBackdrop } from '../materials/backdrop'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -160,6 +160,21 @@ export function Settings({
     false,
     document.documentElement.dataset.platform === 'darwin',
   )
+  // The header's title lies on the categories' glass: it takes their ink (materials/appearance.ts).
+  const headerTitle = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const nav = categoriesGlass.ref.current,
+      title = headerTitle.current
+    if (!nav || !title) return
+    const mirror = () => {
+      if (nav.dataset.appearance) title.dataset.appearance = nav.dataset.appearance
+      else delete title.dataset.appearance
+    }
+    mirror()
+    const observer = new MutationObserver(mirror)
+    observer.observe(nav, { attributes: true, attributeFilter: ['data-appearance'] })
+    return () => observer.disconnect()
+  }, [categoriesGlass.ref])
   const panelMotion = useTabMotion<HTMLDivElement>(
     shown,
     visible.map((item) => item.id),
@@ -253,7 +268,7 @@ export function Settings({
             <ChevronLeft size={16} />
           </IconButton>
         </Capsule>
-        <strong>{t('settings:title')}</strong>
+        <strong ref={headerTitle}>{t('settings:title')}</strong>
         <ApplicationMenu platform={boot.platform} className={styles.menu} />
       </header>
       <div className={styles.layout}>

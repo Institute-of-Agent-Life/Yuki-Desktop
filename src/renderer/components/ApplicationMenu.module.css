@@ -27,6 +27,6 @@
   border-radius: var(--r-row);
   background: var(--mat-chrome);
   backdrop-filter: var(--glass-frost);
-  color: var(--status-failed);
+  color: color-mix(in srgb, var(--status-failed) var(--ink-mix), var(--ink-base));
   box-shadow: var(--shadow-glass);
 }

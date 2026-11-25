@@ -277,3 +277,13 @@
 .toolbarHeader .returnLabel {
   max-width: 180px;
 }
+
+/* Over a picture of one's own the status line is a strip of frost (materials.css). */
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .status {
+  padding: 4px 10px;
+  --frost-radius: var(--r-control);
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .state {
+  padding: 3px 10px;
+  --frost-radius: 999px;
+}

@@ -212,7 +212,7 @@ export function Capsule({
 }
 export function Banner({ status = 'offline', children }: { status?: Status; children: ReactNode }) {
   return (
-    <div role="status" className={styles.banner} style={statusStyle(status)}>
+    <div role="status" className={styles.banner} style={statusStyle(status)} data-frost>
       {children}
     </div>
   )
@@ -228,7 +228,7 @@ export function EmptyState({
   action?: ReactNode
 }) {
   return (
-    <div className={styles.empty}>
+    <div className={styles.empty} data-frost>
       <Snowflake size={48} />
       <h3>{title}</h3>
       <p>{children}</p>

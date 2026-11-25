@@ -142,7 +142,7 @@
   align-items: flex-start;
 }
 .questionLabel > svg {
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
   flex-shrink: 0;
   margin-top: 3px;
 }

@@ -708,11 +708,19 @@ export function Conversation({
       )
     }
     update()
+    root.style.setProperty('--accent-light', accent.light)
+    root.style.setProperty('--accent-dark', accent.dark)
     const observer = new MutationObserver(update)
     observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] })
     return () => {
       observer.disconnect()
-      for (const key of ['--accent', '--accent-strong', '--accent-subtle'])
+      for (const key of [
+        '--accent',
+        '--accent-strong',
+        '--accent-subtle',
+        '--accent-light',
+        '--accent-dark',
+      ])
         root.style.removeProperty(key)
     }
   }, [profileData?.accent, preferences.theme, active])
@@ -1184,7 +1192,7 @@ export function Conversation({
               close={() => workspace.patch({ preview: undefined })}
             />
           ) : inspectorTab === 'files' ? (
-            <div className={styles.inspector}>
+            <div className={styles.inspector} data-frost>
               <h3>{t('conversation:noFile')}</h3>
               <p>{t('conversation:noFileDescription')}</p>
               <Button variant="plain" onClick={() => workspace.setView('files')}>
@@ -1192,7 +1200,7 @@ export function Conversation({
               </Button>
             </div>
           ) : (
-            <div className={styles.inspector}>
+            <div className={styles.inspector} data-frost>
               <h3>{t('conversation:noWork')}</h3>
               <p>{t('conversation:noWorkDescription')}</p>
               <Button variant="plain" onClick={() => workspace.setView('works')}>
@@ -1377,7 +1385,6 @@ export function Conversation({
             </div>
             <div
               className={styles.messages}
-              data-frost-layer
               role="log"
               aria-label={t('conversation:messages')}
               aria-live="polite"

@@ -36,7 +36,7 @@
   text-align: left;
 }
 .welcomeMark {
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
 }
 .entryChoices {
   display: flex;
@@ -200,7 +200,7 @@
   background: transparent;
 }
 .nav svg {
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
 }
 :global([data-contrast='true']) .nav[aria-current='page'],
 :global([data-contrast='true']) .nav[aria-current='page'] svg {
@@ -391,7 +391,7 @@
 .composerError {
   flex-shrink: 0;
   margin: 4px 8px 0;
-  color: var(--status-failed);
+  color: color-mix(in srgb, var(--status-failed) var(--ink-mix), var(--ink-base));
 }
 .composerError:empty {
   margin: 0;

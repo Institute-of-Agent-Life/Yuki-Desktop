@@ -105,7 +105,7 @@ export function About({
   }
   return (
     <div className={styles.about}>
-      <div className={styles.inner}>
+      <div className={styles.inner} data-frost-children>
         <header className={styles.hero}>
           <div className={styles.portrait}>
             <CharacterAvatar size={200} />
@@ -251,6 +251,7 @@ export function About({
           role="tabpanel"
           aria-label={t(`about:tab.${tab}`)}
           className={styles.panel}
+          data-frost-children
         >
           {tab === 'me' || tab === 'self' ? (
             <Memories

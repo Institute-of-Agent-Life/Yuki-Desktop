@@ -130,7 +130,7 @@
 }
 .source {
   background: var(--bg-raised);
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
   border: 0;
   border-left: 2px solid var(--separator);
   padding: 8px 12px;
@@ -250,4 +250,20 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* Over a picture of one's own the introduction, the avatar's notes, the tabs and each part of a tab
+   are blocks of frost (materials.css). */
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .hero {
+  padding: 16px;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true']))
+  .inner
+  > :not(.hero, .panel, [role='radiogroup'], [role='tablist']) {
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .panel > * {
+  padding: 12px 16px;
+  margin-bottom: 12px;
 }

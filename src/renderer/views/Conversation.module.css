@@ -147,7 +147,7 @@
   text-align: right;
 }
 .pending[data-problem] {
-  color: var(--status-failed);
+  color: color-mix(in srgb, var(--status-failed) var(--ink-mix), var(--ink-base));
 }
 /* The selection frames the bubble itself, not the avatar beside it. */
 .selected .bubble {
@@ -238,7 +238,7 @@
   padding: 6px 10px;
 }
 .markdown a {
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
   text-decoration: underline;
 }
 .pending {
@@ -314,7 +314,7 @@
   background: var(--mat-pane);
   border-radius: var(--r-panel);
   backdrop-filter: var(--glass-regular);
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
 }
 .readonly {
   padding: 16px 24px;

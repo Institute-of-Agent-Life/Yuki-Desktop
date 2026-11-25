@@ -152,7 +152,7 @@
 }
 .reference {
   display: block;
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
   padding: 6px 0;
   text-align: left;
 }
@@ -244,6 +244,8 @@
    blocks of frost of their own (materials.css), with the picture between them and no lines. */
 :global(:root[data-backdrop='custom']:not([data-opaque='true'])) .list {
   border-right: 0;
+  /* The same inset from the sidebar as every other page's first block (Works, Settings). */
+  padding-left: 24px;
 }
 :global(:root[data-backdrop='custom']:not([data-opaque='true'])) .list > [data-selected] {
   margin-bottom: 6px;
@@ -254,7 +256,7 @@
 }
 :global(:root[data-backdrop='custom']:not([data-opaque='true'])) .stage {
   gap: 12px;
-  padding: calc(12px + var(--toolbar-inset, 0px)) 16px 16px 0;
+  padding: calc(12px + var(--toolbar-inset, 0px)) 24px 16px 0;
 }
 :global(:root[data-backdrop='custom']:not([data-opaque='true'])) .previewHeader {
   border-bottom: 0;

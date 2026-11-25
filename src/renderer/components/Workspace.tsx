@@ -453,7 +453,7 @@ export function Workspace(props: Props) {
                 />
               )}
               {!detailLayer && (
-                <>
+                <Capsule>
                   <IconButton
                     label={
                       focusMode ? t('workspace:restoreLayout') : t('workspace:expandInspector')
@@ -465,7 +465,7 @@ export function Workspace(props: Props) {
                   <IconButton label={t('workspace:closeInspector')} onClick={closeInspector}>
                     <X size={16} />
                   </IconButton>
-                </>
+                </Capsule>
               )}
             </header>
             <div

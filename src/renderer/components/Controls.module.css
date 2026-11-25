@@ -46,11 +46,11 @@
   background: color-mix(in srgb, var(--control) 92%, var(--text-primary));
 }
 .plain {
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
   padding-inline: var(--space-4);
 }
 .destructive {
-  color: var(--status-failed);
+  color: color-mix(in srgb, var(--status-failed) var(--ink-mix), var(--ink-base));
 }
 /* Large: a page's actions, a 28pt capsule; extra large: its one main action, 36pt. */
 .large,
@@ -132,7 +132,7 @@
   padding: 0 var(--space-4);
   font-size: 11px;
   font-weight: 600;
-  color: var(--status);
+  color: color-mix(in srgb, var(--status) var(--ink-mix), var(--ink-base));
   background: color-mix(in srgb, var(--status) 12%, transparent);
 }
 .dot {
@@ -149,7 +149,7 @@
   height: 32px;
   padding: 0 20px;
   flex-shrink: 0;
-  color: var(--status);
+  color: color-mix(in srgb, var(--status) var(--ink-mix), var(--ink-base));
   background: color-mix(in srgb, var(--status) 12%, var(--surface-page));
   font-size: 12px;
 }
@@ -382,4 +382,10 @@
   background: var(--mat-glass);
   backdrop-filter: var(--glass-regular);
   -webkit-app-region: no-drag;
+}
+
+/* Over a picture of one's own a banner is frost tinted by its status (materials.css), and an empty
+   page's note a block of it. */
+.banner {
+  --frost-fill: color-mix(in srgb, var(--status) 14%, transparent);
 }

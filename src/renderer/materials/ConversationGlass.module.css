@@ -45,8 +45,9 @@
    shown as the bubble turns dark over a dark part of the picture (materials/appearance.ts) and
    faded in and out over 200ms. */
 :global([data-backdrop='custom']) .root {
-  /* The picture's copy carries the dim and the glass's colour itself (materials/backdrop.ts). */
-  --bubble-material: transparent;
+  /* The picture's copy carries the dim and the glass's colour itself (materials/backdrop.ts);
+     over it lies the little wash of its appearance that content's frost has (materials.css). */
+  --bubble-material: var(--frost-wash, transparent);
 }
 :global([data-backdrop='custom']) .surface,
 :global([data-backdrop='custom']) .surface::after {
@@ -60,6 +61,7 @@
   background-attachment: fixed;
 }
 :global([data-backdrop='custom']) .surface::after {
+  --glass-neutral-tint: rgb(0 0 0 / 0.14);
   content: '';
   position: absolute;
   inset: 0;

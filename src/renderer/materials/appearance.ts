@@ -15,7 +15,7 @@
  *     there 5.1:1), so it holds while the window moves or resizes near the edge;
  *   dark theme: white on the dark glass keeps 4.5:1 up to 0.53 (glass level 118); above it the
  *     glass turns light, and dark again only below 0.43 (black on the light glass 5.2:1).
- * Quiet text, black at 0.66 or white at 0.70 over the glass (materials.css), keeps 3.2:1 at those
+ * Quiet text, black at 0.8 or white at 0.76 over the glass (materials.css), keeps 3.2:1 at those
  * edges. The 90th percentile guards white ink against bright spots under it: above 0.70 the glass
  * is light (white keeps 3.2:1 over the dark glass at 0.70), and it may turn dark only below 0.65.
  * The glass and its ink cross-fade over 200ms as it turns (glass.ts, materials.css).
@@ -131,7 +131,8 @@ const unobserve = (element: HTMLElement) => {
  * Content's frost (materials.css: `data-frost`, and the children of `data-frost-children`) is
  * watched as it comes into the page and left as it goes, while a picture of one's own is shown.
  */
-const frost = '[data-frost], [data-frost-children] > :not([data-frost-children])'
+const frost =
+  '[data-frost], [data-frost-children] > :not([data-frost-children], [data-glass], dialog, [popover])'
 const frosts = new Map<HTMLElement, () => void>()
 const addFrost = (node: Node) => {
   if (!(node instanceof HTMLElement)) return
