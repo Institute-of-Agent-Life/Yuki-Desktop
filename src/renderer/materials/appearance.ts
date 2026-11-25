@@ -34,6 +34,9 @@ const guard = 0.7,
   band = 0.05
 
 let sample: Sample | undefined
+// What is to be read afresh, by the theme's rule alone: everything, when another picture (or the
+// picture of another theme) is shown. Hysteresis holds only while one picture stays.
+let anew = new WeakSet<HTMLElement>()
 // What is watched (and whether it is content, whose frost is a fill without GPU compositing), and
 // of it what is in sight: only that is read as the conversation scrolls. Their sizes and sight are
 // observed only while a picture of one's own is shown, so that otherwise a long conversation costs
@@ -65,7 +68,8 @@ function decide(element: HTMLElement) {
   const box = element.getBoundingClientRect()
   if (!box.width || !box.height) return
   const { mean, high } = sample(box)
-  const had = element.dataset.appearance as Appearance | undefined
+  const had = anew.has(element) ? undefined : (element.dataset.appearance as Appearance | undefined)
+  anew.delete(element)
   const theme: Appearance = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
   const { turn, back } = edges[theme],
     shown = had ?? theme
@@ -123,8 +127,12 @@ const unobserve = (element: HTMLElement) => {
   shown.delete(element)
 }
 
-/** What lies under the glass, while a picture of one's own is shown (none: the theme's). */
-export function setBackdropSample(next: Sample | undefined) {
+/**
+ * What lies under the glass, while a picture of one's own is shown (none: the theme's); `fresh`
+ * the first time for a picture, which every glass then reads afresh.
+ */
+export function setBackdropSample(next: Sample | undefined, fresh = false) {
+  if (fresh) anew = new WeakSet(watched.keys())
   if (!sample && next) for (const element of watched.keys()) observe(element)
   if (sample && !next) for (const element of watched.keys()) unobserve(element)
   sample = next

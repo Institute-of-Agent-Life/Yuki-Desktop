@@ -163,8 +163,8 @@ const kinds = {
 } as const
 export type GlassKind = keyof typeof kinds
 // The glass that takes the appearance of what lies under it (appearance.ts): what carries text
-// (a page read over a picture of one's own too), and the send button nested in the composer.
-const adaptive = new Set<GlassKind>(['sidebar', 'toolbar', 'composer', 'send', 'page'])
+// (a page read over a picture of one's own too). The send button's circle takes its composer's.
+const adaptive = new Set<GlassKind>(['sidebar', 'toolbar', 'composer', 'page'])
 /*
  * A pane that carries text is blurred as Apple's clear glass blurs a pane of its size, measured on
  * NSGlassEffectView over the same pictures (the native captures, fitted with a Gaussian and a

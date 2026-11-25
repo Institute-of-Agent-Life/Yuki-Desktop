@@ -215,7 +215,8 @@ function followIn(backdrop: CustomBackdrop, theme: 'light' | 'dark') {
           outside: number
         }
       | undefined,
-    lumas: { data: Float32Array; width: number; height: number } | undefined
+    lumas: { data: Float32Array; width: number; height: number } | undefined,
+    published = false
   // The page's colour laid over the picture, as luminance.
   const page = () => {
     const [r, g, b] = getComputedStyle(root)
@@ -230,6 +231,9 @@ function followIn(backdrop: CustomBackdrop, theme: 'light' | 'dark') {
     const at = placement,
       map = lumas
     if (!at || !map) return
+    // Read afresh the first time for this picture in this theme (appearance.ts).
+    const fresh = !published
+    published = true
     setBackdropSample((rect) => {
       const values: number[] = [],
         step = Math.max(2, Math.min(rect.width, rect.height) / 16)
@@ -253,7 +257,7 @@ function followIn(backdrop: CustomBackdrop, theme: 'light' | 'dark') {
         mean: values.reduce((sum, value) => sum + value, 0) / values.length,
         high: values[Math.floor(values.length * 0.9)]!,
       }
-    })
+    }, fresh)
   }
   const update = () => {
     frame = 0
