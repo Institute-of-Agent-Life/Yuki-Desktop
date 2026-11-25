@@ -195,7 +195,7 @@ export const paneBlur = (short: number) => Math.round(2 * Math.min(20, 0.24 * sh
 export function roundedDistance(x: number, y: number, hx: number, hy: number, radius: number) {
   const qx = Math.abs(x) - hx + radius,
     qy = Math.abs(y) - hy + radius
-  return Math.min(Math.max(qx, qy), 0) + Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - radius
+  return (qx > 0 && qy > 0 ? Math.sqrt(qx * qx + qy * qy) : Math.max(qx, qy)) - radius
 }
 
 // Where a piece of the bend map lies along one side of the glass, in CSS pixels: `offset` from
@@ -271,7 +271,7 @@ function lens(
     const qx = Math.abs(x) - hx + corner,
       qy = Math.abs(y) - hy + corner
     if (qx > 0 && qy > 0) {
-      const length = Math.hypot(qx, qy)
+      const length = Math.sqrt(qx * qx + qy * qy)
       return [(Math.sign(x) * qx) / length, (Math.sign(y) * qy) / length] as const
     }
     return qx > qy ? ([Math.sign(x), 0] as const) : ([0, Math.sign(y)] as const)
@@ -281,7 +281,7 @@ function lens(
   // band: the face keeps the map's starting value.
   const paint = (
     start: number,
-    draw: (data: Uint8ClampedArray, k: number, x: number, y: number, distance: number) => void,
+    draw: (image: ImageData, i: number, j: number, x: number, y: number, distance: number) => void,
   ) => {
     const canvas = document.createElement('canvas')
     canvas.width = Math.max(1, Math.round(w * scale))
@@ -289,13 +289,13 @@ function lens(
     const context = canvas.getContext('2d')!,
       image = context.createImageData(canvas.width, canvas.height)
     new Uint32Array(image.data.buffer).fill(start)
-    for (let j = 0; j < canvas.height; j++)
-      for (let i = 0; i < canvas.width; i++) {
+    for (let j = 0; j < image.height / 2; j++)
+      for (let i = 0; i < image.width / 2; i++) {
         const x = (i + 0.5) / scale - hx,
           y = (j + 0.5) / scale - hy,
           distance = roundedDistance(x, y, hx, hy, radius)
         if (distance > 1 / scale || -distance > reach + 2) continue
-        draw(image.data, (j * canvas.width + i) * 4, x, y, distance)
+        draw(image, i, j, x, y, distance)
       }
     context.putImageData(image, 0, 0)
     return canvas
@@ -309,10 +309,9 @@ function lens(
   const rest = values(0.5, 0.5, mixRest).map((value) => Math.round(value * 255))
   const bend = paint(
     new Uint32Array(new Uint8ClampedArray([rest[0]!, rest[1]!, rest[2]!, 128]).buffer)[0]!,
-    (data, k, x, y, distance) => {
+    (image, i, j, x, y, distance) => {
       const amount = shape.bend(-distance, radius) / span,
         [nx, ny] = normal(x, y, turned)
-      const noise = (((k * 2654435761) >>> 0) / 4294967296 - 0.5) / 255
       const [rx, ry] = normal(x, y, radius),
         coverage = Math.max(0, Math.min(1, 0.5 - distance * scale))
       const rim = edged
@@ -324,15 +323,27 @@ function lens(
             rimShape.tail,
           )
         : { mix: 0, add: 0 }
-      const shown = values(
-        0.5 - amount * nx + noise,
-        0.5 - amount * ny - noise,
-        mixRest + rim.mix * coverage,
-      )
-      data[k] = Math.round(shown[0] * 255)
-      data[k + 1] = Math.round(shown[1] * 255)
-      data[k + 2] = Math.round(shown[2] * 255)
-      data[k + 3] = Math.round(128 + rim.add * coverage)
+      // All four quadrants share their depth and rim. Mirror the bend's direction, retaining
+      // each pixel's own dither so the maps remain the same down to their individual bytes.
+      const blue = mixRest + rim.mix * coverage,
+        alpha = Math.round(128 + rim.add * coverage)
+      const pixel = (col: number, row: number, dx: number, dy: number) => {
+        const k = (row * image.width + col) * 4
+        const noise = (((k * 2654435761) >>> 0) / 4294967296 - 0.5) / 255
+        const shown = values(0.5 - dx + noise, 0.5 - dy - noise, blue)
+        image.data[k] = Math.round(shown[0] * 255)
+        image.data[k + 1] = Math.round(shown[1] * 255)
+        image.data[k + 2] = Math.round(shown[2] * 255)
+        image.data[k + 3] = alpha
+      }
+      const right = image.width - i - 1,
+        bottom = image.height - j - 1,
+        dx = amount * nx,
+        dy = amount * ny
+      pixel(i, j, dx, dy)
+      pixel(right, j, -dx, dy)
+      pixel(i, bottom, dx, -dy)
+      pixel(right, bottom, -dx, -dy)
     },
   )
   // Each axis cut into its start, a middle one CSS pixel long that stretches along a straight
