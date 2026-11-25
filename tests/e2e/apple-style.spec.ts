@@ -252,8 +252,10 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
           '--r-window',
           '--inset',
           '--r-pane',
-          '--r-control',
-          '--r-group',
+          '--r-capsule',
+          '--r-container-s',
+          '--r-container-m',
+          '--r-container-l',
           '--h-regular',
           '--h-large',
           '--h-xl',
@@ -289,8 +291,12 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
     }
 
     // 1: tokens.
-    expect.soft(tokens['--r-control'], 'control radius').toBe('6px')
-    expect.soft(tokens['--r-group'], 'group radius').toBe('10px')
+    // Revised (macOS 26 shapes, shapes.spec.ts): controls are capsules, containers large and
+    // rounded.
+    expect.soft(tokens['--r-capsule'], 'control radius').toBe('999px')
+    expect
+      .soft([tokens['--r-container-s'], tokens['--r-container-m'], tokens['--r-container-l']])
+      .toEqual(['18px', '22px', '26px'])
     expect
       .soft([tokens['--h-regular'], tokens['--h-large'], tokens['--h-xl']])
       .toEqual(['24px', '28px', '36px'])
@@ -435,7 +441,7 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
     expect.soft((await back.textContent())?.trim(), 'Back is a chevron').toBe('')
     expect.soft(await back.locator('svg.lucide-chevron-left').count(), 'chevron').toBe(1)
     const segmented = await box(page.getByRole('radiogroup', { name: '主題', exact: true }))
-    expect.soft([segmented.height, segmented.radius], 'segmented').toEqual([24, '6px'])
+    expect.soft([segmented.height, segmented.radius], 'segmented').toEqual([24, '999px'])
     await page.getByRole('tab', { name: '一般', exact: true }).click()
     const groups = await page.locator('[data-settings-group]').evaluateAll((nodes) =>
       nodes.map((node) => {
@@ -458,12 +464,12 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
     expect.soft(groups.length, 'grouped lists').toBeGreaterThan(1)
     for (const group of groups) {
       expect.soft(group.border, 'no border').toBe('0px')
-      expect.soft(group.radius, 'group corner').toBe('10px')
+      expect.soft(group.radius, 'group corner').toBe('22px')
       for (const row of group.rows) expect.soft(row).toBeGreaterThanOrEqual(40)
       if (group.separator) expect.soft(group.separator.left, 'separator at the text').toBe('12px')
     }
     const language = await box(page.locator('[data-settings-row] select').first())
-    expect.soft([language.height, language.radius], 'field').toEqual([24, '6px'])
+    expect.soft([language.height, language.radius], 'field').toEqual([24, '999px'])
     const toggle = await box(page.getByRole('switch').first())
     expect.soft([toggle.width, toggle.height], 'switch').toEqual([40, 22])
 
@@ -472,7 +478,7 @@ test('the app in the shape of macOS 26: tokens, controls, window, settings, page
     const logout = page.getByRole('button', { name: '登出…', exact: true })
     const regular = await box(logout)
     evidence.regular = regular
-    expect.soft([regular.height, regular.radius], 'regular button').toEqual([24, '6px'])
+    expect.soft([regular.height, regular.radius], 'regular button').toEqual([24, '999px'])
     expect.soft(regular.letterSpacing, 'no added tracking').toBe('normal')
     for (const theme of ['light', 'dark'] as const) {
       await appearance(page, theme)

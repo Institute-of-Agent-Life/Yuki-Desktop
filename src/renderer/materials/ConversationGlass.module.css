@@ -17,7 +17,7 @@
   position: absolute;
   inset: 0;
   /* At rest the radius alone shapes the pane; only an entering drop is clipped to its contour. */
-  border-radius: var(--glass-radius, var(--r-panel));
+  border-radius: var(--glass-radius, var(--r-container-s));
   pointer-events: none;
   background-color: var(--bg-content);
   background-image:
@@ -34,7 +34,7 @@
   padding: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
   clip-path: inset(
     0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px) round
-      var(--glass-radius, var(--r-panel))
+      var(--glass-radius, var(--r-container-s))
   );
 }
 .surface:global([data-liquid])::before {

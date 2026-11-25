@@ -64,24 +64,25 @@
   --status-unknown: #6b4cc6;
   --status-offline: #64676e;
   /*
-   * Shapes (WWDC25 356): nested shapes are concentric. The window's corner is the system's
-   * (`--r-window`, per platform below); a pane inset into it takes the window's corner less the
-   * inset (`--r-pane`). Controls follow AppKit's sizes: regular 24 with a 6pt corner, large 28 and
-   * extra large 36 as capsules.
+   * Shapes, as macOS 26 and iOS 26 draw them (WWDC25 356): every control is a capsule (a circle
+   * where it is as wide as it is tall), every container a large rounded rectangle, and nested
+   * shapes are concentric: a shape inside another takes the outer corner less the padding between
+   * them (`calc(var(--r-container-m) - <padding>)`), never less than a control's capsule. The
+   * window's corner is the system's (`--r-window`, per platform below); a pane inset into it takes
+   * the window's corner less the inset (`--r-pane`). Containers' corners are continuous where
+   * Chromium draws them (`corner-shape: squircle`, materials.css); glass keeps round corners,
+   * which its lens and rim maps follow.
    */
   --r-window: 0px;
   --inset: 0px;
   --r-pane: max(0px, calc(var(--r-window) - var(--inset)));
-  --r-xs: 3px;
-  --r-sm: 4px;
-  --r-control: 6px;
-  --r-row: 8px;
-  --r-group: 10px;
-  --r-card: 12px;
-  --r-panel: 14px;
-  --r-popover: 16px;
-  --r-sheet: 20px;
   --r-capsule: 999px;
+  /* Rows, bubbles, small cards; groups, cards and popovers; sheets, menus and the composer. */
+  --r-container-s: 18px;
+  --r-container-m: 22px;
+  --r-container-l: 26px;
+  /* A check box keeps the rounded square macOS draws: a capsule would read as a radio. */
+  --r-checkbox: 5px;
   --h-small: 20px;
   --h-regular: 24px;
   --h-large: 28px;
@@ -428,10 +429,14 @@ select {
   input[type='email']
 ) {
   min-height: var(--h-regular);
-  padding: var(--space-1) var(--space-4);
+  padding: var(--space-1) var(--space-5);
   border: var(--line) solid var(--field-line);
-  border-radius: var(--r-control);
+  border-radius: var(--r-capsule);
   background: var(--field);
+}
+/* A field of several lines is a container, its corner a little rounder than the rows around it. */
+:where(textarea) {
+  border-radius: var(--r-container-s);
 }
 /* A select is a small piece of glass, as a button is (Controls.module.css): the Dock's colour over
    2pt of blur, its edge the field's hairline. Inside other glass it is drawn on that glass with a
@@ -471,7 +476,7 @@ select {
   margin: 0 6px 0 0;
   vertical-align: -3px;
   border: var(--line) solid var(--field-line);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-checkbox);
   background: var(--field);
   transition: background var(--motion-fast) var(--ease-standard);
 }

@@ -7,7 +7,7 @@
   max-height: calc(100dvh - 152px);
   padding: 0;
   border: 0;
-  border-radius: var(--r-sheet);
+  border-radius: var(--r-container-l);
   background: var(--mat-sheet-glass);
   backdrop-filter: var(--glass-sheet);
   color: var(--text-primary);
@@ -58,7 +58,10 @@
 .item {
   display: flex;
   align-items: center;
-  width: 100%;
+  /* A capsule inset into the palette, concentric with its corner (26 less 8). */
+  width: calc(100% - 16px);
+  margin: 0 8px;
+  border-radius: var(--r-capsule);
   height: 36px;
   min-height: 36px;
   padding: 0 16px;

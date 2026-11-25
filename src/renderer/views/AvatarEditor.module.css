@@ -14,7 +14,7 @@
   position: relative;
   width: var(--crop-size);
   height: var(--crop-size);
-  border-radius: var(--r-popover);
+  border-radius: var(--r-container-l);
   overflow: hidden;
   background: var(--bg-inspector);
   cursor: grab;
@@ -79,7 +79,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  border-radius: var(--r-group);
+  border-radius: var(--r-container-s);
   padding: 12px;
   min-height: 56px;
   border: 1px solid var(--separator);
@@ -103,7 +103,7 @@
 }
 .card {
   background: var(--bg-sidebar);
-  border-radius: var(--r-group);
+  border-radius: var(--r-container-s);
 }
 .card > div {
   margin: 0;

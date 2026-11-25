@@ -13,7 +13,7 @@
   min-width: 0;
   padding: 0;
   border: 0;
-  border-radius: var(--r-card);
+  border-radius: var(--r-container-m);
   background: transparent;
   color: var(--text-primary);
   text-align: left;
@@ -41,7 +41,7 @@
   border: 0;
   color: var(--text-primary);
   padding: 6px;
-  border-radius: var(--r-panel);
+  border-radius: var(--r-container-l);
   background: var(--mat-sheet-glass);
   backdrop-filter: var(--glass-sheet);
   box-shadow: var(--shadow-pane);
@@ -57,7 +57,7 @@
   gap: 10px;
   width: 100%;
   padding: 8px;
-  border-radius: var(--r-control);
+  border-radius: var(--r-capsule);
   text-align: left;
   min-width: 0;
   cursor: pointer;
@@ -100,7 +100,7 @@
   width: 100%;
   padding: 8px;
   border: 0;
-  border-radius: var(--r-control);
+  border-radius: var(--r-capsule);
   background: transparent;
   color: var(--text-primary);
   font-size: 13px;

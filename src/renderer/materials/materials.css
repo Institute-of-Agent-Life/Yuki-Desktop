@@ -92,7 +92,9 @@
   background-size: auto, var(--backdrop-frost-size, var(--backdrop-size));
   background-repeat: var(--backdrop-repeat);
   background-attachment: fixed;
-  border-radius: var(--frost-radius, var(--r-group));
+  border-radius: var(--frost-radius, var(--r-container-m));
+  /* Continuous corners for a block; a capsule keeps round ends. */
+  corner-shape: var(--frost-corner, squircle);
   border-color: transparent;
 }
 :root[data-backdrop='custom']:not([data-opaque='true'])
@@ -118,7 +120,8 @@
   width: fit-content;
   max-width: 100%;
   padding: 2px 10px;
-  --frost-radius: 999px;
+  --frost-radius: var(--r-capsule);
+  --frost-corner: round;
 }
 /* Without GPU compositing the frost is a fill of the theme, as a bubble's is. */
 :root[data-backdrop='custom'][data-gpu-compositing='false']:not([data-opaque='true'])

@@ -13,7 +13,7 @@
   height: fit-content;
   min-height: var(--h-regular);
   padding: 3px var(--space-5);
-  border-radius: var(--r-control);
+  border-radius: var(--r-capsule);
   font-weight: 500;
   line-height: 18px;
   text-align: center;
@@ -161,6 +161,7 @@
   height: 32px;
   padding: 0 20px;
   flex-shrink: 0;
+  border-radius: var(--r-container-m);
   color: var(--status);
   background: color-mix(in srgb, var(--status) 12%, var(--surface-page));
   font-size: 12px;
@@ -169,7 +170,7 @@
   width: min(480px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   border: 0;
-  border-radius: var(--r-sheet);
+  border-radius: var(--r-container-l);
   padding: 0;
   color: var(--text-primary);
   background: var(--mat-sheet-glass);

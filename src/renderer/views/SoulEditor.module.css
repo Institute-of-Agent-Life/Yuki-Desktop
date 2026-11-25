@@ -112,7 +112,7 @@
 }
 .code :global(.cm-soul-name) {
   background: var(--accent-subtle);
-  border-radius: var(--r-xs);
+  border-radius: var(--r-capsule);
 }
 .code :global(.cm-cursor) {
   border-left-color: var(--accent);
@@ -133,7 +133,7 @@
   color: var(--text-primary);
   background: var(--bg-content);
   border: 1px solid var(--separator);
-  border-radius: var(--r-control);
+  border-radius: var(--r-capsule);
 }
 .footer {
   display: flex;
@@ -173,7 +173,7 @@
   right: 0;
   width: min(360px, calc(100vw - 48px));
   padding: 12px 16px;
-  border-radius: var(--r-row);
+  border-radius: var(--r-container-s);
   background: var(--mat-chrome);
   backdrop-filter: var(--glass-frost);
   color: var(--text-secondary);
@@ -225,7 +225,7 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   border: var(--line) solid var(--separator);
-  border-radius: var(--r-row);
+  border-radius: var(--r-container-s);
 }
 .changed {
   background: var(--fill-selected);

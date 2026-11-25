@@ -84,7 +84,7 @@
   padding: var(--space-3) var(--space-4);
   border: 0;
   background: none;
-  border-radius: var(--r-row);
+  border-radius: var(--r-capsule);
   text-align: left;
   color: var(--text-primary);
   cursor: pointer;
@@ -162,7 +162,7 @@
 /* A grouped inset list (HIG grouped form): a fill without a border, rows of at least 40pt, and
    separators that start where the text does. */
 .group {
-  border-radius: var(--r-group);
+  border-radius: var(--r-container-m);
   overflow: hidden;
   margin-bottom: var(--space-7);
   background: var(--grouped);
@@ -293,7 +293,7 @@
   height: auto;
   margin: 0;
   background: #fff;
-  border-radius: var(--r-row);
+  border-radius: var(--r-container-s);
 }
 .secret {
   font: 13px/20px var(--font-mono);
@@ -317,7 +317,7 @@
   font: 12px/18px var(--font-mono);
   color: var(--text-primary);
   background: var(--bg-raised);
-  border-radius: var(--r-row);
+  border-radius: var(--r-container-s);
   padding: 12px;
 }
 @media (max-width: 1000px) {
@@ -387,7 +387,7 @@
 .backdropSwatch {
   width: 56px;
   height: 38px;
-  border-radius: var(--r-group);
+  border-radius: var(--r-capsule);
   box-shadow: inset 0 0 0 var(--line) var(--separator-strong);
 }
 .backdrop[aria-checked='true'] {

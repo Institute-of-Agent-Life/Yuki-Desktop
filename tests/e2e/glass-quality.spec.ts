@@ -40,7 +40,7 @@ test('resting bubbles are shaped by their radius, and lit glass has its light at
   }))
   evidence.restingShape = shape
   expect(shape.clip).toBe('none')
-  expect(shape.radius).toBe('16px')
+  expect(shape.radius).toBe('18px')
   expect(shape.surface).toBe(shape.bubble)
   // 2, as revised by the 液态玻璃组件统一 task book: the rim's map is drawn at the display's own
   // pixels, so the rim stays smooth on Retina screens at any size.

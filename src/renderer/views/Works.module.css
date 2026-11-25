@@ -35,7 +35,7 @@
   width: 100%;
   height: 56px;
   padding: 0 8px;
-  border-radius: var(--r-row);
+  border-radius: var(--r-container-s);
   text-align: left;
 }
 .row:hover {
@@ -115,7 +115,7 @@
   max-width: 100%;
   min-height: 44px;
   padding: 8px 12px;
-  border-radius: var(--r-group);
+  border-radius: var(--r-container-s);
   background: var(--bg-raised);
   text-align: left;
   font-size: 12px;
@@ -127,7 +127,7 @@
 }
 .question {
   background: var(--accent-subtle);
-  border-radius: var(--r-group);
+  border-radius: var(--r-container-s);
   padding: 12px;
   font-size: 14px;
   line-height: 22px;
@@ -199,7 +199,7 @@
 }
 .reply:not(.inlineReply) > header {
   background: var(--bg-raised);
-  border-radius: var(--r-card);
+  border-radius: var(--r-container-s);
 }
 .reply [data-region='composer'] {
   position: relative;
@@ -211,7 +211,7 @@
 .command {
   padding: 12px;
   border: 1px solid var(--separator);
-  border-radius: var(--r-row);
+  border-radius: var(--r-container-s);
   font-size: 12px;
 }
 .command p {
@@ -257,7 +257,7 @@
   gap: 8px;
   margin: 8px 0 12px;
   padding: 12px;
-  border-radius: var(--r-group);
+  border-radius: var(--r-container-s);
   background: var(--accent-subtle);
   font-size: 13px;
   line-height: 20px;
@@ -281,7 +281,7 @@
   max-width: 100%;
   min-height: 28px;
   padding: 2px 8px;
-  border-radius: var(--r-row);
+  border-radius: var(--r-container-s);
   font-size: 12px;
   text-align: left;
 }

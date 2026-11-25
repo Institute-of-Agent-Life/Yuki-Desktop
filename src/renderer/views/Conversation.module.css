@@ -17,6 +17,7 @@
 :global([data-backdrop='custom']) :is(.dateSeparator, .conversationIntroduction) {
   width: fit-content;
   --frost-radius: var(--r-capsule);
+  --frost-corner: round;
 }
 :global([data-backdrop='custom']) .dateSeparator {
   margin-inline: auto;
@@ -44,7 +45,7 @@
   margin: 0 0 14px;
   width: fit-content;
   max-width: min(620px, 100%);
-  border-radius: var(--r-popover);
+  border-radius: var(--r-container-s);
 }
 .message > [role='img'] {
   margin-top: 7px;
@@ -66,7 +67,7 @@
   align-items: flex-end;
 }
 .bubble {
-  --glass-radius: var(--r-popover);
+  --glass-radius: var(--r-container-s);
   --glass-bleed-inline: 22px;
   --glass-bleed-tail: 30px;
   min-width: 0;
@@ -145,7 +146,7 @@
   position: absolute;
   top: -12px;
   right: 8px;
-  border-radius: var(--r-row);
+  border-radius: var(--r-container-s);
   background: var(--mat-chrome);
   box-shadow: var(--shadow-glass);
   display: flex;
@@ -169,7 +170,7 @@
 .markdown pre {
   overflow: auto;
   background: var(--fill-code);
-  border-radius: var(--r-row);
+  border-radius: var(--r-container-s);
   padding: 12px;
 }
 .markdown :global(.code-block) {
@@ -180,7 +181,7 @@
   right: 8px;
   top: 8px;
   padding: 4px 8px;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-capsule);
   background: var(--fill-control);
   color: var(--text-secondary);
   font-size: 11px;
@@ -299,7 +300,7 @@
   right: 24px;
   padding: 6px 14px;
   background: var(--mat-pane);
-  border-radius: var(--r-panel);
+  border-radius: var(--r-capsule);
   backdrop-filter: var(--glass-regular);
   color: var(--accent);
 }
@@ -449,7 +450,7 @@
   right: 0;
   margin: 0 auto;
   width: min(712px, calc(100% - 40px));
-  border-radius: var(--r-sheet);
+  border-radius: var(--r-container-l);
   background: var(--mat-pane);
   backdrop-filter: var(--glass-regular);
 }
