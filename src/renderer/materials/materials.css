@@ -101,7 +101,6 @@
   --ink-mix: 25%;
   --ink-base: #000;
   --frost-wash: rgb(255 255 255 / 0.18);
-  --mat-sheet-glass: rgb(255 255 255 / 0.5);
   --fill-hover: rgba(20, 34, 64, 0.05);
   --fill-pressed: rgba(20, 34, 64, 0.09);
   --fill-selected: rgba(58, 107, 214, 0.14);
@@ -133,7 +132,6 @@
   --ink-mix: 30%;
   --ink-base: #fff;
   --frost-wash: rgb(0 0 0 / 0.18);
-  --mat-sheet-glass: rgb(30 32 50 / 0.74);
   --fill-hover: rgba(255, 255, 255, 0.06);
   --fill-pressed: rgba(255, 255, 255, 0.1);
   --fill-selected: rgba(127, 164, 255, 0.18);
@@ -234,6 +232,14 @@
     [data-frost-children] > :not([data-frost-children], [data-glass], dialog, [popover])
   ) {
   background: linear-gradient(var(--frost-fill, transparent) 0 0), var(--bg-elevated);
+}
+/* A menu or sheet that took the appearance against the theme takes that appearance's tint too
+   (tokens.css); in the theme's own it keeps the platform's. */
+:root:not([data-theme='dark']) [data-appearance='dark'] {
+  --mat-sheet-glass: rgb(30 32 50 / 0.74);
+}
+:root[data-theme='dark'] [data-appearance='light'] {
+  --mat-sheet-glass: rgb(255 255 255 / 0.5);
 }
 /* A disabled button on glass or frost fades less than on the page: the backdrop already takes
    contrast from it, and it must still be read (`button:disabled` in tokens.css). */

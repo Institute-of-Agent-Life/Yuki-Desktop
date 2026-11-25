@@ -21,12 +21,12 @@ import { picture, type Picture } from '../fixtures/pictures'
  *      at rest, after the wheel scrolls a page to its middle and back, and after a resize;
  *   5. a piece of the Dock's glass draws nothing (the frame equals the frame with every backdrop
  *      filter off: its backdrop read empty);
- *   6. the gap around the floating sidebar is not the picture (a strip treated otherwise);
+ *   6. the gap around the floating sidebar (macOS) is not the picture (a strip treated otherwise);
  *   7. a huge pane (the sidebar, short side over 200pt) draws a rim, or the composer draws none;
  *   8. main text reads under 4.5:1, or quiet and coloured text under 3:1, on its frost (the worst
  *      1% of the pixels under it).
  * Where the window is opaque (CI's macOS reduces transparency) the picture is not shown and only
- * 1-3 hold; without GPU compositing (CI's Linux) content's frost is a fill, and 4 and 8 do not
+ * 1 and 2 hold; without GPU compositing (CI's Linux) content's frost is a fill, and 4 and 8 do not
  * apply. Line art and the sidebar keep their measured floors (custom-backdrop.spec.ts,
  * sidebar-legibility.spec.ts).
  */
@@ -113,14 +113,12 @@ function structure(page: Page) {
       if (['IMG', 'VIDEO', 'CANVAS', 'IFRAME'].includes(node.tagName)) return true
       if (whole) return false
       if (/url\(/.test(style.backgroundImage)) return true
-      const fill = style.backgroundColor.match(/rgba?\(([^)]+)\)/)
-      return (
-        !!fill &&
-        (fill[1]!
-          .split(/[ ,/]+/)
-          .filter(Boolean)
-          .map(Number)[3] ?? 1) >= 0.6
-      )
+      // rgb(…), rgba(…), color(srgb … / a) or oklab(… / a): its alpha, the last of four numbers.
+      const colour = style.backgroundColor
+      if (colour === 'transparent') return false
+      const values = colour.match(/[\d.]+/g)!.map(Number)
+      const alpha = colour.includes('/') || colour.startsWith('rgba') ? values.at(-1)! : 1
+      return alpha >= 0.6
     }
     // Every element is hit, so that a frost layer under its text (a bubble's) is found.
     const probe = document.createElement('style')
@@ -375,6 +373,8 @@ async function glassDraws(page: Page) {
   const pieces = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>('[data-glass]')]
       .filter((node) => ['sidebar', 'toolbar', 'composer', 'send'].includes(node.dataset.glass!))
+      // Glass (a flush sidebar off macOS is a fill).
+      .filter((node) => getComputedStyle(node).backdropFilter !== 'none')
       // Shown: not a sidebar folded away over the page.
       .filter(
         (node) =>
@@ -466,7 +466,15 @@ const pages: [string, (page: Page) => Promise<void>, string?][] = [
         .click()
     },
   ],
-  ['files', (page) => nav(page, '檔案與成果')],
+  [
+    'files',
+    async (page) => {
+      // The work's detail closed first: on a narrow window it lies over the toolbar.
+      const close = page.locator('[data-region="inspector"]').getByLabel('關閉詳情').first()
+      if (await close.isVisible()) await close.click()
+      await nav(page, '檔案與成果')
+    },
+  ],
   ['computer', (page) => nav(page, '初始角色 的電腦')],
   ['this computer', (page) => nav(page, '這台電腦')],
   ['about', (page) => nav(page, '關於 初始角色'), '[data-region="content"] *'],
@@ -506,7 +514,8 @@ for (const [scale, kind, theme] of [
   test(`${kind} in the ${theme} theme at ${scale}x: every page on the one picture, its content on frost in place`, async () => {
     test.setTimeout(600000)
     await mkdir(test.info().outputPath(), { recursive: true })
-    const rig = await yukiFixture({ character: true, computer: true }),
+    // The computer fixture's display needs a POSIX temporary directory.
+    const rig = await yukiFixture({ character: true, computer: process.platform !== 'win32' }),
       app = await rig.launch(`window-backdrop-${scale}`, [`--force-device-scale-factor=${scale}`])
     let success = false
     try {
@@ -543,8 +552,9 @@ for (const [scale, kind, theme] of [
         record[name] = seen
         expect.soft(layers, `${name}: the picture is drawn once, by the window`).toEqual(['main'])
         expect.soft(panes, `${name}: no glass over most of the window`).toEqual([])
-        expect.soft(bare, `${name}: no text on the bare picture`).toEqual([])
+        // Without transparency the picture is not shown: there is no picture to be bare on.
         if (!through.glass) return
+        expect.soft(bare, `${name}: no text on the bare picture`).toEqual([])
         const draws = await glassDraws(page)
         seen.draws = draws
         for (const piece of draws)
@@ -600,7 +610,10 @@ for (const [scale, kind, theme] of [
       // composer, a pane of ordinary size, does.
       await nav(page, '桌面對話')
       await settle(page)
-      if (through.glass) {
+      const floats = await page.evaluate(
+        () => document.querySelector('[data-region="sidebar"]')!.getBoundingClientRect().x > 2,
+      )
+      if (through.glass && floats) {
         const strip = await gap(page)
         record.gap = strip
         expect.soft(strip, 'the gap around the sidebar is the picture').toBeLessThan(3)

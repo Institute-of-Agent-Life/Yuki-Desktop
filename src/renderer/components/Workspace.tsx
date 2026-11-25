@@ -433,14 +433,16 @@ export function Workspace(props: Props) {
           >
             <header className={styles.inspectorHeader} ref={detailHeader}>
               {detailLayer && (
-                <Button
-                  variant="plain"
-                  aria-label={t('workspace:closeInspector')}
-                  onClick={closeInspector}
-                >
-                  <ArrowLeft size={16} />
-                  {t('common:action.back')}
-                </Button>
+                <Capsule>
+                  <Button
+                    variant="plain"
+                    aria-label={t('workspace:closeInspector')}
+                    onClick={closeInspector}
+                  >
+                    <ArrowLeft size={16} />
+                    {t('common:action.back')}
+                  </Button>
+                </Capsule>
               )}
               {props.inspectorTitle ? (
                 <strong>{props.inspectorTitle}</strong>
