@@ -94,11 +94,11 @@ export function rimAt(pane: Locator, points: [number, number][]): Promise<number
 }
 
 /**
- * The blur of a pane that carries text (materials/glass.ts: the sidebar, the composer, a page's
- * pane): Apple's clear glass at its size, min(20, 0.24 × its short side) pt, to the half
+ * The blur of a pane that carries text (materials/glass.ts: the sidebar and the composer): Apple's
+ * clear glass at its size, min(20, 0.24 × its short side) pt, to the half
  * point. Small controls keep the Dock's 2pt.
  */
 export const paneBlur = (width: number, height: number) =>
   `${Math.round(2 * Math.min(20, 0.24 * Math.min(width, height))) / 2}px`
 /** The glass that is blurred by its size (`data-glass`). */
-export const sizedGlass = ['sidebar', 'composer', 'page']
+export const sizedGlass = ['sidebar', 'composer']

@@ -61,7 +61,7 @@
   background-attachment: fixed;
 }
 :global([data-backdrop='custom']) .surface::after {
-  --glass-neutral-tint: rgb(0 0 0 / 0.14);
+  --glass-neutral-tint: rgb(0 0 0 / 0.18);
   content: '';
   position: absolute;
   inset: 0;

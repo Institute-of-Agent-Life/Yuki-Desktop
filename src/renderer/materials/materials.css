@@ -98,9 +98,9 @@
   --status-failed: #c70013;
   --status-unknown: #6b4cc6;
   --status-offline: #64676e;
-  --ink-mix: 30%;
+  --ink-mix: 25%;
   --ink-base: #000;
-  --frost-wash: rgb(255 255 255 / 0.14);
+  --frost-wash: rgb(255 255 255 / 0.18);
   --mat-sheet-glass: rgb(255 255 255 / 0.5);
   --fill-hover: rgba(20, 34, 64, 0.05);
   --fill-pressed: rgba(20, 34, 64, 0.09);
@@ -130,9 +130,9 @@
   --status-failed: #ff7a72;
   --status-unknown: #b39dff;
   --status-offline: #a0a3ab;
-  --ink-mix: 60%;
+  --ink-mix: 30%;
   --ink-base: #fff;
-  --frost-wash: rgb(0 0 0 / 0.14);
+  --frost-wash: rgb(0 0 0 / 0.18);
   --mat-sheet-glass: rgb(30 32 50 / 0.74);
   --fill-hover: rgba(255, 255, 255, 0.06);
   --fill-pressed: rgba(255, 255, 255, 0.1);
@@ -258,12 +258,9 @@
 [data-opaque='true'] [data-glass] {
   backdrop-filter: none !important;
 }
-/* A pressed control's light adds to what lies under it within the control alone: a blend reaching
-   further makes the nearest stacking context an isolated group drawn apart (the workspace's main
-   column, the settings), and any glass in it then reads an empty backdrop instead of the window. */
-[data-press] {
-  isolation: isolate;
-}
+/* A pressed control glows where it is held: laid over it, not blended. A blend makes the nearest
+   stacking context an isolated group drawn apart (the workspace's main column, the settings),
+   and any glass in it then reads an empty backdrop instead of the window. */
 [data-press]::after {
   content: '';
   position: absolute;
@@ -271,7 +268,6 @@
   border-radius: inherit;
   pointer-events: none;
   opacity: var(--hp, 0);
-  mix-blend-mode: plus-lighter;
   background: radial-gradient(circle at var(--hx, 50%) var(--hy, 50%), var(--hl), transparent 72%);
 }
 html[data-control-drag],

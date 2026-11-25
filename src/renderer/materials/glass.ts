@@ -150,12 +150,14 @@ const shapes = {
  */
 const rimmed = { pane: true, lens: true, slider: false } as const
 /*
- * A huge pane draws no rim: one whose short side passes 200pt (the sidebar, 245pt across) is read
- * as a sheet of glass the window floats, not an object with an edge, so only its lens bends the
- * picture at the border. The composer (at most 200pt tall), bubbles, toolbar capsules, buttons
- * and popups keep theirs. The same short side sets a pane's blur (paneBlur below).
+ * A huge pane draws no rim: a pane that carries text sized by its short side (`sized` below) past
+ * 200pt (the sidebar, 245pt across) is read as a sheet of glass the window floats, not an object
+ * with an edge, so only its lens bends the picture at the border. The composer (at most 200pt
+ * tall), bubbles, toolbar capsules, buttons, menus and sheets keep theirs, whatever their size.
+ * The same short side sets such a pane's blur (paneBlur below).
  */
-const huge = (width: number, height: number) => Math.min(width, height) > 200
+const huge = (kind: GlassKind, width: number, height: number) =>
+  sized.has(kind) && Math.min(width, height) > 200
 const kinds = {
   sidebar: 'pane',
   toolbar: 'pane',
@@ -247,7 +249,7 @@ function lens(
   const w = across ? tile : width,
     h = down ? tile : height
   const space = document.documentElement.dataset.displayColorSpace
-  const edged = rimmed[kinds[kind]] && !huge(width, height)
+  const edged = rimmed[kinds[kind]] && !huge(kind, width, height)
   const key = `${w}/${h}/${radius}/${kind}/${scale}/${space}/${look}/${edged}`
   const cached = lenses.get(key)
   if (cached) return cached
