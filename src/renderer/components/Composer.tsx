@@ -202,6 +202,8 @@ function SendGlass({ composer }: { composer: RefObject<HTMLDivElement | null> })
       changes = new MutationObserver(place)
     sizes.observe(host)
     sizes.observe(button)
+    // The composer moves with what holds it (centred in it, or laid in its flow).
+    if (host.offsetParent) sizes.observe(host.offsetParent)
     changes.observe(button, {
       attributes: true,
       attributeFilter: ['disabled', 'data-held', 'style', 'aria-busy'],

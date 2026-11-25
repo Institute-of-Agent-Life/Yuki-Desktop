@@ -57,7 +57,10 @@ async function choose(app: ElectronApplication, page: Page, kind: Picture, first
 async function sample(page: Page, name: string) {
   const send = page.getByRole('button', { name: '送出', exact: true })
   await page.mouse.move(5, 5)
-  await page.waitForTimeout(400)
+  await page.waitForTimeout(800)
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  )
   const box = (await send.boundingBox())!
   const shot = await page.screenshot({ clip: box })
   await writeFile(test.info().outputPath(`${name}.png`), shot)
