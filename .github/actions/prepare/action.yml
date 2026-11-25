@@ -53,7 +53,13 @@ runs:
     - if: runner.os == 'Windows'
       shell: pwsh
       run: |
-        choco install ffmpeg --yes --no-progress
+        $archive = Join-Path $env:RUNNER_TEMP ffmpeg.7z
+        Invoke-WebRequest https://github.com/GyanD/codexffmpeg/releases/download/9.1/ffmpeg-9.1-essentials_build.7z -OutFile $archive
+        if ((Get-FileHash $archive).Hash -ne '835b9a733445ba7a56a37a26cf7bde84e2f3ce7da2a8ec984276bb2abb1b922c') { throw 'Unexpected FFmpeg archive digest' }
+        7z x $archive "-o$env:RUNNER_TEMP" -y | Out-Null
+        $bin = Join-Path $env:RUNNER_TEMP 'ffmpeg-9.1-essentials_build/bin'
+        $bin >> $env:GITHUB_PATH
+        $env:PATH = "$bin;$env:PATH"
         node -e "for (const command of ['ffmpeg', 'ffprobe']) require('node:child_process').execFileSync(command, ['-version'], {stdio: 'inherit'})"
     - name: Configure Electron sandbox for Ubuntu CI
       if: runner.os == 'Linux'
