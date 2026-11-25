@@ -3,7 +3,6 @@ import { expect, test, type ElectronApplication, type Page } from '@playwright/t
 import { mkdir, writeFile } from 'node:fs/promises'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { picture } from '../fixtures/pictures'
-import { contentSize } from '../fixtures/visual'
 
 /*
  * The shapes of macOS 26: every control a capsule (or a circle, where it is as wide as it is
@@ -154,9 +153,14 @@ async function boxy(page: Page, name: string) {
         return {
           data: context.getImageData(0, 0, image.width, image.height).data,
           width: image.width,
+          height: image.height,
         }
       }
       const [a, b] = [await read(drawn), await read(bare)]
+      if (a.width !== b.width || a.height !== b.height)
+        throw new Error(
+          `Viewport changed between screenshots: ${a.width}×${a.height} to ${b.width}×${b.height}`,
+        )
       const scale = a.width / innerWidth
       for (const node of document.querySelectorAll<HTMLElement>('[data-corner]'))
         delete node.dataset.corner
@@ -226,7 +230,6 @@ test('every control is a capsule and every container a large rounded rectangle',
   let success = false
   try {
     const page = await app.firstWindow()
-    await contentSize(app, page, 1100, 760)
     await pairUI(page, rig.base, await rig.code())
     for (let i = 0; i < 3; i++) await fetch(`${rig.base}/__test/work`, { method: 'POST' })
     await expect(page.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible()

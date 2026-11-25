@@ -3,7 +3,6 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { throughGlass } from '../fixtures/frost'
 import { picture } from '../fixtures/pictures'
-import { contentSize } from '../fixtures/visual'
 
 /*
  * Controls are glass, not flat coats (macOS 26): over a picture of one's own, on every page and in
@@ -86,8 +85,15 @@ async function coats(page: Page, name: string) {
   }
   const ink =
     '* { color: transparent !important; text-shadow: none !important; caret-color: transparent !important; -webkit-text-fill-color: transparent !important } svg, img, [role="img"] { visibility: hidden !important }'
-  const face = await shot(ink),
-    behind = await shot(`${ink} [data-scan] { visibility: hidden !important }`)
+  // A work card's software fallback is a uniform fill. Give that substrate a pattern
+  // in both measurements so a translucent tint and an opaque coat are distinguishable.
+  const probe =
+    ink +
+    ` :root[data-gpu-compositing='false'] [data-surface='work-card'] {
+    background-image: repeating-linear-gradient(45deg, #888 0 8px, #bbb 8px 16px) !important;
+  }`
+  const face = await shot(probe),
+    behind = await shot(`${probe} [data-scan] { visibility: hidden !important }`)
   const result = await page.evaluate(
     async ({ face, behind, found }) => {
       const read = async (data: string) => {
@@ -99,9 +105,14 @@ async function coats(page: Page, name: string) {
         return {
           data: context.getImageData(0, 0, image.width, image.height).data,
           width: image.width,
+          height: image.height,
         }
       }
       const [a, b] = [await read(face), await read(behind)]
+      if (a.width !== b.width || a.height !== b.height)
+        throw new Error(
+          `Viewport changed between screenshots: ${a.width}×${a.height} to ${b.width}×${b.height}`,
+        )
       const scale = a.width / innerWidth
       const spread = (image: typeof a, box: (typeof found)[number]['box']) => {
         const values: number[] = []
@@ -187,7 +198,6 @@ test('every control is glass over a picture of ones own, on every page and popup
   let success = false
   try {
     const page = await app.firstWindow()
-    await contentSize(app, page, 1100, 760)
     await pairUI(page, rig.base, await rig.code())
     for (let i = 0; i < 3; i++) await fetch(`${rig.base}/__test/work`, { method: 'POST' })
     await expect(page.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible()

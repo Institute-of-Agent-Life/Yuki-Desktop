@@ -67,12 +67,12 @@ export function CommandPalette({
       at: 0,
     })),
   ]
-  const filter = (value: string) =>
-    items.filter((item) =>
-      `${item.title}\n${item.detail}`
-        .toLocaleLowerCase()
-        .includes(value.trim().toLocaleLowerCase()),
-    )
+  const filter = (value: string) => {
+    const needle = value.trim().toLocaleLowerCase()
+    return needle
+      ? items.filter((item) => `${item.title}\n${item.detail}`.toLocaleLowerCase().includes(needle))
+      : items
+  }
   const visible = filter(text),
     grouped = kinds.flatMap((kind) => visible.filter((item) => item.kind === kind))
   const [selected, setSelected] = useState<string | null>(() => grouped[0]?.id ?? null)
@@ -217,29 +217,45 @@ export function CommandPalette({
                   <h3 className={styles.group} id={`${prefix}-group-${kind}`}>
                     {t(`workspace:palette.group.${kind}`)}
                   </h3>
-                  {rows.map((item, localIndex) => {
-                    const index = offset + localIndex
+                  {Array.from({ length: Math.ceil(rows.length / 16) }, (_, block) => {
+                    const start = block * 16
+                    const batch = rows.slice(start, start + 16)
                     return (
-                      <button
-                        key={item.id}
-                        data-item-id={item.id}
-                        id={`${prefix}-${index}`}
-                        className={styles.item}
-                        role="option"
-                        aria-selected={item.id === selected}
-                        tabIndex={-1}
-                        disabled={busy}
-                        onMouseDown={(event) => event.preventDefault()}
-                        onMouseMove={() => setSelected(item.id)}
-                        onClick={(event) => void execute(item, event.metaKey || event.ctrlKey)}
+                      <div
+                        className={styles.batch}
+                        key={batch[0]!.id}
+                        style={{ containIntrinsicBlockSize: `auto ${batch.length * 36}px` }}
                       >
-                        {icons[kind]}
-                        <span className={styles.label}>
-                          <span className={styles.title}>{item.title}</span>
-                          {item.detail && <span className={styles.detail}>{item.detail}</span>}
-                        </span>
-                        {item.id === selected && <kbd aria-hidden="true">Enter</kbd>}
-                      </button>
+                        {batch.map((item, localIndex) => {
+                          const index = offset + start + localIndex
+                          return (
+                            <button
+                              key={item.id}
+                              data-item-id={item.id}
+                              id={`${prefix}-${index}`}
+                              className={styles.item}
+                              role="option"
+                              aria-selected={item.id === selected}
+                              tabIndex={-1}
+                              disabled={busy}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onMouseMove={() => setSelected(item.id)}
+                              onClick={(event) =>
+                                void execute(item, event.metaKey || event.ctrlKey)
+                              }
+                            >
+                              {icons[kind]}
+                              <span className={styles.label}>
+                                <span className={styles.title}>{item.title}</span>
+                                {item.detail && (
+                                  <span className={styles.detail}>{item.detail}</span>
+                                )}
+                              </span>
+                              {item.id === selected && <kbd aria-hidden="true">Enter</kbd>}
+                            </button>
+                          )
+                        })}
+                      </div>
                     )
                   })}
                 </div>
