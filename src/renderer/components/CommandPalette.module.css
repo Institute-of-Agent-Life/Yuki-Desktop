@@ -69,6 +69,9 @@
   color: var(--text-primary);
   cursor: pointer;
   font: 13px/20px var(--font-ui);
+  /* Hundreds of loaded results: only the rows in view are styled, laid out and painted. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 36px;
 }
 .item[aria-selected='true'] {
   background: var(--fill-selected);

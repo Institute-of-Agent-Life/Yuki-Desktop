@@ -11,9 +11,11 @@ import { useGlass } from '../materials/glass'
 import { importBackdrop } from '../materials/backdrop'
 import {
   Fragment,
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -907,6 +909,27 @@ export function Conversation({
     choose(connection.conversationId)
     workspace.patch({ inspector: false, focusMode: false })
   }
+  // What a message does, the same functions on every render, so that a message renders again only
+  // when what it shows changes: a panel or menu opening, a page's state or the workspace's layout
+  // changing renders the conversation, never each of its hundreds of loaded messages again.
+  const latest = useRef({ jumpTo, addReference, openAttachment, openArtifact, refresh })
+  useLayoutEffect(() => {
+    latest.current = { jumpTo, addReference, openAttachment, openArtifact, refresh }
+  })
+  const messageActions = useMemo(
+    () => ({
+      onSelect: (event: PublicEvent) => setSelection(event.event_id),
+      onReference: (event: PublicEvent) => latest.current.addReference(event),
+      onAttachment: (source: AttachmentSource) => latest.current.openAttachment(source),
+      onArtifact: (source: ArtifactSource) => latest.current.openArtifact(source),
+      onJump: (reference: MessageReference) => void latest.current.jumpTo(reference),
+      verify: async (requestId: string) => {
+        unwrap(await window.yuki.client.verify(id, requestId))
+        latest.current.refresh()
+      },
+    }),
+    [id],
+  )
   const entry = homeData?.entries.find((item) => item.conversation_id === conversation)
   const pending = isMain
     ? (outbox.data ?? []).filter((item) =>
@@ -1135,21 +1158,13 @@ export function Conversation({
               reference={messageStage}
               render={(event) => (
                 <Message
+                  {...messageActions}
                   characterId={id}
                   viewerPersonId={connection.personId}
                   event={event}
                   name={name}
                   selected={false}
                   consecutive={false}
-                  onSelect={() => setSelection(event.event_id)}
-                  onReference={() => addReference(event)}
-                  onAttachment={openAttachment}
-                  onArtifact={openArtifact}
-                  onJump={(ref) => void jumpTo(ref)}
-                  verify={async (requestId) => {
-                    unwrap(await window.yuki.client.verify(id, requestId))
-                    refresh()
-                  }}
                 />
               )}
             />
@@ -1432,20 +1447,12 @@ export function Conversation({
                     )}
                     <Message
                       {...message}
+                      {...messageActions}
                       consecutive={consecutive}
-                      onJump={(reference) => void jumpTo(reference)}
                       characterId={id}
                       viewerPersonId={connection.personId}
-                      verify={async (requestId) => {
-                        unwrap(await window.yuki.client.verify(id, requestId))
-                        refresh()
-                      }}
                       name={name}
                       selected={event !== undefined && selection === event.event_id}
-                      onSelect={event ? () => setSelection(event.event_id) : undefined}
-                      onReference={event ? () => addReference(event) : undefined}
-                      onAttachment={openAttachment}
-                      onArtifact={openArtifact}
                     />
                     {!accessLost &&
                       (event?.work_ids ?? [])
@@ -1718,7 +1725,7 @@ function MessageBubble({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function Message({
+export const Message = memo(function Message({
   characterId,
   viewerPersonId,
   receipt,
@@ -1738,8 +1745,8 @@ export function Message({
   verify(requestId: string): Promise<void>
   name: string
   selected: boolean
-  onSelect?(): void
-  onReference?(): void
+  onSelect(event: PublicEvent): void
+  onReference(event: PublicEvent): void
   onAttachment(source: AttachmentSource): void
   onArtifact(source: ArtifactSource): void
   onJump(reference: MessageReference): void
@@ -1775,7 +1782,7 @@ export function Message({
             : t('conversation:messageFrom', { author })
       }
       className={`${styles.message} ${own ? styles.ownMessage : ''} ${selected ? styles.selected : ''} ${consecutive ? styles.consecutive : ''}`}
-      onClick={onSelect}
+      onClick={event ? () => onSelect(event) : undefined}
       onContextMenu={(click) => {
         if (!event) return
         click.preventDefault()
@@ -1875,9 +1882,9 @@ export function Message({
             </IconButton>
             <IconButton
               label={t('conversation:quoteReply')}
-              onClick={(event) => {
-                event.stopPropagation()
-                onReference?.()
+              onClick={(click) => {
+                click.stopPropagation()
+                onReference(event)
               }}
             >
               <Reply size={15} />
@@ -1887,7 +1894,7 @@ export function Message({
       </div>
     </article>
   )
-}
+})
 
 function References({
   characterId,
