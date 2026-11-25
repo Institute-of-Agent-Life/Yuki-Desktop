@@ -211,6 +211,15 @@
 :global([data-theme='dark']) .markdown :global(.shiki) span {
   color: var(--shiki-dark);
 }
+/* On glass or frost that took the other appearance, the code takes that appearance's colours. */
+:global([data-appearance='light']) .markdown :global(.shiki),
+:global([data-appearance='light']) .markdown :global(.shiki) span {
+  color: var(--shiki-light);
+}
+:global([data-appearance='dark']) .markdown :global(.shiki),
+:global([data-appearance='dark']) .markdown :global(.shiki) span {
+  color: var(--shiki-dark);
+}
 :global([data-contrast='true']) .markdown :global(.shiki),
 :global([data-contrast='true']) .markdown :global(.shiki) span {
   color: var(--shiki-contrast-light);
