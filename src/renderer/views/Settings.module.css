@@ -9,9 +9,11 @@
   /* The panes run up under the header, as every page does under its toolbar. */
   --toolbar-inset: 52px;
 }
+/* The header lies on the floating categories (macOS): it starts an inset below the window's top, as
+   the card does, so its circle clears the card's edge by as much as the categories' rows do. */
 .header {
   position: absolute;
-  inset: 0 0 auto;
+  inset: var(--inset) 0 auto;
   z-index: 2;
   height: 52px;
   display: flex;
@@ -57,7 +59,7 @@
   z-index: 1;
   margin: var(--inset);
   padding: var(--space-4) var(--space-5);
-  padding-top: calc(var(--space-4) + var(--toolbar-inset) - var(--inset));
+  padding-top: calc(var(--space-4) + var(--toolbar-inset));
   border-right: var(--line) solid var(--separator);
   background: var(--bg-sidebar);
   overflow: visible;
@@ -151,9 +153,6 @@
 }
 .pane > * {
   max-width: 720px;
-}
-.pane[data-glass] {
-  backdrop-filter: var(--glass-regular);
 }
 .pane h2 {
   font-size: 17px;
@@ -397,4 +396,19 @@
 .backdrop[aria-checked='true'] .backdropSwatch {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Over a picture of one's own the page's title, each section's title and note are small labels of
+   frost and each group a block of it (materials.css); the picture lies between them. */
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .pane .section > h3 {
+  margin-left: 0;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .section > .notice {
+  width: fit-content;
+  margin-bottom: var(--space-3);
+  padding: 4px 10px;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .pane > :not(section, h2) {
+  padding: 12px;
+  margin-bottom: var(--space-7);
 }

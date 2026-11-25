@@ -149,6 +149,13 @@ const shapes = {
  * take the Dock's colour; a held control stays clear.
  */
 const rimmed = { pane: true, lens: true, slider: false } as const
+/*
+ * A huge pane draws no rim: one whose short side passes 200pt (the sidebar, 245pt across) is read
+ * as a sheet of glass the window floats, not an object with an edge, so only its lens bends the
+ * picture at the border. The composer (at most 200pt tall), bubbles, toolbar capsules, buttons
+ * and popups keep theirs. The same short side sets a pane's blur (paneBlur below).
+ */
+const huge = (width: number, height: number) => Math.min(width, height) > 200
 const kinds = {
   sidebar: 'pane',
   toolbar: 'pane',
@@ -156,15 +163,14 @@ const kinds = {
   card: 'pane',
   sheet: 'pane',
   send: 'pane',
-  page: 'pane',
   slider: 'slider',
   toggle: 'lens',
   segment: 'lens',
 } as const
 export type GlassKind = keyof typeof kinds
-// The glass that takes the appearance of what lies under it (appearance.ts): what carries text
-// (a page read over a picture of one's own too). The send button's circle takes its composer's.
-const adaptive = new Set<GlassKind>(['sidebar', 'toolbar', 'composer', 'page'])
+// The glass that takes the appearance of what lies under it (appearance.ts): what carries text.
+// The send button's circle takes its composer's.
+const adaptive = new Set<GlassKind>(['sidebar', 'toolbar', 'composer'])
 /*
  * A pane that carries text is blurred as Apple's clear glass blurs a pane of its size, measured on
  * NSGlassEffectView over the same pictures (the native captures, fitted with a Gaussian and a
@@ -172,7 +178,7 @@ const adaptive = new Set<GlassKind>(['sidebar', 'toolbar', 'composer', 'page'])
  * bubble) and 245pt (the sidebar), every picture alike; so σ = min(20, 0.24 × the short side), in
  * pt. Small controls (the toolbar's capsules, the send button, held controls) keep the Dock's 2pt.
  */
-const sized = new Set<GlassKind>(['sidebar', 'composer', 'page'])
+const sized = new Set<GlassKind>(['sidebar', 'composer'])
 export const paneBlur = (short: number) => Math.round(2 * Math.min(20, 0.24 * short)) / 2
 
 export function roundedDistance(x: number, y: number, hx: number, hy: number, radius: number) {
@@ -240,7 +246,8 @@ function lens(
   const w = across ? tile : width,
     h = down ? tile : height
   const space = document.documentElement.dataset.displayColorSpace
-  const key = `${w}/${h}/${radius}/${kind}/${scale}/${space}/${look}`
+  const edged = rimmed[kinds[kind]] && !huge(width, height)
+  const key = `${w}/${h}/${radius}/${kind}/${scale}/${space}/${look}/${edged}`
   const cached = lenses.get(key)
   if (cached) return cached
   const hx = w / 2,
@@ -296,7 +303,7 @@ function lens(
       const noise = (((k * 2654435761) >>> 0) / 4294967296 - 0.5) / 255
       const [rx, ry] = normal(x, y, radius),
         coverage = Math.max(0, Math.min(1, 0.5 - distance * scale))
-      const rim = rimmed[kinds[kind]]
+      const rim = edged
         ? dockRim(look, Math.atan2(Math.abs(rx), Math.abs(ry)), -distance)
         : { mix: 0, add: 0 }
       const shown = values(

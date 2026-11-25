@@ -239,3 +239,35 @@
   font-size: 11px;
   font-weight: 500;
 }
+
+/* Over a picture of one's own each file, the preview's header, the preview and its details are
+   blocks of frost of their own (materials.css), with the picture between them and no lines. */
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .list {
+  border-right: 0;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .list > [data-selected] {
+  margin-bottom: 6px;
+  --frost-radius: var(--r-control);
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .list h3 {
+  margin: 12px 0 6px;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .stage {
+  gap: 12px;
+  padding: calc(12px + var(--toolbar-inset, 0px)) 16px 16px 0;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .previewHeader {
+  border-bottom: 0;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .stageBody {
+  padding: 0;
+  gap: 12px;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .preview,
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .info {
+  margin: 0;
+  padding: 16px;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .inspector > :not(h2) {
+  padding: 12px;
+}

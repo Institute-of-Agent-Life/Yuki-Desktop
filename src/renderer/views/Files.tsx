@@ -141,6 +141,7 @@ export function Files({
     <div className={styles.files}>
       <section
         className={styles.list}
+        data-frost-children
         onScroll={(event) => {
           const node = event.currentTarget
           if (
@@ -151,7 +152,7 @@ export function Files({
             void page.fetchNextPage()
         }}
       >
-        <header>
+        <header data-frost-children>
           <Segmented
             label={t('files:category')}
             value={category}
@@ -212,7 +213,7 @@ export function Files({
           <EmptyState title={t('files:empty')}>{t('files:emptyDescription')}</EmptyState>
         )}
       </section>
-      <section className={styles.stage} aria-label={t('files:preview')}>
+      <section className={styles.stage} aria-label={t('files:preview')} data-frost-children>
         {problem && <Banner status="failed">{problem}</Banner>}
         {content.error && (
           <Banner status="failed">
@@ -239,7 +240,7 @@ export function Files({
                 {t('files:saveTo')}
               </Button>
             </header>
-            <div className={styles.stageBody}>
+            <div className={styles.stageBody} data-frost-children>
               <div className={styles.preview}>
                 {comparison && (
                   <header className={styles.actions}>
@@ -386,7 +387,7 @@ export function ArtifactInspector({
     }
   }
   return (
-    <div className={styles.inspector}>
+    <div className={styles.inspector} data-frost-children>
       {content.error && <Banner status="failed">{content.error.message}</Banner>}
       {problem && <Banner status="failed">{problem}</Banner>}
       {data && (

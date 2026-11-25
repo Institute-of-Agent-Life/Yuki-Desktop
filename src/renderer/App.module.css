@@ -276,10 +276,6 @@
     calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 12px)
   );
 }
-.content[data-glass],
-.inspector[data-glass] {
-  backdrop-filter: var(--glass-regular);
-}
 .content {
   flex: 1;
   overflow: auto;

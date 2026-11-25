@@ -278,8 +278,12 @@ export function WorkList({
     else if (ended.hasNextPage && !ended.isFetchingNextPage) void ended.fetchNextPage()
   }
   return (
-    <div className={styles.list} onScroll={(event) => scroll(event.currentTarget)}>
-      <header>
+    <div
+      className={styles.list}
+      data-frost-children
+      onScroll={(event) => scroll(event.currentTarget)}
+    >
+      <header data-frost-children>
         <Segmented
           label={t('works:origin')}
           value={origin}
@@ -317,7 +321,7 @@ export function WorkList({
           </Banner>
         )}
       {(!!activeWorks.filter(needs).length || !!asking.length || answered) && (
-        <section aria-label={t('works:needsYou')}>
+        <section aria-label={t('works:needsYou')} data-frost-children>
           <h3>{t('works:needsYou')}</h3>
           {rows(activeWorks.filter(needs))}
           {asking.map((work) =>
@@ -343,16 +347,16 @@ export function WorkList({
         />
       )}
       {!!progress.length && (
-        <section aria-label={t('works:inProgress')}>
+        <section aria-label={t('works:inProgress')} data-frost-children>
           <h3>{t('works:inProgress')}</h3>
           {rows(progress)}
         </section>
       )}
       {!!endedWorks.length && (
-        <section aria-label={t('works:ended')}>
+        <section aria-label={t('works:ended')} data-frost-children>
           <h3>{t('works:ended')}</h3>
           {endedWorks.map((work, index) => (
-            <div key={work.work_id}>
+            <div key={work.work_id} data-frost-children>
               {(!index ||
                 dateGroup(work.updated_at) !== dateGroup(endedWorks[index - 1]!.updated_at)) && (
                 <h4>{dateGroup(work.updated_at)}</h4>
@@ -482,7 +486,7 @@ export function WorkDetail({
     void query.invalidateQueries({ queryKey: [id, 'work-question-drafts', workId] })
   }
   return (
-    <div className={styles.detail} data-work-detail>
+    <div className={styles.detail} data-work-detail data-frost-children>
       {failure && (
         <Banner status="failed">
           {failure.message}

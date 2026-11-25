@@ -297,3 +297,16 @@
 .requestBody > div {
   padding: 8px 12px;
 }
+
+/* Over a picture of one's own each work is a block of frost of its own (materials.css), a little
+   apart from the next, and the detail's parts are each one too. */
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .row {
+  margin-bottom: 6px;
+  padding: 0 12px;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .list h4 {
+  margin: 12px 0 6px;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .detail > :not(h2) {
+  padding: 12px;
+}

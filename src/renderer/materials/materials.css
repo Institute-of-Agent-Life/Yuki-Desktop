@@ -130,6 +130,68 @@
      not the window's thin frost. */
   --mat-sidebar: var(--bg-sidebar);
 }
+/*
+ * Content over a picture of one's own lies on frost, as a bubble does
+ * (ConversationGlass.module.css): each block of it (a settings group, a work, a file, a note, a
+ * segmented control, a section's title as a small label) shows the picture blurred once, with its
+ * dim and the Dock's colour (materials/backdrop.ts), laid out on the window as the picture is, so
+ * no block filters its backdrop and a long list costs no more than a short one. Between them the
+ * picture is sharp, the same on every page. Content draws no rim and no lens (HIG keeps Liquid
+ * Glass out of the content layer). A block is marked `data-frost`, or is a child of
+ * `data-frost-children` (one that is itself `data-frost-children` passes it on to its own), and
+ * takes the appearance of what lies under it (materials/appearance.ts), its copy and ink with it.
+ * A fill the block would have (a hovered or selected row) is laid over the frost (`--frost-fill`).
+ */
+:root[data-backdrop='custom']:not([data-opaque='true'])
+  :is([data-frost], [data-frost-children] > :not([data-frost-children])) {
+  background-color: var(--backdrop-fill);
+  background-image:
+    linear-gradient(var(--frost-fill, transparent) 0 0), var(--backdrop-frost-light, none);
+  background-position: center;
+  background-size: auto, var(--backdrop-frost-size, var(--backdrop-size));
+  background-repeat: var(--backdrop-repeat);
+  background-attachment: fixed;
+  border-radius: var(--frost-radius, var(--r-group));
+  border-color: transparent;
+}
+:root[data-backdrop='custom']:not([data-opaque='true'])
+  :is([data-frost], [data-frost-children] > :not([data-frost-children]))[data-appearance='dark'] {
+  background-image:
+    linear-gradient(var(--frost-fill, transparent) 0 0), var(--backdrop-frost-dark, none);
+}
+:root[data-backdrop='custom']:not([data-opaque='true'])
+  :is([data-frost], [data-frost-children] > :not([data-frost-children])):is(
+    button,
+    [role='button']
+  ):hover {
+  --frost-fill: var(--fill-hover);
+}
+:root[data-backdrop='custom']:not([data-opaque='true'])
+  :is([data-frost], [data-frost-children] > :not([data-frost-children])):is(
+    [aria-current],
+    [data-selected='true']
+  ) {
+  --frost-fill: var(--fill-selected);
+}
+/* A page of such blocks is a layer of its own: painted into the window's, its frost (fixed to the
+   window) left the floating sidebar's glass beside it with nothing to show, and was drawn coarse. */
+:root[data-backdrop='custom']:not([data-opaque='true'])
+  [data-frost-children]:not([data-frost-children] [data-frost-children]) {
+  will-change: transform;
+}
+/* A title on the picture is a small label of frost, as wide as its words. */
+:root[data-backdrop='custom']:not([data-opaque='true'])
+  :is([data-frost], [data-frost-children] > :not([data-frost-children])):is(h2, h3, h4) {
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 10px;
+  --frost-radius: 999px;
+}
+/* Without GPU compositing the frost is a fill of its appearance, as a bubble's is. */
+:root[data-backdrop='custom'][data-gpu-compositing='false']:not([data-opaque='true'])
+  :is([data-frost], [data-frost-children] > :not([data-frost-children])) {
+  background: linear-gradient(var(--frost-fill, transparent) 0 0), var(--bg-elevated);
+}
 /* As specific as the dark theme's materials (:root[data-theme='dark']), so opaque wins in dark too. */
 :root[data-opaque='true'] {
   --mat-ground: var(--bg-window);

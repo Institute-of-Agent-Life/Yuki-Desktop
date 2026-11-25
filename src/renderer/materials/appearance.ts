@@ -1,9 +1,9 @@
 /*
  * The appearance of glass that carries text, as iOS 26's glass takes it: over a picture of one's
- * own (backdrop.ts) the composer and its send button, the toolbar's capsules, the sidebar, a
- * page's pane and each bubble turn to the dark glass with white ink over a dark part of it, and to
+ * own (backdrop.ts) the composer and its send button, the toolbar's capsules, the sidebar, each
+ * bubble and each block of content turn to the dark glass with white ink over a dark part of it, and to
  * the light glass with black ink over a bright one, whatever the theme, each by what lies under
- * itself (`data-appearance`). Over the app's own backdrops the theme's appearance holds.
+ * itself (`data-appearance`); so does content's frost (materials.css). Over the app's own backdrops the theme's appearance holds.
  *
  * What lies under an element is read from the picture as the bubbles' blurred copy has it
  * (backdrop.ts: blurred as a bubble's glass blurs, the page's colour laid over it as dimmed), as
@@ -127,11 +127,48 @@ const unobserve = (element: HTMLElement) => {
   shown.delete(element)
 }
 
+/*
+ * Content's frost (materials.css: `data-frost`, and the children of `data-frost-children`) is
+ * watched as it comes into the page and left as it goes, while a picture of one's own is shown.
+ */
+const frost = '[data-frost], [data-frost-children] > :not([data-frost-children])'
+const frosts = new Map<HTMLElement, () => void>()
+const addFrost = (node: Node) => {
+  if (!(node instanceof HTMLElement)) return
+  for (const element of [
+    ...(node.matches(frost) ? [node] : []),
+    ...node.querySelectorAll<HTMLElement>(frost),
+  ])
+    if (!frosts.has(element)) frosts.set(element, watchAppearance(element, true))
+}
+const blocks = new MutationObserver((records) => {
+  let removed = false
+  for (const record of records) {
+    record.addedNodes.forEach(addFrost)
+    removed ||= [...record.removedNodes].some((node) => node instanceof HTMLElement)
+  }
+  if (removed)
+    for (const [element, unwatch] of frosts)
+      if (!element.isConnected || !element.matches(frost)) {
+        unwatch()
+        frosts.delete(element)
+      }
+})
+
 /**
  * What lies under the glass, while a picture of one's own is shown (none: the theme's); `fresh`
  * the first time for a picture, which every glass then reads afresh.
  */
 export function setBackdropSample(next: Sample | undefined, fresh = false) {
+  if (!sample && next) {
+    addFrost(document.body)
+    blocks.observe(document.body, { childList: true, subtree: true })
+  }
+  if (sample && !next) {
+    blocks.disconnect()
+    for (const unwatch of frosts.values()) unwatch()
+    frosts.clear()
+  }
   if (fresh) anew = new WeakSet(watched.keys())
   if (!sample && next) for (const element of watched.keys()) observe(element)
   if (sample && !next) for (const element of watched.keys()) unobserve(element)
