@@ -708,19 +708,11 @@ export function Conversation({
       )
     }
     update()
-    root.style.setProperty('--accent-light', accent.light)
-    root.style.setProperty('--accent-dark', accent.dark)
     const observer = new MutationObserver(update)
     observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] })
     return () => {
       observer.disconnect()
-      for (const key of [
-        '--accent',
-        '--accent-strong',
-        '--accent-subtle',
-        '--accent-light',
-        '--accent-dark',
-      ])
+      for (const key of ['--accent', '--accent-strong', '--accent-subtle'])
         root.style.removeProperty(key)
     }
   }, [profileData?.accent, preferences.theme, active])
@@ -1404,7 +1396,7 @@ export function Conversation({
                 </Button>
               )}
               {eventData && !eventData.has_more && messages.length > 0 && search === null && (
-                <header className={styles.conversationIntroduction}>
+                <header className={styles.conversationIntroduction} data-frost>
                   <CharacterAvatar size={26} />
                   <h2>{name}</h2>
                   <p>
@@ -1436,7 +1428,11 @@ export function Conversation({
                   <Fragment
                     key={receipt ? `request/${receipt.requestId}` : `event/${event!.event_id}`}
                   >
-                    {!sameDay && <div className={styles.dateSeparator}>{dayLabel(time)}</div>}
+                    {!sameDay && (
+                      <div className={styles.dateSeparator} data-frost>
+                        {dayLabel(time)}
+                      </div>
+                    )}
                     <Message
                       {...message}
                       consecutive={consecutive}

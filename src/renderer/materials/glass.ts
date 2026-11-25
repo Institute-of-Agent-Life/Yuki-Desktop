@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 import { reducedMotion } from '../motion/hooks'
 import { sampleSpring, springs } from '../motion/spring'
-import { watchAppearance, type Appearance } from './appearance'
 import { dockFilter, dockLens, dockLift, dockRim } from './dock'
 import { encodings, mapValues } from './display'
 
@@ -41,9 +40,8 @@ const glassTint = () => Number(document.documentElement.dataset.glassTint ?? 0.4
 
 /*
  * The Dock's colour (dock.ts) as filter primitives reading `input`: its luminance, the tone curve
- * less the colour's gain on it (a table), added to the colour times its gain. `set` gives it an
- * appearance's and the slider's (or `toward` of the way there from another's, as it turns); a held
- * control's is none (the colour passes as it is).
+ * less the colour's gain on it (a table), added to the colour times its gain. `set` gives it a
+ * theme's and the slider's; a held control's is none (the colour passes as it is).
  */
 function dockColour(input: string, prefix: string) {
   const luma = primitive('feColorMatrix', { in: input, type: 'matrix', result: `${prefix}luma` }),
@@ -64,8 +62,8 @@ function dockColour(input: string, prefix: string) {
       luma.setAttribute('in', name)
       combine.setAttribute('in2', name)
     },
-    set(docked: boolean, appearance: Appearance = theme(), from = appearance, toward = 1) {
-      const look = dockFilter(appearance, glassTint(), from, toward)
+    set(docked: boolean, shown: 'light' | 'dark' = theme()) {
+      const look = dockFilter(shown, glassTint())
       luma.setAttribute('values', look.luma)
       for (const func of curve.children)
         func.setAttribute(
@@ -79,8 +77,7 @@ function dockColour(input: string, prefix: string) {
 
 /*
  * The Dock's colour for glass that carries no filter of its own (`--glass-native`,
- * materials.css), one for each appearance (the theme's, or what a glass has taken: appearance.ts),
- * for the slider shown now.
+ * materials.css), one for each theme, for the slider shown now.
  */
 for (const look of ['light', 'dark'] as const) {
   const svg = document.createElementNS(NS, 'svg'),
@@ -170,10 +167,6 @@ const kinds = {
   segment: 'lens',
 } as const
 export type GlassKind = keyof typeof kinds
-// The glass that takes the appearance of what lies under it (appearance.ts): what carries text,
-// menus and sheets among it, each by its own backdrop rather than the glass it opens from. The send
-// button's circle takes its composer's.
-const adaptive = new Set<GlassKind>(['sidebar', 'toolbar', 'composer', 'card', 'sheet'])
 /*
  * A pane that carries text is blurred as Apple's clear glass blurs a pane of its size, measured on
  * NSGlassEffectView over the same pictures (the native captures, fitted with a Gaussian and a
@@ -235,7 +228,7 @@ function lens(
   height: number,
   radius: number,
   kind: GlassKind,
-  look: Appearance,
+  look: 'light' | 'dark',
 ): Lens {
   const scale = Math.min(3, Math.max(2, Math.ceil(devicePixelRatio))),
     shape: Shape = shapes[kinds[kind]],
@@ -596,38 +589,6 @@ export function useGlass<T extends HTMLElement>(
       bend(0)
       rising = requestAnimationFrame(step)
     }
-    // Glass that carries text takes the appearance of what lies under it (appearance.ts): its
-    // colour turns from the one to the other over 200ms, and its rim is made again for it once it
-    // has turned (made during the turn, it would hold up the turn's frames).
-    const unwatch = adaptive.has(kind) ? watchAppearance(element) : undefined
-    const appearanceNow = (): Appearance =>
-      (element.dataset.appearance as Appearance | undefined) ?? theme()
-    let shownAppearance = appearanceNow(),
-      turning = 0
-    const turned = () => {
-      turning = 0
-      size = ''
-      sync()
-    }
-    const turn = () => {
-      const next = appearanceNow()
-      if (next === shownAppearance) return
-      const from = shownAppearance
-      shownAppearance = next
-      cancelAnimationFrame(turning)
-      if (reducedMotion() || !docked) return turned()
-      const start = performance.now()
-      const step = (now: number) => {
-        const t = Math.min(1, Math.max(0, (now - start) / 200))
-        colour.set(docked, next, from, t * t * (3 - 2 * t))
-        if (t < 1) turning = requestAnimationFrame(step)
-        else turned()
-      }
-      colour.set(docked, next, from, 0)
-      turning = requestAnimationFrame(step)
-    }
-    const turns = new MutationObserver(turn)
-    turns.observe(element, { attributes: true, attributeFilter: ['data-appearance'] })
     const quiet = () => {
       element.style.removeProperty('--refract')
       element.style.removeProperty('--glass-blur')
@@ -664,8 +625,8 @@ export function useGlass<T extends HTMLElement>(
         shown = true
         if (dynamic) first ??= { width: w, height: h, radius: r }
         const fresh = first
-          ? lens(first.width, first.height, first.radius, kind, shownAppearance)
-          : lens(w, h, r, kind, shownAppearance)
+          ? lens(first.width, first.height, first.radius, kind, theme())
+          : lens(w, h, r, kind, theme())
         if (fresh !== current) {
           current = fresh
           assemble(fresh)
@@ -676,7 +637,7 @@ export function useGlass<T extends HTMLElement>(
       if (sized.has(kind))
         element.style.setProperty('--glass-blur', `${paneBlur(Math.min(w, h))}px`)
       size = next
-      if (!turning) colour.set(docked, shownAppearance)
+      colour.set(docked)
       // On an sRGB display the encodings are not in the chain at all.
       const tables = encodings(root.dataset.displayColorSpace)
       for (const [node, values] of [
@@ -714,7 +675,6 @@ export function useGlass<T extends HTMLElement>(
       appearance = new MutationObserver(() => {
         if (appearanceOf() === shownAs) return
         shownAs = appearanceOf()
-        shownAppearance = appearanceNow()
         size = ''
         sync()
       })
@@ -733,9 +693,6 @@ export function useGlass<T extends HTMLElement>(
     sync()
     const dispose = () => {
       cancelAnimationFrame(rising)
-      cancelAnimationFrame(turning)
-      turns.disconnect()
-      unwatch?.()
       resize.disconnect()
       appearance.disconnect()
       svg.remove()

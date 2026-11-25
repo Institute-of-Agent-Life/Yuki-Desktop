@@ -1,27 +1,10 @@
 import type { Page } from '@playwright/test'
 
 // Pictures drawn for the test, so nothing of anyone else's is used: black and white line art
-// (strokes, hatching and solid shapes), and a soft colour gradient. The wallpapers stand in for
-// the kinds of photographs and drawings people choose: busy manga-like line art with screen
-// tone, a saturated deep blue with an orange creature trailing red lines, a bright valley under a
-// pale sky, saturated red fruit on green leaves, and a dark forest with shafts of light.
-// For the glass's appearance: dark line art (white strokes and pale screen tone on black), a
-// very bright picture (pale shapes on white), mid-dark foliage and grey rocks (as a photograph of a
-// stream in a wood: sRGB luma about 0.41–0.49, a mean near 0.43, which black text on the light glass still reads
-// over at 4.5:1), and greys across the light/dark threshold: a level
-// `level-<n>` everywhere, or `ramp-<from>-<to>` running from left to right (sRGB levels).
-export type Picture =
-  | 'lineart'
-  | 'gradient'
-  | 'nightlines'
-  | 'snow'
-  | 'foliage'
-  | 'rocks'
-  | `level-${number}`
-  | `ramp-${number}-${number}`
-  | Wallpaper
-export const wallpapers = ['manga', 'jellyfish', 'valley', 'berries', 'forest'] as const
-export type Wallpaper = (typeof wallpapers)[number]
+// (strokes, hatching and solid shapes), a soft colour gradient, a flat grey `level-<n>` (sRGB
+// level), and two that stand in for photographs people choose: saturated red fruit on green
+// leaves, and a dark forest with shafts of light.
+export type Picture = 'lineart' | 'gradient' | 'berries' | 'forest' | `level-${number}`
 
 export async function picture(page: Page, kind: Picture) {
   const data = await page.evaluate(async (kind) => {
@@ -38,107 +21,10 @@ export async function picture(page: Page, kind: Picture) {
       context.arc(x, y, r, 0, Math.PI * 2)
       context.fill()
     }
-    const wander = (width: number, colour: string, steps: number, reach: number) => {
-      context.lineWidth = width
-      context.strokeStyle = colour
-      context.beginPath()
-      let x = random() * 1600,
-        y = random() * 1000
-      context.moveTo(x, y)
-      for (let step = 0; step < steps; step++)
-        context.lineTo((x += (random() - 0.5) * reach), (y += (random() - 0.5) * reach))
-      context.stroke()
-    }
-    const grey = kind.match(/^(?:level|ramp)-(\d+)(?:-(\d+))?$/)
+    const grey = kind.match(/^level-(\d+)$/)
     if (grey) {
-      const from = Number(grey[1]),
-        to = Number(grey[2] ?? grey[1])
-      const ramp = context.createLinearGradient(0, 0, 1600, 0)
-      ramp.addColorStop(0, `rgb(${from} ${from} ${from})`)
-      ramp.addColorStop(1, `rgb(${to} ${to} ${to})`)
-      context.fillStyle = ramp
+      context.fillStyle = `rgb(${grey[1]} ${grey[1]} ${grey[1]})`
       context.fillRect(0, 0, 1600, 1000)
-    } else if (kind === 'nightlines') {
-      context.fillStyle = '#0c0d11'
-      context.fillRect(0, 0, 1600, 1000)
-      context.fillStyle = '#5a5c63'
-      for (let y = 0; y < 1000; y += 7)
-        for (let x = 0; x < 1600; x += 7)
-          if (Math.sin(x / 210) + Math.cos(y / 150) > 0.9) context.fillRect(x, y, 2, 2)
-      for (let stroke = 0; stroke < 120; stroke++) wander(1 + random() * 2, '#f2f2f2', 8, 60)
-    } else if (kind === 'foliage' || kind === 'rocks') {
-      // Soft patches between two colours of luma about 0.41 and 0.49.
-      const [low, high] = kind === 'foliage' ? ['#4c7633', '#628d44'] : ['#646a6f', '#767b81']
-      context.fillStyle = low
-      context.fillRect(0, 0, 1600, 1000)
-      for (let patch = 0; patch < 90; patch++)
-        blob(random() * 1600, random() * 1000, 60 + random() * 140, high, `${high}00`)
-    } else if (kind === 'snow') {
-      context.fillStyle = '#fbfcfd'
-      context.fillRect(0, 0, 1600, 1000)
-      for (let drift = 0; drift < 40; drift++)
-        blob(
-          random() * 1600,
-          random() * 1000,
-          80 + random() * 160,
-          '#e6ebf1',
-          'rgba(230,235,241,0)',
-        )
-    } else if (kind === 'manga') {
-      context.fillStyle = '#fbfbf8'
-      context.fillRect(0, 0, 1600, 1000)
-      // Screen tone: dots on a grid over half the page.
-      context.fillStyle = '#222'
-      for (let y = 0; y < 1000; y += 6)
-        for (let x = 0; x < 1600; x += 6)
-          if (Math.sin(x / 260) + Math.cos(y / 180) > 0.4) context.fillRect(x, y, 2, 2)
-      // Speed lines from a point.
-      context.strokeStyle = '#111'
-      for (let ray = 0; ray < 220; ray++) {
-        const angle = random() * Math.PI * 2
-        context.lineWidth = 0.5 + random() * 2
-        context.beginPath()
-        context.moveTo(1100 + Math.cos(angle) * 160, 420 + Math.sin(angle) * 160)
-        context.lineTo(1100 + Math.cos(angle) * 1400, 420 + Math.sin(angle) * 1400)
-        context.stroke()
-      }
-      for (let stroke = 0; stroke < 260; stroke++)
-        wander(1 + random() * 5, random() < 0.85 ? '#111' : '#fff', 8, 70)
-    } else if (kind === 'jellyfish') {
-      const sea = context.createLinearGradient(0, 0, 0, 1000)
-      sea.addColorStop(0, '#0b3fae')
-      sea.addColorStop(1, '#0a2a8f')
-      context.fillStyle = sea
-      context.fillRect(0, 0, 1600, 1000)
-      blob(820, 330, 300, '#ff7a1a', 'rgba(255, 122, 26, 0)')
-      blob(420, 640, 260, '#ffb02e', 'rgba(255, 176, 46, 0)')
-      blob(180, 860, 220, '#f59a23', 'rgba(245, 154, 35, 0)')
-      for (let line = 0; line < 70; line++) wander(1 + random() * 2, '#b4122c', 10, 160)
-    } else if (kind === 'valley') {
-      const sky = context.createLinearGradient(0, 0, 0, 520)
-      sky.addColorStop(0, '#9cc8f2')
-      sky.addColorStop(1, '#eef5fb')
-      context.fillStyle = sky
-      context.fillRect(0, 0, 1600, 1000)
-      for (const [top, colour] of [
-        [420, '#7e9a6a'],
-        [520, '#4f7a3c'],
-        [640, '#2f5a26'],
-      ] as const) {
-        context.fillStyle = colour
-        context.beginPath()
-        context.moveTo(0, 1000)
-        for (let x = 0; x <= 1600; x += 40)
-          context.lineTo(x, top + Math.sin(x / 170 + top) * 60 + random() * 20)
-        context.lineTo(1600, 1000)
-        context.fill()
-      }
-      context.strokeStyle = '#d9ecf7'
-      context.lineWidth = 46
-      context.beginPath()
-      context.moveTo(620, 1000)
-      context.bezierCurveTo(760, 820, 640, 720, 860, 600)
-      context.stroke()
     } else if (kind === 'berries') {
       context.fillStyle = '#2e7d32'
       context.fillRect(0, 0, 1600, 1000)

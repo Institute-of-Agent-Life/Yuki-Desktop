@@ -36,19 +36,10 @@ export const dockLift = 100
 
 /**
  * The glass's colour in a filter: Y (a colour matrix), then tone(Y) − g·Y + lift as a table on it,
- * then added to g·C (dropping the lift). Turning between appearances (appearance.ts), the tone and
- * gain are `toward` of the way from `from`'s to `theme`'s.
+ * then added to g·C (dropping the lift).
  */
-export function dockFilter(
-  theme: 'light' | 'dark',
-  tint: number,
-  from: 'light' | 'dark' = theme,
-  toward = 1,
-) {
-  const start = dockTone(from, tint),
-    end = dockTone(theme, tint)
-  const gain = start.gain + (end.gain - start.gain) * toward,
-    tone = (y: number) => start.tone(y) + (end.tone(y) - start.tone(y)) * toward
+export function dockFilter(theme: 'light' | 'dark', tint: number) {
+  const { tone, gain } = dockTone(theme, tint)
   return {
     luma: [0, 1, 2]
       .map(() => `${weights.join(' ')} 0 0`)

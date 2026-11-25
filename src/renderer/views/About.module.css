@@ -130,7 +130,7 @@
 }
 .source {
   background: var(--bg-raised);
-  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
+  color: var(--accent);
   border: 0;
   border-left: 2px solid var(--separator);
   padding: 8px 12px;

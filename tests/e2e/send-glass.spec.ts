@@ -4,7 +4,7 @@ import { pairUI, yukiFixture } from '../fixtures/backend'
 import { activeCharacterName } from '../fixtures/active-character'
 import { contentSize } from '../fixtures/visual'
 import { picture, type Picture } from '../fixtures/pictures'
-import { contrast, throughGlass } from '../fixtures/legibility'
+import { throughGlass } from '../fixtures/frost'
 
 /*
  * The composer's send button is glass of its own, nested in the composer's: at rest (nothing to
@@ -15,7 +15,7 @@ import { contrast, throughGlass } from '../fixtures/legibility'
  * Fails when: at rest it is a solid coat (its middle shows the same colour over a dark and a light
  * picture, or the accent's blue), or shows no circle of its own (no rim: nested in the composer's
  * glass, a backdrop filter sees nothing behind it); or with something to send it is a coat (less
- * than 0.4 of what lies behind still shows), not blue, without its rim, or its arrow under 4.5:1.
+ * than 0.4 of what lies behind still shows), not blue, or without its rim.
  */
 const evidence: Record<string, unknown> = {}
 test.afterAll(async () => {
@@ -52,7 +52,7 @@ async function choose(app: ElectronApplication, page: Page, kind: Picture, first
 /**
  * The send button's pixels: the mean colour of a ring between its arrow and its rim; the brightest
  * of its top's outermost two points and the darkest of its left side's (its rim, by the Dock's law:
- * bright at the top, mixed toward black at the sides); and its arrow's colour.
+ * bright at the top, mixed toward black at the sides).
  */
 async function sample(page: Page, name: string) {
   const send = page.getByRole('button', { name: '送出', exact: true })
@@ -101,9 +101,6 @@ async function sample(page: Page, name: string) {
     shot = await page.screenshot({ clip: box })
   }
   await writeFile(test.info().outputPath(`${name}.png`), shot)
-  const arrow = await page
-    .locator('[data-glass="send"]')
-    .evaluate((element) => getComputedStyle(element).color)
   const pixels = await page.evaluate(
     async ({ data, width }) => {
       const image = new Image()
@@ -144,13 +141,7 @@ async function sample(page: Page, name: string) {
     },
     { data: shot.toString('base64'), width: box.width },
   )
-  return {
-    ...pixels,
-    arrow: arrow
-      .match(/[\d.]+/g)!
-      .slice(0, 3)
-      .map(Number),
-  }
+  return pixels
 }
 
 test('the send button is glass of its own: clear at rest, tinted through the glass with something to send', async () => {
@@ -174,7 +165,7 @@ test('the send button is glass of its own: clear at rest, tinted through the gla
     // The circle of glass over the send button (Composer.tsx).
     const send = page.locator('[data-glass="send"]')
     const seen: Record<string, Awaited<ReturnType<typeof sample>>> = {}
-    // Two greys the light glass shows as such (appearance.ts): level 170 and 235.
+    // Two greys under the light glass: level 170 and 235.
     for (const [index, level] of [170, 235].entries()) {
       await choose(app, page, `level-${level}`, index === 0)
       // Back in the chat, its glass drawn (Windows draws the page back a while after).
@@ -219,8 +210,7 @@ test('the send button is glass of its own: clear at rest, tinted through the gla
         .toBeGreaterThan(8)
     }
     // With something to send: blue through the glass, not a coat: what lies behind still shows
-    // through at least 0.4 of how it does at rest, its rim still shows at the top, and its arrow
-    // keeps 4.5:1 on it.
+    // through at least 0.4 of how it does at rest, and its rim still shows at the top.
     expect
       .soft(active170.ring[2]! - active170.ring[0]!, 'active it is tinted blue')
       .toBeGreaterThan(20)
@@ -237,9 +227,6 @@ test('the send button is glass of its own: clear at rest, tinted through the gla
       expect
         .soft(active.top - luma(active.ring), `active over ${name}: its top rim`)
         .toBeGreaterThan(8)
-      expect
-        .soft(contrast(active.arrow, active.ring), `active over ${name}: its arrow`)
-        .toBeGreaterThanOrEqual(4.5)
     }
     success = true
   } finally {

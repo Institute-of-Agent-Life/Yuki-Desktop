@@ -19,7 +19,7 @@
   min-width: 0;
 }
 .mark {
-  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
+  color: var(--accent);
   flex-shrink: 0;
 }
 .empty h1 {

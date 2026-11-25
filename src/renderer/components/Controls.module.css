@@ -46,11 +46,11 @@
   background: color-mix(in srgb, var(--control) 92%, var(--text-primary));
 }
 .plain {
-  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
+  color: var(--accent);
   padding-inline: var(--space-4);
 }
 .destructive {
-  color: color-mix(in srgb, var(--status-failed) var(--ink-mix), var(--ink-base));
+  color: var(--status-failed);
 }
 /* Large: a page's actions, a 28pt capsule; extra large: its one main action, 36pt. */
 .large,
@@ -132,7 +132,7 @@
   padding: 0 var(--space-4);
   font-size: 11px;
   font-weight: 600;
-  color: color-mix(in srgb, var(--status) var(--ink-mix), var(--ink-base));
+  color: var(--status);
   background: color-mix(in srgb, var(--status) 12%, transparent);
 }
 .dot {
@@ -149,7 +149,7 @@
   height: 32px;
   padding: 0 20px;
   flex-shrink: 0;
-  color: color-mix(in srgb, var(--status) var(--ink-mix), var(--ink-base));
+  color: var(--status);
   background: color-mix(in srgb, var(--status) 12%, var(--surface-page));
   font-size: 12px;
 }
@@ -251,8 +251,8 @@
 }
 /*
  * Tinted glass, the same in both themes: one flat fill in the accent's own hue, deepened to at
- * most 0.52 lightness and made more vivid, so white text keeps at least 4.5:1 for any character's
- * accent. Its depth comes from light at the rim, as on every clear pane, never from the fill.
+ * most 0.52 lightness and made more vivid. Its depth comes from light at the rim, as on every
+ * clear pane, never from the fill.
  */
 .primary {
   --tinted: oklch(from var(--accent) min(l, 0.52) calc(c * 1.35) h);

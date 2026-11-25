@@ -98,7 +98,7 @@
   font-weight: 600;
 }
 .categories button[role='tab'] svg {
-  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
+  color: var(--accent);
 }
 .categoryGroup:last-child {
   margin-top: 16px;

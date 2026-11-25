@@ -147,7 +147,7 @@
   background: var(--bg-content);
   z-index: 10;
   pointer-events: none;
-  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
+  color: var(--accent);
 }
 .media {
   min-width: 0;

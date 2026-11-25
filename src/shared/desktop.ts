@@ -20,13 +20,10 @@ export interface CustomBackdrop {
   dim: number
 }
 /**
- * What the app keeps of a picture beside its smaller copy, made when it is imported: the mean,
- * 5th and 95th percentile of relative luminance in each cell of a `grid` × `grid` raster, row by
- * row, and the picture's average colour.
+ * What the app keeps of a picture beside its smaller copy, made when it is imported: its average
+ * colour. Tables kept before carry more, which nothing reads.
  */
 export interface BackdropTable {
-  grid: number
-  cells: [number, number, number][]
   average: string
 }
 export type DisplayTimeZone = 'Asia/Taipei' | 'system'

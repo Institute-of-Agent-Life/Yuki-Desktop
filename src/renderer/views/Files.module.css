@@ -152,7 +152,7 @@
 }
 .reference {
   display: block;
-  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
+  color: var(--accent);
   padding: 6px 0;
   text-align: left;
 }

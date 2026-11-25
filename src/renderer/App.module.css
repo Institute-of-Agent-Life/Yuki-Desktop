@@ -36,7 +36,7 @@
   text-align: left;
 }
 .welcomeMark {
-  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
+  color: var(--accent);
 }
 .entryChoices {
   display: flex;
@@ -200,7 +200,7 @@
   background: transparent;
 }
 .nav svg {
-  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
+  color: var(--accent);
 }
 :global([data-contrast='true']) .nav[aria-current='page'],
 :global([data-contrast='true']) .nav[aria-current='page'] svg {
@@ -311,8 +311,7 @@
  * The send button's glass (Composer.tsx): a circle of the Dock's glass, with its own lens and rim,
  * over the composer's. At rest (nothing to send) clear, its arrow in the main ink; with something to
  * send, or pressed, tinted (.glassProminent): the accent laid through it at 38%, so what lies
- * behind, its lens and its rim still show, and the arrow keeps the main ink of its appearance
- * (at least 4.5:1 on the tinted glass, light or dark).
+ * behind, its lens and its rim still show, and the arrow keeps the theme's main ink.
  */
 .sendGlass {
   --tinted: oklch(from var(--accent) min(l, 0.52) calc(c * 1.35) h);
@@ -391,7 +390,7 @@
 .composerError {
   flex-shrink: 0;
   margin: 4px 8px 0;
-  color: color-mix(in srgb, var(--status-failed) var(--ink-mix), var(--ink-base));
+  color: var(--status-failed);
 }
 .composerError:empty {
   margin: 0;

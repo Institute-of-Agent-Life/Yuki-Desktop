@@ -8,7 +8,7 @@ import { ApiError } from './api/client'
  * Pictures of the person's own behind the conversation (docs/reports/2026-11-23-liquid-glass
  * §12). Each is kept under the SHA-256 of its bytes, so the same picture is kept once: the
  * original as it was, the smaller WebP copy the page shows, blurred copies of it, and its
- * brightness table. Chromium decodes and scales pictures in the renderer (as for avatars); this
+ * average colour. Chromium decodes and scales pictures in the renderer (as for avatars); this
  * side keeps the files and serves them to the page under app://desktop/__backgrounds/.
  */
 const id = /^[0-9a-f]{64}$/
@@ -33,13 +33,7 @@ export class Backgrounds {
   async store(original: Uint8Array, copy: Uint8Array, table: BackdropTable) {
     const kind = format(original)
     if (!kind || format(copy) !== 'webp') throw new ApiError('unsupported_image')
-    if (
-      table.grid !== 32 ||
-      table.cells.length !== 32 * 32 ||
-      !table.cells.every((cell) => cell.length === 3 && cell.every((v) => v >= 0 && v <= 1)) ||
-      !/^#[0-9a-f]{6}$/.test(table.average)
-    )
-      throw new ApiError('validation_error')
+    if (!/^#[0-9a-f]{6}$/.test(table.average)) throw new ApiError('validation_error')
     const name = createHash('sha256').update(original).digest('hex')
     await mkdir(this.root, { recursive: true })
     await writeFile(join(this.root, `${name}.${extensions[kind]}`), original)

@@ -30,10 +30,10 @@
   color: var(--text-tertiary);
 }
 .unsaved {
-  color: color-mix(in srgb, var(--status-waiting) var(--ink-mix), var(--ink-base));
+  color: var(--status-waiting);
 }
 .saved {
-  color: color-mix(in srgb, var(--status-done) var(--ink-mix), var(--ink-base));
+  color: var(--status-done);
 }
 .explanation {
   width: min(880px, calc(100% - 48px));

@@ -53,14 +53,6 @@
   --separator: rgba(20, 30, 50, 0.1);
   --separator-strong: rgba(20, 30, 50, 0.17);
   --line: 1px;
-  /* The persona's accent in either appearance (Conversation.tsx), for glass that takes the
-     appearance opposite the theme (materials.css). */
-  --accent-light: #3a6bd6;
-  --accent-dark: #7fa4ff;
-  /* How much of its own colour coloured text keeps, toward `--ink-base` (materials.css). */
-  --ink-mix: 100%;
-  --ink-base: #000;
-  --frost-wash: transparent;
   --accent: #3a6bd6;
   --accent-strong: #2c57b8;
   --accent-subtle: #e8eefc;
@@ -551,7 +543,7 @@ button:active {
   background: var(--fill-pressed);
 }
 a {
-  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
+  color: var(--accent);
 }
 p {
   margin: 0 0 8px;

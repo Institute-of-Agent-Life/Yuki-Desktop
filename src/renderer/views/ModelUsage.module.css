@@ -31,7 +31,7 @@
 }
 .eyebrow > span {
   margin-left: 6px;
-  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
+  color: var(--accent);
 }
 .total {
   display: flex;
