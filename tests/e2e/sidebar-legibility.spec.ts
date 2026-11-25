@@ -148,6 +148,7 @@ test('the sidebar keeps its text legible over any picture, light and dark, and s
           theme === 'dark'
             ? { colour: [0x1b, 0x1d, 0x22], amount: 0.3 }
             : { colour: [255, 255, 255], amount: 0 },
+          theme,
         )
 
         evidence[`${wallpaper} ${theme}`] = {

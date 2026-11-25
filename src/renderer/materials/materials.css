@@ -29,7 +29,8 @@
 }
 /*
  * Text on the Dock's glass, as the system draws it: the main text black or white; the quieter text
- * the same at 0.66, so that it keeps 3:1 wherever its glass is (materials/appearance.ts).
+ * the same at 0.66 (black) or 0.70 (white), so that it keeps 3:1 wherever its glass is
+ * (materials/appearance.ts).
  * Glass that carries text takes the appearance of what lies under it over a picture of one's own
  * (`data-appearance`, materials/appearance.ts), on every platform, with the ink, fills and lines of
  * that appearance (the accent is the persona's, per theme), whatever the theme; they cross-fade with the glass over 200ms.
@@ -50,22 +51,28 @@
   initial-value: #000;
 }
 :root[data-platform='darwin']:not([data-contrast='true'])
-  :is([data-glass='sidebar'], [data-glass='toolbar'], [data-glass='composer']):not(
-    [data-appearance='dark']
-  ),
+  :is(
+    [data-glass='sidebar'],
+    [data-glass='toolbar'],
+    [data-glass='composer'],
+    [data-glass='send']
+  ):not([data-appearance='dark']),
 [data-appearance='light'] {
   --text-primary: #000;
   --text-secondary: rgb(0 0 0 / 0.66);
   --text-tertiary: rgb(0 0 0 / 0.66);
 }
 :root[data-platform='darwin'][data-theme='dark']:not([data-contrast='true'])
-  :is([data-glass='sidebar'], [data-glass='toolbar'], [data-glass='composer']):not(
-    [data-appearance='light']
-  ),
+  :is(
+    [data-glass='sidebar'],
+    [data-glass='toolbar'],
+    [data-glass='composer'],
+    [data-glass='send']
+  ):not([data-appearance='light']),
 [data-appearance='dark'] {
   --text-primary: #fff;
-  --text-secondary: rgb(255 255 255 / 0.66);
-  --text-tertiary: rgb(255 255 255 / 0.66);
+  --text-secondary: rgb(255 255 255 / 0.7);
+  --text-tertiary: rgb(255 255 255 / 0.7);
 }
 [data-appearance] {
   color: var(--text-primary);

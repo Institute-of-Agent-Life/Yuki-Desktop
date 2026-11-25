@@ -78,15 +78,17 @@ export async function legible(page: Page, text: Locator) {
 /**
  * The appearance the glass of `element` is to take over a picture of one's own (shown filling the
  * window, the page's colour laid over it by `dim`, 0–1), by what lies under it as the bubbles'
- * copy blurs it (10px; materials/appearance.ts): dark where the mean luma is below 0.41 and its
- * 90th percentile below 0.65, light where the mean is above 0.51 or the 90th percentile above 0.70
- * (bright spots under white ink), either between (it holds what it had).
+ * copy blurs it (10px; materials/appearance.ts): the theme's own while its main ink still reads,
+ * turning where the mean luma passes 0.39 (light theme, downward) or 0.53 (dark, upward), back only
+ * past 0.49 or 0.43; light wherever the 90th percentile is above 0.70 (bright spots under white
+ * ink), dark only below 0.65. Null where either holds (it keeps what it had).
  */
 export async function appearanceFor(
   page: Page,
   element: Locator,
   picture: Buffer,
   dim: { colour: number[]; amount: number },
+  theme: 'light' | 'dark',
 ) {
   const box = (await element.boundingBox())!
   const { mean, high } = await page.evaluate(
@@ -126,7 +128,9 @@ export async function appearanceFor(
     },
     { data: picture.toString('base64'), box, dim },
   )
-  const expected = mean > 0.51 || high > 0.7 ? 'light' : mean < 0.41 && high < 0.65 ? 'dark' : null
+  const [darker, lighter] = theme === 'light' ? [0.39, 0.49] : [0.43, 0.53]
+  const expected =
+    mean > lighter || high > 0.7 ? 'light' : mean < darker && high < 0.65 ? 'dark' : null
   return { mean, high, expected }
 }
 

@@ -273,6 +273,60 @@ test('text-bearing glass turns dark over dark pictures and light over bright one
   }
 })
 
+test('the light theme keeps its light glass where black text still reads, as over foliage and rocks', async () => {
+  test.setTimeout(300000)
+  await mkdir(test.info().outputPath(), { recursive: true })
+  const rig = await yukiFixture(),
+    app = await rig.launch('adaptive-glass-keeps')
+  let success = false
+  try {
+    const page = await app.firstWindow()
+    await contentSize(app, page, 1100, 760)
+    await pairUI(page, rig.base, await rig.code())
+    await expect(page.getByText('Desktop reference reply', { exact: true }).first()).toBeVisible()
+    const composer = page.getByRole('textbox', {
+      name: `和 ${await activeCharacterName(page)} 說點什麼`,
+    })
+    await composer.fill('看得清楚嗎？')
+    const texts = {
+      composer,
+      reply: page.getByText('Desktop reference reply', { exact: true }).first(),
+      title: page.locator('[data-region="toolbar"] strong').first(),
+      sidebar: page
+        .locator('[data-region="sidebar"]')
+        .getByText('桌面對話', { exact: true })
+        .first(),
+    }
+    await settings(page, 'light')
+    for (const [index, kind] of (['foliage', 'rocks'] as const).entries()) {
+      if (index === 0) {
+        await choose(app, page, kind, true)
+        await back(page)
+      } else {
+        await fromMenu(app, page, kind)
+        await page.waitForTimeout(2500)
+      }
+      await page.screenshot({ path: test.info().outputPath(`${kind}-light.png`) })
+      // Mid-dark (luma about 0.43), where black text on the light glass still keeps 4.5:1: the
+      // glass keeps the theme's appearance, as Apple's does, rather than turning dark.
+      const { take } = await takes(page)
+      const shown = await appearances(page)
+      const seen: Record<string, number> = {}
+      for (const [name, value] of Object.entries(shown))
+        expect.soft(value, `${kind}: ${name}`).toBe(take(name, 'light'))
+      for (const [name, text] of Object.entries(texts)) {
+        seen[name] = await read(page, name, text)
+        expect.soft(seen[name], `${kind}: ${name}`).toBeGreaterThanOrEqual(4.5)
+      }
+      evidence[`${kind} light`] = { appearance: shown, contrast: seen }
+    }
+    success = true
+  } finally {
+    await app.close()
+    await rig.close(success)
+  }
+})
+
 test('near the threshold the glass keeps its appearance while the window resizes', async () => {
   test.setTimeout(300000)
   await mkdir(test.info().outputPath(), { recursive: true })
@@ -289,10 +343,11 @@ test('near the threshold the glass keeps its appearance while the window resizes
       'Without transparency the glass is a fill of the theme, with no appearance of its own.',
     )
     await settings(page, 'light')
-    // Tiled at its own size, a grey running from level 77 at the left to 173 at the right: the
-    // composer, centred in the chat beside the sidebar, lies over about level 118 (the threshold)
-    // and moves 3 levels either way as the window narrows and widens, crossing it each time.
-    await choose(app, page, 'ramp-77-173', true)
+    // Tiled at its own size, a grey running from level 71 at the left to 167 at the right: the
+    // composer, centred in the chat beside the sidebar, lies over about level 112 (luma 0.44, the
+    // middle of the light theme's band, 0.39–0.49) and moves 3 levels either way as the window
+    // narrows and widens, crossing it each time.
+    await choose(app, page, 'ramp-71-167', true)
     await tiled(page)
     await back(page)
     const steps: Record<string, string | null>[] = []

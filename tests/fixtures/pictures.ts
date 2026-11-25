@@ -6,13 +6,17 @@ import type { Page } from '@playwright/test'
 // tone, a saturated deep blue with an orange creature trailing red lines, a bright valley under a
 // pale sky, saturated red fruit on green leaves, and a dark forest with shafts of light.
 // For the glass's appearance: dark line art (white strokes and pale screen tone on black), a
-// very bright picture (pale shapes on white), and greys across the light/dark threshold: a level
+// very bright picture (pale shapes on white), mid-dark foliage and grey rocks (as a photograph of a
+// stream in a wood: sRGB luma about 0.41–0.49, a mean near 0.43, which black text on the light glass still reads
+// over at 4.5:1), and greys across the light/dark threshold: a level
 // `level-<n>` everywhere, or `ramp-<from>-<to>` running from left to right (sRGB levels).
 export type Picture =
   | 'lineart'
   | 'gradient'
   | 'nightlines'
   | 'snow'
+  | 'foliage'
+  | 'rocks'
   | `level-${number}`
   | `ramp-${number}-${number}`
   | Wallpaper
@@ -62,6 +66,13 @@ export async function picture(page: Page, kind: Picture) {
         for (let x = 0; x < 1600; x += 7)
           if (Math.sin(x / 210) + Math.cos(y / 150) > 0.9) context.fillRect(x, y, 2, 2)
       for (let stroke = 0; stroke < 120; stroke++) wander(1 + random() * 2, '#f2f2f2', 8, 60)
+    } else if (kind === 'foliage' || kind === 'rocks') {
+      // Soft patches between two colours of luma about 0.41 and 0.49.
+      const [low, high] = kind === 'foliage' ? ['#4c7633', '#628d44'] : ['#646a6f', '#767b81']
+      context.fillStyle = low
+      context.fillRect(0, 0, 1600, 1000)
+      for (let patch = 0; patch < 90; patch++)
+        blob(random() * 1600, random() * 1000, 60 + random() * 140, high, `${high}00`)
     } else if (kind === 'snow') {
       context.fillStyle = '#fbfcfd'
       context.fillRect(0, 0, 1600, 1000)

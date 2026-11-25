@@ -3,8 +3,7 @@ import { writeFile } from 'node:fs/promises'
 
 // 液态玻璃组件统一任务书 (2026-11-12), steps 4 and 6: what floats over content is frost or a lens,
 // what lies in it is content, lone toolbar controls sit in their own capsules, glass never lies
-// on glass at rest (but the composer's send button, its own glass within), and no hidden glass
-// costs a frame. Failure cases 1, 3 and 14, and Q2–Q3.
+// on glass at rest, and no hidden glass costs a frame. Failure cases 1, 3 and 14, and Q2–Q3.
 const evidence: Record<string, unknown> = {}
 test.afterAll(async () => {
   await writeFile(
@@ -34,10 +33,7 @@ const audit = (page: Page) =>
       return rect.width > 0 && rect.bottom > 0 && rect.top < innerHeight
     }
     return {
-      // The send button alone is glass nested in glass: a circle of its own in the composer's, as
-      // the owner asked (Controls.module.css).
       stacked: all
-        .filter((element) => element.getAttribute('data-glass') !== 'send')
         .filter((element) => {
           for (let parent = element.parentElement; parent; parent = parent.parentElement)
             if (filtering(parent)) return true

@@ -332,7 +332,7 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
         if (!glass) continue
         // A bubble's frost or, without transparency, any glass is a fill of the theme there.
         const content = !['composer', 'status', 'title'].includes(name)
-        const { mean, high, expected: rule } = await appearanceFor(page, glass, lineart, dim)
+        const { mean, high, expected: rule } = await appearanceFor(page, glass, lineart, dim, theme)
         const expected = (content ? through.content : through.glass) ? rule : null
         const actual = await glass.getAttribute('data-appearance')
         const round = (value: number) => Math.round(value * 1000) / 1000

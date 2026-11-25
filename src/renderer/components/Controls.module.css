@@ -238,33 +238,23 @@
   background: var(--avatar-accent-dark, var(--accent));
 }
 
-/*
- * The send button: glass of its own nested in the composer's, a circle with its own lens and rim
- * (materials/glass.ts, the Dock's 2pt blur). At rest (nothing to send) clear, its arrow in the
- * main ink; with something to send, or pressed, tinted glass (.glassProminent): the accent laid
- * through the glass at about two thirds, so its lens and rim still show.
- */
+/* The send button: its glass is a circle laid over it (App.module.css, Composer.tsx). */
 .send {
   width: 30px;
   height: 30px;
-  color: var(--text-primary);
-  backdrop-filter: var(--glass-regular);
 }
 .send:disabled {
   opacity: 1;
 }
-.send:enabled,
-.send[data-held='true'] {
-  background: color-mix(in srgb, var(--tinted) 66%, transparent);
-  color: #fff;
+.send > svg {
+  visibility: hidden;
 }
 /*
  * Tinted glass, the same in both themes: one flat fill in the accent's own hue, deepened to at
  * most 0.52 lightness and made more vivid, so white text keeps at least 4.5:1 for any character's
  * accent. Its depth comes from light at the rim, as on every clear pane, never from the fill.
  */
-.primary,
-.send {
+.primary {
   --tinted: oklch(from var(--accent) min(l, 0.52) calc(c * 1.35) h);
   --tinted-lift:
     0 1px 2px oklch(from var(--tinted) calc(l - 0.2) c h / 0.25),

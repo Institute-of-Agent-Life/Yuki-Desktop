@@ -8,16 +8,16 @@
  * What lies under an element is read from the picture as the bubbles' blurred copy has it
  * (backdrop.ts: blurred as a bubble's glass blurs, the page's colour laid over it as dimmed), as
  * luma (Rec. 709 on the encoded values, 0–1, as the Dock's tone weighs it) under the element's
- * box, and of that
- *   the mean, which chooses: dark below 0.46 − 0.05, light above 0.46 + 0.05, and between the
- *     two whatever it was (so it holds while the window moves or resizes near the threshold);
- *   the 90th percentile, which guards white ink against bright spots under it: above 0.70 the
- *     glass is light, and it turns dark again only below 0.65.
- * The threshold is where the two glasses (dock.ts) give main text the same contrast: black on
- * the light glass at luma 0.46 and white on the dark glass both 5.4:1; at the band's edges black
- * keeps 4.8:1 over the light glass (luma 0.41, glass level 121) and white 4.8:1 over the dark one
- * (luma 0.51, glass level 114), and quiet text, its ink at 0.66 over the glass (materials.css),
- * 3.3:1 and 3.1:1. Under the guard white keeps 3.2:1 over the dark glass at luma 0.70.
+ * box. The glass keeps the theme's appearance while its main ink still reads at 4.5:1 over what
+ * the mean gives, as Apple's does, and turns only where it would not:
+ *   light theme: black on the light glass keeps 4.5:1 down to a mean of 0.39 (glass level 118);
+ *     below it the glass turns dark, and light again only above 0.49 (white on the dark glass
+ *     there 5.1:1), so it holds while the window moves or resizes near the edge;
+ *   dark theme: white on the dark glass keeps 4.5:1 up to 0.53 (glass level 118); above it the
+ *     glass turns light, and dark again only below 0.43 (black on the light glass 5.2:1).
+ * Quiet text, black at 0.66 or white at 0.70 over the glass (materials.css), keeps 3.2:1 at those
+ * edges. The 90th percentile guards white ink against bright spots under it: above 0.70 the glass
+ * is light (white keeps 3.2:1 over the dark glass at 0.70), and it may turn dark only below 0.65.
  * The glass and its ink cross-fade over 200ms as it turns (glass.ts, materials.css).
  */
 export type Appearance = 'light' | 'dark'
@@ -25,9 +25,13 @@ export type Appearance = 'light' | 'dark'
 /** The mean and 90th percentile of the luma (sRGB, 0–1) under a box in the window. */
 export type Sample = (box: DOMRect) => { mean: number; high: number }
 
-const threshold = 0.46,
-  band = 0.05,
-  guard = 0.7
+// Where each theme's glass turns to the other appearance, and where it turns back.
+const edges = {
+  light: { turn: 0.39, back: 0.49 },
+  dark: { turn: 0.53, back: 0.43 },
+} as const
+const guard = 0.7,
+  band = 0.05
 
 let sample: Sample | undefined
 // What is watched (and whether it is content, whose frost is a fill without GPU compositing), and
@@ -62,16 +66,25 @@ function decide(element: HTMLElement) {
   if (!box.width || !box.height) return
   const { mean, high } = sample(box)
   const had = element.dataset.appearance as Appearance | undefined
+  const theme: Appearance = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
+  const { turn, back } = edges[theme],
+    shown = had ?? theme
+  // Dark is allowed only below the guard (entered only below it less the band).
+  const darkAllowed = high < (shown === 'dark' ? guard : guard - band)
   const next: Appearance =
-    had === 'dark'
-      ? mean > threshold + band || high > guard
-        ? 'light'
-        : 'dark'
-      : had === 'light'
-        ? mean < threshold - band && high < guard - band
+    theme === 'light'
+      ? shown === 'light'
+        ? mean < turn && darkAllowed
           ? 'dark'
           : 'light'
-        : mean < threshold && high < guard
+        : mean > back || !darkAllowed
+          ? 'light'
+          : 'dark'
+      : shown === 'dark'
+        ? mean > turn || !darkAllowed
+          ? 'light'
+          : 'dark'
+        : mean < back && darkAllowed
           ? 'dark'
           : 'light'
   if (next !== had) element.dataset.appearance = next
