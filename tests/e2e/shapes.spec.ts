@@ -1,3 +1,4 @@
+import { sidebar } from '../fixtures/navigation'
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { pairUI, yukiFixture } from '../fixtures/backend'
@@ -254,7 +255,8 @@ test('every control is a capsule and every container a large rounded rectangle',
         await page.getByRole('button', { name: '搜尋已載入內容', exact: true }).click()
         await scan('search')
         await page.keyboard.press('Escape')
-        await page.locator('[aria-haspopup="menu"]').first().click()
+        await (await sidebar(page)).getByRole('button', { name: '切換 Yuki', exact: true }).click()
+        await expect(page.getByRole('menu', { name: 'Yuki' })).toBeVisible()
         await scan('role menu')
         await page.keyboard.press('Escape')
         await nav(page, '工作')

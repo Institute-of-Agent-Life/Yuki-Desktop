@@ -126,7 +126,9 @@ test('settings draw every field, check box and disclosure one way', async () => 
     )
     // C1 and 5: one look for every field, see-through over the window's frost; none cut short.
     expect([...looks]).toHaveLength(1)
-    expect(fields.length).toBeGreaterThanOrEqual(3)
+    expect(seen['這台電腦']!.fields.map((field) => field.name)).toEqual(
+      expect.arrayContaining(['input 原 Python 絕對路徑', 'input 原資料目錄']),
+    )
     if (all[0]![1].material !== 'none') {
       const alpha = await page.evaluate((colour) => {
         const context = new OffscreenCanvas(1, 1).getContext('2d')!

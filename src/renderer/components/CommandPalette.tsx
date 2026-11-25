@@ -1,4 +1,12 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import {
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type Ref,
+} from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { File, MessageCircle, BriefcaseBusiness, Command } from 'lucide-react'
 import { loadedItems, type LoadedItem } from '../state/loaded'
@@ -15,18 +23,34 @@ export interface PaletteCommand {
 }
 type Item = LoadedItem | ({ kind: 'command'; at: number; detail: string } & PaletteCommand)
 const kinds = ['message', 'work', 'file', 'command'] as const
-const icons = { message: MessageCircle, work: BriefcaseBusiness, file: File, command: Command }
+const icons = {
+  message: <MessageCircle size={14} />,
+  work: <BriefcaseBusiness size={14} />,
+  file: <File size={14} />,
+  command: <Command size={14} />,
+}
+interface PaletteProps {
+  character: string
+  commands: PaletteCommand[]
+  pick(item: LoadedItem, stage: boolean): Promise<void>
+}
+
+// Opening the panel changes only the panel, even over a long conversation.
+export function PaletteHost({
+  ref,
+  ...props
+}: PaletteProps & { ref: Ref<(open: boolean) => void> }) {
+  const [open, setOpen] = useState(false)
+  useImperativeHandle(ref, () => setOpen, [])
+  return open ? <CommandPalette {...props} close={() => setOpen(false)} /> : null
+}
+
 export function CommandPalette({
   character,
   commands,
   pick,
   close,
-}: {
-  character: string
-  commands: PaletteCommand[]
-  pick(item: LoadedItem, stage: boolean): Promise<void>
-  close(): void
-}) {
+}: PaletteProps & { close(): void }) {
   const { t } = useTranslation(['workspace'])
   const { t: itemText } = useTranslation(['conversation'])
   const query = useQueryClient(),
@@ -186,15 +210,15 @@ export function CommandPalette({
           {!grouped.length && <p className={styles.empty}>{t('workspace:palette.empty')}</p>}
           {kinds.map((kind) => {
             const rows = grouped.filter((item) => item.kind === kind)
-            const Icon = icons[kind]
+            const offset = grouped.indexOf(rows[0]!)
             return (
               rows.length > 0 && (
                 <div role="group" aria-labelledby={`${prefix}-group-${kind}`} key={kind}>
                   <h3 className={styles.group} id={`${prefix}-group-${kind}`}>
                     {t(`workspace:palette.group.${kind}`)}
                   </h3>
-                  {rows.map((item) => {
-                    const index = grouped.indexOf(item)
+                  {rows.map((item, localIndex) => {
+                    const index = offset + localIndex
                     return (
                       <button
                         key={item.id}
@@ -209,7 +233,7 @@ export function CommandPalette({
                         onMouseMove={() => setSelected(item.id)}
                         onClick={(event) => void execute(item, event.metaKey || event.ctrlKey)}
                       >
-                        <Icon size={14} />
+                        {icons[kind]}
                         <span className={styles.label}>
                           <span className={styles.title}>{item.title}</span>
                           {item.detail && <span className={styles.detail}>{item.detail}</span>}

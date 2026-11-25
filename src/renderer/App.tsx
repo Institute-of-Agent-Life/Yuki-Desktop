@@ -173,8 +173,17 @@ export function App({ boot }: { boot: BootInfo }) {
       }),
     [],
   )
-  const save = async (patch: PreferencesPatch) =>
-    setPreferences(await window.yuki.preferences(patch))
+  const saved = useRef(Promise.resolve(boot.preferences))
+  const save = async (
+    change: PreferencesPatch | ((current: BootInfo['preferences']) => PreferencesPatch),
+  ) => {
+    const previous = saved.current
+    const next = previous.then((current) =>
+      window.yuki.preferences(typeof change === 'function' ? change(current) : change),
+    )
+    saved.current = next.catch(() => previous)
+    setPreferences(await next)
+  }
   useLayoutEffect(() => {
     const root = document.documentElement
     root.dataset.theme =

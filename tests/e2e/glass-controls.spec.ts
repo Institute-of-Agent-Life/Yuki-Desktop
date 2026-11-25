@@ -15,7 +15,8 @@ import { contentSize } from '../fixtures/visual'
  * (content's frost), its face is flat and 60 levels or more from what lies behind (the glass's own
  * tone, and a tint laid through it, move it at most about 45). A toggle's
  * knob is the system's own white and is not counted. Where the window is opaque (no picture is
- * shown) there is nothing to see through, and the scan does not apply.
+ * shown) the scan does not apply. Without GPU compositing a frosted content row itself is an
+ * opaque fill. Controls over that row are still checked wherever the background varies.
  */
 const evidence: Record<string, unknown> = {}
 test.afterAll(async () => {
@@ -52,6 +53,14 @@ async function coats(page: Page, name: string) {
         radius = Math.min(parseFloat(getComputedStyle(node).borderTopLeftRadius) || 0, r.height / 2)
       return {
         index,
+        isFrost: node.matches(
+          '[data-frost], [data-frost-children] > :not([data-frost-children], [data-glass], dialog, [popover])',
+        ),
+        fallbackFrost:
+          document.documentElement.dataset.gpuCompositing === 'false' &&
+          !!node.closest(
+            '[data-frost], [data-frost-children] > :not([data-frost-children], [data-glass], dialog, [popover])',
+          ),
         label: (node.getAttribute('aria-label') ?? node.textContent ?? node.tagName)
           .trim()
           .slice(0, 30),
@@ -133,18 +142,26 @@ async function coats(page: Page, name: string) {
     { face, behind, found },
   )
   const flat = result.filter(
-    (control) => control.face <= 1 && (control.behind >= 12 || Math.abs(control.shift) >= 60),
+    (control) =>
+      control.face <= 1 &&
+      (control.fallbackFrost
+        ? control.behind >= 12 && !control.isFrost
+        : control.behind >= 12 || Math.abs(control.shift) >= 60),
   )
-  evidence[name] = { measured: result.length, flat }
+  evidence[name] = { measured: result.length, controls: result, flat }
   return flat.map((control) => `${name}: ${control.tag} "${control.label}" (${control.className})`)
 }
 
-async function nav(page: Page, label: string) {
+async function nav(page: Page, label: string | RegExp) {
   if (await page.locator('#settings-panel').count())
     await page.getByRole('button', { name: '返回', exact: true }).click()
   const toggle = page.locator('[data-region="toolbar"] [data-toggle="sidebar"]')
   if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
-  await page.locator('[data-region="sidebar"]').getByText(label, { exact: true }).first().click()
+  await page
+    .locator('[data-region="sidebar"]')
+    .getByText(label, { exact: typeof label === 'string' })
+    .first()
+    .click()
 }
 async function settings(page: Page, tab: string) {
   if (!(await page.locator('#settings-panel').count())) await page.keyboard.press('ControlOrMeta+,')
@@ -179,6 +196,7 @@ test('every control is glass over a picture of ones own, on every page and popup
     const flat: string[] = []
     for (const theme of ['light', 'dark'] as const) {
       await page.evaluate((theme) => window.yuki.preferences({ theme }), theme)
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
       const scan = async (name: string) => {
         flat.push(...(await coats(page, `${name} ${theme}`)))
         await page.screenshot({ path: test.info().outputPath(`${name}-${theme}.png`) })
@@ -206,7 +224,7 @@ test('every control is glass over a picture of ones own, on every page and popup
       await scan('files')
       await nav(page, '這台電腦')
       await scan('this computer')
-      await page.locator('[data-region="sidebar"]').getByText(/^關於/).first().click()
+      await nav(page, /^關於/)
       await scan('about')
     }
     evidence.flat = flat

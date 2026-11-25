@@ -126,7 +126,7 @@ export function Settings({
 }: {
   boot: BootInfo
   preferences: Preferences
-  save(patch: PreferencesPatch): Promise<void>
+  save(patch: PreferencesPatch | ((current: Preferences) => PreferencesPatch)): Promise<void>
   back(): void
   connection?: Connection
   connections: Connection[]
@@ -179,7 +179,7 @@ export function Settings({
     setError(undefined)
     setNotice('')
   }
-  const change = async (patch: PreferencesPatch, section: string) => {
+  const change = async (patch: Parameters<typeof save>[0], section: string) => {
     setError(undefined)
     try {
       await save(patch)
@@ -213,21 +213,17 @@ export function Settings({
   // removed that was shown gives way to the default backdrop.
   // Each change is made to the pictures as they are when it is made, not as they were shown when it
   // began (a picture is read, or a blur drawn, in between).
-  const latest = useRef(preferences)
-  latest.current = preferences
   const chosen = chosenBackdrop(preferences)
   const addPicture = (picture?: File) =>
     void pictureFor(picture).then((id) => {
-      if (id) return change(keepBackdrop(latest.current, id), 'look')
+      if (id) return change((current) => keepBackdrop(current, id), 'look')
     })
   const removePicture = (id: string) =>
     void change(
-      {
-        customBackdrops: latest.current.customBackdrops.filter((picture) => picture.light !== id),
-        ...(chosenBackdrop(latest.current)?.light === id
-          ? { backdrop: defaultPreferences.backdrop }
-          : {}),
-      },
+      (current) => ({
+        customBackdrops: current.customBackdrops.filter((picture) => picture.light !== id),
+        ...(chosenBackdrop(current)?.light === id ? { backdrop: defaultPreferences.backdrop } : {}),
+      }),
       'look',
     )
   const setLogin = async (enabled: boolean) => {
@@ -499,11 +495,11 @@ export function Settings({
                   pictureFor={() => pictureFor(undefined, chosen.blur)}
                   change={(part) =>
                     change(
-                      {
-                        customBackdrops: latest.current.customBackdrops.map((picture) =>
+                      (current) => ({
+                        customBackdrops: current.customBackdrops.map((picture) =>
                           picture.light === chosen.light ? { ...picture, ...part } : picture,
                         ),
-                      },
+                      }),
                       'look',
                     )
                   }

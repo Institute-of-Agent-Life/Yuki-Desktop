@@ -82,14 +82,18 @@ test('several pictures of ones own are kept, chosen, set apart, removed and kept
       'true',
     )
     await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'custom')
-    // 3: its own settings.
+    // A quick fit and dim change must compose even before the first save returns.
+    const dim = page.getByRole('slider', { name: '變暗', exact: true })
+    await dim.focus()
     await page
       .getByRole('radiogroup', { name: '顯示方式', exact: true })
       .getByRole('radio', { name: '並排', exact: true })
-      .click()
-    const dim = page.getByRole('slider', { name: '變暗', exact: true })
-    await dim.focus()
-    await page.keyboard.press('End')
+      .evaluate((button) => {
+        ;(button as HTMLButtonElement).click()
+        document.activeElement!.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'End', bubbles: true }),
+        )
+      })
     await expect
       .poll(async () => (await preferences(page)).customBackdrops)
       .toEqual([{ light: ids.lineart, fit: 'tile', blur: 0, dim: 60 }])
@@ -116,10 +120,10 @@ test('several pictures of ones own are kept, chosen, set apart, removed and kept
     expect((await preferences(page)).customBackdrops).toHaveLength(2)
     await pictures.getByRole('radio', { name: '自訂圖片 2', exact: true }).click()
     await expect.poll(async () => (await preferences(page)).backdrop).toBe(`custom:${ids.gradient}`)
+    await expect(pictures.getByRole('radio', { name: '自訂圖片 2', exact: true })).toBeChecked()
     // 3: the second's blur and dark picture are its own.
     const blur = page.getByRole('slider', { name: '背景模糊', exact: true })
-    await blur.focus()
-    await page.keyboard.press('End')
+    await blur.press('End')
     await expect.poll(async () => (await preferences(page)).customBackdrops[1]!.blur).toBe(20)
     await page.getByRole('switch', { name: '淺色與深色分別設定', exact: true }).click()
     await answerWith(app, paths.lineart)

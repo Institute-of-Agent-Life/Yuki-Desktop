@@ -26,6 +26,22 @@ async function move(button: Locator, reverse = false) {
     const frames: ReturnType<typeof read>[] = []
     let reversal = -1
     control.click()
+    // Place the real track transition halfway through for the reversal. A software renderer
+    // can otherwise present its next frame after the entire 205ms transition.
+    if (reverse) {
+      await Promise.resolve()
+      const tracks = document
+        .getAnimations()
+        .find((animation) =>
+          (animation.effect as KeyframeEffect)
+            .getKeyframes()
+            .some((frame) => '--workspace-left' in frame),
+        )
+      if (tracks) {
+        tracks.pause()
+        tracks.currentTime = Number(tracks.effect!.getTiming().duration) / 2
+      }
+    }
     const until = performance.now() + 430
     const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
     while (performance.now() < until || frames.length < 2) {

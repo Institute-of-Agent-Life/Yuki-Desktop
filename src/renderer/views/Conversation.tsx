@@ -58,7 +58,7 @@ import { VoiceRecorder } from './VoiceRecorder'
 import mediaStyles from './Media.module.css'
 import { Markdown } from '../text/RichMarkdown'
 import { useHistory } from '../queries/history'
-import { CommandPalette, type PaletteCommand } from '../components/CommandPalette'
+import { PaletteHost, type PaletteCommand } from '../components/CommandPalette'
 import type { LoadedItem } from '../state/loaded'
 import { requestNavigation } from '../state/navigation'
 import { ConversationWork, WorkDetail, WorkList, WorkReply } from './Works'
@@ -185,7 +185,7 @@ export function Conversation({
   const [replyWork, setReplyWork] = useState<Work>()
   const currentReferences = useRef<MessageReference[]>([])
   const [search, setSearch] = useState<string | null>(null)
-  const [palette, setPalette] = useState(false)
+  const palette = useRef<((open: boolean) => void) | null>(null)
   const alive = useRef(true)
   const invalidatedReads = useRef(new Set<Promise<unknown>>())
   useEffect(() => {
@@ -495,7 +495,7 @@ export function Conversation({
   )
   useEffect(() => {
     if (!active) return
-    const search = () => setPalette(true)
+    const search = () => palette.current?.(true)
     window.addEventListener('yuki:search', search)
     return () => window.removeEventListener('yuki:search', search)
   }, [active])
@@ -504,15 +504,12 @@ export function Conversation({
       document
         .querySelector<HTMLTextAreaElement>(`[data-character-session="${id}"] textarea`)
         ?.focus()
-    if (command === 'search') setPalette(true)
+    if (command === 'search') palette.current?.(true)
     if (command === 'find' && !soulEditing) {
       if (view === 'chat') setSearch('')
-      else setPalette(true)
+      else palette.current?.(true)
     }
   })
-  useEffect(() => {
-    if (accessLost) setPalette(false)
-  }, [accessLost])
   useLayoutEffect(() => {
     const log = list.current
     if (
@@ -718,9 +715,6 @@ export function Conversation({
         root.style.removeProperty(key)
     }
   }, [profileData?.accent, preferences.theme, active])
-  useEffect(() => {
-    if (!active) setPalette(false)
-  }, [active])
   const choose = (next: string) =>
     requestNavigation(() => {
       needsEarlier.current = false
@@ -955,7 +949,7 @@ export function Conversation({
     accessLost || hidesPrivateData(characterStatus.error) ? undefined : characterStatus.data,
   )
   const paletteNavigate = (run: () => void) => {
-    setPalette(false)
+    palette.current?.(false)
     requestNavigation(() => {
       if (alive.current) run()
     })
@@ -1611,13 +1605,8 @@ export function Conversation({
           </div>
         )}
       </Workspace>
-      {palette && !accessLost && (
-        <CommandPalette
-          character={id}
-          commands={paletteCommands}
-          pick={pickLoaded}
-          close={() => setPalette(false)}
-        />
+      {active && !accessLost && (
+        <PaletteHost character={id} commands={paletteCommands} pick={pickLoaded} ref={palette} />
       )}
     </CharacterVisuals.Provider>
   )
