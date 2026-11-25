@@ -163,11 +163,12 @@ test('the send button is glass of its own: clear at rest, tinted through the gla
       seen['active 170']!,
       seen['active 235']!,
     ]
-    // At rest: what lies behind shows through (the Dock's tone of 170 and 235 lie 45 levels
-    // apart), no blue is laid on it, and it is a circle of its own: its rim is bright at the top
-    // and darker at the sides than its middle.
+    // At rest: what lies behind shows through (the circle gives the composer's glass the Dock's
+    // tone again: over 170 and 235 about 31 levels apart, the composer's own 45), no blue is laid
+    // on it, and it is a circle of its own: its rim is bright at the top and darker at the sides
+    // than its middle.
     const restShift = luma(rest235.ring) - luma(rest170.ring)
-    expect.soft(restShift, 'at rest it follows the backdrop').toBeGreaterThan(25)
+    expect.soft(restShift, 'at rest it follows the backdrop').toBeGreaterThan(15)
     expect.soft(rest170.ring[2]! - rest170.ring[0]!, 'at rest it is not blue').toBeLessThan(12)
     for (const [name, rest] of [
       ['170', rest170],
