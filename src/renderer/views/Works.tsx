@@ -932,7 +932,8 @@ export function WorkReply({
   return (
     <div data-work-reply className={`${styles.reply} ${inline ? styles.inlineReply : ''}`}>
       {!inline && (
-        <header>
+        // On a picture of one's own it lies on frost, as every other block of content.
+        <header data-frost>
           <span>{t('works:addTo', { goal: work.goal })}</span>
           {close && (
             <IconButton label={t('works:cancelReply')} onClick={close}>

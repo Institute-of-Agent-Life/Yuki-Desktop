@@ -15,7 +15,9 @@ import { picture, type Picture } from '../fixtures/pictures'
  * Fails when:
  *   1. the picture is drawn more than once, or by anything but the window (a page's own layer);
  *   2. a page lies on a pane of glass of its own (glass over most of the window);
- *   3. any text lies on the bare picture: under it neither glass, frost, a fill nor media;
+ *   3. any text lies on the bare picture: under it neither glass, frost, a fill nor media, on the
+ *      page as shown and with everything it opens in place opened (disclosures, collapsed
+ *      controls, the reply and edit boxes);
  *   4. a block's frost is not the picture's frost where the window has it: offset from it by
  *      more than 2px, or matching it better scaled (the blurred copy laid out at another size),
  *      at rest, after the wheel scrolls a page to its middle and back, and after a resize;
@@ -422,6 +424,40 @@ async function gap(page: Page) {
   return (await difference(page, [shown, alone], [strip]))[0]!
 }
 
+/**
+ * Opens what a page shows in place: every disclosure, every collapsed control and its reply and
+ * edit boxes; whether anything opened.
+ */
+async function expand(page: Page) {
+  const opened = await page.evaluate(() => {
+    let count = 0
+    const where = '[data-region="content"], [data-region="inspector"], #settings-panel'
+    for (const details of document.querySelectorAll<HTMLDetailsElement>(
+      `:is(${where}) details:not([open])`,
+    )) {
+      details.open = true
+      count++
+    }
+    for (const button of document.querySelectorAll<HTMLButtonElement>(
+      `:is(${where}) button[aria-expanded="false"]`,
+    ))
+      if (button.checkVisibility()) {
+        button.click()
+        count++
+      }
+    return count
+  })
+  let shown = 0
+  for (const name of ['回覆', '編輯名稱與簡介']) {
+    const button = page.getByRole('button', { name, exact: true }).first()
+    if (await button.isVisible()) {
+      await button.click()
+      shown++
+    }
+  }
+  return opened + shown > 0
+}
+
 async function choose(
   app: ElectronApplication,
   page: Page,
@@ -557,6 +593,9 @@ for (const [scale, kind, theme] of [
       for (const [name, open, scroller] of pages) {
         await open(page)
         await check(name)
+        // What a page opens in place is checked too: every disclosure open, every reply and edit
+        // box shown.
+        if (await expand(page)) await check(`${name} expanded`)
         if (!scroller) continue
         // To the middle with the wheel, and back.
         const box = await page.evaluate((selector) => {
