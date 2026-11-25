@@ -57,7 +57,7 @@ async function configure(page: Page, name: string, button = `設定 ${name}`) {
 }
 // The settings panel slides in and a dialog grows out of its button; a screenshot waits for rest.
 // Settled: a while for the page, then until a control just pressed (a segment's or a switch's
-// thumb, glass while held) has turned quiet again and nothing is still moving.
+// thumb, glass while held, and its glow) has turned quiet again and nothing is still moving.
 const settle = async (page: Page) => {
   await page.waitForTimeout(800)
   await expect
@@ -67,6 +67,10 @@ const settle = async (page: Page) => {
           () =>
             document.querySelectorAll(
               ':is([data-glass="segment"], [data-glass="toggle"], [data-glass="slider"])[data-refracting]',
+            ).length +
+            // A pressed control's glow, still fading (motion/hooks.ts).
+            [...document.querySelectorAll<HTMLElement>('[data-press]')].filter(
+              (node) => Number(node.style.getPropertyValue('--hp') || 0) > 0,
             ).length +
             document
               .getAnimations()

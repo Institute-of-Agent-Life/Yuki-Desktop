@@ -287,3 +287,10 @@
   padding: 3px 10px;
   --frost-radius: 999px;
 }
+/* Over a picture of one's own the resting screen's note is a block of frost of its own size, as an
+   empty page's is (materials.css). */
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .resting {
+  flex: 0 0 auto;
+  margin: auto;
+  padding: 24px 32px;
+}

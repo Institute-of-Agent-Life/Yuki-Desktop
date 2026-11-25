@@ -141,10 +141,11 @@ function structure(page: Page) {
           y = r.y + r.height / 2
         if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue
         const stack = document.elementsFromPoint(x, y)
-        // Under something else (a menu over it): not what is read there.
-        if (stack[0] && !parent.contains(stack[0]) && !stack[0].contains(parent)) continue
+        // Its own element not hit there: under something else (a menu over it) or clipped away
+        // by a scroller: not what is read there.
         const from = stack.indexOf(parent)
-        if (!(from >= 0 ? stack.slice(from) : stack).some(backs)) bare.push(value.slice(0, 40))
+        if (from < 0) continue
+        if (!stack.slice(from).some(backs)) bare.push(value.slice(0, 40))
       }
     }
     probe.remove()

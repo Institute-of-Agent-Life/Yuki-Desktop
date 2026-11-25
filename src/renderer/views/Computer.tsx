@@ -320,7 +320,7 @@ export function Computer({
           controls={screenControls}
         />
       ) : (
-        <div className={styles.resting}>
+        <div className={styles.resting} data-frost>
           {state.display === 'starting' ? <Spinner /> : <Moon size={40} strokeWidth={1.5} />}
           <h3>
             {state.display === 'starting'
