@@ -61,7 +61,7 @@ async function sample(page: Page, name: string) {
   await page.evaluate(
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   )
-  const box = (await send.boundingBox())!
+  let box = (await send.boundingBox())!
   // Captured once it is drawn, its arrow and all (Windows can show the window a while before it
   // draws that part of it back): the capture is taken again while it is one flat colour, or its
   // ring (between the arrow and the rim, where nothing is black) is.
@@ -96,6 +96,8 @@ async function sample(page: Page, name: string) {
     }, shot.toString('base64'))
     if (!undrawn) break
     await page.waitForTimeout(500)
+    // (Read again: the page may still have been settling where it was first read.)
+    box = (await send.boundingBox())!
     shot = await page.screenshot({ clip: box })
   }
   await writeFile(test.info().outputPath(`${name}.png`), shot)
