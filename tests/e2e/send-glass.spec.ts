@@ -62,10 +62,29 @@ async function sample(page: Page, name: string) {
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   )
   const box = (await send.boundingBox())!
-  // (On Windows the first capture of a region after the page has changed can come back half
-  // drawn: one is taken and dropped first.)
-  await page.screenshot({ clip: box })
-  const shot = await page.screenshot({ clip: box })
+  // Captured once it is drawn, its arrow and all (Windows can show the window a while before it
+  // draws the page back): the capture is taken again until it is not one flat colour.
+  let shot = await page.screenshot({ clip: box })
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const flat = await page.evaluate(async (data) => {
+      const image = new Image()
+      image.src = `data:image/png;base64,${data}`
+      await image.decode()
+      const context = new OffscreenCanvas(image.width, image.height).getContext('2d')!
+      context.drawImage(image, 0, 0)
+      const pixels = context.getImageData(0, 0, image.width, image.height).data
+      let low = 255,
+        high = 0
+      for (let k = 0; k < pixels.length; k += 4) {
+        low = Math.min(low, pixels[k + 1]!)
+        high = Math.max(high, pixels[k + 1]!)
+      }
+      return high - low < 40
+    }, shot.toString('base64'))
+    if (!flat) break
+    await page.waitForTimeout(500)
+    shot = await page.screenshot({ clip: box })
+  }
   await writeFile(test.info().outputPath(`${name}.png`), shot)
   const arrow = await page
     .locator('[data-glass="send"]')
@@ -143,6 +162,9 @@ test('the send button is glass of its own: clear at rest, tinted through the gla
     // Two greys the light glass shows as such (appearance.ts): level 170 and 235.
     for (const [index, level] of [170, 235].entries()) {
       await choose(app, page, `level-${level}`, index === 0)
+      // Back in the chat, its glass drawn (Windows draws the page back a while after).
+      await expect(composer).toBeVisible()
+      await expect(send).toHaveAttribute('data-refracting', 'true')
       await composer.fill('')
       seen[`rest ${level}`] = await sample(page, `rest-${level}`)
       await composer.fill('送出前')
