@@ -232,7 +232,8 @@
   --hl: rgba(255, 255, 255, 0.28);
   --track: rgba(20, 34, 64, 0.14);
   --toggle-off: rgba(20, 34, 64, 0.16);
-  --seg-thumb: #ffffff;
+  /* The chosen segment: a raised pill of glass, a little lighter than what it lies on. */
+  --seg-thumb: rgb(255 255 255 / 0.24);
 }
 /*
  * The window's own corner, measured on the system: macOS 26 and later round an Electron window
@@ -344,7 +345,7 @@
   --hl: rgba(255, 255, 255, 0.16);
   --track: rgba(255, 255, 255, 0.16);
   --toggle-off: rgba(255, 255, 255, 0.18);
-  --seg-thumb: rgba(255, 255, 255, 0.16);
+  --seg-thumb: rgb(255 255 255 / 0.12);
 }
 /*
  * Transparent frost: the system material behind the window shows through every page, as in a
@@ -431,6 +432,21 @@ select {
   border: var(--line) solid var(--field-line);
   border-radius: var(--r-control);
   background: var(--field);
+}
+/* A select is a small piece of glass, as a button is (Controls.module.css): the Dock's colour over
+   2pt of blur, its edge the field's hairline. Inside other glass it is drawn on that glass with a
+   quiet fill, and without transparency it is a field of the theme. */
+select {
+  background: transparent;
+  backdrop-filter: blur(var(--glass-blur)) var(--glass-native) var(--seal,);
+}
+[data-glass] select {
+  background: var(--fill-control);
+  backdrop-filter: none;
+}
+:root[data-opaque='true'] select {
+  background: var(--field);
+  backdrop-filter: none;
 }
 /* One line of text is a regular control's height on every platform, whatever its font's metrics. */
 :where(

@@ -48,6 +48,10 @@
     transparent
   );
   box-shadow: 0 1px 3px #0002;
+  /* At rest a raised pill of the Dock's glass; held, the clear lens (glass.ts). */
+  backdrop-filter: blur(var(--glass-blur)) var(--glass-native) var(--seal,);
+}
+.segmentThumb[data-refracting] {
   backdrop-filter: var(--glass-lens);
 }
 .toggle {
@@ -181,7 +185,7 @@
   border-radius: var(--r-row);
 }
 :global([data-opaque='true']) :is(.segmentThumb, .sliderThumb, .toggleThumb) {
-  background: var(--seg-thumb);
+  background: var(--control);
 }
 :global([data-contrast='true']) .selection,
 :global([data-contrast='true']) .segmentThumb {

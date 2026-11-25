@@ -364,14 +364,14 @@ test('a busy button opens room for its spinner on a liquid spring and keeps even
   expect(Math.abs(layout.leftPad - layout.rightPad)).toBeLessThanOrEqual(2)
   expect(Math.abs(layout.spinMiddle - layout.textMiddle)).toBeLessThanOrEqual(1.5)
   // 19: two-character labels keep a button's width, a little air between Han characters,
-  // and a disabled button keeps its outline.
+  // and a disabled button keeps its glass, so it still looks like the button it was.
   const metrics = await page.getByRole('button', { name: '停用', exact: true }).evaluate((node) => {
     const style = getComputedStyle(node)
     return {
       width: node.getBoundingClientRect().width,
       letterSpacing: style.letterSpacing,
       lineHeight: style.lineHeight,
-      outline: style.boxShadow,
+      glass: style.backdropFilter,
     }
   })
   evidence.buttonMetrics = metrics
@@ -379,5 +379,5 @@ test('a busy button opens room for its spinner on a liquid spring and keeps even
   // Han labels keep the system's own tracking (hig-audit.md decision 11).
   expect(metrics.letterSpacing).toBe('normal')
   expect(metrics.lineHeight).toBe('18px')
-  expect(metrics.outline).not.toBe('none')
+  expect(metrics.glass).not.toBe('none')
 })

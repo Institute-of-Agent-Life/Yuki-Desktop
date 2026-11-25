@@ -36,7 +36,7 @@ const resting = (page: Page) =>
       ].filter(
         (element) =>
           element.hasAttribute('data-refracting') ||
-          getComputedStyle(element).backdropFilter.includes('#yuki-glass-'),
+          /#yuki-glass-\d/.test(getComputedStyle(element).backdropFilter),
       ).length,
   )
 
@@ -67,20 +67,22 @@ test('controls are quiet at rest and turn to glass only while held', async ({ pa
     // 10: quiet at rest.
     expect(await lens(glass), `${kind} at rest`).toEqual({
       refracting: false,
-      filter: expect.not.stringContaining('#yuki-glass-'),
+      // (The chosen segment rests as a pill of the Dock's colour, `#yuki-glass-tone-*`, with no
+      // lens of its own.)
+      filter: expect.not.stringMatching(/#yuki-glass-\d/),
     })
     const box = (await control(page, kind).boundingBox())!
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
     await page.mouse.down()
     // Held, it rises into glass.
     await expect(glass, `${kind} held`).toHaveAttribute('data-refracting', 'true')
-    expect((await lens(glass)).filter).toContain('#yuki-glass-')
+    expect((await lens(glass)).filter).toMatch(/#yuki-glass-\d/)
     await page.mouse.up()
     // Released and settled, it is quiet again.
     await expect(glass, `${kind} released`).not.toHaveAttribute('data-refracting', {
       timeout: 2000,
     })
-    expect((await lens(glass)).filter).not.toContain('#yuki-glass-')
+    expect((await lens(glass)).filter).not.toMatch(/#yuki-glass-\d/)
   }
 })
 

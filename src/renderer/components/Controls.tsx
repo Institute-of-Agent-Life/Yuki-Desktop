@@ -1,6 +1,6 @@
 import { reducedMotion, usePress } from '../motion/hooks'
 import { sampleSpring, springs } from '../motion/spring'
-import { followPointer, useGlass } from '../materials/glass'
+import { useGlass } from '../materials/glass'
 import { emerge, withdraw } from '../motion/emerge'
 import { useSessionActive } from '../state/workspace'
 import {
@@ -44,11 +44,9 @@ export function Button({
 }) {
   const { t } = useTranslation(['common'])
   const press = usePress<HTMLButtonElement>()
-  // Tinted glass glows in its own colour where the pointer's light falls.
-  useEffect(
-    () => (variant === 'primary' ? followPointer(press.current!) : undefined),
-    [variant, press],
-  )
+  // Every button is a small piece of the Dock's glass (glass.ts), tinted where it is primary or
+  // destructive.
+  const glass = useGlass<HTMLButtonElement>('control')
   const [visible, setVisible] = useState(false)
   const busy = useRef<HTMLSpanElement>(null),
     shown = useRef(false)
@@ -80,8 +78,12 @@ export function Button({
   return (
     <button
       {...props}
-      ref={press}
+      ref={(node) => {
+        press.current = node
+        glass.ref.current = node
+      }}
       data-press="button"
+      data-glass="control"
       disabled={props.disabled || loading}
       aria-busy={loading}
       className={`${styles.button} ${styles[variant]} ${size === 'regular' ? '' : styles[size]} ${className}`}

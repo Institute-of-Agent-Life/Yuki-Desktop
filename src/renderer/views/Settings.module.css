@@ -414,7 +414,8 @@
   height: 18px;
   padding: 0;
   border-radius: var(--r-capsule);
-  background: var(--bg-elevated);
+  background: none;
+  backdrop-filter: blur(var(--glass-blur)) var(--glass-native) var(--seal,);
   color: var(--text-secondary);
   box-shadow: 0 0 0 var(--line) var(--separator-strong);
   opacity: 0;

@@ -165,10 +165,13 @@ test('dialogs, the command palette and controls share the glass without long tas
   await page.screenshot({ path: test.info().outputPath('palette.png') })
   await expectSolid(page, palette)
 
-  // Pairing is a page, not a pane over one (hig-audit.md §6): it lies on the window, no glass.
+  // Pairing is a page, not a pane over one (hig-audit.md §6): it lies on the window, no glass but
+  // its buttons'.
   await page.goto('http://127.0.0.1:4178/pairing-regressions.html')
   await expect(page.locator('[data-page="connection"]').first()).toBeVisible()
-  await expect(page.locator('[data-page="connection"] [data-glass]')).toHaveCount(0)
+  await expect(
+    page.locator('[data-page="connection"] [data-glass]:not([data-glass="control"])'),
+  ).toHaveCount(0)
   await page.screenshot({ path: test.info().outputPath('pairing.png') })
 })
 
@@ -211,17 +214,22 @@ test('no pane disperses, and blue buttons are tinted glass lit like the rest', a
 
   await page.goto(gallery)
   const primary = page.getByRole('button', { name: '開啟對話框', exact: true })
-  const rim = (button: Locator) =>
+  const look = (button: Locator) =>
     button.evaluate((node) => ({
+      glass: node.dataset.glass,
+      filter: getComputedStyle(node).backdropFilter,
       fill: getComputedStyle(node).backgroundImage,
-      edge: getComputedStyle(node, '::before').backgroundImage,
-      shown: getComputedStyle(node, '::before').display,
+      tint: getComputedStyle(node).backgroundColor,
     }))
-  const lit = await rim(primary)
+  // A small piece of the Dock's glass, the accent laid through it at 38% (as the send button with
+  // something to send): no gradient in the colour, depth from its rim.
+  await expect(primary).toHaveAttribute('data-refracting', 'true')
+  const lit = await look(primary)
   evidence.tinted = lit
-  // One flat fill: depth comes from the rim light, never from a gradient in the colour.
+  expect(lit.glass).toBe('control')
+  expect(lit.filter).toMatch(/#yuki-glass-\d/)
   expect(lit.fill).toBe('none')
-  expect(lit.edge).toMatch(/radial-gradient.*linear-gradient\(154deg/)
+  expect(lit.tint).toMatch(/ 0\.38\)$/)
   // The rim nearest the pointer catches more light, as on clear glass.
   const box = (await primary.boundingBox())!
   const edge = { x: box.x + box.width - 14, y: box.y, width: 8, height: 2 }
@@ -232,6 +240,10 @@ test('no pane disperses, and blue buttons are tinted glass lit like the rest', a
   await page.waitForTimeout(100)
   const near = await brightness(page, edge)
   evidence.tintedPointer = { far, near }
-  expect(near).toBeGreaterThan(far + 3)
-  expect((await rim(page.getByRole('button', { name: '停用', exact: true }))).shown).toBe('none')
+  // (Gently: its amount is glass-edges.spec.ts's.)
+  expect(near).toBeGreaterThan(far)
+  // Disabled, it keeps its glass; only its ink fades.
+  expect((await look(page.getByRole('button', { name: '停用', exact: true }))).filter).not.toBe(
+    'none',
+  )
 })

@@ -107,7 +107,8 @@ for (const look of ['light', 'dark'] as const) {
  * d shows what lies D(d) deeper, up to the band's width, so the band shows the strip just inside it
  * mirrored and pressed together, as the rounded rim of real glass reflects it. The lens is a
  * part's own, not its radius's or height's:
- *   pane: the Dock's (dock.ts), for the sidebar, toolbars, the composer, cards and sheets;
+ *   pane: the Dock's (dock.ts), for the sidebar, toolbars, the composer, cards, sheets and every
+ *     button (`control`);
  *   lens: a control held under the finger, the clear lens of WWDC25 219;
  *   slider: its held thumb (slider-v2.md §3.2): a rim a tenth of the radius wide showing what lies
  *     0.6 of the radius in.
@@ -175,6 +176,7 @@ const kinds = {
   card: 'pane',
   sheet: 'pane',
   send: 'pane',
+  control: 'pane',
   slider: 'slider',
   toggle: 'lens',
   segment: 'lens',
@@ -471,6 +473,18 @@ export function useGlass<T extends HTMLElement>(
     attachment.current?.dispose()
     attachment.current = undefined
     if (!element || !CSS.supports('backdrop-filter', 'url(#glass)')) return
+    // A button inside anything that filters its backdrop (a dialog's or a toolbar's glass, a
+    // notice's frost) is drawn on it: a backdrop filter there would see nothing behind it
+    // (Controls.module.css gives it a quiet fill instead).
+    if (kind === 'control') {
+      let on = false
+      for (let node = element.parentElement; node && !on; node = node.parentElement)
+        on = getComputedStyle(node).backdropFilter !== 'none'
+      if (on) {
+        element.dataset.onGlass = ''
+        return
+      }
+    }
     const root = document.documentElement
     // Without GPU compositing (as the main process found at boot) every frame of a bend is drawn
     // on the CPU: the glass keeps its blur, its colour and its rim, and does not bend (the chain
