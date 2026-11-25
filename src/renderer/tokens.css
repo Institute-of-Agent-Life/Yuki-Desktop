@@ -47,8 +47,8 @@
   --bubble-material: rgb(234 234 234 / 0.52);
   --bubble-accent: 22%;
   --text-primary: #1b1c20;
-  --text-secondary: #5b5e66;
-  --text-tertiary: #5f626a;
+  --text-secondary: #3d3f45;
+  --text-tertiary: #46484f;
   --text-disabled: #b4b7be;
   --separator: rgba(20, 30, 50, 0.1);
   --separator-strong: rgba(20, 30, 50, 0.17);
@@ -300,8 +300,8 @@
   --bubble-material: rgb(61 61 61 / 0.33);
   --bubble-accent: 24%;
   --text-primary: #f1f2f5;
-  --text-secondary: #a4a7af;
-  --text-tertiary: #a0a3ab;
+  --text-secondary: #caccd2;
+  --text-tertiary: #c0c2c8;
   --text-disabled: #55585f;
   --separator: rgba(255, 255, 255, 0.1);
   --separator-strong: rgba(255, 255, 255, 0.18);
@@ -381,14 +381,14 @@
   --edge: var(--separator-strong);
   --separator: rgba(20, 30, 50, 0.27);
   --separator-strong: rgba(20, 30, 50, 0.42);
-  --text-secondary: #46484e;
-  --text-tertiary: #46484e;
+  --text-secondary: #2c2e33;
+  --text-tertiary: #2c2e33;
 }
 :root[data-theme='dark'][data-contrast='true'] {
   --separator: rgba(255, 255, 255, 0.26);
   --separator-strong: rgba(255, 255, 255, 0.42);
-  --text-secondary: #d1d2d7;
-  --text-tertiary: #d1d2d7;
+  --text-secondary: #dfe0e4;
+  --text-tertiary: #dfe0e4;
 }
 @media (min-resolution: 2dppx) {
   :root {
@@ -545,6 +545,11 @@ input,
 textarea,
 select {
   -webkit-app-region: no-drag;
+}
+/* Every placeholder in the quieter ink of the theme. */
+::placeholder {
+  color: var(--text-tertiary);
+  opacity: 1;
 }
 :focus-visible {
   outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
