@@ -63,10 +63,11 @@ async function sample(page: Page, name: string) {
   )
   const box = (await send.boundingBox())!
   // Captured once it is drawn, its arrow and all (Windows can show the window a while before it
-  // draws the page back): the capture is taken again until it is not one flat colour.
+  // draws that part of it back): the capture is taken again while it is one flat colour, or its
+  // ring (between the arrow and the rim, where nothing is black) is.
   let shot = await page.screenshot({ clip: box })
   for (let attempt = 0; attempt < 20; attempt++) {
-    const flat = await page.evaluate(async (data) => {
+    const undrawn = await page.evaluate(async (data) => {
       const image = new Image()
       image.src = `data:image/png;base64,${data}`
       await image.decode()
@@ -74,14 +75,26 @@ async function sample(page: Page, name: string) {
       context.drawImage(image, 0, 0)
       const pixels = context.getImageData(0, 0, image.width, image.height).data
       let low = 255,
-        high = 0
-      for (let k = 0; k < pixels.length; k += 4) {
-        low = Math.min(low, pixels[k + 1]!)
-        high = Math.max(high, pixels[k + 1]!)
-      }
-      return high - low < 40
+        high = 0,
+        black = 0,
+        ring = 0
+      const cx = image.width / 2,
+        cy = image.height / 2,
+        r = image.width / 2
+      for (let y = 0; y < image.height; y++)
+        for (let x = 0; x < image.width; x++) {
+          const k = (y * image.width + x) * 4,
+            g = pixels[k + 1]!
+          low = Math.min(low, g)
+          high = Math.max(high, g)
+          const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy) / r
+          if (d < 0.55 || d > 0.8) continue
+          ring++
+          if (Math.max(pixels[k]!, g, pixels[k + 2]!) < 8) black++
+        }
+      return high - low < 40 || black > ring * 0.05
     }, shot.toString('base64'))
-    if (!flat) break
+    if (!undrawn) break
     await page.waitForTimeout(500)
     shot = await page.screenshot({ clip: box })
   }
