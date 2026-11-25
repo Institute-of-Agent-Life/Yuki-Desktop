@@ -21,7 +21,8 @@ import { RoleSwitcher } from './components/RoleSwitcher'
 import { ApplicationMenu } from './components/ApplicationMenu'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from './i18n'
-import { backdropVariables } from './materials/backdrop'
+import { backdropVariables, followBackdrop } from './materials/backdrop'
+import { dockToneLayer } from './materials/dock'
 
 export function App({ boot }: { boot: BootInfo }) {
   const { t } = useTranslation(['workspace'])
@@ -191,6 +192,11 @@ export function App({ boot }: { boot: BootInfo }) {
       appearance.reducedTransparency ||
       appearance.highContrast
     root.dataset.opaque = String(opaque)
+    // macOS's Liquid Glass slider (Clear 0 ↔ Tinted 1), read again whenever the window comes
+    // forward, for the glass to follow.
+    root.dataset.glassTint = String(appearance.glassTint)
+    root.dataset.displayColorSpace = appearance.displayColorSpace
+    root.style.setProperty('--bubble-material', dockToneLayer(theme, appearance.glassTint))
     root.style.setProperty('--window-transparency', String(preferences.transparency / 100))
     root.dataset.material = opaque ? 'none' : boot.nativeMaterial
     root.dataset.platform = boot.platform
@@ -198,6 +204,16 @@ export function App({ boot }: { boot: BootInfo }) {
   useEffect(
     () => window.yuki.onTheme((theme) => setAppearance((previous) => ({ ...previous, ...theme }))),
     [],
+  )
+  // A picture of one's own is the window's backdrop: its glass follows what lies under it, on every
+  // page (materials/backdrop.ts). Followed again only when the picture's settings change.
+  const customBackdrop = JSON.stringify(preferences.customBackdrop)
+  useEffect(
+    () =>
+      preferences.backdrop === 'custom'
+        ? followBackdrop(JSON.parse(customBackdrop) as typeof preferences.customBackdrop)
+        : undefined,
+    [preferences.backdrop, customBackdrop],
   )
   const adding = () =>
     requestNavigation(() => {

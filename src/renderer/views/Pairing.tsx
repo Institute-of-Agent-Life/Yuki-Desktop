@@ -9,7 +9,6 @@ import { TailscaleGuide } from './TailscaleGuide'
 import { useSshForm } from './SshForm'
 import { useTranslation } from '../i18n'
 import styles from '../App.module.css'
-import { useGlass } from '../materials/glass'
 
 export function Pairing({
   label,
@@ -42,7 +41,6 @@ export function Pairing({
   onDone(connection: Connection, activate?: boolean): void
   onResumeLogout(characterId: string): Promise<void>
 }) {
-  const card = useGlass<HTMLDivElement>('card')
   const { t } = useTranslation(['pairing', 'ssh', 'errors', 'common'])
   const [ssh, setSsh] = useState(false)
   const sshForm = useSshForm({
@@ -182,10 +180,10 @@ export function Pairing({
     else setStep('welcome')
   }
   return (
-    <div className={styles.welcome}>
-      <div ref={card.ref} data-glass="card" className={styles.welcomeInner}>
+    <div className={styles.welcome} data-page="connection">
+      <div className={styles.welcomeInner}>
         {step === 'welcome' ? (
-          <Snowflake className={styles.welcomeMark} size={96} strokeWidth={1} />
+          <Snowflake className={styles.welcomeMark} size={64} />
         ) : (
           confirmed && (
             <PairingAvatar
@@ -255,11 +253,11 @@ export function Pairing({
         {step === 'welcome' ? (
           <>
             <div className={styles.entryChoices}>
-              <Button variant="primary" large onClick={() => setStep('connect')}>
+              <Button variant="primary" size="xl" onClick={() => setStep('connect')}>
                 {t('pairing:connectExisting')}
               </Button>
               {onDeploy && (
-                <Button large onClick={onDeploy}>
+                <Button size="large" onClick={onDeploy}>
                   {t('pairing:deployLocal')}
                 </Button>
               )}

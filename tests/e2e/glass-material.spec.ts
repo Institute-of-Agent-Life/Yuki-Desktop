@@ -1,5 +1,7 @@
+import { paneBlur, sizedGlass } from '../fixtures/dock-glass'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { isolatedDesktop } from '../fixtures/isolated-desktop'
@@ -11,7 +13,8 @@ import { contentSize } from '../fixtures/visual'
  * 液態玻璃 final（docs/reports/2026-11-23-liquid-glass §15, phase 1: the material only).
  * Failure cases, written before the material was changed:
  *   1. a pane bends before it blurs (the old order), so the blur's soft shapes are not melted;
- *   2. a pane has no body light: nothing brightens the backdrop toward its middle;
+ *   2. (as revised by the iOS 26 measurement, glass.ts) the face is not lifted evenly by about 20
+ *      levels after the bend, or the rim's light is not added on top of what the bend shows;
  *   3. a pane still disperses: colour matrices, or more than one bend drawn from the same map;
  *   4. a bend map is coarser than 2x, so a strong bend steps into dashed rings;
  *   5. text panes (composer, cards, sheets) take the clear glass's tint and lose their text;
@@ -31,9 +34,11 @@ test.afterAll(async () => {
   )
 })
 
+// The macOS Dock's glass (materials/dock.ts): a little blur on a control (a pane carrying text is
+// blurred by its size: paneBlur), and no tint of its own.
 const final = {
-  light: { blur: '2px', tint: 0.16, text: 0.24 },
-  dark: { blur: '3px', tint: 0.42, text: 0.74 },
+  light: { blur: '2px', tint: 0, text: 0 },
+  dark: { blur: '2px', tint: 0, text: 0 },
 } as const
 
 const alpha = (colour: string) => Number(colour.match(/rgba?\([^)]*?,\s*([\d.]+)\)$/)?.[1] ?? 1)
@@ -48,7 +53,6 @@ function readFilter(element: HTMLElement) {
     backdrop,
     refract: element.style.getPropertyValue('--refract'),
     background: getComputedStyle(element).backgroundColor,
-    rim: getComputedStyle(element, '::after').webkitMaskBoxImageSource,
     primitives: nodes.map((node) => ({
       name: node.localName,
       result: node.getAttribute('result'),
@@ -56,6 +60,10 @@ function readFilter(element: HTMLElement) {
       in2: node.getAttribute('in2'),
       operator: node.getAttribute('operator'),
       k1: node.getAttribute('k1'),
+      k3: Number(node.getAttribute('k3')),
+      k4: Number(node.getAttribute('k4')),
+      table: node.querySelector('feFuncR')?.getAttribute('tableValues') ?? null,
+      scale: Number(node.getAttribute('scale')),
       inputs: [...node.querySelectorAll('feMergeNode')].map((merge) => merge.getAttribute('in')),
     })),
     images: nodes
@@ -94,27 +102,46 @@ async function expectFinalGlass(
   // through theirs.
   sheet?: { blur: string; tint: number },
 ) {
-  const blur = sheet?.blur ?? final[theme].blur
+  // A pane that carries text is blurred as Apple's clear glass of its size; a control, the Dock's.
+  const [kind, width, height] = await pane.evaluate((node: HTMLElement) => [
+    node.dataset.glass ?? '',
+    node.offsetWidth,
+    node.offsetHeight,
+  ])
+  const blur =
+    sheet?.blur ??
+    (sizedGlass.includes(kind as string)
+      ? paneBlur(width as number, height as number)
+      : final[theme].blur)
   const filter: Filter = await pane.evaluate(readFilter)
   const look = final[theme]
-  // 1: blurred first, then bent, then lit.
+  // 1: blurred first, then bent, then given the Dock's colour, then lit.
   expect(filter.backdrop).toMatch(new RegExp(`^blur\\(${blur}\\) url\\(`))
   const primitives = filter.primitives
-  // 3: no dispersion: no colour matrix, and every bend reads its own map.
-  expect(primitives.filter((node) => node.name === 'feColorMatrix')).toEqual([])
+  // 3: no dispersion: one bend, reading the map put together from its across and down.
   const bends = primitives.filter((node) => node.name === 'feDisplacementMap')
-  expect(bends.length).toBeGreaterThanOrEqual(1)
-  expect(new Set(bends.map((node) => node.in2)).size).toBe(bends.length)
-  // 2: the body's light, a gain map multiplied into what was bent.
-  const gain = primitives.find(
-    (node) => node.name === 'feComposite' && node.operator === 'arithmetic' && Number(node.k1) > 0,
+  expect(bends.length).toBe(1)
+  expect(bends[0]!.in2).toBe('bevel')
+  // 2: the Dock's colour after the bend: each channel tone(Y) + g·(C − Y), the curve less g·Y in
+  // a table on the luminance; over grey 128 the tone gives 112.4 in dark (11 + 0.919·Y −
+  // 0.000992·Y²) and 137.4 in light (48.4 + 0.695·Y). Then the rim (dock.ts): mixed toward black
+  // by the map's share kept, and its levels added.
+  const toned = primitives.find((node) => node.result === 'toned')!,
+    curve = primitives.find((node) => node.result === toned.in)!
+  const lifted = Number(curve.table!.split(' ')[128]) * 255 + toned.k4 * 255
+  expect(lifted + toned.k3 * 128).toBeCloseTo(theme === 'dark' ? 112.4 : 137.4, 0)
+  expect(toned.k3).toBe(theme === 'dark' ? 1.08 : 1.2)
+  const mixed = primitives.find(
+    (node) => node.name === 'feComposite' && node.operator === 'arithmetic' && node.in === 'toned',
   )
-  expect(gain, 'body light').toBeTruthy()
-  expect(filter.images.some((image) => image.result === gain!.in2)).toBe(true)
-  // 4: the bevel's bend map is assembled from pieces painted at no less than 2x: each piece is
-  // at least twice its CSS size, except a strip one CSS pixel wide stretched along a straight edge.
-  const merge = primitives.find((node) => node.name === 'feMerge')!
-  const pieces = filter.images.filter((image) => merge.inputs.includes(image.result))
+  expect(mixed?.in2, 'the rim mixes the toned bend').toBe('kept')
+  const rim = primitives.find(
+    (node) => node.name === 'feComposite' && node.operator === 'arithmetic' && node.in2 === 'mixed',
+  )
+  expect(rim?.in, 'the rim laid on the mixed bend').toBe('rimGrey')
+  // 4: the maps are assembled from pieces painted at no less than 2x: each piece is at least twice
+  // its CSS size, except a strip one CSS pixel wide stretched along a straight edge.
+  const pieces = filter.images
   expect(pieces.length).toBeGreaterThan(0)
   const sizes = await imageSizes(
     page,
@@ -189,7 +216,13 @@ async function scrolling(page: Page, mode: 'none' | 'fallback' | 'final') {
       state.maps++
       return url.apply(this, args)
     }
-    if (mode === 'fallback') document.documentElement.dataset.gpuCompositing = 'false'
+    // Before the page's own scripts run, once the parsed <html> exists (an init script runs
+    // before it is parsed, on an element the parser then replaces).
+    if (mode === 'fallback')
+      document.addEventListener('readystatechange', () => {
+        if (document.readyState === 'interactive')
+          document.documentElement.dataset.gpuCompositing = 'false'
+      })
   }, mode)
   await page.setViewportSize({ width: 1200, height: 640 })
   await page.goto('http://127.0.0.1:4178/renderer-regressions.html?case=conversation-glass')
@@ -281,9 +314,10 @@ test('in software the bend adds little to a frame, and glass without it stays wi
     ).toEqual([])
     expect(result.mapsWhileScrolling, mode).toBe(0)
   }
-  // The bend, the wobble and the body's light are what the final glass adds to a blurred, tinted
-  // pane; locally they cost next to nothing over it (8.6 against 8.5ms at the 95th percentile on
-  // an M-series Mac, the page alone 4.6ms). Dispersion or live lighting would double a frame.
+  // The bend (and the smoothing after it) is what the final glass adds to the glass a machine
+  // without GPU compositing is given, blurred, in the Dock's colour and rimmed (glass.ts); locally
+  // it costs about a quarter more (10.4 against 8.3ms at the median on an M-series Mac, the page
+  // alone 3.8ms). Dispersion or live lighting would double a frame.
   for (const q of ['p50', 'p95'] as const) {
     expect(budget.final[q], `final ${q}`).toBeLessThanOrEqual(1.5 * budget.fallback[q])
     // What a machine without GPU compositing is given stays within a few times the page alone.
@@ -306,7 +340,7 @@ test('the final glass composites within 16.7ms at the 95th percentile on this ma
 
 // 7, 8: the real app, told by the main process whether it composites on the GPU.
 for (const compositing of ['gpu', 'software'] as const)
-  test(`the welcome card follows the main process's ${compositing} compositing`, async () => {
+  test(`the toolbar's glass follows the main process's ${compositing} compositing`, async () => {
     test.setTimeout(90000)
     const root = await mkdtemp(join(tmpdir(), 'yuki-glass-material-'))
     const app = await (
@@ -314,9 +348,9 @@ for (const compositing of ['gpu', 'software'] as const)
     ).launch('profile', compositing === 'software' ? ['--disable-gpu-compositing'] : [])
     try {
       const page = await app.firstWindow()
-      await page.getByRole('button', { name: '連接已有 Yuki', exact: true }).click()
-      const card = page.locator('[data-glass="card"]').first()
-      await expect(card).toBeVisible()
+      // Pages lie on the window (no card of their own): the toolbar's capsule is the glass.
+      const toolbar = page.locator('[data-region="toolbar"] [data-glass="toolbar"]').first()
+      await expect(toolbar).toBeVisible()
       const status = await app.evaluate(({ app }) => app.getGPUFeatureStatus().gpu_compositing)
       const boot = await page.evaluate(() => window.yuki.boot())
       const bends = status.startsWith('enabled')
@@ -327,30 +361,64 @@ for (const compositing of ['gpu', 'software'] as const)
         // The system reduces transparency (as CI's macOS does): no glass at all, bent or not.
         evidence[`welcome-${compositing}`] = { status, opaque: true }
         await expect(page.locator('html')).toHaveAttribute('data-opaque', 'true')
-        await expect(card).not.toHaveAttribute('data-refracting')
-        await expect(card).toHaveCSS('backdrop-filter', 'none')
+        await expect(toolbar).not.toHaveAttribute('data-refracting')
+        await expect(toolbar).toHaveCSS('backdrop-filter', 'none')
         return
       }
-      await expect(card).toHaveAttribute('data-refracting', 'true', { timeout: 30000 })
+      await expect(toolbar).toHaveAttribute('data-refracting', 'true', { timeout: 30000 })
       const theme = (await page.evaluate(() => document.documentElement.dataset.theme)) as
         'light' | 'dark'
-      const filter: Filter = await card.evaluate(readFilter)
+      const filter: Filter = await toolbar.evaluate(readFilter)
       evidence[`welcome-${compositing}`] = { status, filter }
       await page.screenshot({ path: test.info().outputPath(`welcome-${compositing}.png`) })
-      // Blur, tint and rim always; the bend only on the GPU.
+      // Blur, the Dock's colour and its rim always, no tint; the bend only on the GPU.
       expect(filter.backdrop).toContain(`blur(${final[theme].blur})`)
-      expect(alpha(filter.background)).toBeCloseTo(final[theme].text, 2)
-      expect(filter.rim).toMatch(/^url\(/)
+      expect(alpha(filter.background)).toBeCloseTo(final[theme].tint, 2)
       // (The window's frost, where it is on, still ends every filter in its seal.)
-      if (bends) expect(filter.backdrop).toMatch(/url\("?#yuki-glass-/)
-      else {
-        expect(filter.refract).toBe('')
-        expect(filter.backdrop).not.toContain('#yuki-glass-')
-      }
+      expect(filter.backdrop).toMatch(/url\("?#yuki-glass-\d/)
+      const names = filter.primitives.map((node) => node.name)
+      expect(names.includes('feDisplacementMap'), 'it bends').toBe(bends)
+      expect(
+        filter.primitives.some((node) => node.result === 'added'),
+        'its rim',
+      ).toBe(true)
     } finally {
       await app.close()
     }
   })
+
+// macOS's Liquid Glass slider (Clear ↔ Tinted, System Settings › Appearance) reaches the page, as
+// the system reads it; and is read again when the window comes forward, as it can be moved while
+// Yuki is open. Elsewhere, and where it was never moved, its middle (0.49). Fails when the page is
+// never told, or told only once at start.
+test("the glass is told macOS's Liquid Glass slider, and told again as the window comes forward", async () => {
+  test.setTimeout(60000)
+  const root = await mkdtemp(join(tmpdir(), 'yuki-glass-tint-'))
+  const app = await (await isolatedDesktop(root)).launch('profile')
+  try {
+    const page = await app.firstWindow()
+    const html = page.locator('html')
+    let system = '0.49'
+    if (process.platform === 'darwin')
+      try {
+        system = String(Number(execFileSync('defaults', ['read', '-g', 'NSGlassTintAmount'])))
+      } catch {
+        // Never moved: the key is absent.
+      }
+    await expect(html).toHaveAttribute('data-glass-tint', system, { timeout: 30000 })
+    // Moved while Yuki was in the background: what the system answers now is read on focus.
+    await app.evaluate(({ app, systemPreferences, BrowserWindow }) => {
+      systemPreferences.getUserDefault = (() => '0.8') as never
+      app.emit('browser-window-focus', {}, BrowserWindow.getAllWindows()[0])
+    })
+    await expect(html).toHaveAttribute(
+      'data-glass-tint',
+      process.platform === 'darwin' ? '0.8' : '0.49',
+    )
+  } finally {
+    await app.close()
+  }
+})
 
 // The settings, chat and connection pages in both themes, from an isolated profile paired with
 // the real backend fixture: the screenshots compared against the final in the research.

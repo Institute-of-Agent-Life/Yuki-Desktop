@@ -113,7 +113,8 @@ test('actual settings paths retain native preferences, timezone, notifications a
     await page.getByRole('radio', { name: '深色', exact: true }).click()
     // The conversation backdrop is chosen here and shown behind the glass at once.
     const backdrops = page.getByRole('radiogroup', { name: '對話背景', exact: true })
-    await expect(backdrops.getByRole('radio', { name: '光線', exact: true })).toBeChecked()
+    // A new profile's conversation has no pattern (hig-audit.md decision 4): content is content.
+    await expect(backdrops.getByRole('radio', { name: '無', exact: true })).toBeChecked()
     // 6 (全局透明磨砂 task book): the frost is the window's own choice; the backdrop is only a
     // pattern laid over the conversation, none, or a picture of one's own (custom-backdrop.spec.ts).
     expect(await backdrops.getByRole('radio').allInnerTexts()).toEqual([

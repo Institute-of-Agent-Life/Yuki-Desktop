@@ -43,10 +43,12 @@ export function SettingsSection({
   children: ReactNode
 }) {
   return (
-    <section className={`${styles.section} ${danger ? styles.danger : ''}`}>
+    <section className={`${styles.section} ${danger ? styles.danger : ''}`} data-frost-children>
       {title && <h3>{title}</h3>}
       {description && <p className={styles.notice}>{description}</p>}
-      <div className={styles.group}>{children}</div>
+      <div className={styles.group} data-settings-group>
+        {children}
+      </div>
     </section>
   )
 }

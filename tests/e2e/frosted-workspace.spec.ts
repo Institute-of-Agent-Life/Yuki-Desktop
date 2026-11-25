@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { paneBlur } from '../fixtures/dock-glass'
 import { expect, test } from '@playwright/test'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -119,7 +120,11 @@ test('frosted workspace keeps its paper, floating controls, real receipts and dr
             toolbarHeight: toolbar.getBoundingClientRect().height,
             capsuleHeight: glass.getBoundingClientRect().height,
             filter: styles.backdropFilter,
+            size: [footer.width, footer.height] as const,
             refract: styles.getPropertyValue('--refract'),
+            bends: !!document
+              .getElementById(styles.getPropertyValue('--refract').match(/#([^)]+)\)/)?.[1] ?? '')
+              ?.querySelector('feDisplacementMap'),
             gpu: document.documentElement.dataset.gpuCompositing,
             footerHeight: footer.height,
             logPadding: parseFloat(getComputedStyle(log).paddingBottom),
@@ -134,20 +139,23 @@ test('frosted workspace keeps its paper, floating controls, real receipts and dr
         if (geometry.material === 'none')
           expect(geometry.paper).toBe(mode === 'dark' ? 'rgb(27, 29, 34)' : 'rgb(255, 255, 255)')
         else expect(geometry.paper).toMatch(/\/ 0\.35\)$/)
-        expect(geometry.radius).toBe('14px')
-        expect(geometry.inset).toBe(6)
+        // The page reaches the window's edges: no card of its own (macOS 26's window structure).
+        expect(geometry.radius).toBe('0px')
+        expect(geometry.inset).toBe(0)
         expect(geometry.bottom).toBeCloseTo(14, 0)
         expect(geometry.toolbarPosition).toBe('absolute')
         expect(geometry.toolbarHeight).toBe(52)
-        expect(geometry.capsuleHeight).toBe(34)
+        // macOS 26's toolbar glass: 36pt.
+        expect(geometry.capsuleHeight).toBe(36)
         expect(geometry.logPadding).toBeGreaterThanOrEqual(geometry.footerHeight + 26)
         expect(geometry.htmlWidth).toBe(geometry.viewport)
         if (geometry.opaque === 'true') expect(geometry.filter).toBe('none')
         else {
-          // The final glass blurs first; it bends only where the window composites on the GPU.
-          expect(geometry.filter).toMatch(/^blur\([23]px\) /)
-          if (geometry.gpu === 'true') expect(geometry.refract).toContain('url(')
-          else expect(geometry.refract).toBe('')
+          // The final glass blurs first, as Apple's clear glass of its size, and keeps its colour
+          // and rim; it bends only where the window composites on the GPU.
+          expect(geometry.filter).toMatch(new RegExp(`^blur\\(${paneBlur(...geometry.size)}\\) `))
+          expect(geometry.refract).toContain('url(')
+          expect(geometry.bends).toBe(geometry.gpu === 'true')
         }
         await expect(original).toHaveAttribute('data-event-id', event!)
         stages.push({ mode, width, height, method, geometry })

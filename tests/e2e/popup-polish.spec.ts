@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
-import { readRim } from '../fixtures/rim'
+import { rimAt } from '../fixtures/dock-glass'
 
 const evidence: Record<string, unknown> = {}
 test.afterAll(async () => {
@@ -23,7 +23,7 @@ const box = (locator: Locator) =>
     const { x, y, width, height } = element.getBoundingClientRect()
     return { x, y, width, height }
   })
-// The glass a closing pane leaves: its size, its light map and whether its bend still exists.
+// The glass a closing pane leaves: its size, and whether its bend and rim still exist.
 const ghost = (page: Page) =>
   page
     .locator('[data-withdrawing]')
@@ -34,7 +34,7 @@ const ghost = (page: Page) =>
       const id = filter.match(/url\("?#([^")]+)/)?.[1]
       return {
         box: { x, y, width, height },
-        rim: getComputedStyle(element).getPropertyValue('--rim').startsWith('url('),
+        rim: !!id && !!document.getElementById(id)?.querySelector('[result="added"]'),
         bend: !!id && document.getElementById(id) instanceof SVGFilterElement,
       }
     })
@@ -232,14 +232,15 @@ test('a sheet that grew out of a button is lit along its own corners once it has
   await expect(sheet).toHaveAttribute('data-refracting', 'true')
   await expect.poll(() => sheet.evaluate((element) => element.getAnimations().length)).toBe(0)
   await page.waitForTimeout(300)
-  // 12: 40px from the left the top edge is straight for a 22px corner, so its light is there;
+  // 12: 40px from the left the top edge is straight for a 20px corner, so its light is there;
   // a map drawn from the growing frame's far larger corner leaves it dark.
-  const rim = await sheet.evaluate(readRim, [[40, 0.5]] as [number, number][])
+  const [edge] = await rimAt(sheet, [[40, 0.25]])
   const light = {
     radius: await sheet.evaluate((element) => getComputedStyle(element).borderTopLeftRadius),
-    edge: rim.light[0]!,
+    edge: edge!,
   }
   evidence.grownSheet = light
-  expect(light.radius).toBe('22px')
-  expect(light.edge).toBeGreaterThan(16)
+  expect(light.radius).toBe('20px')
+  // The Dock's rim at the top's outermost pixel (dock.ts): 52 levels.
+  expect(light.edge).toBeGreaterThan(40)
 })

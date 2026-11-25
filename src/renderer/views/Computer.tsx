@@ -212,7 +212,7 @@ export function Computer({
       <div>{sources || <h2>{t('computer:computerOf', { name })}</h2>}</div>
       {/* The state sits beside the controls, so switching displays leaves the toolbar still. */}
       {!showQQ && (
-        <span className={styles.state}>
+        <span className={styles.state} data-frost>
           {t('computer:status', {
             state: t(
               state.display === 'running'
@@ -242,23 +242,25 @@ export function Computer({
         !compact && (
           <>
             {controls}
-            {/* The Manager lists restore points (Client API revision 12). */}
-            {state.snapshots && (
-              <ComputerSnapshots
-                id={id}
-                name={name}
-                state={state}
-                snapshots={state.snapshots}
-                blocked={blocked}
-              />
-            )}
-            <IconButton
-              label={t('computer:sleep')}
-              disabled={blocked || state.display !== 'running'}
-              onClick={() => setSheet({ kind: 'sleep', snapshot: state })}
-            >
-              <Moon size={16} />
-            </IconButton>
+            <Capsule>
+              {/* The Manager lists restore points (Client API revision 12). */}
+              {state.snapshots && (
+                <ComputerSnapshots
+                  id={id}
+                  name={name}
+                  state={state}
+                  snapshots={state.snapshots}
+                  blocked={blocked}
+                />
+              )}
+              <IconButton
+                label={t('computer:sleep')}
+                disabled={blocked || state.display !== 'running'}
+                onClick={() => setSheet({ kind: 'sleep', snapshot: state })}
+              >
+                <Moon size={16} />
+              </IconButton>
+            </Capsule>
           </>
         )
       )}
@@ -276,7 +278,9 @@ export function Computer({
           screen={screen}
           controls={screenControls}
         />
-        <footer className={styles.status}>{controlSlot}</footer>
+        <footer className={styles.status} data-frost>
+          {controlSlot}
+        </footer>
       </section>
     )
   return (
@@ -316,8 +320,8 @@ export function Computer({
           controls={screenControls}
         />
       ) : (
-        <div className={styles.resting}>
-          {state.display === 'starting' ? <Spinner /> : <Moon size={40} strokeWidth={1} />}
+        <div className={styles.resting} data-frost>
+          {state.display === 'starting' ? <Spinner /> : <Moon size={40} strokeWidth={1.5} />}
           <h3>
             {state.display === 'starting'
               ? t('computer:state.starting')
@@ -357,7 +361,7 @@ export function Computer({
           </Button>
         </div>
       )}
-      <footer className={styles.status}>
+      <footer className={styles.status} data-frost>
         {held
           ? t(compact ? 'computer:previewOnly' : 'computer:releaseKeyboard')
           : control?.holder === 'human'
@@ -647,7 +651,7 @@ function RemoteScreen({
       />
       {!connected && (
         <div className={styles.connecting}>
-          <Monitor size={32} strokeWidth={1} />
+          <Monitor size={32} strokeWidth={1.5} />
           <span>{problem || t('computer:connectingScreen')}</span>
           <IconButton
             label={t('computer:reconnectScreen')}

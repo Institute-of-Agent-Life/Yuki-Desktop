@@ -33,6 +33,7 @@ import { useCommands } from '../state/commands'
 import { requestNavigation } from '../state/navigation'
 import { useWorkspaceMotion } from '../motion/workspace'
 import { ApplicationMenu } from './ApplicationMenu'
+import { useGlass } from '../materials/glass'
 import { EdgeFade, useScrolledUnder } from './EdgeFade'
 import { useTranslation } from '../i18n'
 
@@ -138,7 +139,12 @@ export function Workspace(props: Props) {
   const detailPage = inspector && detailLayer
   const left = focusMode ? 0 : layout.sidebar
   const right = focusMode ? 0 : layout.inspector
-  const sidebarRef = useRef<HTMLElement>(null)
+  // On macOS the sidebar floats as the Dock's glass (beside the page it is flush, and opaque).
+  const sidebarRef = useGlass<HTMLElement>(
+    'sidebar',
+    false,
+    !layout.overlaySidebar && document.documentElement.dataset.platform === 'darwin',
+  ).ref
   const inspectorRef = useRef<HTMLElement>(null)
   const showInspector = useWorkspaceMotion(root, sidebarRef, inspectorRef, {
     active,
@@ -241,7 +247,7 @@ export function Workspace(props: Props) {
         }
         onClick={() => selectView('chat')}
       >
-        <MessageCircle size={16} strokeWidth={1.5} />
+        <MessageCircle size={16} />
         {t('workspace:view.chat')}
       </button>
       {props.entries}
@@ -253,7 +259,7 @@ export function Workspace(props: Props) {
           aria-current={selectedView === view ? 'page' : undefined}
           onClick={() => selectView(view)}
         >
-          <Icon size={16} strokeWidth={1.5} />
+          <Icon size={16} />
           {view === 'computer'
             ? t('workspace:computerOf', { name: props.name })
             : t(`workspace:view.${view}`)}
@@ -265,7 +271,7 @@ export function Workspace(props: Props) {
         aria-current={selectedView === 'about' ? 'page' : undefined}
         onClick={() => selectView('about')}
       >
-        <Snowflake size={16} strokeWidth={1.5} />
+        <Snowflake size={16} />
         {t('workspace:aboutOf', { name: props.name })}
       </button>
       <button
@@ -277,7 +283,7 @@ export function Workspace(props: Props) {
           })
         }}
       >
-        <Settings2 size={16} strokeWidth={1.5} />
+        <Settings2 size={16} />
         {t('workspace:view.settings')}
       </button>
     </>
@@ -371,27 +377,27 @@ export function Workspace(props: Props) {
               aria-expanded={!focusMode && sidebar}
               onClick={toggleSidebar}
             >
-              <PanelLeft size={16} strokeWidth={1.5} />
+              <PanelLeft size={16} />
             </IconButton>
           </Capsule>
           {props.toolbar ?? (
             <>
               {props.toolbarTitle ?? (
-                <span className={styles.toolbarTitle}>
+                <ToolbarTitle>
                   <strong>
                     {state.view === 'chat' || focusMode
                       ? props.name
                       : t(`workspace:view.${state.view}`)}
                   </strong>
                   {(state.view === 'chat' || focusMode) && <small>{props.status}</small>}
-                </span>
+                </ToolbarTitle>
               )}
               <Capsule>
                 <IconButton
                   label={t('workspace:search')}
                   onClick={() => window.dispatchEvent(new Event('yuki:search'))}
                 >
-                  <Search size={16} strokeWidth={1.5} />
+                  <Search size={16} />
                 </IconButton>
                 <IconButton
                   label={t('workspace:inspector')}
@@ -399,7 +405,7 @@ export function Workspace(props: Props) {
                   aria-expanded={inspector || focusMode}
                   onClick={toggleInspector}
                 >
-                  <PanelRight size={16} strokeWidth={1.5} />
+                  <PanelRight size={16} />
                 </IconButton>
               </Capsule>
             </>
@@ -427,14 +433,16 @@ export function Workspace(props: Props) {
           >
             <header className={styles.inspectorHeader} ref={detailHeader}>
               {detailLayer && (
-                <Button
-                  variant="plain"
-                  aria-label={t('workspace:closeInspector')}
-                  onClick={closeInspector}
-                >
-                  <ArrowLeft size={16} strokeWidth={1.5} />
-                  {t('common:action.back')}
-                </Button>
+                <Capsule>
+                  <Button
+                    variant="plain"
+                    aria-label={t('workspace:closeInspector')}
+                    onClick={closeInspector}
+                  >
+                    <ArrowLeft size={16} />
+                    {t('common:action.back')}
+                  </Button>
+                </Capsule>
               )}
               {props.inspectorTitle ? (
                 <strong>{props.inspectorTitle}</strong>
@@ -447,23 +455,19 @@ export function Workspace(props: Props) {
                 />
               )}
               {!detailLayer && (
-                <>
+                <Capsule>
                   <IconButton
                     label={
                       focusMode ? t('workspace:restoreLayout') : t('workspace:expandInspector')
                     }
                     onClick={() => state.toggle('focusMode')}
                   >
-                    {focusMode ? (
-                      <Minimize2 size={16} strokeWidth={1.5} />
-                    ) : (
-                      <Maximize2 size={16} strokeWidth={1.5} />
-                    )}
+                    {focusMode ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                   </IconButton>
                   <IconButton label={t('workspace:closeInspector')} onClick={closeInspector}>
-                    <X size={16} strokeWidth={1.5} />
+                    <X size={16} />
                   </IconButton>
-                </>
+                </Capsule>
               )}
             </header>
             <div
@@ -480,5 +484,35 @@ export function Workspace(props: Props) {
         </>
       )}
     </div>
+  )
+}
+
+// The backdrop the conversation shows (App.tsx sets it on the root).
+export function useBackdrop() {
+  const read = () => document.documentElement.dataset.backdrop
+  const [backdrop, setBackdrop] = useState(read)
+  useEffect(() => {
+    const observer = new MutationObserver(() => setBackdrop(read()))
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-backdrop'],
+    })
+    return () => observer.disconnect()
+  }, [])
+  return backdrop
+}
+
+/** The toolbar's title: over a picture of one's own it sits on a capsule of the Dock's glass. */
+function ToolbarTitle({ children }: { children: ReactNode }) {
+  const custom = useBackdrop() === 'custom'
+  const glass = useGlass<HTMLSpanElement>('toolbar', false, custom)
+  return (
+    <span
+      ref={glass.ref}
+      data-glass={custom ? 'toolbar' : undefined}
+      className={styles.toolbarTitle}
+    >
+      {children}
+    </span>
   )
 }

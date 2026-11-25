@@ -124,7 +124,7 @@ test('a message and its reply move the conversation on one spring, without a sin
   expect(Math.abs(last.end - last.scroll)).toBeLessThan(2)
   expect(
     await page
-      .locator('article[data-message-request] [data-glass="bubble"]')
+      .locator('article[data-message-request] [data-surface="bubble"]')
       .evaluate((surface) => getComputedStyle(surface.parentElement!).transform),
   ).toBe('none')
   await writeFile(

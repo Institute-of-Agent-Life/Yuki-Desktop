@@ -4,47 +4,20 @@
   flex: 1;
   min-height: 0;
   position: relative;
-  background: var(--backdrop-lens);
+  /* Laid out on the window, as the bubbles' blurred copy of it is: the two line up wherever the
+     conversation has scrolled. */
+  background-image: var(--backdrop-shown);
+  background-attachment: fixed;
 }
-:global([data-backdrop='plain']) .chat {
-  background: var(--backdrop-plain);
-}
-:global([data-backdrop='aurora']) .chat {
-  background: var(--backdrop-aurora);
-}
-:global([data-backdrop='sunset']) .chat {
-  background: var(--backdrop-sunset);
-}
-:global([data-backdrop='grid']) .chat {
-  background: var(--backdrop-grid);
-}
-/* A picture of one's own (materials/backdrop.ts, App.tsx): a layer of its own behind everything
-   in the chat, the page's colour laid over it as much as it is dimmed; a blurred picture is a
-   blurred copy, never a live filter. Fitted inside, the rest takes its average colour. */
+/* Over a picture of one's own the chat lies on the window's backdrop (App.module.css). */
 :global([data-backdrop='custom']) .chat {
   background: none;
-  isolation: isolate;
-}
-:global([data-backdrop='custom']) .chat::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  will-change: transform;
-  background:
-    linear-gradient(
-      color-mix(in srgb, var(--bg-content) var(--backdrop-dim), transparent),
-      color-mix(in srgb, var(--bg-content) var(--backdrop-dim), transparent)
-    ),
-    var(--backdrop-image) center / var(--backdrop-size) var(--backdrop-repeat),
-    var(--backdrop-fill, var(--bg-content));
 }
 /* Over it, the text laid straight on the picture sits on a small glass of its own, tinted as the
    bubbles are; an own bubble keeps its accent over that tint. */
 :global([data-backdrop='custom']) :is(.dateSeparator, .conversationIntroduction) {
   width: fit-content;
-  border-radius: 999px;
+  border-radius: var(--r-capsule);
   background: var(--content-tint);
   backdrop-filter: blur(var(--content-blur));
 }
@@ -55,9 +28,7 @@
 :global([data-backdrop='custom']) .conversationIntroduction {
   padding: 3px 12px 3px 3px;
 }
-:global([data-backdrop='custom']) .ownMessage .bubble {
-  --glass-tint: color-mix(in srgb, var(--accent) 10%, var(--content-tint));
-}
+
 .messages {
   overflow: auto;
   flex: 1;
@@ -76,7 +47,7 @@
   margin: 0 0 14px;
   width: fit-content;
   max-width: min(620px, 100%);
-  border-radius: 18px;
+  border-radius: var(--r-popover);
 }
 .message > [role='img'] {
   margin-top: 7px;
@@ -98,24 +69,12 @@
   align-items: flex-end;
 }
 .bubble {
-  --glass-radius: 18px;
+  --glass-radius: var(--r-popover);
   --glass-bleed-inline: 22px;
   --glass-bleed-tail: 30px;
   min-width: 0;
   padding: 8px 13px;
   border-radius: var(--glass-radius);
-  /* Lifts the glass off the backdrop; an entering drop gains it once it has its shape. */
-  box-shadow:
-    0 0.5px 1px rgb(29 54 102 / 0.06),
-    0 6px 16px -8px rgb(29 54 102 / 0.22);
-}
-:global([data-theme='dark']) .bubble {
-  box-shadow:
-    0 0.5px 1px rgb(0 0 0 / 0.3),
-    0 8px 18px -8px rgb(0 0 0 / 0.55);
-}
-:global([data-opaque='true']) .bubble {
-  box-shadow: none;
 }
 .bubble > :global([data-liquid-outline]) {
   position: absolute;
@@ -160,9 +119,35 @@
   margin-left: auto;
   max-width: min(560px, 88%);
 }
+/* One's own message is frosted in the accent's tint (another's in the neutral one, tokens.css):
+   thick enough that its text keeps 4.5:1 over the plain page and every pattern; over a picture
+   of one's own, the picture's own readability tint (materials/backdrop.ts). */
 .ownMessage .bubble {
-  --glass-tint: color-mix(in srgb, var(--accent) 10%, transparent);
-  --glass-solid: var(--accent-subtle);
+  --glass-tint: color-mix(in srgb, var(--accent) var(--bubble-accent), var(--bubble-material));
+  --glass-solid: color-mix(in srgb, var(--accent) 14%, var(--bg-elevated));
+}
+:global([data-backdrop='custom']) .ownMessage .bubble {
+  --glass-tint: color-mix(in srgb, var(--accent) var(--bubble-accent), var(--bubble-material));
+}
+/* The accent's tint dims the quiet text over it: its time is half way to the main text, so it keeps
+   3:1 over the brightest pattern. */
+.ownMessage .bubble time {
+  color: color-mix(in srgb, var(--text-tertiary) 50%, var(--text-primary));
+}
+/* What happened to a message is said below it, on the page, as Messages says "Not Delivered":
+   a problem in the danger colour, a pending one quietly; one's own at the bubble's trailing edge. */
+.messageNote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+.ownMessage .messageNote {
+  align-items: flex-end;
+  text-align: right;
+}
+.pending[data-problem] {
+  color: color-mix(in srgb, var(--status-failed) var(--ink-mix), var(--ink-base));
 }
 /* The selection frames the bubble itself, not the avatar beside it. */
 .selected .bubble {
@@ -173,7 +158,7 @@
   position: absolute;
   top: -12px;
   right: 8px;
-  border-radius: 8px;
+  border-radius: var(--r-row);
   background: var(--mat-chrome);
   box-shadow: var(--shadow-glass);
   display: flex;
@@ -197,7 +182,7 @@
 .markdown pre {
   overflow: auto;
   background: var(--fill-code);
-  border-radius: 8px;
+  border-radius: var(--r-row);
   padding: 12px;
 }
 .markdown :global(.code-block) {
@@ -208,7 +193,7 @@
   right: 8px;
   top: 8px;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: var(--fill-control);
   color: var(--text-secondary);
   font-size: 11px;
@@ -224,6 +209,15 @@
 }
 :global([data-theme='dark']) .markdown :global(.shiki),
 :global([data-theme='dark']) .markdown :global(.shiki) span {
+  color: var(--shiki-dark);
+}
+/* On glass or frost that took the other appearance, the code takes that appearance's colours. */
+:global([data-appearance='light']) .markdown :global(.shiki),
+:global([data-appearance='light']) .markdown :global(.shiki) span {
+  color: var(--shiki-light);
+}
+:global([data-appearance='dark']) .markdown :global(.shiki),
+:global([data-appearance='dark']) .markdown :global(.shiki) span {
   color: var(--shiki-dark);
 }
 :global([data-contrast='true']) .markdown :global(.shiki),
@@ -253,11 +247,11 @@
   padding: 6px 10px;
 }
 .markdown a {
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
   text-decoration: underline;
 }
 .pending {
-  min-height: 28px;
+  min-height: var(--h-regular);
   display: flex;
   gap: 8px;
   align-items: center;
@@ -327,10 +321,9 @@
   right: 24px;
   padding: 6px 14px;
   background: var(--mat-pane);
-  border-radius: 14px;
-  box-shadow: var(--shadow-glass);
+  border-radius: var(--r-panel);
   backdrop-filter: var(--glass-regular);
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
 }
 .readonly {
   padding: 16px 24px;
@@ -478,10 +471,9 @@
   right: 0;
   margin: 0 auto;
   width: min(712px, calc(100% - 40px));
-  border-radius: 20px;
+  border-radius: var(--r-sheet);
   background: var(--mat-pane);
   backdrop-filter: var(--glass-regular);
-  box-shadow: var(--shadow-glass);
 }
 :global([data-opaque='true']) .chat {
   background: var(--bg-content);

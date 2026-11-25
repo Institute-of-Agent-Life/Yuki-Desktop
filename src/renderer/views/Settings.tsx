@@ -1,9 +1,10 @@
 import { useTabMotion } from '../motion/tab'
-import { useRef, useState, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { useGlass } from '../materials/glass'
 import { backdropUrl, blurBackdrop, importBackdrop } from '../materials/backdrop'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft,
+  ChevronLeft,
   SlidersHorizontal,
   Palette,
   Bell,
@@ -42,6 +43,8 @@ import {
   Avatar,
   Banner,
   Button,
+  Capsule,
+  IconButton,
   Segmented,
   Slider,
   Spinner,
@@ -151,6 +154,27 @@ export function Settings({
   const [error, setError] = useState<{ section: string; message: string }>()
   const [edge, scrolled] = useScrolledUnder<HTMLElement>()
   const [notice, setNotice] = useState('')
+  // The categories float as the workspace's sidebar does (macOS).
+  const categoriesGlass = useGlass<HTMLElement>(
+    'sidebar',
+    false,
+    document.documentElement.dataset.platform === 'darwin',
+  )
+  // The header's title lies on the categories' glass: it takes their ink (materials/appearance.ts).
+  const headerTitle = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const nav = categoriesGlass.ref.current,
+      title = headerTitle.current
+    if (!nav || !title) return
+    const mirror = () => {
+      if (nav.dataset.appearance) title.dataset.appearance = nav.dataset.appearance
+      else delete title.dataset.appearance
+    }
+    mirror()
+    const observer = new MutationObserver(mirror)
+    observer.observe(nav, { attributes: true, attributeFilter: ['data-appearance'] })
+    return () => observer.disconnect()
+  }, [categoriesGlass.ref])
   const panelMotion = useTabMotion<HTMLDivElement>(
     shown,
     visible.map((item) => item.id),
@@ -239,15 +263,20 @@ export function Settings({
     <section ref={edge} className={styles.settings} aria-label={t('settings:title')}>
       <EdgeFade shown={scrolled} />
       <header className={`${styles.header} ${scrolled ? styles.headerScrolled : ''}`}>
-        <Button variant="plain" onClick={back} disabled={!!connection?.logout}>
-          <ArrowLeft size={16} />
-          {t('settings:back')}
-        </Button>
-        <strong>{t('settings:title')}</strong>
+        <Capsule>
+          <IconButton label={t('settings:back')} onClick={back} disabled={!!connection?.logout}>
+            <ChevronLeft size={16} />
+          </IconButton>
+        </Capsule>
+        <strong ref={headerTitle}>{t('settings:title')}</strong>
         <ApplicationMenu platform={boot.platform} className={styles.menu} />
       </header>
       <div className={styles.layout}>
         <nav
+          ref={categoriesGlass.ref}
+          data-glass={
+            document.documentElement.dataset.platform === 'darwin' ? 'sidebar' : undefined
+          }
           className={styles.categories}
           role="tablist"
           aria-label={t('settings:categories')}
@@ -303,7 +332,7 @@ export function Settings({
                     ).focus()
                   }}
                 >
-                  <item.icon size={16} strokeWidth={1.5} />
+                  <item.icon size={16} />
                   {t(`settings:category.${item.id}`)}
                 </button>
               ))}
@@ -316,6 +345,7 @@ export function Settings({
           role="tabpanel"
           aria-labelledby={`settings-${shown}`}
           className={styles.pane}
+          data-frost-children
         >
           <h2>
             {shown === 'connection' && connection
@@ -725,7 +755,7 @@ function TransparencySlider({ value, onChange }: { value: number; onChange(value
           fill="currentColor"
           fillOpacity="0.2"
           stroke="currentColor"
-          strokeWidth="1.2"
+          strokeWidth="1.33"
         />
       </svg>
     </div>

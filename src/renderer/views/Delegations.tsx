@@ -154,7 +154,7 @@ export function DeviceRuns({
   const place = (work: Runs) => work.delegation.executor.device_id ?? ''
   const ids = [...new Set([...devices.map((device) => device.id), ...works.map(place)])]
   return (
-    <section aria-label={t('works:delegation.devices')}>
+    <section aria-label={t('works:delegation.devices')} data-frost-children>
       <h3>{t('works:delegation.devices')}</h3>
       {ids.map((deviceId) => {
         const device = devices.find((item) => item.id === deviceId)

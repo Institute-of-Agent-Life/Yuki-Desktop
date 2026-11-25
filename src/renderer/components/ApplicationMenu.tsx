@@ -51,7 +51,7 @@ export function ApplicationMenu({
             if (event.key === 'Escape') setError(false)
           }}
         >
-          <Ellipsis size={16} strokeWidth={1.5} />
+          <Ellipsis size={16} />
         </IconButton>
       </Capsule>
       {error && (

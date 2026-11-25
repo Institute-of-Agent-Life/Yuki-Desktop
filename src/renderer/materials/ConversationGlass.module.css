@@ -1,20 +1,31 @@
 .root {
   position: relative;
-  --glass-neutral-tint: color-mix(in srgb, var(--bg-elevated) 22%, transparent);
+  --glass-neutral-tint: var(--bubble-material);
   --glass-edge: rgba(255, 255, 255, 0.94);
   --glass-edge-shadow: rgba(29, 54, 102, 0.18);
 }
 :global([data-theme='dark']) .root {
-  --glass-neutral-tint: color-mix(in srgb, var(--bg-elevated) 20%, transparent);
   --glass-edge: rgba(221, 236, 255, 0.4);
   --glass-edge-shadow: rgba(177, 198, 242, 0.12);
 }
+/* Frosted, not glass: a blur behind a translucent tint, with no lens, rim or shadow (HIG keeps
+   Liquid Glass out of the content layer). What lies behind a bubble is only the conversation's
+   backdrop, which does not move: it is blurred once (tokens.css; a picture of one's own in
+   materials/backdrop.ts), and each bubble shows that copy, laid out on the window as the backdrop
+   is, so the two line up wherever it scrolls. No bubble filters its backdrop. */
 .surface {
   position: absolute;
   inset: 0;
   /* At rest the radius alone shapes the pane; only an entering drop is clipped to its contour. */
-  border-radius: var(--glass-radius, 14px);
+  border-radius: var(--glass-radius, var(--r-panel));
   pointer-events: none;
+  background-color: var(--bg-content);
+  background-image:
+    linear-gradient(var(--glass-tint, var(--glass-neutral-tint)) 0 0), var(--backdrop-frost);
+  background-attachment: fixed;
+}
+/* Over the plain page there is nothing for the frost to soften: the tint alone. */
+:global([data-backdrop='plain']) .surface {
   background: var(--glass-tint, var(--glass-neutral-tint));
 }
 /* Only an entering drop reaches past its bubble, for the tail it stretches into. */
@@ -22,26 +33,54 @@
   inset: 0 calc(-1 * var(--glass-bleed-inline, 0px)) calc(-1 * var(--glass-bleed-tail, 0px));
   padding: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
   clip-path: inset(
-    0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px) round var(--glass-radius, 14px)
+    0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px) round
+      var(--glass-radius, var(--r-panel))
   );
 }
 .surface:global([data-liquid])::before {
   inset: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
 }
-:global([data-opaque='true']) .surface {
+/* Over a picture of one's own the bubbles show the picture blurred once, with its dim and the
+   Dock's colour (materials/backdrop.ts): the light appearance's copy, and over it the dark one's,
+   shown as the bubble turns dark over a dark part of the picture (materials/appearance.ts) and
+   faded in and out over 200ms. */
+:global([data-backdrop='custom']) .root {
+  /* The picture's copy carries the dim and the glass's colour itself (materials/backdrop.ts);
+     over it lies the little wash of its appearance that content's frost has (materials.css). */
+  --bubble-material: var(--frost-wash, transparent);
+}
+:global([data-backdrop='custom']) .surface,
+:global([data-backdrop='custom']) .surface::after {
+  background-color: var(--backdrop-fill, var(--bg-content));
+  background-image:
+    linear-gradient(var(--glass-tint, var(--glass-neutral-tint)) 0 0),
+    var(--backdrop-frost-light, none);
+  background-position: center;
+  background-size: auto, var(--backdrop-frost-size, var(--backdrop-size));
+  background-repeat: var(--backdrop-repeat);
+  background-attachment: fixed;
+}
+:global([data-backdrop='custom']) .surface::after {
+  --glass-neutral-tint: rgb(0 0 0 / 0.18);
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image:
+    linear-gradient(var(--glass-tint, var(--glass-neutral-tint)) 0 0),
+    var(--backdrop-frost-dark, none);
+  opacity: 0;
+  transition: opacity 200ms var(--ease-standard);
+}
+:global([data-backdrop='custom']) [data-appearance='dark'] > .surface::after {
+  opacity: 1;
+}
+/* Without transparency, or without GPU compositing, they are solid. */
+:global(:is([data-opaque='true'], [data-gpu-compositing='false'])) .surface {
   background: var(--glass-solid, var(--bg-elevated));
 }
-/* Over a picture of one's own the conversation's text needs more than the pattern's thin tint: one
-   thick enough for the picture (materials/backdrop.ts), over a light blur of it. */
-:global([data-backdrop='custom']) .root {
-  --glass-neutral-tint: var(--content-tint);
-}
-:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .surface {
-  backdrop-filter: blur(var(--content-blur));
-}
-:global([data-opaque='true']) .surface::before {
-  display: block;
-  background: var(--separator-strong);
+:global(:is([data-opaque='true'], [data-gpu-compositing='false'])) .surface::after {
+  display: none;
 }
 @media (forced-colors: active) {
   .surface {

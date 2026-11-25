@@ -38,7 +38,7 @@
   gap: 16px;
 }
 .list [data-selected='true'] {
-  border-radius: 6px;
+  border-radius: var(--r-control);
   background: var(--fill-selected);
 }
 .stage {
@@ -84,7 +84,7 @@
   margin: 0 20px;
   padding: 12px 14px;
   border: var(--line) solid var(--separator);
-  border-radius: 12px;
+  border-radius: var(--r-card);
   background: var(--surface-page);
 }
 .preview {
@@ -109,7 +109,7 @@
   align-self: center;
   background: var(--bg-content);
   padding: 40px 44px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   box-shadow:
     0 0 0 var(--line) var(--separator),
     0 4px 16px rgba(0, 0, 0, 0.06);
@@ -152,7 +152,7 @@
 }
 .reference {
   display: block;
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
   padding: 6px 0;
   text-align: left;
 }
@@ -238,4 +238,38 @@
   color: var(--text-tertiary);
   font-size: 11px;
   font-weight: 500;
+}
+
+/* Over a picture of one's own each file, the preview's header, the preview and its details are
+   blocks of frost of their own (materials.css), with the picture between them and no lines. */
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .list {
+  border-right: 0;
+  /* The same inset from the sidebar as every other page's first block (Works, Settings). */
+  padding-left: 24px;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .list > [data-selected] {
+  margin-bottom: 6px;
+  --frost-radius: var(--r-control);
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .list h3 {
+  margin: 12px 0 6px;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .stage {
+  gap: 12px;
+  padding: calc(12px + var(--toolbar-inset, 0px)) 24px 16px 0;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .previewHeader {
+  border-bottom: 0;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .stageBody {
+  padding: 0;
+  gap: 12px;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .preview,
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .info {
+  margin: 0;
+  padding: 16px;
+}
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .inspector > :not(h2) {
+  padding: 12px;
 }

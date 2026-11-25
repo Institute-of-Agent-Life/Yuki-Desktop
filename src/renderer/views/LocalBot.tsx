@@ -7,7 +7,6 @@ import { Banner, Button, TextField } from '../components/Controls'
 import { unwrap, problemText, ClientProblem } from '../queries/client'
 import { useTranslation } from '../i18n'
 import styles from '../App.module.css'
-import { useGlass } from '../materials/glass'
 
 export function LocalBot({
   active,
@@ -18,7 +17,6 @@ export function LocalBot({
   back(): void
   done(connection: Connection, activate?: boolean): void
 }) {
-  const card = useGlass<HTMLElement>('card')
   const { t } = useTranslation(['localBot'])
   const mounted = useRef(true)
   const activeRef = useRef(active)
@@ -90,8 +88,8 @@ export function LocalBot({
     }
   }
   return (
-    <div className={styles.welcome}>
-      <section ref={card.ref} data-glass="card" className={styles.welcomeInner}>
+    <div className={styles.welcome} data-page="local">
+      <section className={styles.welcomeInner}>
         <h1>{t('localBot:title')}</h1>
         <p>{t('localBot:description')}</p>
         {error && <Banner status="failed">{error}</Banner>}

@@ -82,7 +82,7 @@ export type PreferencesPatch = Partial<Omit<Preferences, 'customBackdrop'>> & {
 export const defaultPreferences: Preferences = {
   language: 'system',
   theme: 'system',
-  backdrop: 'lens',
+  backdrop: 'plain',
   timeZone: 'Asia/Taipei',
   transparency: 70,
   customBackdrop: { fit: 'fill', blur: 0, dim: 0 },
@@ -117,6 +117,10 @@ export interface BootInfo {
   dark: boolean
   reducedTransparency: boolean
   highContrast: boolean
+  /** macOS's Liquid Glass slider, 0 (clear) to 1 (tinted); 0.49 where there is none. */
+  glassTint: number
+  /** The colour space of the display the window is on, as Chromium describes it. */
+  displayColorSpace: string
   preferences: Preferences
   /** The language shown now: the preference, or the system's when it follows the system. */
   language: Language
@@ -165,7 +169,12 @@ export interface DesktopBridge {
   windowShown(): boolean
   onWindowShown(callback: (shown: boolean) => void): () => void
   onTheme(
-    callback: (theme: Pick<BootInfo, 'dark' | 'reducedTransparency' | 'highContrast'>) => void,
+    callback: (
+      theme: Pick<
+        BootInfo,
+        'dark' | 'reducedTransparency' | 'highContrast' | 'glassTint' | 'displayColorSpace'
+      >,
+    ) => void,
   ): () => void
   onLanguage(callback: (language: Language) => void): () => void
   onPairLink(callback: (link: string) => void): () => void

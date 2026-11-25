@@ -141,8 +141,8 @@ function expectGrowsFrom(
     expect(Math.abs(frame.radiusX - frame.radiusY)).toBeLessThanOrEqual(1.5)
     expect(frame.radiusX).toBeLessThanOrEqual(Math.min(frame.width, frame.height) / 2 + 1.5)
   }
-  // 6: a small liquid overshoot, then the whole pane.
-  expect(Math.max(...frames.map((frame) => frame.scale))).toBeGreaterThan(1.003)
+  // 6: a small liquid overshoot, then the whole pane (SwiftUI's .snappy bounce, hig-audit.md §8).
+  expect(Math.max(...frames.map((frame) => frame.scale))).toBeGreaterThan(1.001)
   // 7: the content arrives after the glass.
   expect(first.ink).toBeLessThanOrEqual(0.05)
 }
@@ -337,7 +337,8 @@ test('a busy button opens room for its spinner on a liquid spring and keeps even
           : 0
       }),
     )
-    .toBeGreaterThan(1.02)
+    // Overshooting as .snappy does (bounce 0.15, hig-audit.md §8).
+    .toBeGreaterThan(1.001)
     .then(() => 'overshoots')
   await release(page)
   await arm(page, false)
@@ -375,7 +376,8 @@ test('a busy button opens room for its spinner on a liquid spring and keeps even
   })
   evidence.buttonMetrics = metrics
   expect(metrics.width).toBeGreaterThanOrEqual(64)
-  expect(parseFloat(metrics.letterSpacing)).toBeGreaterThan(0)
+  // Han labels keep the system's own tracking (hig-audit.md decision 11).
+  expect(metrics.letterSpacing).toBe('normal')
   expect(metrics.lineHeight).toBe('18px')
   expect(metrics.outline).not.toBe('none')
 })

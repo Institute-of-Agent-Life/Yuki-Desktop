@@ -29,6 +29,10 @@ vi.mock('electron', () => ({
     },
     setApplicationMenu: vi.fn(),
   },
+  // The system's own SF Symbols, named: only macOS draws them.
+  nativeImage: {
+    createFromNamedImage: (symbol: string) => ({ symbol, setTemplateImage: () => undefined }),
+  },
   shell: { openExternal: (url: string) => os.external(url) },
   dialog: { showErrorBox: (...args: unknown[]) => os.error(...args) },
 }))

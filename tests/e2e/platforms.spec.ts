@@ -56,7 +56,31 @@ async function configure(page: Page, name: string, button = `設定 ${name}`) {
   return dialog
 }
 // The settings panel slides in and a dialog grows out of its button; a screenshot waits for rest.
-const settle = (page: Page) => page.waitForTimeout(800)
+// Settled: a while for the page, then until a control just pressed (a segment's or a switch's
+// thumb, glass while held, and its glow) has turned quiet again and nothing is still moving.
+const settle = async (page: Page) => {
+  await page.waitForTimeout(800)
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            document.querySelectorAll(
+              ':is([data-glass="segment"], [data-glass="toggle"], [data-glass="slider"])[data-refracting]',
+            ).length +
+            // A pressed control's glow, still fading (motion/hooks.ts).
+            [...document.querySelectorAll<HTMLElement>('[data-press]')].filter(
+              (node) => Number(node.style.getPropertyValue('--hp') || 0) > 0,
+            ).length +
+            document
+              .getAnimations()
+              .filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime))
+              .filter((animation) => animation.playState === 'running').length,
+        ),
+      { timeout: 10000 },
+    )
+    .toBe(0)
+}
 // The list, then the QQ dialog, in one language.
 async function shoot(page: Page, language: string, button: string) {
   await settle(page)

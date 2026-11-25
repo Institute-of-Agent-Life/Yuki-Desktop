@@ -69,9 +69,17 @@ test('every pane of a tier bends, blurs and seals the same way', async ({ page }
   tiers.sheet!.menu = await filter(menu)
   evidence.tiers = tiers
 
-  // 2: one filter per tier, each ending in the seal while the frost is on.
+  // 2: one filter per tier, each ending in the seal while the frost is on. A regular pane that
+  // carries text is blurred by its size (Apple's clear glass: the composer's about 11pt), a
+  // control by the Dock's 2pt: the same chain, its blur aside.
+  expect(tiers.regular!.composer).toMatch(/^blur\((?:9|1\d)(?:\.5)?px\)/)
+  expect(tiers.regular!.toolbar).toMatch(/^blur\(2px\)/)
   for (const [tier, panes] of Object.entries(tiers)) {
-    const filters = new Set(Object.values(panes))
+    const filters = new Set(
+      Object.values(panes).map((value) =>
+        tier === 'regular' ? value.replace(/^blur\([\d.]+px\)/, 'blur()') : value,
+      ),
+    )
     expect([...filters], tier).toHaveLength(1)
     expect([...filters][0], tier).toMatch(/url\("#lens"\)/)
     expect([...filters][0], tier).toMatch(/url\("#yuki-backdrop-seal"\)$/)

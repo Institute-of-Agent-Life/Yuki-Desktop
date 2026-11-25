@@ -2,7 +2,7 @@
   display: block;
   margin: 8px 0;
   max-width: 100%;
-  border-radius: 10px;
+  border-radius: var(--r-group);
   background: var(--bg-stage);
   color: var(--text-primary);
   text-align: left;
@@ -31,7 +31,7 @@
   margin: 2px 0 0;
   padding: 0;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--r-card);
   background: none;
   color: var(--text-secondary);
   text-align: left;
@@ -51,7 +51,7 @@
   display: block;
   width: 96px;
   height: 96px;
-  border-radius: 16px;
+  border-radius: var(--r-popover);
   background: var(--fill-code);
 }
 .sticker > small {
@@ -86,7 +86,7 @@
   align-items: center;
   gap: 8px;
   min-height: 44px;
-  border-radius: 10px;
+  border-radius: var(--r-group);
   padding: 8px 12px;
   background: var(--fill-inactive);
 }
@@ -109,7 +109,7 @@
   max-width: 340px;
   height: 56px;
   padding: 8px;
-  border-radius: 8px;
+  border-radius: var(--r-row);
   background: var(--fill-inactive);
 }
 .preview {
@@ -130,7 +130,7 @@
   max-width: 100%;
   max-height: 480px;
   object-fit: contain;
-  border-radius: 10px;
+  border-radius: var(--r-group);
 }
 .preview pre {
   overflow: auto;
@@ -143,11 +143,11 @@
   display: grid;
   place-items: center;
   border: 2px dashed var(--accent);
-  border-radius: 12px;
+  border-radius: var(--r-card);
   background: var(--bg-content);
   z-index: 10;
   pointer-events: none;
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
 }
 .media {
   min-width: 0;

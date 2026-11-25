@@ -40,7 +40,7 @@ test('a sticker from Yuki shows as a sticker, and an ordinary picture as an atta
   await expect(sticker).toBeVisible()
   const row = page.locator('article').filter({ has: sticker })
   // 1: no glass bubble, no attachment card and no "[表情: …]" text.
-  await expect(row.locator('[data-glass="bubble"]')).toHaveCount(0)
+  await expect(row.locator('[data-surface="bubble"]')).toHaveCount(0)
   await expect(row.getByText('[表情: 开心]')).toHaveCount(0)
   // The picture has loaded before its shape is read.
   await expect
@@ -75,7 +75,7 @@ test('a sticker from Yuki shows as a sticker, and an ordinary picture as an atta
     (window as unknown as StickerWindow).regression.receiveGlassPicture('一張照片', false),
   )
   const picture = page.locator('article').filter({ hasText: '一張照片' })
-  await expect(picture.locator('[data-glass="bubble"]')).toHaveCount(1)
+  await expect(picture.locator('[data-surface="bubble"]')).toHaveCount(1)
   await expect(picture.locator('[data-sticker]')).toHaveCount(0)
 })
 
@@ -92,7 +92,7 @@ test('a sticker named by many tags, as Yuki sends it, still shows as a sticker',
   await expect(sticker).toBeVisible()
   const row = page.locator('article').filter({ has: sticker })
   // 1: no glass bubble and no "[表情: …]" text before it.
-  await expect(row.locator('[data-glass="bubble"]')).toHaveCount(0)
+  await expect(row.locator('[data-surface="bubble"]')).toHaveCount(0)
   await expect(row.getByText(tags)).toHaveCount(0)
 })
 

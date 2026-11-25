@@ -17,6 +17,7 @@ import {
   net,
   powerMonitor,
   protocol,
+  screen,
   session,
   shell,
   systemPreferences,
@@ -1170,10 +1171,26 @@ else {
       native.characterName(connection.characterId, connection.name)
       connections.start(connection.characterId)
     }
+    // The Liquid Glass slider (Clear ↔ Tinted) of macOS's Appearance settings: read as a string,
+    // which is empty while it was never moved; elsewhere, and unmoved, its middle.
+    const glassTint = () => {
+      const value =
+        process.platform === 'darwin'
+          ? systemPreferences.getUserDefault('NSGlassTintAmount', 'string')
+          : ''
+      return value === '' || !Number.isFinite(Number(value)) ? 0.49 : Number(value)
+    }
     const appearance = () => ({
       dark: nativeTheme.shouldUseDarkColors,
       reducedTransparency: nativeTheme.prefersReducedTransparency,
       highContrast: nativeTheme.shouldUseHighContrastColors,
+      glassTint: glassTint(),
+      // The colour space of the display the window is on: the glass's filter maps are made for it
+      // (renderer materials/display.ts).
+      displayColorSpace: (win && !win.isDestroyed()
+        ? screen.getDisplayMatching(win.getBounds())
+        : screen.getPrimaryDisplay()
+      ).colorSpace,
     })
     ipcMain.handle('yuki:boot', (event): BootInfo => {
       authorize(event)
@@ -1248,6 +1265,9 @@ else {
       return current
     })
     nativeTheme.on('updated', () => win?.webContents.send('yuki:theme', appearance()))
+    // The slider can be moved while Yuki is open: read again whenever the window comes forward.
+    app.on('browser-window-focus', () => win?.webContents.send('yuki:theme', appearance()))
+    screen.on('display-metrics-changed', () => win?.webContents.send('yuki:theme', appearance()))
     const openWindow = () => {
       const created = createWindow(
         store,

@@ -920,6 +920,8 @@ function Case() {
         dark: false,
         reducedTransparency: false,
         highContrast: false,
+        glassTint: 0.49,
+        displayColorSpace: '',
         preferences,
         language: 'zh-Hant',
         pairLink: null,

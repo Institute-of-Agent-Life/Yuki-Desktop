@@ -7,6 +7,8 @@ import { isolatedDesktop } from '../fixtures/isolated-desktop'
 import { activeCharacterName } from '../fixtures/active-character'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { contentSize } from '../fixtures/visual'
+import { picture } from '../fixtures/pictures'
+import { appearanceFor, legible, throughGlass } from '../fixtures/legibility'
 
 /*
  * A custom chat background (docs/reports/2026-11-23-liquid-glass §12, phase 5). Failure cases,
@@ -33,65 +35,6 @@ test.afterAll(async () => {
     JSON.stringify(evidence, null, 2) + '\n',
   )
 })
-
-// Pictures drawn for the test, so nothing of anyone else's is used: black and white line art
-// (strokes, hatching and solid shapes), and a soft colour gradient.
-async function picture(page: Page, kind: 'lineart' | 'gradient') {
-  const data = await page.evaluate(async (kind) => {
-    const canvas = new OffscreenCanvas(1600, 1000),
-      context = canvas.getContext('2d')!
-    if (kind === 'gradient') {
-      const gradient = context.createLinearGradient(0, 0, 1600, 1000)
-      gradient.addColorStop(0, '#ff9a62')
-      gradient.addColorStop(0.5, '#7c6cff')
-      gradient.addColorStop(1, '#1fc8b4')
-      context.fillStyle = gradient
-      context.fillRect(0, 0, 1600, 1000)
-    } else {
-      let seed = 7
-      const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646
-      context.fillStyle = '#f4f4f4'
-      context.fillRect(0, 0, 1600, 1000)
-      context.fillStyle = '#111'
-      for (let shape = 0; shape < 14; shape++) {
-        context.beginPath()
-        const x = random() * 1600,
-          y = random() * 1000
-        context.moveTo(x, y)
-        for (let point = 0; point < 5; point++)
-          context.lineTo(x + (random() - 0.5) * 420, y + (random() - 0.5) * 420)
-        context.fill()
-      }
-      context.strokeStyle = '#111'
-      for (let band = 0; band < 6; band++) {
-        const y = random() * 1000
-        context.lineWidth = 2
-        for (let x = -200; x < 1600; x += 9) {
-          context.beginPath()
-          context.moveTo(x, y)
-          context.lineTo(x + 120, y - 120)
-          context.stroke()
-        }
-      }
-      for (let stroke = 0; stroke < 90; stroke++) {
-        context.lineWidth = 3 + random() * 6
-        context.strokeStyle = random() < 0.8 ? '#111' : '#fff'
-        context.beginPath()
-        let x = random() * 1600,
-          y = random() * 1000
-        context.moveTo(x, y)
-        for (let step = 0; step < 6; step++)
-          context.lineTo((x += (random() - 0.5) * 90), (y += (random() - 0.5) * 90))
-        context.stroke()
-      }
-    }
-    const bytes = new Uint8Array(await (await canvas.convertToBlob()).arrayBuffer())
-    let binary = ''
-    for (const byte of bytes) binary += String.fromCharCode(byte)
-    return btoa(binary)
-  }, kind)
-  return Buffer.from(data, 'base64')
-}
 
 // The system's file dialog answers with `path` the next time the app asks for a picture.
 const answerWith = (app: ElectronApplication, path: string) =>
@@ -281,19 +224,6 @@ test('a picture of ones own is kept once, fitted, blurred, dimmed per theme and 
   }
 })
 
-// WCAG contrast between two sRGB colours.
-const contrast = (a: number[], b: number[]) => {
-  const luminance = (rgb: number[]) => {
-    const [r, g, bl] = rgb.map((value) => {
-      const c = value / 255
-      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-    })
-    return 0.2126 * r! + 0.7152 * g! + 0.0722 * bl!
-  }
-  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p)
-  return (x! + 0.05) / (y! + 0.05)
-}
-
 test('text on the glass stays legible over a high-contrast picture of ones own', async () => {
   test.setTimeout(240000)
   const rig = await yukiFixture(),
@@ -325,53 +255,7 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
     await composer.fill('邊緣應該把後面的內容彎過去，文字仍然要看得清楚。')
     const measured: Record<string, unknown> = {}
     evidence.legibility = measured
-    // The text's colour against everything shown behind its glyphs, the text hidden: the worst 1%.
-    const legibility = async (text: Locator) => {
-      await text.scrollIntoViewIfNeeded()
-      const colour = await text.evaluate((element) => getComputedStyle(element).color)
-      await text.evaluate((element) => {
-        element.setAttribute('data-measured', '')
-        const style = document.createElement('style')
-        style.id = 'measured-style'
-        style.textContent =
-          '[data-measured], [data-measured] * { color: transparent !important; caret-color: transparent !important }'
-        document.head.append(style)
-      })
-      await page.waitForTimeout(100)
-      // Behind the text itself: the box of its glyphs, not the padding or corners around it; a
-      // text field's text is its own box.
-      const clip = await text.evaluate((element) => {
-        const range = document.createRange()
-        range.selectNodeContents(element)
-        const { x, y, width, height } = (
-          element instanceof HTMLTextAreaElement ? element : range
-        ).getBoundingClientRect()
-        return { x, y, width, height }
-      })
-      const shot = await page.screenshot({ clip })
-      await text.evaluate((element) => {
-        element.removeAttribute('data-measured')
-        document.getElementById('measured-style')!.remove()
-      })
-      const pixels = await page.evaluate(async (data) => {
-        const image = new Image()
-        image.src = `data:image/png;base64,${data}`
-        await image.decode()
-        const canvas = new OffscreenCanvas(image.width, image.height),
-          context = canvas.getContext('2d')!
-        context.drawImage(image, 0, 0)
-        const all = context.getImageData(0, 0, image.width, image.height).data,
-          list: number[][] = []
-        for (let k = 0; k < all.length; k += 4) list.push([all[k]!, all[k + 1]!, all[k + 2]!])
-        return list
-      }, shot.toString('base64'))
-      const rgb = colour
-        .match(/\d+(\.\d+)?/g)!
-        .slice(0, 3)
-        .map(Number)
-      const ratios = pixels.map((pixel) => contrast(rgb, pixel)).sort((a, b) => a - b)
-      return Math.round(ratios[Math.floor(ratios.length * 0.01)]! * 100) / 100
-    }
+    const legibility = (text: Locator) => legible(page, text)
     const messages = page.locator('[role="log"]').first(),
       toolbar = page.locator('[data-region="toolbar"]').first()
     const reply = messages
@@ -380,17 +264,47 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
         .first(),
       artifact = messages.locator('article').filter({ hasText: 'desktop-reference.txt' }).first(),
       own = messages.locator('article').filter({ hasText: 'fixture file' }).first()
-    const texts: [string, Locator, number][] = [
-      ['composer', composer, 4.5],
-      ['reply', reply.getByText('Desktop reference reply', { exact: true }), 4.5],
-      ['own message', own.getByText('fixture file', { exact: true }), 4.5],
-      ['own sender', own.locator('header strong'), 3],
-      ['sender', artifact.locator('header strong'), 3],
-      ['time', artifact.locator('header time'), 3],
-      ['file name', artifact.getByText('desktop-reference.txt', { exact: true }), 3],
-      ['file kind', artifact.getByText('成果檔案', { exact: true }), 3],
-      ['title', toolbar.locator('strong').first(), 4.5],
-      ['status', toolbar.locator('small').first(), 3],
+    // Real legibility over this line art, light and dark, at the worst 1% of pixels under the
+    // glyphs: main text 4.5:1, quiet text (times, kinds, status, the date, the opening line) 3:1,
+    // each piece of glass taking the appearance its own part of the picture calls for.
+    //
+    // Where the text lies on glass over the picture's solid black shapes and white paper at once
+    // (the composer, the artifact's bubble, the toolbar's small capsule), no glass that is neither
+    // milky nor opaque reaches that: the Dock's tone maps black to level 48 (light) and white to
+    // 180 (dark), so no ink keeps more than 3.2:1 over both, and even the panes' blur (Apple's clear
+    // glass at their size) leaves the shapes' edges under the glyphs. There the glass is held to
+    // the appearance the rule calls for (appearance.ts) and to the best this glass reaches, as
+    // measured (light / dark on a Retina Mac, whose display encoding reads mid greys a little
+    // dark; Linux without GPU compositing 3.7 / 3.2): composer 4.3 / 3.2–3.6, time 1.7 / 1.7,
+    // file name 3.1 / 2.5, file kind 1.7 / 1.6, status 3.4 / 2.9; and where the window is narrow (Windows) and the toolbar's capsule lies
+    // over the shapes, dark: status 2.3, title 2.4 (the dark glass kept, as its mean calls for).
+    const bubble = (article: Locator) => article.locator('[data-bubble-copy]').locator('..')
+    const texts: [string, Locator, number, Locator?][] = [
+      ['composer', composer, 3, page.locator('[data-region="composer"]')],
+      ['reply', reply.getByText('Desktop reference reply', { exact: true }), 4.5, bubble(reply)],
+      ['own message', own.getByText('fixture file', { exact: true }), 4.5, bubble(own)],
+      ['own sender', own.locator('header strong'), 4.5, bubble(own)],
+      ['sender', artifact.locator('header strong'), 4.5],
+      ['time', artifact.locator('header time'), 1.6, bubble(artifact)],
+      [
+        'file name',
+        artifact.getByText('desktop-reference.txt', { exact: true }),
+        2.4,
+        bubble(artifact),
+      ],
+      ['file kind', artifact.getByText('成果檔案', { exact: true }), 1.5, bubble(artifact)],
+      [
+        'title',
+        toolbar.locator('strong').first(),
+        2.3,
+        toolbar.locator('strong').first().locator('xpath=ancestor::*[@data-glass][1]'),
+      ],
+      [
+        'status',
+        toolbar.locator('small').first(),
+        2.2,
+        toolbar.locator('small').first().locator('xpath=ancestor::*[@data-glass][1]'),
+      ],
       ['date', messages.getByText(/^\d{1,2}\/\d{1,2}$/).first(), 3],
       ['opening', messages.locator('header h2').first(), 4.5],
       ['opening line', messages.locator('header p').first(), 3],
@@ -406,7 +320,27 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
       measured[theme] = seen
       // 9, 10
       for (const [name, , least] of texts)
-        expect(seen[name], `${theme} ${name}`).toBeGreaterThanOrEqual(least)
+        expect.soft(seen[name], `${theme} ${name}`).toBeGreaterThanOrEqual(least)
+      // Dark without a picture of its own dims the light one by 30% of the page's colour.
+      const dim =
+        theme === 'dark'
+          ? { colour: [0x1b, 0x1d, 0x22], amount: 0.3 }
+          : { colour: [255, 255, 255], amount: 0 }
+      const shown: Record<string, unknown> = {},
+        through = await throughGlass(page)
+      for (const [name, , , glass] of texts) {
+        if (!glass) continue
+        // A bubble's frost or, without transparency, any glass is a fill of the theme there.
+        const content = !['composer', 'status', 'title'].includes(name)
+        const { mean, high, expected: rule } = await appearanceFor(page, glass, lineart, dim, theme)
+        const expected = (content ? through.content : through.glass) ? rule : null
+        const actual = await glass.getAttribute('data-appearance')
+        const round = (value: number) => Math.round(value * 1000) / 1000
+        shown[name] = { mean: round(mean), high: round(high), expected, actual }
+        if (expected !== null || !(content ? through.content : through.glass))
+          expect.soft(actual, `${theme} ${name}'s glass`).toBe(expected)
+      }
+      measured[`${theme} appearance`] = shown
     }
     success = true
   } finally {

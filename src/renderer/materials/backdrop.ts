@@ -1,5 +1,7 @@
 import type { BackdropTable, CustomBackdrop } from '../../shared/desktop'
 import { unwrap } from '../queries/client'
+import { setBackdropSample } from './appearance'
+import { dockColour } from './dock'
 
 /*
  * A picture of the person's own behind the conversation (docs/reports/2026-11-23-liquid-glass
@@ -9,13 +11,10 @@ import { unwrap } from '../queries/client'
  */
 export const backdropUrl = (name: string) => `app://desktop/__backgrounds/${name}`
 
-const luminance = (r: number, g: number, b: number) => {
-  const linear = (value: number) => {
-    const c = value / 255
-    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-  }
-  return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
-}
+const linear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+const weights = [0.2126, 0.7152, 0.0722] as const
+const luminance = (r: number, g: number, b: number) =>
+  weights[0] * linear(r / 255) + weights[1] * linear(g / 255) + weights[2] * linear(b / 255)
 
 // The table: 32 × 32 cells, each measured on an 8 × 8 patch of a 256 × 256 scaling of the picture.
 function measure(image: ImageBitmap): BackdropTable {
@@ -108,9 +107,12 @@ export function shownBackdrop(backdrop: CustomBackdrop, theme: 'light' | 'dark')
 }
 
 /** The page's variables for a custom backdrop (Conversation.module.css draws them). */
+const shownFile = (backdrop: CustomBackdrop, id: string) =>
+  backdrop.blur ? `${id}-blur${backdrop.blur}.webp` : `${id}.webp`
+
 export function backdropVariables(backdrop: CustomBackdrop, theme: 'light' | 'dark') {
   const shown = shownBackdrop(backdrop, theme)
-  const file = backdrop.blur ? `${shown.id}-blur${backdrop.blur}.webp` : `${shown.id}.webp`
+  const file = shownFile(backdrop, shown.id)
   return {
     '--backdrop-image': `url("${backdropUrl(file)}")`,
     '--backdrop-size': { fill: 'cover', fit: 'contain', tile: 'auto' }[backdrop.fit],
@@ -120,71 +122,148 @@ export function backdropVariables(backdrop: CustomBackdrop, theme: 'light' | 'da
 }
 
 /*
- * Glass that follows what lies under it, as Apple's darkens over bright content and lightens over
- * dark: the picture's table is read under each pane over the conversation, and the pane's tint is
- * raised from its own until secondary text of the theme's colour keeps 3:1 over the darkest
- * (light) or brightest (dark) of it, which leaves main text above 4.5:1. Where the picture is busy
- * the pane blurs more. The conversation's own text, in its bubbles and laid on the picture (the
- * toolbar's title, the date, the opening line), takes one tint for the whole picture
- * (`--content-tint`, Conversation.module.css) over a light blur (`--content-blur`).
+ * The conversation's text laid straight on the picture (the toolbar's title, the date, the opening
+ * line) takes one tint for the whole picture (`--content-tint`, Conversation.module.css) over a
+ * light blur (`--content-blur`): the picture's table is read under the conversation, and the tint
+ * raised until secondary text of the theme's colour keeps 3:1 over the darkest (light) or
+ * brightest (dark) of it, which leaves main text above 4.5:1. The bubbles' frost is the picture
+ * blurred once as the Dock's glass blurs it, in the colour of either appearance
+ * (`--backdrop-frost-light`, `--backdrop-frost-dark`).
  */
 const tints = {
   // White over the picture, under secondary text of luminance 0.112 (#5b5e66): the result must
   // reach luminance 0.436, sRGB 0.69.
-  light: { colour: [255, 255, 255], needed: 0.69, ceiling: 0.92, blur: 2 },
+  light: { colour: [255, 255, 255], needed: 0.69, ceiling: 0.92 },
   // rgb(30 32 50), sRGB 0.13, over it, under secondary text of luminance 0.387 (#a4a7af): at most
-  // luminance 0.096, sRGB 0.34. The body's light brightens a pane's middle by up to a fifth.
-  dark: { colour: [30, 32, 50], needed: 0.34, ceiling: 0.92, blur: 3 },
+  // luminance 0.096, sRGB 0.34.
+  dark: { colour: [30, 32, 50], needed: 0.34, ceiling: 0.92 },
 } as const
 const srgb = (linear: number) =>
   linear <= 0.0031308 ? linear * 12.92 : 1.055 * linear ** (1 / 2.4) - 0.055
+// The colours (sRGB, 0–1) a picture can show at luminance `y`, as saturated as they come: each
+// primary and secondary scaled to it (or filled with white where it cannot reach it), and grey. A
+// tint must hold over the worst of them: a saturated blue lets far more through a white tint than
+// a grey of its brightness.
+const hues = [
+  [1, 0, 0],
+  [0, 1, 0],
+  [0, 0, 1],
+  [1, 1, 0],
+  [0, 1, 1],
+  [1, 0, 1],
+  [1, 1, 1],
+]
+const coloursOf = (y: number) =>
+  hues.map((hue) => {
+    const reach = hue.reduce((sum, value, i) => sum + value * weights[i]!, 0)
+    return hue
+      .map((value) =>
+        reach >= y ? (value * y) / reach : value + ((1 - value) * (y - reach)) / (1 - reach),
+      )
+      .map(srgb)
+  })
+// The luminance of `tint` laid at `alpha` over `colour` (both sRGB, 0–1), as the page composites.
+const laid = (tint: number[], colour: number[], alpha: number) =>
+  colour.reduce(
+    (sum, value, i) => sum + weights[i]! * linear(alpha * tint[i]! + (1 - alpha) * value),
+    0,
+  )
 
-/** Follows `chat`'s custom backdrop with its glass, in whichever theme is shown, until called. */
-export function followBackdrop(chat: HTMLElement, backdrop: CustomBackdrop) {
+/**
+ * Follows the window's custom backdrop with its glass, in whichever theme is shown, until called:
+ * once for the whole window (App.tsx), whatever page is shown.
+ */
+export function followBackdrop(backdrop: CustomBackdrop) {
   const root = document.documentElement
   const theme = (): 'light' | 'dark' => (root.dataset.theme === 'dark' ? 'dark' : 'light')
   let shownTheme = theme(),
-    stop = followIn(chat, backdrop, shownTheme)
+    stop = followIn(backdrop, shownTheme)
+  // In the other theme the glass keeps the appearance it has until the picture shown there has
+  // been read (appearance.ts).
   const themes = new MutationObserver(() => {
     if (theme() === shownTheme) return
     stop()
     shownTheme = theme()
-    stop = followIn(chat, backdrop, shownTheme)
+    stop = followIn(backdrop, shownTheme)
   })
   themes.observe(root, { attributes: true, attributeFilter: ['data-theme'] })
   return () => {
     themes.disconnect()
     stop()
+    setBackdropSample(undefined)
   }
 }
 
-function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 'dark') {
+function followIn(backdrop: CustomBackdrop, theme: 'light' | 'dark') {
   const shown = shownBackdrop(backdrop, theme),
     tint = tints[theme],
-    // The chat and the toolbar laid over it.
-    main = chat.closest<HTMLElement>('[data-region="main"]')!
+    // What the backdrop's variables are given on: the window.
+    root = document.documentElement
   let table: BackdropTable | undefined,
     size: { width: number; height: number } | undefined,
     frame = 0,
-    live = true
-  const panes = new Set<HTMLElement>()
-  const clear = (pane: HTMLElement) => {
-    for (const name of ['--mat-pane', '--mat-glass', '--glass-blur'])
-      pane.style.removeProperty(name)
-  }
+    live = true,
+    frosted = 0,
+    frostUrls: string[] = [],
+    // Where the picture is drawn in the window, and its luma (sRGB, 0–1) as the bubbles' blurred
+    // copy has it: what lies under a piece of glass, for its appearance (appearance.ts).
+    placement:
+      | {
+          fit: CustomBackdrop['fit']
+          drawn: { width: number; height: number }
+          origin: { x: number; y: number }
+          outside: number
+        }
+      | undefined,
+    lumas: { data: Float32Array; width: number; height: number } | undefined,
+    published = false
   // The page's colour laid over the picture, as luminance.
   const page = () => {
-    const [r, g, b] = getComputedStyle(chat)
+    const [r, g, b] = getComputedStyle(root)
       .getPropertyValue('--bg-content')
       .trim()
       .match(/[0-9a-f]{2}/gi)!
       .map((value) => parseInt(value, 16))
     return luminance(r!, g!, b!)
   }
+  // The mean and 90th percentile of the blurred picture's luma under a box of the window.
+  const publish = () => {
+    const at = placement,
+      map = lumas
+    if (!at || !map) return
+    // Read afresh the first time for this picture in this theme (appearance.ts).
+    const fresh = !published
+    published = true
+    setBackdropSample((rect) => {
+      const values: number[] = [],
+        step = Math.max(2, Math.min(rect.width, rect.height) / 16)
+      for (let y = rect.top + step / 2; y < rect.bottom; y += step)
+        for (let x = rect.left + step / 2; x < rect.right; x += step) {
+          let u = (x - at.origin.x) / at.drawn.width,
+            v = (y - at.origin.y) / at.drawn.height
+          if (at.fit === 'tile') {
+            u = ((u % 1) + 1) % 1
+            v = ((v % 1) + 1) % 1
+          }
+          values.push(
+            u < 0 || u >= 1 || v < 0 || v >= 1
+              ? at.outside
+              : map.data[Math.floor(v * map.height) * map.width + Math.floor(u * map.width)]!,
+          )
+        }
+      if (!values.length) values.push(at.outside)
+      values.sort((a, b) => a - b)
+      return {
+        mean: values.reduce((sum, value) => sum + value, 0) / values.length,
+        high: values[Math.floor(values.length * 0.9)]!,
+      }
+    }, fresh)
+  }
   const update = () => {
     frame = 0
     if (!table || !size || !live) return
-    const box = chat.getBoundingClientRect(),
+    // The picture lies under the whole window (App.module.css).
+    const box = new DOMRect(0, 0, innerWidth, innerHeight),
       grid = table.grid
     const fit = backdrop.fit,
       cover = Math.max(box.width / size.width, box.height / size.height),
@@ -225,59 +304,138 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
           low = Math.min(low, cellLow!)
           high = Math.max(high, cellHigh!)
         }
+      return { low: dim * under + (1 - dim) * low, high: dim * under + (1 - dim) * high }
+    }
+    // How much of the theme's tint keeps what lies in `rect` at or beyond `target` luminance
+    // (light: at least; dark: at most), over any colour of its darkest (light) or brightest
+    // (dark), at least `base`.
+    const shade = tint.colour.map((value) => value / 255)
+    const alphaOver = (rect: DOMRect) => {
+      const { low, high } = range(rect),
+        target = linear(tint.needed)
+      const worst = theme === 'light' ? low : high
+      const colours = coloursOf(worst)
+      const holds = (alpha: number) =>
+        colours.every((colour) =>
+          theme === 'light'
+            ? laid(shade, colour, alpha) >= target
+            : laid(shade, colour, alpha) <= target,
+        )
+      let needed = 0
+      if (!holds(0)) {
+        let short = 0
+        needed = 1
+        for (let step = 0; step < 16; step++) {
+          const middle = (short + needed) / 2
+          if (holds(middle)) needed = middle
+          else short = middle
+        }
+      }
       return {
-        low: srgb(dim * under + (1 - dim) * low),
-        high: srgb(dim * under + (1 - dim) * high),
+        alpha: Math.min(tint.ceiling, needed + 0.05),
+        spread: Math.max(0, srgb(high) - srgb(low)),
       }
     }
-    // How much of the theme's tint keeps text legible over what lies in `rect`, at least `base`.
-    const alphaOver = (rect: DOMRect, base: number, brightened: number) => {
-      const { low, high } = range(rect)
-      const bright = Math.min(1, high * brightened)
-      const needed =
-        theme === 'light'
-          ? (tint.needed - low) / (1 - low)
-          : (bright - tint.needed) / (bright - 0.13)
-      return {
-        alpha: Math.min(tint.ceiling, Math.max(base, needed + 0.05)),
-        spread: Math.max(0, high - low),
-      }
-    }
+    placement = { fit, drawn, origin, outside: srgb(dim * under + (1 - dim) * outside) }
+    publish()
     const colour = (alpha: number) => `rgb(${tint.colour.join(' ')} / ${alpha.toFixed(3)})`
-    const content = alphaOver(box, 0, 1)
-    main.style.setProperty('--content-tint', colour(content.alpha))
-    main.style.setProperty('--content-blur', `${8 + 8 * content.spread}px`)
-    const current = new Set(
-      main.querySelectorAll<HTMLElement>(
-        '[data-glass="composer"][data-refracting], [data-glass="toolbar"][data-refracting]',
-      ),
+    const content = alphaOver(
+      document.querySelector('[data-region="main"]')?.getBoundingClientRect() ?? box,
     )
-    for (const pane of panes) if (!current.has(pane)) clear(pane)
-    panes.clear()
-    for (const pane of current) {
-      panes.add(pane)
-      clear(pane)
-      const base = Number(getComputedStyle(pane).backgroundColor.match(/[\d.]+(?=\)$)/)![0])
-      const { alpha, spread } = alphaOver(pane.getBoundingClientRect(), base, 1.2)
-      pane.style.setProperty('--mat-pane', colour(alpha))
-      pane.style.setProperty('--mat-glass', colour(alpha))
-      pane.style.setProperty('--glass-blur', `${tint.blur + 4 * spread}px`)
+    root.style.setProperty('--content-tint', colour(content.alpha))
+    root.style.setProperty('--content-blur', `${8 + 8 * content.spread}px`)
+    // The bubbles' frost: the picture blurred once as a bubble's glass blurs it (--bubble-blur, in
+    // CSS pixels), in its own pixels as it is drawn.
+    root.style.setProperty('--backdrop-frost-size', `${drawn.width}px ${drawn.height}px`)
+    const radius =
+      Math.round(
+        (parseFloat(getComputedStyle(root).getPropertyValue('--bubble-blur')) / scale) * 4,
+      ) / 4
+    if (radius !== frosted) {
+      frosted = radius
+      void frost(radius)
     }
+  }
+  // The picture blurred by `radius` of its own pixels and its colour raised as the glass raises it,
+  // made smaller first as far as the blur allows (what it removes is finer than any pixel it drops).
+  const frost = async (radius: number) => {
+    const reduce = Math.max(1, Math.floor(radius / 4)),
+      width = Math.max(1, Math.round(image.naturalWidth / reduce)),
+      height = Math.max(1, Math.round(image.naturalHeight / reduce))
+    // What lies past its edges, for the blur to reach: itself again when tiled, else its edges'
+    // colour (a stretched copy under it).
+    const margin = Math.ceil((3 * radius) / reduce),
+      around = new OffscreenCanvas(width + 2 * margin, height + 2 * margin),
+      drawing = around.getContext('2d')!
+    drawing.imageSmoothingQuality = 'high'
+    if (backdrop.fit === 'tile')
+      for (const dx of [-width, 0, width])
+        for (const dy of [-height, 0, height])
+          drawing.drawImage(image, margin + dx, margin + dy, width, height)
+    else {
+      drawing.drawImage(image, 0, 0, around.width, around.height)
+      drawing.drawImage(image, margin, margin, width, height)
+    }
+    // The page's colour laid over it as much as it is dimmed (Conversation.module.css), before the
+    // glass takes its colour.
+    const [r, g, b] = getComputedStyle(root)
+      .getPropertyValue('--bg-content')
+      .trim()
+      .match(/[0-9a-f]{2}/gi)!
+      .map((value) => parseInt(value, 16))
+    drawing.fillStyle = `rgb(${r} ${g} ${b} / ${shown.dim / 100})`
+    drawing.fillRect(0, 0, around.width, around.height)
+    const canvas = new OffscreenCanvas(width, height),
+      context = canvas.getContext('2d')!
+    context.filter = `blur(${radius / reduce}px)`
+    context.drawImage(around, -margin, -margin)
+    // The Dock's colour (dock.ts), as the glass's filter gives it, in either appearance: a bubble
+    // shows the one it has taken (appearance.ts).
+    const blurred = context.getImageData(0, 0, width, height),
+      tint = Number(document.documentElement.dataset.glassTint ?? 0.49)
+    // Its luma (Rec. 709 on the encoded values, as the Dock's tone weighs it), for appearance.
+    const luma = new Float32Array(width * height)
+    for (let k = 0; k < luma.length; k++)
+      luma[k] =
+        (0.2126 * blurred.data[4 * k]! +
+          0.7152 * blurred.data[4 * k + 1]! +
+          0.0722 * blurred.data[4 * k + 2]!) /
+        255
+    const urls: string[] = []
+    for (const look of ['light', 'dark'] as const) {
+      const colour = dockColour(look, tint),
+        pixels = new ImageData(new Uint8ClampedArray(blurred.data), width, height),
+        data = pixels.data
+      for (let k = 0; k < data.length; k += 4) {
+        const [red, green, blue] = colour(data[k]!, data[k + 1]!, data[k + 2]!)
+        data[k] = red!
+        data[k + 1] = green!
+        data[k + 2] = blue!
+      }
+      context.putImageData(pixels, 0, 0)
+      urls.push(URL.createObjectURL(await canvas.convertToBlob({ type: 'image/png' })))
+    }
+    if (!live || radius !== frosted) return urls.forEach((url) => URL.revokeObjectURL(url))
+    frostUrls.forEach((url) => URL.revokeObjectURL(url))
+    frostUrls = urls
+    lumas = { data: luma, width, height }
+    publish()
+    root.style.setProperty('--backdrop-frost-light', `url("${urls[0]}")`)
+    root.style.setProperty('--backdrop-frost-dark', `url("${urls[1]}")`)
   }
   const schedule = () => {
     frame ||= requestAnimationFrame(update)
   }
-  const resize = new ResizeObserver(schedule),
-    changes = new MutationObserver(schedule)
-  resize.observe(chat)
-  changes.observe(main, { childList: true, subtree: true, attributeFilter: ['data-refracting'] })
+  const resize = new ResizeObserver(schedule)
+  resize.observe(root)
+  addEventListener('resize', schedule)
   void backdropTable(shown.id).then((value) => {
     table = value
-    chat.style.setProperty('--backdrop-fill', value.average)
+    root.style.setProperty('--backdrop-fill', value.average)
     schedule()
   })
   const image = new Image()
-  image.src = backdropUrl(`${shown.id}.webp`)
+  image.src = backdropUrl(shownFile(backdrop, shown.id))
   void image.decode().then(() => {
     size = { width: image.naturalWidth, height: image.naturalHeight }
     schedule()
@@ -286,10 +444,13 @@ function followIn(chat: HTMLElement, backdrop: CustomBackdrop, theme: 'light' | 
     live = false
     cancelAnimationFrame(frame)
     resize.disconnect()
-    changes.disconnect()
-    chat.style.removeProperty('--backdrop-fill')
-    main.style.removeProperty('--content-tint')
-    main.style.removeProperty('--content-blur')
-    for (const pane of panes) clear(pane)
+    removeEventListener('resize', schedule)
+    root.style.removeProperty('--backdrop-fill')
+    root.style.removeProperty('--content-tint')
+    root.style.removeProperty('--content-blur')
+    root.style.removeProperty('--backdrop-frost-size')
+    root.style.removeProperty('--backdrop-frost-light')
+    root.style.removeProperty('--backdrop-frost-dark')
+    frostUrls.forEach((url) => URL.revokeObjectURL(url))
   }
 }

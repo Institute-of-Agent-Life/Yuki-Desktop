@@ -86,7 +86,7 @@ function animateSticker(sticker: HTMLElement, outgoing: boolean) {
 export function animateBubble(row: Element, outgoing: boolean, origin?: DOMRect) {
   const sticker = row.querySelector<HTMLElement>('[data-sticker]')
   if (sticker) return animateSticker(sticker, outgoing)
-  const surface = row.querySelector<HTMLElement>('[data-glass="bubble"]')
+  const surface = row.querySelector<HTMLElement>('[data-surface="bubble"]')
   const copy = row.querySelector<HTMLElement>('[data-bubble-copy]')
   const bubble = surface?.parentElement
   if (!surface || !copy || !bubble) return
@@ -177,12 +177,7 @@ export function animateBubble(row: Element, outgoing: boolean, origin?: DOMRect)
   )
   const others = [
     bubble.animate(
-      [
-        ...frames.map(({ offset, lift }) => ({ offset, transform: lift })),
-        // The resting shadow belongs to the resting shape.
-        { offset: 0, boxShadow: 'none' },
-        { offset: 0.5, boxShadow: 'none' },
-      ].sort((a, b) => a.offset - b.offset),
+      frames.map(({ offset, lift }) => ({ offset, transform: lift })),
       timing,
     ),
     edge.animate(

@@ -1,82 +1,261 @@
 /*
- * The glass tiers (docs/reports/2026-11-23-liquid-glass §15). They are declared on each pane, so
- * the lens each pane was given (`--refract`) is its own; every one ends in the seal.
- *   regular: toolbars, the composer and cards. Blurred first, then bent (glass.ts), so the blur's
- *     soft shapes melt where the bend presses them together.
+ * The glass tiers (docs/reports/2026-11-23-liquid-glass §15), the Dock's glass (materials/dock.ts).
+ * They are declared on each pane, so the lens each pane was given (`--refract`, which also gives it
+ * the Dock's colour and rim) is its own; glass with no filter of its own takes the colour alone
+ * (`--glass-native`). Every one ends in the seal.
+ *   regular: the sidebar, toolbars, the composer and cards: blurred a little, then bent (glass.ts).
  *   sheet: the same glass for panes that open over the page (dialogs, the palette, menus), blurred
- *     until the page's text beneath cannot be read through their own.
+ *     until the page's text beneath cannot be read through their own, and tinted
+ *     (`--mat-sheet-glass`).
  *   lens: a control held under the finger, nearly clear.
- * The tint lies on each pane's own background: `--mat-glass`, `--mat-pane` where it carries text,
- * `--mat-sheet-glass` for sheets.
+ * No tint, hairline or shadow lies on the Dock's glass.
  */
+:root,
+[data-appearance='light'] {
+  --glass-native: url(#yuki-glass-tone-light);
+}
+:root[data-theme='dark'],
+[data-appearance='dark'] {
+  --glass-native: url(#yuki-glass-tone-dark);
+}
 [data-glass] {
-  --glass-regular: blur(var(--glass-blur)) var(--refract,) brightness(var(--glass-brightness))
-    saturate(var(--glass-saturation)) var(--seal,);
-  --glass-sheet: blur(32px) var(--refract,) brightness(var(--glass-brightness))
-    saturate(var(--glass-saturation)) var(--seal,);
+  --glass-regular: blur(var(--glass-blur)) var(--refract, var(--glass-native)) var(--seal,);
+  --glass-sheet: blur(32px) var(--refract, var(--glass-native)) var(--seal,);
   --glass-lens: blur(0.4px) var(--refract,) var(--seal,);
 }
-[data-glass]::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 0.75px;
-  pointer-events: none;
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
+/* Increased contrast draws the glass's edge, which the Dock's glass otherwise shows by its rim. */
+:root[data-contrast='true'] [data-glass] {
+  box-shadow: 0 0 0 var(--line) var(--edge);
 }
 /*
- * Glass without a light map of its own (native materials, or before refraction starts) draws its
- * rim as a thin gradient; refracting glass is lit by its map alone, never outlined on top.
+ * Text on the Dock's glass, as the system draws it: the main text black or white; the quieter text
+ * the same at 0.8 (black) or 0.76 (white), so that it keeps 3:1 over what its glass shows
+ * (materials/appearance.ts).
+ * Glass that carries text takes the appearance of what lies under it over a picture of one's own
+ * (`data-appearance`, materials/appearance.ts), on every platform, with the ink, fills and lines of
+ * that appearance (the accent is the persona's, per theme), whatever the theme; they cross-fade with the glass over 200ms.
  */
-[data-glass]:where(:not([data-refracting]))::before {
-  background: linear-gradient(
-    154deg,
-    var(--stroke-hi),
-    var(--stroke-lo) 55%,
-    color-mix(in srgb, var(--stroke-hi) 40%, transparent)
-  );
+@property --text-primary {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #000;
 }
-/* The rim's light: white, laid around the edge by the pane's own light map (glass.ts). */
-[data-glass]::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: #fff;
-  -webkit-mask-box-image: var(--rim) var(--rim-slice) fill / var(--rim-border);
+@property --text-secondary {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #000;
 }
-[data-glass]:not([data-refracting])::after,
-/* The slider's thumb draws its own rim (InteractiveControls.module.css). */
-[data-glass='slider']::after {
-  display: none;
+@property --text-tertiary {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #000;
 }
-/* Over light content a thin dark ring lies just outside the rim, as on Apple's regular glass. */
-:root:not([data-theme='dark'], [data-contrast='true'])
+:root[data-platform='darwin']:not([data-contrast='true'])
   :is(
+    [data-glass='sidebar'],
     [data-glass='toolbar'],
     [data-glass='composer'],
-    [data-glass='card'],
-    [data-glass='sheet']
-  )[data-refracting] {
-  outline: 0.5px solid rgb(0 0 0 / 0.16);
-  outline-offset: 0;
+    [data-glass='send']
+  ):not([data-appearance='dark']),
+[data-appearance='light'] {
+  --text-primary: #000;
+  --text-secondary: rgb(0 0 0 / 0.8);
+  --text-tertiary: rgb(0 0 0 / 0.8);
+}
+:root[data-platform='darwin'][data-theme='dark']:not([data-contrast='true'])
+  :is(
+    [data-glass='sidebar'],
+    [data-glass='toolbar'],
+    [data-glass='composer'],
+    [data-glass='send']
+  ):not([data-appearance='light']),
+[data-appearance='dark'] {
+  --text-primary: #fff;
+  --text-secondary: rgb(255 255 255 / 0.76);
+  --text-tertiary: rgb(255 255 255 / 0.76);
+}
+[data-appearance] {
+  color: var(--text-primary);
+  transition:
+    --text-primary 200ms var(--ease-standard),
+    --text-secondary 200ms var(--ease-standard),
+    --text-tertiary 200ms var(--ease-standard);
+}
+/* The rest of an appearance's colours, as the theme gives them (tokens.css): its fills and lines,
+   and the persona's accent and the states' colours as that appearance has them. Coloured text on
+   such glass is drawn toward its ink (black or white) by `--ink-mix`, as the system's vibrant
+   colours are, so that it keeps 3:1 over glass whose backdrop sits near either edge of its
+   appearance (appearance.ts); fills keep the colour itself. */
+[data-appearance='light'] {
+  color-scheme: light;
+  --accent: var(--accent-light);
+  --accent-strong: color-mix(in srgb, var(--accent-light) 85%, black);
+  --accent-subtle: color-mix(in srgb, var(--accent-light) 14%, transparent);
+  --accent-on: #ffffff;
+  --status-running: #335fc4;
+  --status-waiting: #8f5600;
+  --status-done: #187334;
+  --status-failed: #c70013;
+  --status-unknown: #6b4cc6;
+  --status-offline: #64676e;
+  --ink-mix: 25%;
+  --ink-base: #000;
+  --frost-wash: rgb(255 255 255 / 0.18);
+  --fill-hover: rgba(20, 34, 64, 0.05);
+  --fill-pressed: rgba(20, 34, 64, 0.09);
+  --fill-selected: rgba(58, 107, 214, 0.14);
+  --fill-inactive: rgba(20, 34, 64, 0.07);
+  --separator: rgba(20, 30, 50, 0.1);
+  --separator-strong: rgba(20, 30, 50, 0.17);
+  --text-disabled: #b4b7be;
+  --grouped: rgb(0 0 0 / 0.035);
+  --control: #ffffff;
+  --control-edge: rgb(0 0 0 / 0.12);
+  --fill-control: rgba(20, 34, 64, 0.065);
+  --track: rgba(20, 34, 64, 0.14);
+  --toggle-off: rgba(20, 34, 64, 0.16);
+  --seg-thumb: #ffffff;
+  --field: rgb(255 255 255 / 0.55);
+}
+[data-appearance='dark'] {
+  color-scheme: dark;
+  --accent: var(--accent-dark);
+  --accent-strong: color-mix(in srgb, var(--accent-dark) 85%, white);
+  --accent-subtle: color-mix(in srgb, var(--accent-dark) 18%, transparent);
+  --accent-on: #0e1a33;
+  --status-running: #7fa4ff;
+  --status-waiting: #ffb340;
+  --status-done: #4cd964;
+  --status-failed: #ff7a72;
+  --status-unknown: #b39dff;
+  --status-offline: #a0a3ab;
+  --ink-mix: 30%;
+  --ink-base: #fff;
+  --frost-wash: rgb(0 0 0 / 0.18);
+  --fill-hover: rgba(255, 255, 255, 0.06);
+  --fill-pressed: rgba(255, 255, 255, 0.1);
+  --fill-selected: rgba(127, 164, 255, 0.18);
+  --fill-inactive: rgba(255, 255, 255, 0.08);
+  --separator: rgba(255, 255, 255, 0.1);
+  --separator-strong: rgba(255, 255, 255, 0.18);
+  --text-disabled: #55585f;
+  --grouped: rgb(255 255 255 / 0.05);
+  --control: rgb(255 255 255 / 0.1);
+  --control-edge: rgb(255 255 255 / 0.08);
+  --fill-control: rgba(255, 255, 255, 0.09);
+  --track: rgba(255, 255, 255, 0.16);
+  --toggle-off: rgba(255, 255, 255, 0.18);
+  --seg-thumb: rgba(255, 255, 255, 0.16);
+  --field: rgb(255 255 255 / 0.07);
+}
+/* Over a picture of one's own, every page lies on it (App.module.css): no page colour of its own,
+   but without transparency, where pages are solid and the picture is not shown. */
+:root[data-backdrop='custom']:not([data-opaque='true']) {
+  --surface-page: transparent;
+  --surface-pane: transparent;
+  --bg-stage: transparent;
+  /* A raised card on a page's glass is a grouped fill on it, as in a grouped list. */
+  --bg-raised: var(--grouped);
+  /* A sidebar that is not glass (flush, off macOS) stays its own solid colour over the picture,
+     not the window's thin frost. */
+  --mat-sidebar: var(--bg-sidebar);
+}
+/*
+ * Content over a picture of one's own lies on frost, as a bubble does
+ * (ConversationGlass.module.css): each block of it (a settings group, a work, a file, a note, a
+ * segmented control, a section's title as a small label) shows the picture blurred once, with its
+ * dim and the Dock's colour (materials/backdrop.ts), laid out on the window as the picture is, so
+ * no block filters its backdrop and a long list costs no more than a short one. Between them the
+ * picture is sharp, the same on every page. Content draws no rim and no lens (HIG keeps Liquid
+ * Glass out of the content layer). A block is marked `data-frost`, or is a child of
+ * `data-frost-children` (one that is itself `data-frost-children` passes it on to its own; glass,
+ * a dialog or a popover among them stays what it is), and takes the appearance of what lies under
+ * it (materials/appearance.ts), its copy and ink with it.
+ * A fill the block would have (a hovered or selected row) is laid over the frost (`--frost-fill`).
+ * Content's frost carries a little wash of its appearance's paper (`--frost-wash`), as content
+ * materials do, so that its quieter text keeps 3:1 near the edges where the appearance turns.
+ */
+:root[data-backdrop='custom']:not([data-opaque='true'])
+  :is(
+    [data-frost],
+    [data-frost-children] > :not([data-frost-children], [data-glass], dialog, [popover])
+  ) {
+  background-color: var(--backdrop-fill);
+  background-image:
+    linear-gradient(var(--frost-fill, transparent) 0 0), linear-gradient(var(--frost-wash) 0 0),
+    var(--backdrop-frost-light, none);
+  background-position: center;
+  background-size: auto, auto, var(--backdrop-frost-size, var(--backdrop-size));
+  background-repeat: var(--backdrop-repeat);
+  background-attachment: fixed;
+  border-radius: var(--frost-radius, var(--r-group));
+  border-color: transparent;
+}
+:root[data-backdrop='custom']:not([data-opaque='true'])
+  :is(
+    [data-frost],
+    [data-frost-children] > :not([data-frost-children], [data-glass], dialog, [popover])
+  )[data-appearance='dark'] {
+  background-image:
+    linear-gradient(var(--frost-fill, transparent) 0 0), linear-gradient(var(--frost-wash) 0 0),
+    var(--backdrop-frost-dark, none);
+}
+:root[data-backdrop='custom']:not([data-opaque='true'])
+  :is(
+    [data-frost],
+    [data-frost-children] > :not([data-frost-children], [data-glass], dialog, [popover])
+  ):is(button, [role='button']):hover {
+  --frost-fill: var(--fill-hover);
+}
+:root[data-backdrop='custom']:not([data-opaque='true'])
+  :is(
+    [data-frost],
+    [data-frost-children] > :not([data-frost-children], [data-glass], dialog, [popover])
+  ):is([aria-current], [data-selected='true']) {
+  --frost-fill: var(--fill-selected);
+}
+/* A title on the picture is a small label of frost, as wide as its words. */
+:root[data-backdrop='custom']:not([data-opaque='true'])
+  :is(
+    [data-frost],
+    [data-frost-children] > :not([data-frost-children], [data-glass], dialog, [popover])
+  ):is(h2, h3, h4) {
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 10px;
+  --frost-radius: 999px;
+}
+/* Without GPU compositing the frost is a fill of its appearance, as a bubble's is. */
+:root[data-backdrop='custom'][data-gpu-compositing='false']:not([data-opaque='true'])
+  :is(
+    [data-frost],
+    [data-frost-children] > :not([data-frost-children], [data-glass], dialog, [popover])
+  ) {
+  background: linear-gradient(var(--frost-fill, transparent) 0 0), var(--bg-elevated);
+}
+/* A menu or sheet that took the appearance against the theme takes that appearance's tint too
+   (tokens.css); in the theme's own it keeps the platform's. */
+:root:not([data-theme='dark']) [data-appearance='dark'] {
+  --mat-sheet-glass: rgb(30 32 50 / 0.74);
+}
+:root[data-theme='dark'] [data-appearance='light'] {
+  --mat-sheet-glass: rgb(255 255 255 / 0.5);
+}
+/* A disabled button on glass or frost fades less than on the page: the backdrop already takes
+   contrast from it, and it must still be read (`button:disabled` in tokens.css). */
+[data-appearance] button:disabled {
+  opacity: 0.6;
 }
 /* As specific as the dark theme's materials (:root[data-theme='dark']), so opaque wins in dark too. */
 :root[data-opaque='true'] {
   --mat-ground: var(--bg-window);
   --mat-sidebar: var(--bg-sidebar);
+  --mat-sidebar-glass: var(--bg-sidebar);
   --mat-chrome: var(--bg-elevated);
   --mat-sheet: var(--bg-elevated);
   --mat-glass: var(--bg-elevated);
   --mat-pane: var(--bg-elevated);
   --mat-sheet-glass: var(--bg-elevated);
-  --stroke-hi: transparent;
-  --stroke-lo: transparent;
   --scrim: rgba(24, 30, 44, 0.3);
 }
 [data-opaque='true'][data-theme='dark'] {
@@ -85,10 +264,9 @@
 [data-opaque='true'] [data-glass] {
   backdrop-filter: none !important;
 }
-[data-opaque='true'] [data-glass]::before,
-[data-opaque='true'] [data-glass]::after {
-  display: none;
-}
+/* A pressed control glows where it is held: laid over it, not blended. A blend makes the nearest
+   stacking context an isolated group drawn apart (the workspace's main column, the settings),
+   and any glass in it then reads an empty backdrop instead of the window. */
 [data-press]::after {
   content: '';
   position: absolute;
@@ -96,14 +274,9 @@
   border-radius: inherit;
   pointer-events: none;
   opacity: var(--hp, 0);
-  mix-blend-mode: plus-lighter;
   background: radial-gradient(circle at var(--hx, 50%) var(--hy, 50%), var(--hl), transparent 72%);
 }
 html[data-control-drag],
 html[data-control-drag] * {
   user-select: none !important;
-}
-
-[data-refracting]::before {
-  display: none;
 }

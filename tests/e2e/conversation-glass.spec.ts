@@ -29,7 +29,6 @@ interface Frame {
   ink: number
   copyClip: string
   edge: number
-  rim: number
   scroll: number
   lift: string
   release: { opacity: number; top: number } | null
@@ -55,7 +54,7 @@ async function openConversation(page: Page) {
         if (
           !(effect instanceof KeyframeEffect) ||
           effect.pseudoElement ||
-          !effect.target?.matches('[data-glass="bubble"]')
+          !effect.target?.matches('[data-surface="bubble"]')
         )
           continue
         motion.push({
@@ -118,7 +117,7 @@ async function filmEntry(page: Page, row: string, start: () => Promise<void>) {
               Number(animation.effect!.getTiming().duration) - 0.5,
             )
           const article = [...document.querySelectorAll(row)].at(-1)!
-          const surface = article.querySelector<HTMLElement>('[data-glass="bubble"]')!
+          const surface = article.querySelector<HTMLElement>('[data-surface="bubble"]')!
           const copy = article.querySelector<HTMLElement>('[data-bubble-copy]')!
           const edge = article.querySelector('[data-liquid-outline] path')!
           const box = surface.getBoundingClientRect()
@@ -147,7 +146,6 @@ async function filmEntry(page: Page, row: string, start: () => Promise<void>) {
             ink: Number(getComputedStyle(copy).opacity),
             copyClip: getComputedStyle(copy).clipPath,
             edge: Number(getComputedStyle(edge).opacity),
-            rim: Number(getComputedStyle(surface, '::before').opacity),
             scroll: article.closest('[role="log"]')!.scrollHeight,
             lift: getComputedStyle(surface.parentElement!).boxShadow,
             release: release
@@ -204,13 +202,11 @@ function expectNaturalEntry(frames: Frame[], travel: number[]) {
       expect(frame.copy.bottom).toBeLessThanOrEqual(frame.glass.bottom + 1)
     }
   }
-  // 7: the drawn edge has handed over to the resting rim by the last frame.
+  // 7: the drawn edge is gone by the last frame: at rest a bubble is content, with no rim.
   expect(frames.at(-1)!.edge).toBeLessThanOrEqual(0.05)
-  expect(frames.at(-1)!.rim).toBeGreaterThanOrEqual(0.95)
   expect(frames.at(-1)!.ink).toBe(1)
-  // 17: the drop gains its resting shadow only once it holds the resting shape.
-  expect(frames[0]!.lift).toBe('none')
-  expect(frames.at(-1)!.lift).not.toBe('none')
+  // 17: no shadow lifts it on the way or at rest (hig-audit.md §6).
+  expect(frames.map((frame) => frame.lift)).toEqual(frames.map(() => 'none'))
 }
 
 test('clear lenses bend the backdrop and a sent message rises from the composer as one drop', async ({
@@ -222,20 +218,23 @@ test('clear lenses bend the backdrop and a sent message rises from the composer 
   const send = page.getByRole('button', { name: '送出', exact: true })
   const text = '請把下次訪談要追問的問題加進摘要。'
   const reply = '已把問題放在摘要最後，並附上原始訪談的來源。'
-  // Q1 of the 液态玻璃组件统一 task book: bubbles are content, a tinted pane with a drawn rim and
-  // no lens (16, the light's direction, is kept by the panes that still bend: glass-quality).
+  // Q1 of the 液态玻璃组件统一 task book, as revised by the HIG audit (hig-audit.md §6): bubbles
+  // are content, not glass: a plain fill with no rim, no lens and no shadow lifting them.
   for (const eventId of [33, 34]) {
-    const glass = page.locator(`article[data-event-id="${eventId}"] [data-glass="bubble"]`)
+    const glass = page.locator(`article[data-event-id="${eventId}"] [data-surface="bubble"]`)
     await expect(glass).not.toHaveAttribute('data-refracting')
+    await expect(glass).not.toHaveAttribute('data-glass')
+    // Frosted by the backdrop blurred once, not a filter of its own, and never a lens
+    // (frosted-bubbles measures the frost).
     await expect(glass).toHaveCSS('backdrop-filter', 'none')
-    expect(
-      await glass.evaluate((surface) => getComputedStyle(surface, '::before').backgroundImage),
-    ).toContain('linear-gradient')
+    expect(await glass.evaluate((surface) => getComputedStyle(surface, '::before').content)).toBe(
+      'none',
+    )
   }
-  // 17: resting bubbles are lifted off the backdrop by a shadow.
+  // 17: resting bubbles lie flat on the page.
   await expect(
-    page.locator('article[data-event-id="34"] [data-glass="bubble"]').locator('..'),
-  ).not.toHaveCSS('box-shadow', 'none')
+    page.locator('article[data-event-id="34"] [data-surface="bubble"]').locator('..'),
+  ).toHaveCSS('box-shadow', 'none')
   await draft.fill(text)
   const box = (await send.boundingBox())!
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
@@ -274,7 +273,7 @@ test('clear lenses bend the backdrop and a sent message rises from the composer 
 
   // 9: a receipt that arrives mid-entry keeps the same bubble.
   const originalSurface = await page
-    .locator('[data-message-request] [data-glass="bubble"]')
+    .locator('[data-message-request] [data-surface="bubble"]')
     .elementHandle()
   await page.evaluate(() => {
     for (const animation of (window as unknown as GlassWindow).motionHold.held) {
@@ -288,7 +287,7 @@ test('clear lenses bend the backdrop and a sent message rises from the composer 
   await expect(page.getByText(text, { exact: true })).toHaveCount(1)
   expect(
     await confirmed
-      .locator('[data-glass="bubble"]')
+      .locator('[data-surface="bubble"]')
       .evaluate((surface, before) => surface === before, originalSurface),
   ).toBe(true)
   await expect(page.locator('[data-draft-release]')).toHaveCount(0, { timeout: 300 })
@@ -334,7 +333,7 @@ test('a receipt after the tail settles preserves the bubble size and the convers
   await draft.fill(text)
   await page.getByRole('button', { name: '送出', exact: true }).click()
   const pending = page.locator('[data-message-request]')
-  const surface = pending.locator('[data-glass="bubble"]')
+  const surface = pending.locator('[data-surface="bubble"]')
   await expect(surface).toHaveAttribute('data-liquid', '')
   await expect(surface).not.toHaveAttribute('data-liquid', '')
   const before = (await pending.boundingBox())!
@@ -347,7 +346,7 @@ test('a receipt after the tail settles preserves the bubble size and the convers
   const card = page.getByRole('article').filter({
     has: page.getByRole('heading', { name: '整理訪談筆記', exact: true }),
   })
-  const glass = card.locator('[data-glass="work-card"]')
+  const glass = card.locator('[data-surface="work-card"]')
   await expect(glass).toHaveCSS('backdrop-filter', 'none')
   await page.screenshot({ path: test.info().outputPath('clear-work-card.png') })
   await page.evaluate(() => {
@@ -373,20 +372,17 @@ test('the floating composer lets the conversation backdrop through in both theme
       return sample.getImageData(0, 0, 1, 1).data[3]! / 255
     })
 
-  // The final glass's tint for panes that carry text (docs/reports/2026-11-23-liquid-glass §15).
-  for (const [theme, tint] of [
-    ['light', 0.24],
-    ['dark', 0.74],
-  ] as const) {
+  // The macOS Dock's glass carries no tint: its colour is its filter's (materials/dock.ts).
+  for (const theme of ['light', 'dark'] as const) {
     await page.evaluate((value) => (document.documentElement.dataset.theme = value), theme)
     await expect(composer).toHaveCSS('backdrop-filter', /url\(/)
-    await expect.poll(backgroundOpacity).toBeCloseTo(tint, 2)
+    await expect.poll(backgroundOpacity).toBe(0)
     await page.screenshot({ path: test.info().outputPath(`composer-${theme}.png`) })
   }
   await draft.fill('下一次訪談的問題\n先確認上次記錄的細節。')
   await expect(draft).toBeFocused()
   await expect(composer.getByRole('button', { name: '送出', exact: true })).toBeEnabled()
-  await expect.poll(backgroundOpacity).toBeCloseTo(0.74, 2)
+  await expect.poll(backgroundOpacity).toBe(0)
   await page.screenshot({ path: test.info().outputPath('composer-dark-draft.png') })
 
   await page.evaluate(() => (document.documentElement.dataset.opaque = 'true'))
@@ -434,7 +430,7 @@ test('narrow details return to the same draft and reading position with reduced 
   const send = page.getByRole('button', { name: '送出', exact: true })
   await expect(send).toBeInViewport({ ratio: 1, timeout: 2500 })
   await send.click()
-  const bubble = page.locator('[data-glass="bubble"]').last()
+  const bubble = page.locator('[data-surface="bubble"]').last()
   await expect(page.getByText('返回後繼續寫這段草稿', { exact: true })).toBeVisible()
   await expect(bubble).toHaveCSS('backdrop-filter', 'none')
   expect(await page.evaluate(() => (window as unknown as GlassWindow).glassMotion)).toEqual([])

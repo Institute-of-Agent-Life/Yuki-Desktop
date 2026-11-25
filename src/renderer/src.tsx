@@ -6,7 +6,14 @@ import './materials/materials.css'
 import { keyboardCommand } from '../shared/commands'
 import { applyLanguage, t } from './i18n'
 import { systemLanguage } from '../shared/locales'
+import { springEasing, springs } from './motion/spring'
 
+// CSS transitions that overshoot follow the same spring as the controls do.
+{
+  const pop = springEasing(springs.toggle)
+  document.documentElement.style.setProperty('--ease-pop', pop.easing)
+  document.documentElement.style.setProperty('--motion-pop', pop.duration)
+}
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: true } },
 })

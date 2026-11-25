@@ -31,14 +31,15 @@ export function Spinner() {
 }
 export function Button({
   variant = 'secondary',
-  large = false,
+  size = 'regular',
   loading = false,
   children,
   className = '',
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'plain' | 'destructive'
-  large?: boolean
+  /** AppKit's sizes: regular 24 (a rounded rectangle), large 28 and extra large 36 (capsules). */
+  size?: 'regular' | 'large' | 'xl'
   loading?: boolean
 }) {
   const { t } = useTranslation(['common'])
@@ -81,11 +82,9 @@ export function Button({
       {...props}
       ref={press}
       data-press="button"
-      // A secondary button is lit glass at rest: its rim catches the light, with no filter.
-      data-glass={variant === 'secondary' ? 'button' : undefined}
       disabled={props.disabled || loading}
       aria-busy={loading}
-      className={`${styles.button} ${styles[variant]} ${large ? styles.large : ''} ${className}`}
+      className={`${styles.button} ${styles[variant]} ${size === 'regular' ? '' : styles[size]} ${className}`}
     >
       <span ref={busy} className={styles.busy} data-shown={visible}>
         <span
@@ -119,10 +118,6 @@ export function IconButton({
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; variant?: 'plain' | 'send' }) {
   const press = usePress<HTMLButtonElement>('compact')
-  useEffect(
-    () => (variant === 'send' ? followPointer(press.current!) : undefined),
-    [variant, press],
-  )
   return (
     <button
       {...props}
@@ -217,7 +212,7 @@ export function Capsule({
 }
 export function Banner({ status = 'offline', children }: { status?: Status; children: ReactNode }) {
   return (
-    <div role="status" className={styles.banner} style={statusStyle(status)}>
+    <div role="status" className={styles.banner} style={statusStyle(status)} data-frost>
       {children}
     </div>
   )
@@ -233,8 +228,8 @@ export function EmptyState({
   action?: ReactNode
 }) {
   return (
-    <div className={styles.empty}>
-      <Snowflake size={48} strokeWidth={1.5} />
+    <div className={styles.empty} data-frost>
+      <Snowflake size={48} />
       <h3>{title}</h3>
       <p>{children}</p>
       {action}

@@ -1,6 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
-import { readRim } from '../fixtures/rim'
 
 // 液态玻璃组件统一任务书 (2026-11-12), step 1: glass maps from slices. Failure cases 9, 13, 16.
 const evidence: Record<string, unknown> = {}
@@ -73,40 +72,37 @@ test('the same glass lights and bends its corners and edges alike at any size', 
   await page.goto(`${regressions}?case=conversation-glass`)
   await expect(page.getByText('幫我整理一下這週的訪談筆記。', { exact: true })).toBeVisible()
   const composer = page.locator('[data-region="composer"]')
-  // The glass's own maps, read where they are laid: its light at points of the top-left corner
-  // and along the straight top edge, and the pieces its bend is put together from.
+  // The pieces its bend and rim are put together from, where they are laid.
   const maps = async (width: number) => {
     await page.setViewportSize({ width, height: 760 })
     await expect(composer).toHaveAttribute('data-refracting', 'true')
     await page.waitForTimeout(400)
     const box = (await composer.boundingBox())!
-    const rim = await composer.evaluate(readRim, [
-      ...Array.from({ length: 24 }, (_, x) => [x, 0.5] as [number, number]),
-      [box.width / 2 - 50, 0.5],
-      [box.width / 2 + 50, 0.5],
-    ] as [number, number][])
     const pieces = await composer.evaluate((element) => {
       const id = getComputedStyle(element).backdropFilter.match(/#(yuki-glass-\d+)/)![1]!
-      return [...document.getElementById(id)!.querySelectorAll('feImage')]
-        .filter((image) => image.getAttribute('result')!.startsWith('bevel-'))
-        .map((image) => ({
-          href: image.getAttribute('href'),
-          // Corners keep their size; only the stretched edges grow with the glass.
-          size: [image.getAttribute('width'), image.getAttribute('height')],
-        }))
+      return [...document.getElementById(id)!.querySelectorAll('feImage')].map((image) => ({
+        result: image.getAttribute('result'),
+        href: image.getAttribute('href'),
+        width: Number(image.getAttribute('width')),
+        height: Number(image.getAttribute('height')),
+      }))
     })
-    return { width: box.width, corner: rim.light.slice(0, 24), edge: rim.light.slice(24), pieces }
+    return { width: box.width, pieces }
   }
   // The composer is at most 712px wide: narrower than that in a narrow window.
   const narrow = await maps(600),
     wide = await maps(1400)
   evidence.maps = { narrow, wide }
   expect(wide.width).toBeGreaterThan(narrow.width + 100)
-  // 9: the corner looks the same however wide the glass, and the edge is even along its length.
-  expect(wide.corner).toEqual(narrow.corner)
-  for (const sample of [narrow, wide]) expect(sample.edge[0]).toBe(sample.edge[1])
-  // The bend is the same pieces, moved: none is painted again for the new width.
+  // 9: the bend and the rim are the same pieces, moved: none is painted again for the new width,
+  // so the corners look the same however wide the glass; only the strip along a straight edge
+  // (one CSS pixel of the map, so even along its length) stretches with it.
   expect(wide.pieces.map((piece) => piece.href)).toEqual(narrow.pieces.map((piece) => piece.href))
+  wide.pieces.forEach((piece, index) => {
+    const before = narrow.pieces[index]!
+    if (piece.width !== before.width) expect(before.width).toBeGreaterThan(24)
+    expect(piece.height).toBe(before.height)
+  })
 })
 
 test('the pointer lights only the glass, never the whole page', async ({ page }) => {

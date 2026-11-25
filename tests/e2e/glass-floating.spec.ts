@@ -119,17 +119,23 @@ test('the new-messages pill is a lens and notices over the conversation are fros
   await page.screenshot({ path: test.info().outputPath('floating.png') })
 })
 
-test('secondary buttons are lit glass without a filter (Q2)', async ({ page }) => {
+// Revised by the HIG audit (hig-audit.md §5): a secondary button is a plain control, not glass:
+// white (dark: a tenth of white) with a hairline edge, no filter and no lit rim.
+test('secondary buttons are plain controls with a hairline edge (Q2)', async ({ page }) => {
   await page.goto('http://127.0.0.1:4178/components.html')
-  const secondary = page.locator('button[data-glass="button"]').first()
+  const secondary = page.locator('button[data-press="button"]:not([class*="_primary_"])').first()
   await expect(secondary).toBeVisible()
   const look = await secondary.evaluate((element) => ({
+    glass: element.dataset.glass ?? null,
     filter: getComputedStyle(element).backdropFilter,
-    rim: getComputedStyle(element, '::before').backgroundImage,
+    background: getComputedStyle(element).backgroundColor,
+    edge: getComputedStyle(element).boxShadow,
   }))
   evidence.secondary = look
+  expect(look.glass).toBeNull()
   expect(look.filter).toBe('none')
-  expect(look.rim).toContain('linear-gradient')
+  expect(look.background).toBe('rgb(255, 255, 255)')
+  expect(look.edge).toMatch(/^rgba\(0, 0, 0, 0\.12\) 0px 0px 0px/)
   const gallery = await audit(page)
   evidence.gallery = gallery
   expect(gallery.stacked).toEqual([])
