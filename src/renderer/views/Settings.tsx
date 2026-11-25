@@ -1,4 +1,3 @@
-import { useTabMotion } from '../motion/tab'
 import { useRef, useState, type DragEvent } from 'react'
 import { useGlass } from '../materials/glass'
 import { backdropUrl, blurBackdrop, importBackdrop, keepBackdrop } from '../materials/backdrop'
@@ -162,10 +161,6 @@ export function Settings({
     'sidebar',
     false,
     document.documentElement.dataset.platform === 'darwin',
-  )
-  const panelMotion = useTabMotion<HTMLDivElement>(
-    shown,
-    visible.map((item) => item.id),
   )
   const [busy, setBusy] = useState(false)
   const query = useQueryClient()
@@ -349,7 +344,6 @@ export function Settings({
           ))}
         </nav>
         <div
-          ref={panelMotion}
           id="settings-panel"
           role="tabpanel"
           aria-labelledby={`settings-${shown}`}
