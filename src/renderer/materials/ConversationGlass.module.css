@@ -55,6 +55,9 @@
   background-repeat: var(--backdrop-repeat);
   background-attachment: fixed;
 }
+:global(article[data-offscreen]) .surface {
+  background-attachment: scroll;
+}
 /* Without transparency, or without GPU compositing, they are solid. */
 :global(:is([data-opaque='true'], [data-gpu-compositing='false'])) .surface {
   background: var(--glass-solid, var(--bg-elevated));

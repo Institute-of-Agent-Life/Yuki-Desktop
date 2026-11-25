@@ -700,6 +700,17 @@ for (const [look, theme, material] of looks)
         for (const details of await dialog.locator('details').all())
           await expect(details).not.toHaveAttribute('open')
         await settle(page)
+        if (mode) {
+          // The selected pill moves on a requestAnimationFrame spring, outside getAnimations().
+          const selected = dialog.getByRole('radio', { name: mode, exact: true })
+          const [left, width] = await selected.evaluate((button: HTMLElement) => [
+            button.offsetLeft,
+            button.offsetWidth,
+          ])
+          const thumb = selected.locator('..').locator('[data-glass="segment"]')
+          await expect(thumb).toHaveCSS('transform', `matrix(1, 0, 0, 1, ${left}, 0)`)
+          await expect(thumb).toHaveCSS('width', `${width}px`)
+        }
         const shot = `${name}${mode ? `-${mode}` : ''}`
         await page.screenshot({ path: test.info().outputPath(`dialog-${look}-${shot}.png`) })
         bleeds[shot] = await bleed(page, dialog, mode === 'SnowLuma' ? shot : undefined)

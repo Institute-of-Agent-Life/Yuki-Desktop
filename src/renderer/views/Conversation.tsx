@@ -210,17 +210,6 @@ export function Conversation({
     bottom.current &&
     (!movedByOther(log) || log.scrollHeight - log.scrollTop - log.clientHeight < 64)
   const [anchor, setAnchor] = useState<number | null>(null)
-  const attachList = useCallback(
-    (element: HTMLDivElement | null) => {
-      if (list.current) scrollTop.current = list.current.scrollTop
-      list.current = element
-      if (element)
-        element.scrollTo({
-          top: bottom.current && anchor === null ? element.scrollHeight : scrollTop.current,
-        })
-    },
-    [anchor],
-  )
   const [jump, setJump] = useState<MessageReference>()
   const [historyError, setHistoryError] = useState('')
   const [loadingEarlier, setLoadingEarlier] = useState(false)
@@ -561,28 +550,56 @@ export function Conversation({
   // Rows settling into their size, the room kept for the composer or a narrower window move the
   // end as well: a person at the end stays there. A row growing on its own (a picture that has
   // loaded) is followed on the bubbles' spring; the list itself resized keeps the end at once.
-  useEffect(() => {
-    const log = list.current
-    if (!log) return
-    const sizes = new ResizeObserver((entries) => {
-      if (following(log) && anchor === null)
-        followEnd(
-          log,
-          entries.every((entry) => entry.target !== log),
-        )
-    })
-    sizes.observe(log)
-    for (const row of log.children) sizes.observe(row)
-    const rows = new MutationObserver((records) => {
-      for (const record of records)
-        for (const row of record.addedNodes) if (row instanceof Element) sizes.observe(row)
-    })
-    rows.observe(log, { childList: true })
-    return () => {
-      sizes.disconnect()
-      rows.disconnect()
-    }
-  }, [anchor])
+  const attachList = useCallback(
+    (log: HTMLDivElement | null) => {
+      if (!log) return
+      list.current = log
+      log.scrollTo({
+        top: bottom.current && anchor === null ? log.scrollHeight : scrollTop.current,
+      })
+      const sizes = new ResizeObserver((entries) => {
+        if (following(log) && anchor === null)
+          followEnd(
+            log,
+            entries.every((entry) => entry.target !== log),
+          )
+      })
+      // Only nearby bubbles need their frost aligned to the window. Fixed backgrounds on
+      // distant rows otherwise make Chromium revisit the whole conversation on every scroll.
+      const nearby = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries)
+            entry.target.toggleAttribute('data-offscreen', !entry.isIntersecting)
+        },
+        { root: log, rootMargin: '200% 0px' },
+      )
+      const observe = (row: Element) => {
+        sizes.observe(row)
+        if (row.matches('article')) nearby.observe(row)
+      }
+      sizes.observe(log)
+      for (const row of log.children) observe(row)
+      const rows = new MutationObserver((records) => {
+        for (const record of records) {
+          for (const row of record.removedNodes)
+            if (row instanceof Element) {
+              sizes.unobserve(row)
+              nearby.unobserve(row)
+            }
+          for (const row of record.addedNodes) if (row instanceof Element) observe(row)
+        }
+      })
+      rows.observe(log, { childList: true })
+      return () => {
+        scrollTop.current = log.scrollTop
+        list.current = null
+        nearby.disconnect()
+        sizes.disconnect()
+        rows.disconnect()
+      }
+    },
+    [anchor],
+  )
   // Rows pushed down by something inserted above them slide there on the bubbles' spring;
   // the offsets add up, so a row pushed twice in a row still lands exactly.
   const rowTops = useRef(new WeakMap<Element, { top: number; screen: number }>())
