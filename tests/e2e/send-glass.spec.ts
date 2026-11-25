@@ -62,6 +62,9 @@ async function sample(page: Page, name: string) {
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   )
   const box = (await send.boundingBox())!
+  // (On Windows the first capture of a region after the page has changed can come back half
+  // drawn: one is taken and dropped first.)
+  await page.screenshot({ clip: box })
   const shot = await page.screenshot({ clip: box })
   await writeFile(test.info().outputPath(`${name}.png`), shot)
   const arrow = await page

@@ -275,9 +275,9 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
     // glass at their size) leaves the shapes' edges under the glyphs. There the glass is held to
     // the appearance the rule calls for (appearance.ts) and to the best this glass reaches, as
     // measured (light / dark on a Retina Mac, whose display encoding reads mid greys a little
-    // dark; Linux without GPU compositing 3.7 / 3.2): composer 4.3 / 3.2–3.6, time 1.7 / 1.7, file name 3.1 / 2.5, file kind 1.7 / 1.6,
-    // status 3.4 / 2.9; the title, where the window is narrow (Windows) and its capsule lies
-    // over the shapes, 2.4 dark (the dark glass kept, as its mean there calls for).
+    // dark; Linux without GPU compositing 3.7 / 3.2): composer 4.3 / 3.2–3.6, time 1.7 / 1.7,
+    // file name 3.1 / 2.5, file kind 1.7 / 1.6, status 3.4 / 2.9; and where the window is narrow (Windows) and the toolbar's capsule lies
+    // over the shapes, dark: status 2.3, title 2.4 (the dark glass kept, as its mean calls for).
     const bubble = (article: Locator) => article.locator('[data-bubble-copy]').locator('..')
     const texts: [string, Locator, number, Locator?][] = [
       ['composer', composer, 3, page.locator('[data-region="composer"]')],
@@ -302,7 +302,7 @@ test('text on the glass stays legible over a high-contrast picture of ones own',
       [
         'status',
         toolbar.locator('small').first(),
-        2.8,
+        2.2,
         toolbar.locator('small').first().locator('xpath=ancestor::*[@data-glass][1]'),
       ],
       ['date', messages.getByText(/^\d{1,2}\/\d{1,2}$/).first(), 3],

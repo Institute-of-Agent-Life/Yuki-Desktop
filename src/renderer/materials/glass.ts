@@ -411,8 +411,8 @@ export function useGlass<T extends HTMLElement>(
     if (!element || !CSS.supports('backdrop-filter', 'url(#glass)')) return
     const root = document.documentElement
     // Without GPU compositing (as the main process found at boot) every frame of a bend is drawn
-    // on the CPU: the glass keeps its blur, its colour and its rim's light, and does not bend (the
-    // chain below without its displacement, the smoothing after it and the rim's mix).
+    // on the CPU: the glass keeps its blur, its colour and its rim, and does not bend (the chain
+    // below without its displacement and the smoothing after it).
     const bending = root.dataset.gpuCompositing !== 'false'
     const svg = document.createElementNS(NS, 'svg'),
       id = `yuki-glass-${++sequence}`
@@ -474,28 +474,23 @@ export function useGlass<T extends HTMLElement>(
       ...colour.nodes,
       // The rim (dock.ts), out = (1 − mix)·toned + added, on red, green and blue alike: the map's
       // blue as the share kept (halved, so that a little more than all is kept where the mix is
-      // less than none), and its alpha as a grey (128 the neutral). Without GPU compositing the
-      // glass keeps the rim's light and leaves out its mix (a pass less on the CPU).
-      ...(bending
-        ? [
-            primitive('feColorMatrix', {
-              in: 'bevel',
-              type: 'matrix',
-              values: [0, 1, 2]
-                .map(() => `0 0 -0.5 0 ${(1 + mixRest) / 2}`)
-                .concat('0 0 0 0 1')
-                .join(' '),
-              result: 'kept',
-            }),
-            primitive('feComposite', {
-              in: 'toned',
-              in2: 'kept',
-              operator: 'arithmetic',
-              k1: '2',
-              result: 'mixed',
-            }),
-          ]
-        : []),
+      // less than none), and its alpha as a grey (128 the neutral).
+      primitive('feColorMatrix', {
+        in: 'bevel',
+        type: 'matrix',
+        values: [0, 1, 2]
+          .map(() => `0 0 -0.5 0 ${(1 + mixRest) / 2}`)
+          .concat('0 0 0 0 1')
+          .join(' '),
+        result: 'kept',
+      }),
+      primitive('feComposite', {
+        in: 'toned',
+        in2: 'kept',
+        operator: 'arithmetic',
+        k1: '2',
+        result: 'mixed',
+      }),
       primitive('feColorMatrix', {
         in: 'bevel',
         type: 'matrix',
@@ -504,7 +499,7 @@ export function useGlass<T extends HTMLElement>(
       }),
       primitive('feComposite', {
         in: 'rimGrey',
-        in2: bending ? 'mixed' : 'toned',
+        in2: 'mixed',
         operator: 'arithmetic',
         k2: '1',
         k3: '1',
