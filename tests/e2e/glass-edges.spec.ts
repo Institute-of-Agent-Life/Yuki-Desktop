@@ -24,10 +24,13 @@ import { closeUps, enlarge, pixels, type Pixels } from '../fixtures/edges'
  *      and blue (so it keeps the colour within), within 5 levels at the outermost device pixel:
  *      the top and bottom brighten, dark as a screen (a 0.33, c +76: over the dark page 66 over
  *      the face, over mid grey only 39), light by +65 nearly alone (a 0.04); a side mixes toward
- *      black, 36% dark (c −3.5) or 26% light (c −13); 2.25pt in at the top the tail (dark a
- *      0.05, c 11; light c 10.5) within 2.5; 7pt in more than 2.5 from the face (a sheet's shadow
- *      nearby shades the page a little); over blue inside an orange outside, the top rim is not
- *      blue;
+ *      black, 36% dark (c −3.5) or 26% light (c −13); 7pt in more than 2.5 from the face (a
+ *      sheet's shadow nearby shades the page a little); over blue inside an orange outside, the
+ *      top rim is not blue;
+ *   4a. the rim is as thick as the Dock's own rather than thinner (dock.ts): the bright band is
+ *      more than the outermost device pixel (the next one, 0.5pt in at 2x, keeps half of its lift
+ *      or more), or the tail within still adds more than 2.5 levels 2.25pt in (the Dock's adds
+ *      about 11 there) on a pane, or 1.25pt in on a control of 28pt;
  *   5. colours are parted: over a grey grid the 99th percentile of chroma in the band exceeds 4;
  *   6. a line bent across the band steps and breaks: the band's finest detail over a grid (99th
  *      percentile of each pixel's distance from its 3×3 mean) exceeds 2.6 levels on a pane, 9.5 on
@@ -192,8 +195,8 @@ test.describe('the edges of the glass', () => {
       // 4: over the dark page and mid grey, the rim against the face, in levels: what the law
       // gives, (1 − a)·face + c, less the face.
       const law = {
-        dark: { top: [0.33, 76], side: [0.36, -3.5], tail: [0.05, 11.25] },
-        light: { top: [0.04, 65], side: [0.26, -13], tail: [0, 10.5] },
+        dark: { top: [0.33, 76], side: [0.36, -3.5] },
+        light: { top: [0.04, 65], side: [0.26, -13] },
       }[theme]
       const over = (face: number, [a, c]: number[]) => (1 - a!) * face + c! - face
       for (const background of ['dark', 'gray'] as const) {
@@ -206,7 +209,8 @@ test.describe('the edges of the glass', () => {
             top: at(x + width / 2, y + 0.25),
             bottom: at(x + width / 2, y + height - 0.25),
             side: at(x + 0.25, y + height / 2),
-            tail: at(x + width / 2, y + 2.25),
+            next: at(x + width / 2, y + 0.75),
+            tail: at(x + width / 2, y + (height <= 28 ? 1.25 : 2.25)),
             past: at(x + width / 2, y + 7),
           }
           found[`rim ${background} ${name}`] = { face, ...rim }
@@ -214,10 +218,11 @@ test.describe('the edges of the glass', () => {
           expect.soft(rim.top, `${where}: the top`).toBeCloseTo(over(face, law.top), -1)
           expect.soft(rim.bottom, `${where}: the bottom`).toBeCloseTo(over(face, law.top), -1)
           expect.soft(rim.side, `${where}: a side`).toBeCloseTo(over(face, law.side), -1)
-          // (Against 7pt in, as a sheet's shadow nearby shades the folder's face a little.)
+          // 4a. (Against 7pt in, as a sheet's shadow nearby shades the folder's face a little.)
+          expect.soft(rim.next, `${where}: one device pixel`).toBeLessThan(0.5 * rim.top)
           expect
-            .soft(rim.tail - rim.past, `${where}: the top's tail`)
-            .toBeCloseTo(over(face, law.tail), -0.7)
+            .soft(Math.abs(rim.tail - rim.past), `${where}: the top's tail`)
+            .toBeLessThanOrEqual(2.5)
           expect.soft(Math.abs(rim.past), `${where}: past the rim`).toBeLessThanOrEqual(2.5)
         }
       }
@@ -295,9 +300,9 @@ test.describe('the edges of the glass', () => {
       for (const name of [...panes.filter((name) => name !== 'sheet'), 'segment']) {
         const { x, y, width, height, radius } = glass[name]!
         const band: number[] = []
-        // Within the band, past the rim (whose edge is sharp, as the Dock's): from 2pt in to 13pt
-        // (a held control's: to 0.45 of its radius).
-        const [shallowest, deepest] = name === 'segment' ? [2, 0.45 * radius] : [2, 13]
+        // Within the band, past the rim and its tail (gone by 2.25pt: dock.ts): from 2.5pt in to
+        // 13pt (a held control's: from 2pt to 0.45 of its radius).
+        const [shallowest, deepest] = name === 'segment' ? [2, 0.45 * radius] : [2.5, 13]
         for (let i = Math.floor(y * 2); i < (y + height) * 2; i++)
           for (let j = Math.floor(x * 2); j < (x + width) * 2; j++) {
             const px = (j + 0.5) / 2 - x - width / 2,

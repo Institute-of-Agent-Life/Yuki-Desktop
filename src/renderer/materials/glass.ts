@@ -155,6 +155,19 @@ const rimmed = { pane: true, lens: true, slider: false } as const
  */
 const huge = (kind: GlassKind, width: number, height: number) =>
   sized.has(kind) && Math.min(width, height) > 200
+/*
+ * The rim's width (dock.ts), thinner than the Dock's: its bright band one device pixel, its tail
+ * pressed to 0.15 of the Dock's depth on a control 28pt or less across its short side, rising to
+ * 0.45 at 48pt and above, so a small control's rim is a one-pixel line. The send button keeps the
+ * Dock's own width, which reads as natural on it (the owner's choice), whatever its size.
+ */
+const rimWidth = (kind: GlassKind, width: number, height: number) =>
+  kind === 'send'
+    ? { band: 1, tail: 1 }
+    : {
+        band: 1 / devicePixelRatio,
+        tail: Math.min(0.45, Math.max(0.15, 0.15 + (0.3 * (Math.min(width, height) - 28)) / 20)),
+      }
 const kinds = {
   sidebar: 'pane',
   toolbar: 'pane',
@@ -242,8 +255,9 @@ function lens(
   const w = across ? tile : width,
     h = down ? tile : height
   const space = document.documentElement.dataset.displayColorSpace
-  const edged = rimmed[kinds[kind]] && !huge(kind, width, height)
-  const key = `${w}/${h}/${radius}/${kind}/${scale}/${space}/${look}/${edged}`
+  const edged = rimmed[kinds[kind]] && !huge(kind, width, height),
+    rimShape = rimWidth(kind, width, height)
+  const key = `${w}/${h}/${radius}/${kind}/${scale}/${space}/${look}/${edged}/${rimShape.band}/${rimShape.tail}`
   const cached = lenses.get(key)
   if (cached) return cached
   const hx = w / 2,
@@ -300,7 +314,13 @@ function lens(
       const [rx, ry] = normal(x, y, radius),
         coverage = Math.max(0, Math.min(1, 0.5 - distance * scale))
       const rim = edged
-        ? dockRim(look, Math.atan2(Math.abs(rx), Math.abs(ry)), -distance)
+        ? dockRim(
+            look,
+            Math.atan2(Math.abs(rx), Math.abs(ry)),
+            -distance,
+            rimShape.band,
+            rimShape.tail,
+          )
         : { mix: 0, add: 0 }
       const shown = values(
         0.5 - amount * nx + noise,

@@ -68,12 +68,13 @@ test('resting bubbles are shaped by their radius, and lit glass has its light at
   evidence.restingLightMap = resolution
   for (const scale of resolution.scales) expect(scale).toBeGreaterThanOrEqual(resolution.ratio)
   // 10, as revised by the Dock's measurement (dock.ts): the rim adds to what the tone gives
-  // (light) 65 levels at the top's outermost pixel and 7.5 at 3pt; no outline on top.
+  // (light) 65 levels at the top's outermost pixel, and its tail, pressed thinner than the Dock's,
+  // nothing by 3pt (the Dock's adds 7.5 there); no outline on top.
   const glass = await dockGlass(lit)
   evidence.restingLight = glass.rim
   expect(glass.rim?.added).toBe(true)
   expect(Math.abs(glass.rim!.edge - 65)).toBeLessThanOrEqual(2)
-  expect(Math.abs(glass.rim!.inside - 7.5)).toBeLessThanOrEqual(1)
+  expect(Math.abs(glass.rim!.inside)).toBeLessThanOrEqual(1)
   expect(await lit.evaluate((surface) => getComputedStyle(surface, '::before').content)).toBe(
     'none',
   )
