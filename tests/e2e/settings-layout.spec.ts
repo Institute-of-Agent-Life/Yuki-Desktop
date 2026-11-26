@@ -26,6 +26,11 @@ test('settings have one navigation column and keep the selected category across 
     const captureSidebars = async (kind: 'single' | 'dual', name: string) => {
       for (const [width, height] of workspaceSizes) {
         const viewportMethod = await contentSize(app, page, width, height)
+        // Resizing from overlay to split can open the sidebar before the click lands.
+        const wide = await page.evaluate(() => innerWidth >= 1100)
+        await expect(
+          page.locator('[data-character-session]:visible [data-region="sidebar"]'),
+        ).toHaveCSS('position', wide ? 'relative' : 'absolute')
         const navigation = await sidebar(page)
         const trigger = navigation.getByRole('button', { name: '切換 Yuki', exact: true })
         await expect(trigger).toHaveAccessibleDescription(new RegExp(name))

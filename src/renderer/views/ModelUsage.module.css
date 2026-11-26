@@ -31,7 +31,7 @@
 }
 .eyebrow > span {
   margin-left: 6px;
-  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
+  color: var(--accent);
 }
 .total {
   display: flex;
@@ -87,7 +87,7 @@
   flex: 1;
   min-width: 40px;
   height: 5px;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-capsule);
   overflow: hidden;
   background: var(--fill-inactive);
 }
@@ -95,7 +95,7 @@
   display: block;
   height: 100%;
   background: var(--accent);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-capsule);
 }
 .coverage {
   margin: 9px 0 0;
@@ -174,13 +174,13 @@
   max-width: 260px;
   margin-top: 7px;
   background: var(--fill-inactive);
-  border-radius: var(--r-xs);
+  border-radius: var(--r-capsule);
   overflow: hidden;
 }
 .shareTrack > span {
   display: block;
   height: 100%;
-  border-radius: var(--r-xs);
+  border-radius: var(--r-capsule);
   background: var(--accent);
   opacity: 0.65;
 }
@@ -215,7 +215,7 @@
   margin: 0;
   padding: 14px 16px;
   background: var(--fill-hover);
-  border-radius: var(--r-row);
+  border-radius: var(--r-container-s);
 }
 .detailStats dt {
   font-size: 11px;

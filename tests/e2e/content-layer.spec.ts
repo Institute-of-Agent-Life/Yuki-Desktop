@@ -21,9 +21,10 @@ const survey = (page: Page) =>
       )
         .trim()
         .slice(0, 24)
+    // (A select is a small piece of glass, as a button is: glass-controls.spec.ts.)
     const fields = [
       ...document.querySelectorAll<HTMLElement>(
-        'select, textarea, input:not([type]), input[type="text"], input[type="url"], input[type="password"], input[type="number"], input[type="search"], input[type="email"]',
+        'textarea, input:not([type]), input[type="text"], input[type="url"], input[type="password"], input[type="number"], input[type="search"], input[type="email"]',
       ),
     ]
       .filter(visible)
@@ -125,7 +126,9 @@ test('settings draw every field, check box and disclosure one way', async () => 
     )
     // C1 and 5: one look for every field, see-through over the window's frost; none cut short.
     expect([...looks]).toHaveLength(1)
-    expect(fields.length).toBeGreaterThan(5)
+    expect(seen['這台電腦']!.fields.map((field) => field.name)).toEqual(
+      expect.arrayContaining(['input 原 Python 絕對路徑', 'input 原資料目錄']),
+    )
     if (all[0]![1].material !== 'none') {
       const alpha = await page.evaluate((colour) => {
         const context = new OffscreenCanvas(1, 1).getContext('2d')!
@@ -138,7 +141,7 @@ test('settings draw every field, check box and disclosure one way', async () => 
     expect(fields.filter((field) => field.clipped)).toEqual([])
     // C2: check boxes are drawn by the app, one way, never the browser's own square.
     const boxes = all.flatMap(([, page]) => page.boxes)
-    for (const box of boxes) expect(`${box.drawn} | ${box.radius}`, box.name).toBe('none | 4px')
+    for (const box of boxes) expect(`${box.drawn} | ${box.radius}`, box.name).toBe('none | 5px')
     // C3: every disclosure is opened by the same drawn arrow, never the browser's own marker.
     const summaries = all.flatMap(([, page]) => page.summaries).filter((summary) => !summary.row)
     expect(summaries.length).toBeGreaterThan(2)

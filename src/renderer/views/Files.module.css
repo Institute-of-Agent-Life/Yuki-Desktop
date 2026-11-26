@@ -38,7 +38,7 @@
   gap: 16px;
 }
 .list [data-selected='true'] {
-  border-radius: var(--r-control);
+  border-radius: var(--r-container-s);
   background: var(--fill-selected);
 }
 .stage {
@@ -59,7 +59,6 @@
   gap: 12px;
   padding: 0 16px;
   border-bottom: var(--line) solid var(--separator);
-  background: var(--surface-page);
 }
 .previewHeader h2 {
   flex: 1;
@@ -84,7 +83,7 @@
   margin: 0 20px;
   padding: 12px 14px;
   border: var(--line) solid var(--separator);
-  border-radius: var(--r-card);
+  border-radius: var(--r-container-m);
   background: var(--surface-page);
 }
 .preview {
@@ -109,7 +108,7 @@
   align-self: center;
   background: var(--bg-content);
   padding: 40px 44px;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-container-s);
   box-shadow:
     0 0 0 var(--line) var(--separator),
     0 4px 16px rgba(0, 0, 0, 0.06);
@@ -152,7 +151,7 @@
 }
 .reference {
   display: block;
-  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
+  color: var(--accent);
   padding: 6px 0;
   text-align: left;
 }
@@ -249,7 +248,7 @@
 }
 :global(:root[data-backdrop='custom']:not([data-opaque='true'])) .list > [data-selected] {
   margin-bottom: 6px;
-  --frost-radius: var(--r-control);
+  --frost-radius: var(--r-container-s);
 }
 :global(:root[data-backdrop='custom']:not([data-opaque='true'])) .list h3 {
   margin: 12px 0 6px;

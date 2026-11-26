@@ -8,12 +8,14 @@ import { animateBubble, releaseDraft } from '../motion/bubble'
 import { glide, gliding, movedByApp, movedByOther, place } from '../motion/glide'
 import { sampleSpring, springs } from '../motion/spring'
 import { useGlass } from '../materials/glass'
-import { blurBackdrop, importBackdrop } from '../materials/backdrop'
+import { importBackdrop } from '../materials/backdrop'
 import {
   Fragment,
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -56,7 +58,7 @@ import { VoiceRecorder } from './VoiceRecorder'
 import mediaStyles from './Media.module.css'
 import { Markdown } from '../text/RichMarkdown'
 import { useHistory } from '../queries/history'
-import { CommandPalette, type PaletteCommand } from '../components/CommandPalette'
+import { PaletteHost, type PaletteCommand } from '../components/CommandPalette'
 import type { LoadedItem } from '../state/loaded'
 import { requestNavigation } from '../state/navigation'
 import { ConversationWork, WorkDetail, WorkList, WorkReply } from './Works'
@@ -183,7 +185,7 @@ export function Conversation({
   const [replyWork, setReplyWork] = useState<Work>()
   const currentReferences = useRef<MessageReference[]>([])
   const [search, setSearch] = useState<string | null>(null)
-  const [palette, setPalette] = useState(false)
+  const palette = useRef<((open: boolean) => void) | null>(null)
   const alive = useRef(true)
   const invalidatedReads = useRef(new Set<Promise<unknown>>())
   useEffect(() => {
@@ -208,17 +210,6 @@ export function Conversation({
     bottom.current &&
     (!movedByOther(log) || log.scrollHeight - log.scrollTop - log.clientHeight < 64)
   const [anchor, setAnchor] = useState<number | null>(null)
-  const attachList = useCallback(
-    (element: HTMLDivElement | null) => {
-      if (list.current) scrollTop.current = list.current.scrollTop
-      list.current = element
-      if (element)
-        element.scrollTo({
-          top: bottom.current && anchor === null ? element.scrollHeight : scrollTop.current,
-        })
-    },
-    [anchor],
-  )
   const [jump, setJump] = useState<MessageReference>()
   const [historyError, setHistoryError] = useState('')
   const [loadingEarlier, setLoadingEarlier] = useState(false)
@@ -493,7 +484,7 @@ export function Conversation({
   )
   useEffect(() => {
     if (!active) return
-    const search = () => setPalette(true)
+    const search = () => palette.current?.(true)
     window.addEventListener('yuki:search', search)
     return () => window.removeEventListener('yuki:search', search)
   }, [active])
@@ -502,15 +493,12 @@ export function Conversation({
       document
         .querySelector<HTMLTextAreaElement>(`[data-character-session="${id}"] textarea`)
         ?.focus()
-    if (command === 'search') setPalette(true)
+    if (command === 'search') palette.current?.(true)
     if (command === 'find' && !soulEditing) {
       if (view === 'chat') setSearch('')
-      else setPalette(true)
+      else palette.current?.(true)
     }
   })
-  useEffect(() => {
-    if (accessLost) setPalette(false)
-  }, [accessLost])
   useLayoutEffect(() => {
     const log = list.current
     if (
@@ -562,28 +550,56 @@ export function Conversation({
   // Rows settling into their size, the room kept for the composer or a narrower window move the
   // end as well: a person at the end stays there. A row growing on its own (a picture that has
   // loaded) is followed on the bubbles' spring; the list itself resized keeps the end at once.
-  useEffect(() => {
-    const log = list.current
-    if (!log) return
-    const sizes = new ResizeObserver((entries) => {
-      if (following(log) && anchor === null)
-        followEnd(
-          log,
-          entries.every((entry) => entry.target !== log),
-        )
-    })
-    sizes.observe(log)
-    for (const row of log.children) sizes.observe(row)
-    const rows = new MutationObserver((records) => {
-      for (const record of records)
-        for (const row of record.addedNodes) if (row instanceof Element) sizes.observe(row)
-    })
-    rows.observe(log, { childList: true })
-    return () => {
-      sizes.disconnect()
-      rows.disconnect()
-    }
-  }, [anchor])
+  const attachList = useCallback(
+    (log: HTMLDivElement | null) => {
+      if (!log) return
+      list.current = log
+      log.scrollTo({
+        top: bottom.current && anchor === null ? log.scrollHeight : scrollTop.current,
+      })
+      const sizes = new ResizeObserver((entries) => {
+        if (following(log) && anchor === null)
+          followEnd(
+            log,
+            entries.every((entry) => entry.target !== log),
+          )
+      })
+      // Only nearby bubbles need their frost aligned to the window. Fixed backgrounds on
+      // distant rows otherwise make Chromium revisit the whole conversation on every scroll.
+      const nearby = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries)
+            entry.target.toggleAttribute('data-offscreen', !entry.isIntersecting)
+        },
+        { root: log, rootMargin: '200% 0px' },
+      )
+      const observe = (row: Element) => {
+        sizes.observe(row)
+        if (row.matches('article')) nearby.observe(row)
+      }
+      sizes.observe(log)
+      for (const row of log.children) observe(row)
+      const rows = new MutationObserver((records) => {
+        for (const record of records) {
+          for (const row of record.removedNodes)
+            if (row instanceof Element) {
+              sizes.unobserve(row)
+              nearby.unobserve(row)
+            }
+          for (const row of record.addedNodes) if (row instanceof Element) observe(row)
+        }
+      })
+      rows.observe(log, { childList: true })
+      return () => {
+        scrollTop.current = log.scrollTop
+        list.current = null
+        nearby.disconnect()
+        sizes.disconnect()
+        rows.disconnect()
+      }
+    },
+    [anchor],
+  )
   // Rows pushed down by something inserted above them slide there on the bubbles' spring;
   // the offsets add up, so a row pushed twice in a row still lands exactly.
   const rowTops = useRef(new WeakMap<Element, { top: number; screen: number }>())
@@ -708,25 +724,14 @@ export function Conversation({
       )
     }
     update()
-    root.style.setProperty('--accent-light', accent.light)
-    root.style.setProperty('--accent-dark', accent.dark)
     const observer = new MutationObserver(update)
     observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] })
     return () => {
       observer.disconnect()
-      for (const key of [
-        '--accent',
-        '--accent-strong',
-        '--accent-subtle',
-        '--accent-light',
-        '--accent-dark',
-      ])
+      for (const key of ['--accent', '--accent-strong', '--accent-subtle'])
         root.style.removeProperty(key)
     }
   }, [profileData?.accent, preferences.theme, active])
-  useEffect(() => {
-    if (!active) setPalette(false)
-  }, [active])
   const choose = (next: string) =>
     requestNavigation(() => {
       needsEarlier.current = false
@@ -915,6 +920,27 @@ export function Conversation({
     choose(connection.conversationId)
     workspace.patch({ inspector: false, focusMode: false })
   }
+  // What a message does, the same functions on every render, so that a message renders again only
+  // when what it shows changes: a panel or menu opening, a page's state or the workspace's layout
+  // changing renders the conversation, never each of its hundreds of loaded messages again.
+  const latest = useRef({ jumpTo, addReference, openAttachment, openArtifact, refresh })
+  useLayoutEffect(() => {
+    latest.current = { jumpTo, addReference, openAttachment, openArtifact, refresh }
+  })
+  const messageActions = useMemo(
+    () => ({
+      onSelect: (event: PublicEvent) => setSelection(event.event_id),
+      onReference: (event: PublicEvent) => latest.current.addReference(event),
+      onAttachment: (source: AttachmentSource) => latest.current.openAttachment(source),
+      onArtifact: (source: ArtifactSource) => latest.current.openArtifact(source),
+      onJump: (reference: MessageReference) => void latest.current.jumpTo(reference),
+      verify: async (requestId: string) => {
+        unwrap(await window.yuki.client.verify(id, requestId))
+        latest.current.refresh()
+      },
+    }),
+    [id],
+  )
   const entry = homeData?.entries.find((item) => item.conversation_id === conversation)
   const pending = isMain
     ? (outbox.data ?? []).filter((item) =>
@@ -940,7 +966,7 @@ export function Conversation({
     accessLost || hidesPrivateData(characterStatus.error) ? undefined : characterStatus.data,
   )
   const paletteNavigate = (run: () => void) => {
-    setPalette(false)
+    palette.current?.(false)
     requestNavigation(() => {
       if (alive.current) run()
     })
@@ -1143,21 +1169,13 @@ export function Conversation({
               reference={messageStage}
               render={(event) => (
                 <Message
+                  {...messageActions}
                   characterId={id}
                   viewerPersonId={connection.personId}
                   event={event}
                   name={name}
                   selected={false}
                   consecutive={false}
-                  onSelect={() => setSelection(event.event_id)}
-                  onReference={() => addReference(event)}
-                  onAttachment={openAttachment}
-                  onArtifact={openArtifact}
-                  onJump={(ref) => void jumpTo(ref)}
-                  verify={async (requestId) => {
-                    unwrap(await window.yuki.client.verify(id, requestId))
-                    refresh()
-                  }}
                 />
               )}
             />
@@ -1304,10 +1322,7 @@ export function Conversation({
                 if (!unwrap(await window.yuki.backgrounds.menu())) return
                 const picture = unwrap(await window.yuki.backgrounds.pick())
                 if (!picture) return
-                const id = await importBackdrop(picture.bytes)
-                if (preferences.customBackdrop.blur)
-                  await blurBackdrop(id, preferences.customBackdrop.blur)
-                onBackground(id)
+                onBackground(await importBackdrop(picture.bytes))
               })().catch((error: unknown) =>
                 setMediaError(
                   error instanceof ClientProblem ? error.message : problemText('unsupported_image'),
@@ -1404,7 +1419,7 @@ export function Conversation({
                 </Button>
               )}
               {eventData && !eventData.has_more && messages.length > 0 && search === null && (
-                <header className={styles.conversationIntroduction}>
+                <header className={styles.conversationIntroduction} data-frost>
                   <CharacterAvatar size={26} />
                   <h2>{name}</h2>
                   <p>
@@ -1436,23 +1451,19 @@ export function Conversation({
                   <Fragment
                     key={receipt ? `request/${receipt.requestId}` : `event/${event!.event_id}`}
                   >
-                    {!sameDay && <div className={styles.dateSeparator}>{dayLabel(time)}</div>}
+                    {!sameDay && (
+                      <div className={styles.dateSeparator} data-frost>
+                        {dayLabel(time)}
+                      </div>
+                    )}
                     <Message
                       {...message}
+                      {...messageActions}
                       consecutive={consecutive}
-                      onJump={(reference) => void jumpTo(reference)}
                       characterId={id}
                       viewerPersonId={connection.personId}
-                      verify={async (requestId) => {
-                        unwrap(await window.yuki.client.verify(id, requestId))
-                        refresh()
-                      }}
                       name={name}
                       selected={event !== undefined && selection === event.event_id}
-                      onSelect={event ? () => setSelection(event.event_id) : undefined}
-                      onReference={event ? () => addReference(event) : undefined}
-                      onAttachment={openAttachment}
-                      onArtifact={openArtifact}
                     />
                     {!accessLost &&
                       (event?.work_ids ?? [])
@@ -1611,13 +1622,8 @@ export function Conversation({
           </div>
         )}
       </Workspace>
-      {palette && !accessLost && (
-        <CommandPalette
-          character={id}
-          commands={paletteCommands}
-          pick={pickLoaded}
-          close={() => setPalette(false)}
-        />
+      {active && !accessLost && (
+        <PaletteHost character={id} commands={paletteCommands} pick={pickLoaded} ref={palette} />
       )}
     </CharacterVisuals.Provider>
   )
@@ -1725,7 +1731,7 @@ function MessageBubble({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function Message({
+export const Message = memo(function Message({
   characterId,
   viewerPersonId,
   receipt,
@@ -1745,8 +1751,8 @@ export function Message({
   verify(requestId: string): Promise<void>
   name: string
   selected: boolean
-  onSelect?(): void
-  onReference?(): void
+  onSelect(event: PublicEvent): void
+  onReference(event: PublicEvent): void
   onAttachment(source: AttachmentSource): void
   onArtifact(source: ArtifactSource): void
   onJump(reference: MessageReference): void
@@ -1782,7 +1788,7 @@ export function Message({
             : t('conversation:messageFrom', { author })
       }
       className={`${styles.message} ${own ? styles.ownMessage : ''} ${selected ? styles.selected : ''} ${consecutive ? styles.consecutive : ''}`}
-      onClick={onSelect}
+      onClick={event ? () => onSelect(event) : undefined}
       onContextMenu={(click) => {
         if (!event) return
         click.preventDefault()
@@ -1882,9 +1888,9 @@ export function Message({
             </IconButton>
             <IconButton
               label={t('conversation:quoteReply')}
-              onClick={(event) => {
-                event.stopPropagation()
-                onReference?.()
+              onClick={(click) => {
+                click.stopPropagation()
+                onReference(event)
               }}
             >
               <Reply size={15} />
@@ -1894,7 +1900,7 @@ export function Message({
       </div>
     </article>
   )
-}
+})
 
 function References({
   characterId,

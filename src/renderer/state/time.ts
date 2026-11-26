@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useMemo } from 'react'
 import type { DisplayTimeZone } from '../../shared/desktop'
 import type { Language } from '../../shared/locales'
 import { dateGroup, formatDateTime } from '../../shared/time'
@@ -11,6 +11,9 @@ export function useDisplayTime() {
   const { t, i18n } = useTranslation(['time'])
   const locale = i18n.language as Language
   const timeZone = zone === 'system' ? undefined : zone
+  // One formatter for every day: made for each message, the conversation spent most of a render
+  // making them.
+  const day = useMemo(() => new Intl.DateTimeFormat('sv-SE', { timeZone }), [timeZone])
   const date = (
     value: number | string | null,
     options: Intl.DateTimeFormatOptions = {
@@ -26,7 +29,7 @@ export function useDisplayTime() {
     date,
     group: (value: number | string) =>
       dateGroup(value, zone, locale, { today: t('time:today'), thisWeek: t('time:thisWeek') }),
-    dayKey: (value: string) => new Date(value).toLocaleDateString('sv-SE', { timeZone }),
+    dayKey: (value: string) => day.format(new Date(value)),
     dayLabel: (value: string) => date(value, { month: 'numeric', day: 'numeric' }),
     timeLabel: (value: string) => date(value, { hour: '2-digit', minute: '2-digit' }),
   }

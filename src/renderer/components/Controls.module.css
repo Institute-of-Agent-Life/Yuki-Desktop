@@ -13,44 +13,56 @@
   height: fit-content;
   min-height: var(--h-regular);
   padding: 3px var(--space-5);
-  border-radius: var(--r-control);
+  border-radius: var(--r-capsule);
   font-weight: 500;
   line-height: 18px;
   text-align: center;
   text-wrap: balance;
   transition: background var(--motion-fast);
+  /* A small piece of the Dock's glass (glass.ts: `control`): 2pt of blur, its lens and the thin
+     rim; its ink the theme's. */
+  backdrop-filter: var(--glass-regular);
 }
+/* Tinted glass, as the send button is with something to send (App.module.css): the tint laid
+   through the glass at 38%, so what lies behind, its lens and its rim still show; its ink the
+   theme's. Primary in the accent, destructive in the danger colour. */
 .primary,
 .primary:hover {
-  background: var(--tinted);
-  color: #fff;
+  background: color-mix(in srgb, var(--tinted) 38%, transparent);
   font-weight: 600;
-  box-shadow: var(--tinted-lift);
 }
-.primary:active {
-  background: var(--press-background);
+.destructive,
+.destructive:hover {
+  --tinted: var(--status-failed);
+  background: color-mix(in srgb, var(--tinted) 38%, transparent);
 }
 .primary,
-.secondary {
+.secondary,
+.destructive {
   /* A two-character label still reads as a button, not a chip. */
   min-width: 64px;
 }
-/* A secondary button is a plain control: white (dark: a tenth of white) with a hairline edge. */
-.secondary {
-  background: var(--control);
-  box-shadow:
-    0 0 0 var(--line) var(--control-edge),
-    0 0.5px 1px rgb(0 0 0 / 0.08);
-}
-.secondary:hover {
-  background: color-mix(in srgb, var(--control) 92%, var(--text-primary));
-}
 .plain {
-  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
+  color: var(--accent);
   padding-inline: var(--space-4);
 }
-.destructive {
-  color: color-mix(in srgb, var(--status-failed) var(--ink-mix), var(--ink-base));
+/* On other glass or frost (a dialog, a toolbar, a notice) a button is drawn on it with a quiet
+   fill (glass.ts); without transparency the glass is a fill of the theme. */
+.button[data-on-glass] {
+  backdrop-filter: none;
+}
+.secondary[data-on-glass],
+.plain[data-on-glass] {
+  background: var(--fill-control);
+}
+:global([data-opaque='true']) .secondary {
+  background: var(--control);
+  box-shadow: 0 0 0 var(--line) var(--control-edge);
+}
+/* A disabled button keeps its glass; its ink fades as the theme's disabled ink. */
+.button:disabled {
+  opacity: 1;
+  color: var(--text-disabled);
 }
 /* Large: a page's actions, a 28pt capsule; extra large: its one main action, 36pt. */
 .large,
@@ -132,7 +144,7 @@
   padding: 0 var(--space-4);
   font-size: 11px;
   font-weight: 600;
-  color: color-mix(in srgb, var(--status) var(--ink-mix), var(--ink-base));
+  color: var(--status);
   background: color-mix(in srgb, var(--status) 12%, transparent);
 }
 .dot {
@@ -149,7 +161,8 @@
   height: 32px;
   padding: 0 20px;
   flex-shrink: 0;
-  color: color-mix(in srgb, var(--status) var(--ink-mix), var(--ink-base));
+  border-radius: var(--r-container-m);
+  color: var(--status);
   background: color-mix(in srgb, var(--status) 12%, var(--surface-page));
   font-size: 12px;
 }
@@ -157,7 +170,7 @@
   width: min(480px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   border: 0;
-  border-radius: var(--r-sheet);
+  border-radius: var(--r-container-l);
   padding: 0;
   color: var(--text-primary);
   background: var(--mat-sheet-glass);
@@ -249,46 +262,8 @@
 .send > svg {
   visibility: hidden;
 }
-/*
- * Tinted glass, the same in both themes: one flat fill in the accent's own hue, deepened to at
- * most 0.52 lightness and made more vivid, so white text keeps at least 4.5:1 for any character's
- * accent. Its depth comes from light at the rim, as on every clear pane, never from the fill.
- */
 .primary {
   --tinted: oklch(from var(--accent) min(l, 0.52) calc(c * 1.35) h);
-  --tinted-lift:
-    0 1px 2px oklch(from var(--tinted) calc(l - 0.2) c h / 0.25),
-    0 5px 14px -6px oklch(from var(--tinted) l c h / 0.7),
-    inset 0 0 8px -3px oklch(from var(--tinted) 0.84 c h / 0.55);
-}
-.primary::before {
-  content: '';
-  --pointer-x: inherit;
-  --pointer-y: inherit;
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  pointer-events: none;
-  /* Coloured glass bends light into its own colour: the rim glows a brighter shade of the tint,
-     on the edge facing the light and softer on the far one, as on every clear pane. */
-  background:
-    radial-gradient(
-        circle 6rem at var(--pointer-x) var(--pointer-y),
-        oklch(from var(--tinted) 0.92 calc(c * 0.6) h / 0.85),
-        transparent
-      )
-      fixed,
-    linear-gradient(
-      154deg,
-      oklch(from var(--tinted) 0.88 calc(c * 0.75) h / 0.8),
-      oklch(from var(--tinted) 0.7 c h / 0.1) 50%,
-      oklch(from var(--tinted) 0.82 calc(c * 0.8) h / 0.5)
-    );
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
 }
 .dialog[open]::backdrop {
   animation: scrim-enter 160ms var(--ease-standard);
@@ -306,14 +281,9 @@
 .icon[data-held='true'] {
   background: var(--press-background, var(--fill-pressed));
 }
-.primary {
-  --press-background: oklch(from var(--tinted) calc(l - 0.06) c h);
-  --hl: rgba(255, 255, 255, 0.08);
-}
-.primary[data-held='true'] {
-  box-shadow:
-    inset 0 1px 3px rgba(12, 24, 58, 0.3),
-    0 1px 1px rgba(12, 24, 58, 0.16);
+.primary,
+.destructive {
+  --press-background: color-mix(in srgb, var(--tinted) 52%, transparent);
 }
 
 :global([data-contrast='true']) .icon[aria-pressed='true'] {
@@ -321,23 +291,6 @@
   background: var(--accent);
 }
 
-.button:disabled,
-.icon:disabled {
-  box-shadow: none;
-}
-/* A disabled or busy button keeps its outline, so it still looks like the button it was. */
-.secondary:disabled {
-  box-shadow: inset 0 0 0 var(--line) var(--separator);
-}
-.button:disabled::before,
-.icon:disabled::before {
-  display: none;
-}
-@media (forced-colors: active) {
-  .primary::before {
-    display: none;
-  }
-}
 /*
  * The busy slot opens a place for the spinner beside the label: --busy runs from 0 to 1 on a
  * spring, widening the button from both edges and cancelling the flex gap while closed.

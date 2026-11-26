@@ -4,29 +4,27 @@ import type { Language, LanguagePreference } from './locales'
 export type Theme = 'system' | 'light' | 'dark'
 // The pattern laid over the conversation, behind its glass; chosen in Appearance and kept.
 export const backdrops = ['plain', 'lens', 'aurora', 'sunset', 'grid'] as const
-// 'custom' is a picture of the person's own (`customBackdrop`), offered after the patterns.
-export type Backdrop = (typeof backdrops)[number] | 'custom'
+// `custom:<picture>` is one of the person's own pictures (`customBackdrops`), offered after the
+// patterns.
+export type Backdrop = (typeof backdrops)[number] | `custom:${string}`
 export const backdropFits = ['fill', 'fit', 'tile'] as const
 /**
  * A picture of the person's own behind the conversation: kept by the app under the SHA-256 of
- * its bytes, one for both themes or one each; how it fills the chat, its blur (0–20px) and how
- * much the page's colour is laid over it (0–60%).
+ * its bytes, one for both themes or one each (it is known by its light one); how it fills the
+ * chat, its blur (0–20px) and how much the page's colour is laid over it (0–60%).
  */
 export interface CustomBackdrop {
-  light?: string
+  light: string
   dark?: string
   fit: (typeof backdropFits)[number]
   blur: number
   dim: number
 }
 /**
- * What the app keeps of a picture beside its smaller copy, made when it is imported: the mean,
- * 5th and 95th percentile of relative luminance in each cell of a `grid` × `grid` raster, row by
- * row, and the picture's average colour.
+ * What the app keeps of a picture beside its smaller copy, made when it is imported: its average
+ * colour. Tables kept before carry more, which nothing reads.
  */
 export interface BackdropTable {
-  grid: number
-  cells: [number, number, number][]
   average: string
 }
 export type DisplayTimeZone = 'Asia/Taipei' | 'system'
@@ -57,7 +55,8 @@ export interface Preferences {
   timeZone: DisplayTimeZone
   /** How much of the desktop shows through the window: 0 (opaque) to 100. */
   transparency: number
-  customBackdrop: CustomBackdrop
+  /** The person's own pictures, as many as they keep, in the order they were added. */
+  customBackdrops: CustomBackdrop[]
   reducedMotion: boolean
   highContrast: boolean
   sidebarWidth: number
@@ -71,13 +70,15 @@ export interface Preferences {
   updateChannel: import('./updates').UpdateChannel
 }
 
-/**
- * A change to the preferences: each given field replaces its own; a custom backdrop's parts do the
- * same, so a picture given as undefined is removed and the parts not given are kept.
- */
-export type PreferencesPatch = Partial<Omit<Preferences, 'customBackdrop'>> & {
-  customBackdrop?: Partial<CustomBackdrop>
-}
+/** A change to the preferences: each given field replaces its own. */
+export type PreferencesPatch = Partial<Preferences>
+
+/** The picture of one's own the backdrop is, if it is one. */
+export const chosenBackdrop = ({
+  backdrop,
+  customBackdrops,
+}: Pick<Preferences, 'backdrop' | 'customBackdrops'>) =>
+  customBackdrops.find((picture) => backdrop === `custom:${picture.light}`)
 
 export const defaultPreferences: Preferences = {
   language: 'system',
@@ -85,7 +86,7 @@ export const defaultPreferences: Preferences = {
   backdrop: 'plain',
   timeZone: 'Asia/Taipei',
   transparency: 70,
-  customBackdrop: { fit: 'fill', blur: 0, dim: 0 },
+  customBackdrops: [],
   reducedMotion: false,
   highContrast: false,
   sidebarWidth: 260,

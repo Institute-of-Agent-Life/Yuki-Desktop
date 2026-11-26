@@ -47,20 +47,12 @@
   --bubble-material: rgb(234 234 234 / 0.52);
   --bubble-accent: 22%;
   --text-primary: #1b1c20;
-  --text-secondary: #5b5e66;
-  --text-tertiary: #5f626a;
+  --text-secondary: #3d3f45;
+  --text-tertiary: #46484f;
   --text-disabled: #b4b7be;
   --separator: rgba(20, 30, 50, 0.1);
   --separator-strong: rgba(20, 30, 50, 0.17);
   --line: 1px;
-  /* The persona's accent in either appearance (Conversation.tsx), for glass that takes the
-     appearance opposite the theme (materials.css). */
-  --accent-light: #3a6bd6;
-  --accent-dark: #7fa4ff;
-  /* How much of its own colour coloured text keeps, toward `--ink-base` (materials.css). */
-  --ink-mix: 100%;
-  --ink-base: #000;
-  --frost-wash: transparent;
   --accent: #3a6bd6;
   --accent-strong: #2c57b8;
   --accent-subtle: #e8eefc;
@@ -72,24 +64,25 @@
   --status-unknown: #6b4cc6;
   --status-offline: #64676e;
   /*
-   * Shapes (WWDC25 356): nested shapes are concentric. The window's corner is the system's
-   * (`--r-window`, per platform below); a pane inset into it takes the window's corner less the
-   * inset (`--r-pane`). Controls follow AppKit's sizes: regular 24 with a 6pt corner, large 28 and
-   * extra large 36 as capsules.
+   * Shapes, as macOS 26 and iOS 26 draw them (WWDC25 356): every control is a capsule (a circle
+   * where it is as wide as it is tall), every container a large rounded rectangle, and nested
+   * shapes are concentric: a shape inside another takes the outer corner less the padding between
+   * them (`calc(var(--r-container-m) - <padding>)`), never less than a control's capsule. The
+   * window's corner is the system's (`--r-window`, per platform below); a pane inset into it takes
+   * the window's corner less the inset (`--r-pane`). Corners are circular arcs: Chromium's
+   * `corner-shape: squircle` is a far boxier curve than Apple's continuous corner, and the glass's
+   * lens and rim maps follow circular arcs.
    */
   --r-window: 0px;
   --inset: 0px;
   --r-pane: max(0px, calc(var(--r-window) - var(--inset)));
-  --r-xs: 3px;
-  --r-sm: 4px;
-  --r-control: 6px;
-  --r-row: 8px;
-  --r-group: 10px;
-  --r-card: 12px;
-  --r-panel: 14px;
-  --r-popover: 16px;
-  --r-sheet: 20px;
   --r-capsule: 999px;
+  /* Rows, bubbles, small cards; groups, cards and popovers; sheets, menus and the composer. */
+  --r-container-s: 18px;
+  --r-container-m: 22px;
+  --r-container-l: 26px;
+  /* A check box keeps the rounded square macOS draws: a capsule would read as a radio. */
+  --r-checkbox: 5px;
   --h-small: 20px;
   --h-regular: 24px;
   --h-large: 28px;
@@ -240,7 +233,8 @@
   --hl: rgba(255, 255, 255, 0.28);
   --track: rgba(20, 34, 64, 0.14);
   --toggle-off: rgba(20, 34, 64, 0.16);
-  --seg-thumb: #ffffff;
+  /* The chosen segment: a raised pill of glass, a little lighter than what it lies on. */
+  --seg-thumb: rgb(255 255 255 / 0.24);
 }
 /*
  * The window's own corner, measured on the system: macOS 26 and later round an Electron window
@@ -306,8 +300,8 @@
   --bubble-material: rgb(61 61 61 / 0.33);
   --bubble-accent: 24%;
   --text-primary: #f1f2f5;
-  --text-secondary: #a4a7af;
-  --text-tertiary: #a0a3ab;
+  --text-secondary: #caccd2;
+  --text-tertiary: #c0c2c8;
   --text-disabled: #55585f;
   --separator: rgba(255, 255, 255, 0.1);
   --separator-strong: rgba(255, 255, 255, 0.18);
@@ -352,7 +346,7 @@
   --hl: rgba(255, 255, 255, 0.16);
   --track: rgba(255, 255, 255, 0.16);
   --toggle-off: rgba(255, 255, 255, 0.18);
-  --seg-thumb: rgba(255, 255, 255, 0.16);
+  --seg-thumb: rgb(255 255 255 / 0.12);
 }
 /*
  * Transparent frost: the system material behind the window shows through every page, as in a
@@ -387,14 +381,14 @@
   --edge: var(--separator-strong);
   --separator: rgba(20, 30, 50, 0.27);
   --separator-strong: rgba(20, 30, 50, 0.42);
-  --text-secondary: #46484e;
-  --text-tertiary: #46484e;
+  --text-secondary: #2c2e33;
+  --text-tertiary: #2c2e33;
 }
 :root[data-theme='dark'][data-contrast='true'] {
   --separator: rgba(255, 255, 255, 0.26);
   --separator-strong: rgba(255, 255, 255, 0.42);
-  --text-secondary: #d1d2d7;
-  --text-tertiary: #d1d2d7;
+  --text-secondary: #dfe0e4;
+  --text-tertiary: #dfe0e4;
 }
 @media (min-resolution: 2dppx) {
   :root {
@@ -435,10 +429,29 @@ select {
   input[type='email']
 ) {
   min-height: var(--h-regular);
-  padding: var(--space-1) var(--space-4);
+  padding: var(--space-1) var(--space-5);
   border: var(--line) solid var(--field-line);
-  border-radius: var(--r-control);
+  border-radius: var(--r-capsule);
   background: var(--field);
+}
+/* A field of several lines is a container, its corner a little rounder than the rows around it. */
+:where(textarea) {
+  border-radius: var(--r-container-s);
+}
+/* A select is a small piece of glass, as a button is (Controls.module.css): the Dock's colour over
+   2pt of blur, its edge the field's hairline. Inside other glass it is drawn on that glass with a
+   quiet fill, and without transparency it is a field of the theme. */
+select {
+  background: transparent;
+  backdrop-filter: blur(var(--glass-blur)) var(--glass-native) var(--seal,);
+}
+[data-glass] select {
+  background: var(--fill-control);
+  backdrop-filter: none;
+}
+:root[data-opaque='true'] select {
+  background: var(--field);
+  backdrop-filter: none;
 }
 /* One line of text is a regular control's height on every platform, whatever its font's metrics. */
 :where(
@@ -463,7 +476,7 @@ select {
   margin: 0 6px 0 0;
   vertical-align: -3px;
   border: var(--line) solid var(--field-line);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-checkbox);
   background: var(--field);
   transition: background var(--motion-fast) var(--ease-standard);
 }
@@ -533,6 +546,11 @@ textarea,
 select {
   -webkit-app-region: no-drag;
 }
+/* Every placeholder in the quieter ink of the theme. */
+::placeholder {
+  color: var(--text-tertiary);
+  opacity: 1;
+}
 :focus-visible {
   outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
   outline-offset: 1px;
@@ -551,7 +569,7 @@ button:active {
   background: var(--fill-pressed);
 }
 a {
-  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
+  color: var(--accent);
 }
 p {
   margin: 0 0 8px;

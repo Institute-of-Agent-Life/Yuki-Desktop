@@ -1,4 +1,13 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import {
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type Ref,
+  type ReactNode,
+} from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { File, MessageCircle, BriefcaseBusiness, Command } from 'lucide-react'
 import { loadedItems, type LoadedItem } from '../state/loaded'
@@ -15,18 +24,73 @@ export interface PaletteCommand {
 }
 type Item = LoadedItem | ({ kind: 'command'; at: number; detail: string } & PaletteCommand)
 const kinds = ['message', 'work', 'file', 'command'] as const
-const icons = { message: MessageCircle, work: BriefcaseBusiness, file: File, command: Command }
+const icons = {
+  message: <MessageCircle size={14} />,
+  work: <BriefcaseBusiness size={14} />,
+  file: <File size={14} />,
+  command: <Command size={14} />,
+}
+interface PaletteProps {
+  character: string
+  commands: PaletteCommand[]
+  pick(item: LoadedItem, stage: boolean): Promise<void>
+}
+
+// Every result remains a named, actionable option. Mount the icon and formatted label only
+// for batches approaching the scrollport; a keyboard jump can still target any option by ID.
+function ResultBatch({
+  count,
+  first,
+  children,
+}: {
+  count: number
+  first: boolean
+  children: (decorate: boolean) => ReactNode
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [near, setNear] = useState(first)
+  useLayoutEffect(() => {
+    const batch = ref.current!
+    if (first) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry!.isIntersecting) {
+          setNear(true)
+          observer.disconnect()
+        }
+      },
+      { root: batch.closest('[role="listbox"]'), rootMargin: '100% 0px' },
+    )
+    observer.observe(batch)
+    return () => observer.disconnect()
+  }, [first])
+  return (
+    <div
+      ref={ref}
+      className={styles.batch}
+      style={{ containIntrinsicBlockSize: `auto ${count * 36}px` }}
+    >
+      {children(first || near)}
+    </div>
+  )
+}
+
+// Opening the panel changes only the panel, even over a long conversation.
+export function PaletteHost({
+  ref,
+  ...props
+}: PaletteProps & { ref: Ref<(open: boolean) => void> }) {
+  const [open, setOpen] = useState(false)
+  useImperativeHandle(ref, () => setOpen, [])
+  return open ? <CommandPalette {...props} close={() => setOpen(false)} /> : null
+}
+
 export function CommandPalette({
   character,
   commands,
   pick,
   close,
-}: {
-  character: string
-  commands: PaletteCommand[]
-  pick(item: LoadedItem, stage: boolean): Promise<void>
-  close(): void
-}) {
+}: PaletteProps & { close(): void }) {
   const { t } = useTranslation(['workspace'])
   const { t: itemText } = useTranslation(['conversation'])
   const query = useQueryClient(),
@@ -43,12 +107,12 @@ export function CommandPalette({
       at: 0,
     })),
   ]
-  const filter = (value: string) =>
-    items.filter((item) =>
-      `${item.title}\n${item.detail}`
-        .toLocaleLowerCase()
-        .includes(value.trim().toLocaleLowerCase()),
-    )
+  const filter = (value: string) => {
+    const needle = value.trim().toLocaleLowerCase()
+    return needle
+      ? items.filter((item) => `${item.title}\n${item.detail}`.toLocaleLowerCase().includes(needle))
+      : items
+  }
   const visible = filter(text),
     grouped = kinds.flatMap((kind) => visible.filter((item) => item.kind === kind))
   const [selected, setSelected] = useState<string | null>(() => grouped[0]?.id ?? null)
@@ -186,36 +250,58 @@ export function CommandPalette({
           {!grouped.length && <p className={styles.empty}>{t('workspace:palette.empty')}</p>}
           {kinds.map((kind) => {
             const rows = grouped.filter((item) => item.kind === kind)
-            const Icon = icons[kind]
+            const offset = grouped.indexOf(rows[0]!)
             return (
               rows.length > 0 && (
                 <div role="group" aria-labelledby={`${prefix}-group-${kind}`} key={kind}>
                   <h3 className={styles.group} id={`${prefix}-group-${kind}`}>
                     {t(`workspace:palette.group.${kind}`)}
                   </h3>
-                  {rows.map((item) => {
-                    const index = grouped.indexOf(item)
+                  {Array.from({ length: Math.ceil(rows.length / 16) }, (_, block) => {
+                    const start = block * 16
+                    const batch = rows.slice(start, start + 16)
                     return (
-                      <button
-                        key={item.id}
-                        data-item-id={item.id}
-                        id={`${prefix}-${index}`}
-                        className={styles.item}
-                        role="option"
-                        aria-selected={item.id === selected}
-                        tabIndex={-1}
-                        disabled={busy}
-                        onMouseDown={(event) => event.preventDefault()}
-                        onMouseMove={() => setSelected(item.id)}
-                        onClick={(event) => void execute(item, event.metaKey || event.ctrlKey)}
+                      <ResultBatch
+                        key={batch[0]!.id}
+                        count={batch.length}
+                        first={offset + start < 32}
                       >
-                        <Icon size={14} />
-                        <span className={styles.label}>
-                          <span className={styles.title}>{item.title}</span>
-                          {item.detail && <span className={styles.detail}>{item.detail}</span>}
-                        </span>
-                        {item.id === selected && <kbd aria-hidden="true">Enter</kbd>}
-                      </button>
+                        {(decorate) =>
+                          batch.map((item, localIndex) => {
+                            const index = offset + start + localIndex
+                            return (
+                              <button
+                                key={item.id}
+                                data-item-id={item.id}
+                                id={`${prefix}-${index}`}
+                                className={styles.item}
+                                role="option"
+                                aria-selected={item.id === selected}
+                                tabIndex={-1}
+                                disabled={busy}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onMouseMove={() => setSelected(item.id)}
+                                onClick={(event) =>
+                                  void execute(item, event.metaKey || event.ctrlKey)
+                                }
+                              >
+                                {decorate && icons[kind]}
+                                {decorate ? (
+                                  <span className={styles.label}>
+                                    <span className={styles.title}>{item.title}</span>
+                                    {item.detail && (
+                                      <span className={styles.detail}>{item.detail}</span>
+                                    )}
+                                  </span>
+                                ) : (
+                                  [item.title, item.detail].filter(Boolean).join(' ')
+                                )}
+                                {item.id === selected && <kbd aria-hidden="true">Enter</kbd>}
+                              </button>
+                            )
+                          })
+                        }
+                      </ResultBatch>
                     )
                   })}
                 </div>

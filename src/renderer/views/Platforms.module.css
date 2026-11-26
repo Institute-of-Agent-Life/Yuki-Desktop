@@ -71,7 +71,7 @@
   display: block;
   width: 100%;
   padding: 10px 12px;
-  border-radius: var(--r-row);
+  border-radius: var(--r-container-s);
   background: var(--fill-code);
   font: 12px/18px var(--font-mono);
   white-space: pre-wrap;

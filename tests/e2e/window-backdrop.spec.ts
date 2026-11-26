@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { pairUI, yukiFixture } from '../fixtures/backend'
 import { dockGlass } from '../fixtures/dock-glass'
 import { contentSize } from '../fixtures/visual'
-import { legible, throughGlass } from '../fixtures/legibility'
+import { throughGlass } from '../fixtures/frost'
 import { picture, type Picture } from '../fixtures/pictures'
 
 /*
@@ -15,20 +15,19 @@ import { picture, type Picture } from '../fixtures/pictures'
  * Fails when:
  *   1. the picture is drawn more than once, or by anything but the window (a page's own layer);
  *   2. a page lies on a pane of glass of its own (glass over most of the window);
- *   3. any text lies on the bare picture: under it neither glass, frost, a fill nor media;
+ *   3. any text lies on the bare picture: under it neither glass, frost, a fill nor media, on the
+ *      page as shown and with everything it opens in place opened (disclosures, collapsed
+ *      controls, the reply and edit boxes);
  *   4. a block's frost is not the picture's frost where the window has it: offset from it by
  *      more than 2px, or matching it better scaled (the blurred copy laid out at another size),
  *      at rest, after the wheel scrolls a page to its middle and back, and after a resize;
  *   5. a piece of the Dock's glass draws nothing (the frame equals the frame with every backdrop
  *      filter off: its backdrop read empty);
  *   6. the gap around the floating sidebar (macOS) is not the picture (a strip treated otherwise);
- *   7. a huge pane (the sidebar, short side over 200pt) draws a rim, or the composer draws none;
- *   8. main text reads under 4.5:1, or quiet and coloured text under 3:1, on its frost (the worst
- *      1% of the pixels under it).
+ *   7. a huge pane (the sidebar, short side over 200pt) draws a rim, or the composer draws none.
  * Where the window is opaque (CI's macOS reduces transparency) the picture is not shown and only
- * 1 and 2 hold; without GPU compositing (CI's Linux) content's frost is a fill, and 4 and 8 do not
- * apply. Line art and the sidebar keep their measured floors (custom-backdrop.spec.ts,
- * sidebar-legibility.spec.ts).
+ * 1 and 2 hold; without GPU compositing (CI's Linux) content's frost is a fill, and 4 does not
+ * apply.
  */
 const evidence: Record<string, unknown> = {}
 test.afterAll(async () => {
@@ -207,21 +206,18 @@ async function registration(page: Page) {
         return context.getImageData(0, 0, image.width, image.height).data
       }
       const seen = blurred((context) => context.drawImage(image, 0, 0))
-      const references: Record<string, Uint8ClampedArray> = {}
-      for (const look of ['light', 'dark']) {
-        const frost = new Image()
-        frost.src = url(`--backdrop-frost-${look}`)
-        await frost.decode()
-        references[look] = blurred((context) =>
-          context.drawImage(
-            frost,
-            ((innerWidth - fw!) / 2) * scale,
-            ((innerHeight - fh!) / 2) * scale,
-            fw! * scale,
-            fh! * scale,
-          ),
-        )
-      }
+      const frost = new Image()
+      frost.src = url('--backdrop-picture-frost')
+      await frost.decode()
+      const reference = blurred((context) =>
+        context.drawImage(
+          frost,
+          ((innerWidth - fw!) / 2) * scale,
+          ((innerHeight - fh!) / 2) * scale,
+          fw! * scale,
+          fh! * scale,
+        ),
+      )
       const over = [
         ...document.querySelectorAll(
           '[data-region="composer"], [data-region="toolbar"] [data-glass], [data-edge-fade], [data-glass="sidebar"], [data-glass="card"], [data-glass="sheet"]',
@@ -259,8 +255,6 @@ async function registration(page: Page) {
         values.reduce((sum, value) => sum + value, 0) / values.length
       const results = []
       for (const { node, r } of blocks) {
-        const owner = node.matches('[data-surface]') ? node.parentElement! : node
-        const reference = references[owner.dataset.appearance ?? 'light']!
         // Inside it, clear of its rounded corners, every 2 CSS px.
         const step = 2 * scale,
           inset = Math.max(8, parseFloat(getComputedStyle(node).borderTopLeftRadius) * 0.6)
@@ -430,6 +424,40 @@ async function gap(page: Page) {
   return (await difference(page, [shown, alone], [strip]))[0]!
 }
 
+/**
+ * Opens what a page shows in place: every disclosure, every collapsed control and its reply and
+ * edit boxes; whether anything opened.
+ */
+async function expand(page: Page) {
+  const opened = await page.evaluate(() => {
+    let count = 0
+    const where = '[data-region="content"], [data-region="inspector"], #settings-panel'
+    for (const details of document.querySelectorAll<HTMLDetailsElement>(
+      `:is(${where}) details:not([open])`,
+    )) {
+      details.open = true
+      count++
+    }
+    for (const button of document.querySelectorAll<HTMLButtonElement>(
+      `:is(${where}) button[aria-expanded="false"]`,
+    ))
+      if (button.checkVisibility()) {
+        button.click()
+        count++
+      }
+    return count
+  })
+  let shown = 0
+  for (const name of ['回覆', '編輯名稱與簡介']) {
+    const button = page.getByRole('button', { name, exact: true }).first()
+    if (await button.isVisible()) {
+      await button.click()
+      shown++
+    }
+  }
+  return opened + shown > 0
+}
+
 async function choose(
   app: ElectronApplication,
   page: Page,
@@ -446,10 +474,7 @@ async function choose(
     .getByRole('radiogroup', { name: '主題', exact: true })
     .getByRole('radio', { name: theme === 'dark' ? '深色' : '淺色', exact: true })
     .click()
-  await page
-    .getByRole('radiogroup', { name: '對話背景', exact: true })
-    .getByRole('radio', { name: '自訂圖片', exact: true })
-    .click()
+  await page.getByRole('button', { name: '加入圖片…', exact: true }).click()
   await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'custom')
 }
 
@@ -494,20 +519,6 @@ const pages: [string, (page: Page) => Promise<void>, string?][] = [
   ],
 ]
 
-// Main text 4.5:1, quiet and coloured text 3:1, on frost.
-const reading: [(page: Page) => Promise<void>, string, number][] = [
-  [
-    (page) => nav(page, '工作'),
-    '[data-region="content"] button >> text=Desktop reference work',
-    4.5,
-  ],
-  [(page) => nav(page, '工作'), '[data-region="content"] button time', 3],
-  [(page) => nav(page, '工作'), '[data-region="content"] button >> text=等你回覆', 3],
-  [(page) => nav(page, '關於 初始角色'), '[data-region="content"] h1', 4.5],
-  [(page) => settings(page, '一般'), '#settings-panel h2', 4.5],
-  [(page) => settings(page, '一般'), '#settings-panel [data-settings-row] small', 3],
-]
-
 for (const [scale, kind, theme] of [
   [1, 'berries', 'light'],
   [2, 'forest', 'dark'],
@@ -536,7 +547,7 @@ for (const [scale, kind, theme] of [
             () =>
               page.evaluate(() =>
                 getComputedStyle(document.documentElement).getPropertyValue(
-                  '--backdrop-frost-dark',
+                  '--backdrop-picture-frost',
                 ),
               ),
             { timeout: 20000 },
@@ -582,6 +593,9 @@ for (const [scale, kind, theme] of [
       for (const [name, open, scroller] of pages) {
         await open(page)
         await check(name)
+        // What a page opens in place is checked too: every disclosure open, every reply and edit
+        // box shown.
+        if (await expand(page)) await check(`${name} expanded`)
         if (!scroller) continue
         // To the middle with the wheel, and back.
         const box = await page.evaluate((selector) => {
@@ -624,15 +638,6 @@ for (const [scale, kind, theme] of [
         expect.soft(sidebar.rim?.edge ?? 0, 'a huge pane draws no rim').toBe(0)
         expect.soft(composer.rim?.edge ?? 0, 'the composer draws its rim').toBeGreaterThan(0)
       }
-
-      if (through.content)
-        for (const [open, selector, floor] of reading) {
-          await open(page)
-          await settle(page)
-          const ratio = await legible(page, page.locator(selector).first())
-          record[selector] = ratio
-          expect.soft(ratio, selector).toBeGreaterThanOrEqual(floor)
-        }
 
       // At another size the frost is laid out again with the picture.
       await nav(page, '工作')

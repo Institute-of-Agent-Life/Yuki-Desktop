@@ -169,8 +169,7 @@ export function Composer({
  * composer's. It lies beside the composer, over the button, not inside it: a backdrop filter sees
  * only what lies within the nearest glass around it, and inside the composer's that is nothing (the
  * composer's own glass is its backdrop, not its content). The button beneath takes the pointer and
- * the keyboard; this follows its place, its press, whether there is something to send, and the
- * composer's appearance.
+ * the keyboard; this follows its place, its press and whether there is something to send.
  */
 function SendGlass({ composer }: { composer: RefObject<HTMLDivElement | null> }) {
   const glass = useGlass<HTMLSpanElement>('send')
@@ -194,9 +193,6 @@ function SendGlass({ composer }: { composer: RefObject<HTMLDivElement | null> })
       circle.style.scale = button.style.scale
       circle.style.translate = button.style.translate
       circle.dataset.active = String(!button.matches(':disabled') || button.dataset.held === 'true')
-      // It lies on the composer's glass, and takes its appearance (materials/appearance.ts).
-      if (host.dataset.appearance) circle.dataset.appearance = host.dataset.appearance
-      else delete circle.dataset.appearance
     }
     const sizes = new ResizeObserver(place),
       changes = new MutationObserver(place)
@@ -208,7 +204,6 @@ function SendGlass({ composer }: { composer: RefObject<HTMLDivElement | null> })
       attributes: true,
       attributeFilter: ['disabled', 'data-held', 'style', 'aria-busy'],
     })
-    changes.observe(host, { attributes: true, attributeFilter: ['data-appearance'] })
     addEventListener('resize', place)
     place()
     return () => {

@@ -1,5 +1,7 @@
 import Database from 'better-sqlite3'
-import { defaultPreferences, type Preferences } from '../shared/desktop'
+import { defaultPreferences, type CustomBackdrop, type Preferences } from '../shared/desktop'
+
+const defaultBackdrop = { fit: 'fill', blur: 0, dim: 0 } as const
 
 export class LocalStore {
   readonly db: Database.Database
@@ -23,10 +25,20 @@ export class LocalStore {
       .run(key, JSON.stringify(value))
   }
   preferences(): Preferences {
-    const { opaque, ...stored } = {
+    const { opaque, customBackdrop, ...stored } = {
       ...defaultPreferences,
-      ...this.get<Partial<Preferences> & { opaque?: boolean }>('appearance'),
+      ...this.get<
+        Partial<Preferences> & { opaque?: boolean; customBackdrop?: Partial<CustomBackdrop> }
+      >('appearance'),
     }
+    // Before several pictures could be kept there was one, `customBackdrop`: it is the first kept,
+    // and the backdrop if it was ('custom').
+    if (customBackdrop?.light && !stored.customBackdrops.length)
+      stored.customBackdrops = [
+        { ...defaultBackdrop, ...customBackdrop, light: customBackdrop.light },
+      ]
+    if ((stored.backdrop as string) === 'custom')
+      stored.backdrop = customBackdrop?.light ? `custom:${customBackdrop.light}` : 'plain'
     // 「桌面」 was a backdrop before the window's frost became a choice of its own; it drew nothing.
     if ((stored.backdrop as string) === 'desktop') stored.backdrop = 'plain'
     // Before transparency was a number it was frosted or opaque; opaque is 0.

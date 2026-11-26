@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 import { reducedMotion } from '../motion/hooks'
 import { sampleSpring, springs } from '../motion/spring'
-import { watchAppearance, type Appearance } from './appearance'
 import { dockFilter, dockLens, dockLift, dockRim } from './dock'
 import { encodings, mapValues } from './display'
 
@@ -41,9 +40,8 @@ const glassTint = () => Number(document.documentElement.dataset.glassTint ?? 0.4
 
 /*
  * The Dock's colour (dock.ts) as filter primitives reading `input`: its luminance, the tone curve
- * less the colour's gain on it (a table), added to the colour times its gain. `set` gives it an
- * appearance's and the slider's (or `toward` of the way there from another's, as it turns); a held
- * control's is none (the colour passes as it is).
+ * less the colour's gain on it (a table), added to the colour times its gain. `set` gives it a
+ * theme's and the slider's; a held control's is none (the colour passes as it is).
  */
 function dockColour(input: string, prefix: string) {
   const luma = primitive('feColorMatrix', { in: input, type: 'matrix', result: `${prefix}luma` }),
@@ -64,8 +62,8 @@ function dockColour(input: string, prefix: string) {
       luma.setAttribute('in', name)
       combine.setAttribute('in2', name)
     },
-    set(docked: boolean, appearance: Appearance = theme(), from = appearance, toward = 1) {
-      const look = dockFilter(appearance, glassTint(), from, toward)
+    set(docked: boolean, shown: 'light' | 'dark' = theme()) {
+      const look = dockFilter(shown, glassTint())
       luma.setAttribute('values', look.luma)
       for (const func of curve.children)
         func.setAttribute(
@@ -79,8 +77,7 @@ function dockColour(input: string, prefix: string) {
 
 /*
  * The Dock's colour for glass that carries no filter of its own (`--glass-native`,
- * materials.css), one for each appearance (the theme's, or what a glass has taken: appearance.ts),
- * for the slider shown now.
+ * materials.css), one for each theme, for the slider shown now.
  */
 for (const look of ['light', 'dark'] as const) {
   const svg = document.createElementNS(NS, 'svg'),
@@ -110,7 +107,8 @@ for (const look of ['light', 'dark'] as const) {
  * d shows what lies D(d) deeper, up to the band's width, so the band shows the strip just inside it
  * mirrored and pressed together, as the rounded rim of real glass reflects it. The lens is a
  * part's own, not its radius's or height's:
- *   pane: the Dock's (dock.ts), for the sidebar, toolbars, the composer, cards and sheets;
+ *   pane: the Dock's (dock.ts), for the sidebar, toolbars, the composer, cards, sheets and every
+ *     button (`control`);
  *   lens: a control held under the finger, the clear lens of WWDC25 219;
  *   slider: its held thumb (slider-v2.md §3.2): a rim a tenth of the radius wide showing what lies
  *     0.6 of the radius in.
@@ -158,6 +156,19 @@ const rimmed = { pane: true, lens: true, slider: false } as const
  */
 const huge = (kind: GlassKind, width: number, height: number) =>
   sized.has(kind) && Math.min(width, height) > 200
+/*
+ * The rim's width (dock.ts), thinner than the Dock's: its bright band one device pixel, its tail
+ * pressed to 0.15 of the Dock's depth on a control 28pt or less across its short side, rising to
+ * 0.45 at 48pt and above, so a small control's rim is a one-pixel line. The send button keeps the
+ * Dock's own width, which reads as natural on it (the owner's choice), whatever its size.
+ */
+const rimWidth = (kind: GlassKind, width: number, height: number) =>
+  kind === 'send'
+    ? { band: 1, tail: 1 }
+    : {
+        band: 1 / devicePixelRatio,
+        tail: Math.min(0.45, Math.max(0.15, 0.15 + (0.3 * (Math.min(width, height) - 28)) / 20)),
+      }
 const kinds = {
   sidebar: 'pane',
   toolbar: 'pane',
@@ -165,15 +176,12 @@ const kinds = {
   card: 'pane',
   sheet: 'pane',
   send: 'pane',
+  control: 'pane',
   slider: 'slider',
   toggle: 'lens',
   segment: 'lens',
 } as const
 export type GlassKind = keyof typeof kinds
-// The glass that takes the appearance of what lies under it (appearance.ts): what carries text,
-// menus and sheets among it, each by its own backdrop rather than the glass it opens from. The send
-// button's circle takes its composer's.
-const adaptive = new Set<GlassKind>(['sidebar', 'toolbar', 'composer', 'card', 'sheet'])
 /*
  * A pane that carries text is blurred as Apple's clear glass blurs a pane of its size, measured on
  * NSGlassEffectView over the same pictures (the native captures, fitted with a Gaussian and a
@@ -187,7 +195,7 @@ export const paneBlur = (short: number) => Math.round(2 * Math.min(20, 0.24 * sh
 export function roundedDistance(x: number, y: number, hx: number, hy: number, radius: number) {
   const qx = Math.abs(x) - hx + radius,
     qy = Math.abs(y) - hy + radius
-  return Math.min(Math.max(qx, qy), 0) + Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - radius
+  return (qx > 0 && qy > 0 ? Math.sqrt(qx * qx + qy * qy) : Math.max(qx, qy)) - radius
 }
 
 // Where a piece of the bend map lies along one side of the glass, in CSS pixels: `offset` from
@@ -235,7 +243,7 @@ function lens(
   height: number,
   radius: number,
   kind: GlassKind,
-  look: Appearance,
+  look: 'light' | 'dark',
 ): Lens {
   const scale = Math.min(3, Math.max(2, Math.ceil(devicePixelRatio))),
     shape: Shape = shapes[kinds[kind]],
@@ -249,8 +257,9 @@ function lens(
   const w = across ? tile : width,
     h = down ? tile : height
   const space = document.documentElement.dataset.displayColorSpace
-  const edged = rimmed[kinds[kind]] && !huge(kind, width, height)
-  const key = `${w}/${h}/${radius}/${kind}/${scale}/${space}/${look}/${edged}`
+  const edged = rimmed[kinds[kind]] && !huge(kind, width, height),
+    rimShape = rimWidth(kind, width, height)
+  const key = `${w}/${h}/${radius}/${kind}/${scale}/${space}/${look}/${edged}/${rimShape.band}/${rimShape.tail}`
   const cached = lenses.get(key)
   if (cached) return cached
   const hx = w / 2,
@@ -262,7 +271,7 @@ function lens(
     const qx = Math.abs(x) - hx + corner,
       qy = Math.abs(y) - hy + corner
     if (qx > 0 && qy > 0) {
-      const length = Math.hypot(qx, qy)
+      const length = Math.sqrt(qx * qx + qy * qy)
       return [(Math.sign(x) * qx) / length, (Math.sign(y) * qy) / length] as const
     }
     return qx > qy ? ([Math.sign(x), 0] as const) : ([0, Math.sign(y)] as const)
@@ -272,7 +281,7 @@ function lens(
   // band: the face keeps the map's starting value.
   const paint = (
     start: number,
-    draw: (data: Uint8ClampedArray, k: number, x: number, y: number, distance: number) => void,
+    draw: (image: ImageData, i: number, j: number, x: number, y: number, distance: number) => void,
   ) => {
     const canvas = document.createElement('canvas')
     canvas.width = Math.max(1, Math.round(w * scale))
@@ -280,13 +289,13 @@ function lens(
     const context = canvas.getContext('2d')!,
       image = context.createImageData(canvas.width, canvas.height)
     new Uint32Array(image.data.buffer).fill(start)
-    for (let j = 0; j < canvas.height; j++)
-      for (let i = 0; i < canvas.width; i++) {
+    for (let j = 0; j < image.height / 2; j++)
+      for (let i = 0; i < image.width / 2; i++) {
         const x = (i + 0.5) / scale - hx,
           y = (j + 0.5) / scale - hy,
           distance = roundedDistance(x, y, hx, hy, radius)
         if (distance > 1 / scale || -distance > reach + 2) continue
-        draw(image.data, (j * canvas.width + i) * 4, x, y, distance)
+        draw(image, i, j, x, y, distance)
       }
     context.putImageData(image, 0, 0)
     return canvas
@@ -300,24 +309,41 @@ function lens(
   const rest = values(0.5, 0.5, mixRest).map((value) => Math.round(value * 255))
   const bend = paint(
     new Uint32Array(new Uint8ClampedArray([rest[0]!, rest[1]!, rest[2]!, 128]).buffer)[0]!,
-    (data, k, x, y, distance) => {
+    (image, i, j, x, y, distance) => {
       const amount = shape.bend(-distance, radius) / span,
         [nx, ny] = normal(x, y, turned)
-      const noise = (((k * 2654435761) >>> 0) / 4294967296 - 0.5) / 255
       const [rx, ry] = normal(x, y, radius),
         coverage = Math.max(0, Math.min(1, 0.5 - distance * scale))
       const rim = edged
-        ? dockRim(look, Math.atan2(Math.abs(rx), Math.abs(ry)), -distance)
+        ? dockRim(
+            look,
+            Math.atan2(Math.abs(rx), Math.abs(ry)),
+            -distance,
+            rimShape.band,
+            rimShape.tail,
+          )
         : { mix: 0, add: 0 }
-      const shown = values(
-        0.5 - amount * nx + noise,
-        0.5 - amount * ny - noise,
-        mixRest + rim.mix * coverage,
-      )
-      data[k] = Math.round(shown[0] * 255)
-      data[k + 1] = Math.round(shown[1] * 255)
-      data[k + 2] = Math.round(shown[2] * 255)
-      data[k + 3] = Math.round(128 + rim.add * coverage)
+      // All four quadrants share their depth and rim. Mirror the bend's direction, retaining
+      // each pixel's own dither so the maps remain the same down to their individual bytes.
+      const blue = mixRest + rim.mix * coverage,
+        alpha = Math.round(128 + rim.add * coverage)
+      const pixel = (col: number, row: number, dx: number, dy: number) => {
+        const k = (row * image.width + col) * 4
+        const noise = (((k * 2654435761) >>> 0) / 4294967296 - 0.5) / 255
+        const shown = values(0.5 - dx + noise, 0.5 - dy - noise, blue)
+        image.data[k] = Math.round(shown[0] * 255)
+        image.data[k + 1] = Math.round(shown[1] * 255)
+        image.data[k + 2] = Math.round(shown[2] * 255)
+        image.data[k + 3] = alpha
+      }
+      const right = image.width - i - 1,
+        bottom = image.height - j - 1,
+        dx = amount * nx,
+        dy = amount * ny
+      pixel(i, j, dx, dy)
+      pixel(right, j, -dx, dy)
+      pixel(i, bottom, dx, -dy)
+      pixel(right, bottom, -dx, -dy)
     },
   )
   // Each axis cut into its start, a middle one CSS pixel long that stretches along a straight
@@ -360,43 +386,65 @@ function lens(
   return result
 }
 
-// One listener moves the light source for the lit rims of buttons: a fixed-position gradient
-// centred on the pointer. The position is written only on the elements that show it (registered,
-// not inherited), so moving the pointer restyles those few rather than every node of a long
-// conversation.
+/*
+ * Light catches a rim where the pointer is near (materials.css: `--rim-light`): one listener, a
+ * frame at a time, writes where the pointer is only on the rims within reach of it, and takes it
+ * back from those it has left; the rest of the page is never restyled. Off where the glass is not
+ * glass (without transparency or GPU compositing).
+ */
 const lit = new Set<HTMLElement>()
-let pointer: { x: number; y: number } | undefined
-const light = (element: HTMLElement) => {
-  if (pointer) {
-    element.style.setProperty('--pointer-x', `${pointer.x}px`)
-    element.style.setProperty('--pointer-y', `${pointer.y}px`)
-  } else {
-    element.style.removeProperty('--pointer-x')
-    element.style.removeProperty('--pointer-y')
+let near = new Set<HTMLElement>(),
+  pointer: { x: number; y: number } | undefined,
+  frame = 0
+// The light's reach (materials.css), and a little more.
+const reach = 120
+const light = () => {
+  frame = 0
+  const root = document.documentElement.dataset,
+    shown = pointer && root.opaque !== 'true' && root.gpuCompositing !== 'false'
+  // Every box read first, then written: the pointer's place within each rim it reaches.
+  const next = new Map<HTMLElement, DOMRect>()
+  if (shown)
+    for (const element of lit) {
+      const box = element.getBoundingClientRect()
+      const dx = Math.max(box.left - pointer!.x, 0, pointer!.x - box.right),
+        dy = Math.max(box.top - pointer!.y, 0, pointer!.y - box.bottom)
+      if (dx * dx + dy * dy <= reach * reach) next.set(element, box)
+    }
+  for (const element of near)
+    if (!next.has(element)) {
+      element.style.removeProperty('--pointer-x')
+      element.style.removeProperty('--pointer-y')
+    }
+  for (const [element, box] of next) {
+    element.style.setProperty('--pointer-x', `${pointer!.x - box.left}px`)
+    element.style.setProperty('--pointer-y', `${pointer!.y - box.top}px`)
   }
+  near = new Set(next.keys())
 }
-let frame = 0
 addEventListener(
   'pointermove',
   (event) => {
     pointer = { x: event.clientX, y: event.clientY }
-    frame ||= requestAnimationFrame(() => {
-      frame = 0
-      for (const element of lit) light(element)
-    })
+    frame ||= requestAnimationFrame(light)
   },
   { passive: true },
 )
 document.documentElement.addEventListener('pointerleave', () => {
   pointer = undefined
-  for (const element of lit) light(element)
+  frame ||= requestAnimationFrame(light)
 })
-/** Lets `element`'s rim follow the pointer's light until the returned call. */
+/** Lets light catch `element`'s rim where the pointer is near, until the returned call. */
 export function followPointer(element: HTMLElement) {
   lit.add(element)
-  light(element)
+  element.dataset.rimLight = ''
+  frame ||= requestAnimationFrame(light)
   return () => {
     lit.delete(element)
+    near.delete(element)
+    delete element.dataset.rimLight
+    element.style.removeProperty('--pointer-x')
+    element.style.removeProperty('--pointer-y')
   }
 }
 
@@ -436,6 +484,18 @@ export function useGlass<T extends HTMLElement>(
     attachment.current?.dispose()
     attachment.current = undefined
     if (!element || !CSS.supports('backdrop-filter', 'url(#glass)')) return
+    // A button inside anything that filters its backdrop (a dialog's or a toolbar's glass, a
+    // notice's frost) is drawn on it: a backdrop filter there would see nothing behind it
+    // (Controls.module.css gives it a quiet fill instead).
+    if (kind === 'control') {
+      let on = false
+      for (let node = element.parentElement; node && !on; node = node.parentElement)
+        on = getComputedStyle(node).backdropFilter !== 'none'
+      if (on) {
+        element.dataset.onGlass = ''
+        return
+      }
+    }
     const root = document.documentElement
     // Without GPU compositing (as the main process found at boot) every frame of a bend is drawn
     // on the CPU: the glass keeps its blur, its colour and its rim, and does not bend (the chain
@@ -543,6 +603,7 @@ export function useGlass<T extends HTMLElement>(
     document.body.append(svg)
     bends.current = { bevel: bevelBend, span: 0 }
     let size = '',
+      unfollow: (() => void) | undefined,
       shown = false,
       first = made,
       current: Lens | undefined
@@ -596,38 +657,6 @@ export function useGlass<T extends HTMLElement>(
       bend(0)
       rising = requestAnimationFrame(step)
     }
-    // Glass that carries text takes the appearance of what lies under it (appearance.ts): its
-    // colour turns from the one to the other over 200ms, and its rim is made again for it once it
-    // has turned (made during the turn, it would hold up the turn's frames).
-    const unwatch = adaptive.has(kind) ? watchAppearance(element) : undefined
-    const appearanceNow = (): Appearance =>
-      (element.dataset.appearance as Appearance | undefined) ?? theme()
-    let shownAppearance = appearanceNow(),
-      turning = 0
-    const turned = () => {
-      turning = 0
-      size = ''
-      sync()
-    }
-    const turn = () => {
-      const next = appearanceNow()
-      if (next === shownAppearance) return
-      const from = shownAppearance
-      shownAppearance = next
-      cancelAnimationFrame(turning)
-      if (reducedMotion() || !docked) return turned()
-      const start = performance.now()
-      const step = (now: number) => {
-        const t = Math.min(1, Math.max(0, (now - start) / 200))
-        colour.set(docked, next, from, t * t * (3 - 2 * t))
-        if (t < 1) turning = requestAnimationFrame(step)
-        else turned()
-      }
-      colour.set(docked, next, from, 0)
-      turning = requestAnimationFrame(step)
-    }
-    const turns = new MutationObserver(turn)
-    turns.observe(element, { attributes: true, attributeFilter: ['data-appearance'] })
     const quiet = () => {
       element.style.removeProperty('--refract')
       element.style.removeProperty('--glass-blur')
@@ -664,8 +693,8 @@ export function useGlass<T extends HTMLElement>(
         shown = true
         if (dynamic) first ??= { width: w, height: h, radius: r }
         const fresh = first
-          ? lens(first.width, first.height, first.radius, kind, shownAppearance)
-          : lens(w, h, r, kind, shownAppearance)
+          ? lens(first.width, first.height, first.radius, kind, theme())
+          : lens(w, h, r, kind, theme())
         if (fresh !== current) {
           current = fresh
           assemble(fresh)
@@ -673,10 +702,17 @@ export function useGlass<T extends HTMLElement>(
         }
       }
       if (next !== size) layout(w, h)
+      // Light catches a rim (one the glass has: not a huge pane's) where the pointer is near.
+      const rim = rimmed[kinds[kind]] && !huge(kind, w, h)
+      if (rim && !unfollow) unfollow = followPointer(element)
+      if (!rim && unfollow) {
+        unfollow()
+        unfollow = undefined
+      }
       if (sized.has(kind))
         element.style.setProperty('--glass-blur', `${paneBlur(Math.min(w, h))}px`)
       size = next
-      if (!turning) colour.set(docked, shownAppearance)
+      colour.set(docked)
       // On an sRGB display the encodings are not in the chain at all.
       const tables = encodings(root.dataset.displayColorSpace)
       for (const [node, values] of [
@@ -714,7 +750,6 @@ export function useGlass<T extends HTMLElement>(
       appearance = new MutationObserver(() => {
         if (appearanceOf() === shownAs) return
         shownAs = appearanceOf()
-        shownAppearance = appearanceNow()
         size = ''
         sync()
       })
@@ -733,9 +768,7 @@ export function useGlass<T extends HTMLElement>(
     sync()
     const dispose = () => {
       cancelAnimationFrame(rising)
-      cancelAnimationFrame(turning)
-      turns.disconnect()
-      unwatch?.()
+      unfollow?.()
       resize.disconnect()
       appearance.disconnect()
       svg.remove()

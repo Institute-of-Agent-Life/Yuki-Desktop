@@ -84,7 +84,7 @@
   padding: var(--space-3) var(--space-4);
   border: 0;
   background: none;
-  border-radius: var(--r-row);
+  border-radius: var(--r-capsule);
   text-align: left;
   color: var(--text-primary);
   cursor: pointer;
@@ -98,7 +98,7 @@
   font-weight: 600;
 }
 .categories button[role='tab'] svg {
-  color: color-mix(in srgb, var(--accent) var(--ink-mix), var(--ink-base));
+  color: var(--accent);
 }
 .categoryGroup:last-child {
   margin-top: 16px;
@@ -162,7 +162,7 @@
 /* A grouped inset list (HIG grouped form): a fill without a border, rows of at least 40pt, and
    separators that start where the text does. */
 .group {
-  border-radius: var(--r-group);
+  border-radius: var(--r-container-m);
   overflow: hidden;
   margin-bottom: var(--space-7);
   background: var(--grouped);
@@ -293,7 +293,7 @@
   height: auto;
   margin: 0;
   background: #fff;
-  border-radius: var(--r-row);
+  border-radius: var(--r-container-s);
 }
 .secret {
   font: 13px/20px var(--font-mono);
@@ -317,7 +317,7 @@
   font: 12px/18px var(--font-mono);
   color: var(--text-primary);
   background: var(--bg-raised);
-  border-radius: var(--r-row);
+  border-radius: var(--r-container-s);
   padding: 12px;
 }
 @media (max-width: 1000px) {
@@ -387,7 +387,7 @@
 .backdropSwatch {
   width: 56px;
   height: 38px;
-  border-radius: var(--r-group);
+  border-radius: var(--r-capsule);
   box-shadow: inset 0 0 0 var(--line) var(--separator-strong);
 }
 .backdrop[aria-checked='true'] {
@@ -396,6 +396,41 @@
 .backdrop[aria-checked='true'] .backdropSwatch {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+/* A kept picture of one's own: removed from the control at its corner, shown while it is pointed
+   at or focused. */
+.kept {
+  position: relative;
+  display: flex;
+}
+.forget,
+.forget:hover {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: var(--r-capsule);
+  background: none;
+  backdrop-filter: blur(var(--glass-blur)) var(--glass-native) var(--seal,);
+  color: var(--text-secondary);
+  box-shadow: 0 0 0 var(--line) var(--separator-strong);
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+.kept:hover .forget,
+.kept:focus-within .forget {
+  opacity: 1;
+}
+/* The tile that adds another picture. */
+.add {
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  background: var(--fill-control);
 }
 
 /* Over a picture of one's own the page's title, each section's title and note are small labels of

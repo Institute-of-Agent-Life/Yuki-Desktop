@@ -10,12 +10,10 @@
  *   lens: a control held under the finger, nearly clear.
  * No tint, hairline or shadow lies on the Dock's glass.
  */
-:root,
-[data-appearance='light'] {
+:root {
   --glass-native: url(#yuki-glass-tone-light);
 }
-:root[data-theme='dark'],
-[data-appearance='dark'] {
+:root[data-theme='dark'] {
   --glass-native: url(#yuki-glass-tone-dark);
 }
 [data-glass] {
@@ -23,130 +21,40 @@
   --glass-sheet: blur(32px) var(--refract, var(--glass-native)) var(--seal,);
   --glass-lens: blur(0.4px) var(--refract,) var(--seal,);
 }
+/*
+ * Light catches a rim where the pointer is near (glass.ts: followPointer, which writes the
+ * pointer's place only on the rims within its reach): white at 0.1 at the pointer, gone 100px
+ * from it, laid on the rim's outermost pixel, so it lifts a few levels where it falls (over mid
+ * grey +5 on a light rim's top, +9 on a dark one's) and reads as light on the edge, not a
+ * spotlight. The tinted button lays it over
+ * its own rim (Controls.module.css). Not where the glass is not glass.
+ */
+[data-rim-light] {
+  --rim-light: radial-gradient(
+    circle 100px at var(--pointer-x) var(--pointer-y),
+    rgb(255 255 255 / 0.1),
+    transparent
+  );
+}
+:root:is([data-opaque='true'], [data-gpu-compositing='false']) [data-rim-light] {
+  --rim-light: none;
+}
+[data-glass][data-rim-light]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: var(--line);
+  pointer-events: none;
+  background: var(--rim-light);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
 /* Increased contrast draws the glass's edge, which the Dock's glass otherwise shows by its rim. */
 :root[data-contrast='true'] [data-glass] {
   box-shadow: 0 0 0 var(--line) var(--edge);
-}
-/*
- * Text on the Dock's glass, as the system draws it: the main text black or white; the quieter text
- * the same at 0.8 (black) or 0.76 (white), so that it keeps 3:1 over what its glass shows
- * (materials/appearance.ts).
- * Glass that carries text takes the appearance of what lies under it over a picture of one's own
- * (`data-appearance`, materials/appearance.ts), on every platform, with the ink, fills and lines of
- * that appearance (the accent is the persona's, per theme), whatever the theme; they cross-fade with the glass over 200ms.
- */
-@property --text-primary {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #000;
-}
-@property --text-secondary {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #000;
-}
-@property --text-tertiary {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #000;
-}
-:root[data-platform='darwin']:not([data-contrast='true'])
-  :is(
-    [data-glass='sidebar'],
-    [data-glass='toolbar'],
-    [data-glass='composer'],
-    [data-glass='send']
-  ):not([data-appearance='dark']),
-[data-appearance='light'] {
-  --text-primary: #000;
-  --text-secondary: rgb(0 0 0 / 0.8);
-  --text-tertiary: rgb(0 0 0 / 0.8);
-}
-:root[data-platform='darwin'][data-theme='dark']:not([data-contrast='true'])
-  :is(
-    [data-glass='sidebar'],
-    [data-glass='toolbar'],
-    [data-glass='composer'],
-    [data-glass='send']
-  ):not([data-appearance='light']),
-[data-appearance='dark'] {
-  --text-primary: #fff;
-  --text-secondary: rgb(255 255 255 / 0.76);
-  --text-tertiary: rgb(255 255 255 / 0.76);
-}
-[data-appearance] {
-  color: var(--text-primary);
-  transition:
-    --text-primary 200ms var(--ease-standard),
-    --text-secondary 200ms var(--ease-standard),
-    --text-tertiary 200ms var(--ease-standard);
-}
-/* The rest of an appearance's colours, as the theme gives them (tokens.css): its fills and lines,
-   and the persona's accent and the states' colours as that appearance has them. Coloured text on
-   such glass is drawn toward its ink (black or white) by `--ink-mix`, as the system's vibrant
-   colours are, so that it keeps 3:1 over glass whose backdrop sits near either edge of its
-   appearance (appearance.ts); fills keep the colour itself. */
-[data-appearance='light'] {
-  color-scheme: light;
-  --accent: var(--accent-light);
-  --accent-strong: color-mix(in srgb, var(--accent-light) 85%, black);
-  --accent-subtle: color-mix(in srgb, var(--accent-light) 14%, transparent);
-  --accent-on: #ffffff;
-  --status-running: #335fc4;
-  --status-waiting: #8f5600;
-  --status-done: #187334;
-  --status-failed: #c70013;
-  --status-unknown: #6b4cc6;
-  --status-offline: #64676e;
-  --ink-mix: 25%;
-  --ink-base: #000;
-  --frost-wash: rgb(255 255 255 / 0.18);
-  --fill-hover: rgba(20, 34, 64, 0.05);
-  --fill-pressed: rgba(20, 34, 64, 0.09);
-  --fill-selected: rgba(58, 107, 214, 0.14);
-  --fill-inactive: rgba(20, 34, 64, 0.07);
-  --separator: rgba(20, 30, 50, 0.1);
-  --separator-strong: rgba(20, 30, 50, 0.17);
-  --text-disabled: #b4b7be;
-  --grouped: rgb(0 0 0 / 0.035);
-  --control: #ffffff;
-  --control-edge: rgb(0 0 0 / 0.12);
-  --fill-control: rgba(20, 34, 64, 0.065);
-  --track: rgba(20, 34, 64, 0.14);
-  --toggle-off: rgba(20, 34, 64, 0.16);
-  --seg-thumb: #ffffff;
-  --field: rgb(255 255 255 / 0.55);
-}
-[data-appearance='dark'] {
-  color-scheme: dark;
-  --accent: var(--accent-dark);
-  --accent-strong: color-mix(in srgb, var(--accent-dark) 85%, white);
-  --accent-subtle: color-mix(in srgb, var(--accent-dark) 18%, transparent);
-  --accent-on: #0e1a33;
-  --status-running: #7fa4ff;
-  --status-waiting: #ffb340;
-  --status-done: #4cd964;
-  --status-failed: #ff7a72;
-  --status-unknown: #b39dff;
-  --status-offline: #a0a3ab;
-  --ink-mix: 30%;
-  --ink-base: #fff;
-  --frost-wash: rgb(0 0 0 / 0.18);
-  --fill-hover: rgba(255, 255, 255, 0.06);
-  --fill-pressed: rgba(255, 255, 255, 0.1);
-  --fill-selected: rgba(127, 164, 255, 0.18);
-  --fill-inactive: rgba(255, 255, 255, 0.08);
-  --separator: rgba(255, 255, 255, 0.1);
-  --separator-strong: rgba(255, 255, 255, 0.18);
-  --text-disabled: #55585f;
-  --grouped: rgb(255 255 255 / 0.05);
-  --control: rgb(255 255 255 / 0.1);
-  --control-edge: rgb(255 255 255 / 0.08);
-  --fill-control: rgba(255, 255, 255, 0.09);
-  --track: rgba(255, 255, 255, 0.16);
-  --toggle-off: rgba(255, 255, 255, 0.18);
-  --seg-thumb: rgba(255, 255, 255, 0.16);
-  --field: rgb(255 255 255 / 0.07);
 }
 /* Over a picture of one's own, every page lies on it (App.module.css): no page colour of its own,
    but without transparency, where pages are solid and the picture is not shown. */
@@ -169,11 +77,8 @@
  * picture is sharp, the same on every page. Content draws no rim and no lens (HIG keeps Liquid
  * Glass out of the content layer). A block is marked `data-frost`, or is a child of
  * `data-frost-children` (one that is itself `data-frost-children` passes it on to its own; glass,
- * a dialog or a popover among them stays what it is), and takes the appearance of what lies under
- * it (materials/appearance.ts), its copy and ink with it.
+ * a dialog or a popover among them stays what it is). Its copy and ink are the theme's.
  * A fill the block would have (a hovered or selected row) is laid over the frost (`--frost-fill`).
- * Content's frost carries a little wash of its appearance's paper (`--frost-wash`), as content
- * materials do, so that its quieter text keeps 3:1 near the edges where the appearance turns.
  */
 :root[data-backdrop='custom']:not([data-opaque='true'])
   :is(
@@ -182,23 +87,13 @@
   ) {
   background-color: var(--backdrop-fill);
   background-image:
-    linear-gradient(var(--frost-fill, transparent) 0 0), linear-gradient(var(--frost-wash) 0 0),
-    var(--backdrop-frost-light, none);
+    linear-gradient(var(--frost-fill, transparent) 0 0), var(--backdrop-picture-frost, none);
   background-position: center;
-  background-size: auto, auto, var(--backdrop-frost-size, var(--backdrop-size));
+  background-size: auto, var(--backdrop-frost-size, var(--backdrop-size));
   background-repeat: var(--backdrop-repeat);
   background-attachment: fixed;
-  border-radius: var(--frost-radius, var(--r-group));
+  border-radius: var(--frost-radius, var(--r-container-m));
   border-color: transparent;
-}
-:root[data-backdrop='custom']:not([data-opaque='true'])
-  :is(
-    [data-frost],
-    [data-frost-children] > :not([data-frost-children], [data-glass], dialog, [popover])
-  )[data-appearance='dark'] {
-  background-image:
-    linear-gradient(var(--frost-fill, transparent) 0 0), linear-gradient(var(--frost-wash) 0 0),
-    var(--backdrop-frost-dark, none);
 }
 :root[data-backdrop='custom']:not([data-opaque='true'])
   :is(
@@ -223,28 +118,15 @@
   width: fit-content;
   max-width: 100%;
   padding: 2px 10px;
-  --frost-radius: 999px;
+  --frost-radius: var(--r-capsule);
 }
-/* Without GPU compositing the frost is a fill of its appearance, as a bubble's is. */
+/* Without GPU compositing the frost is a fill of the theme, as a bubble's is. */
 :root[data-backdrop='custom'][data-gpu-compositing='false']:not([data-opaque='true'])
   :is(
     [data-frost],
     [data-frost-children] > :not([data-frost-children], [data-glass], dialog, [popover])
   ) {
   background: linear-gradient(var(--frost-fill, transparent) 0 0), var(--bg-elevated);
-}
-/* A menu or sheet that took the appearance against the theme takes that appearance's tint too
-   (tokens.css); in the theme's own it keeps the platform's. */
-:root:not([data-theme='dark']) [data-appearance='dark'] {
-  --mat-sheet-glass: rgb(30 32 50 / 0.74);
-}
-:root[data-theme='dark'] [data-appearance='light'] {
-  --mat-sheet-glass: rgb(255 255 255 / 0.5);
-}
-/* A disabled button on glass or frost fades less than on the page: the backdrop already takes
-   contrast from it, and it must still be read (`button:disabled` in tokens.css). */
-[data-appearance] button:disabled {
-  opacity: 0.6;
 }
 /* As specific as the dark theme's materials (:root[data-theme='dark']), so opaque wins in dark too. */
 :root[data-opaque='true'] {

@@ -17,5 +17,5 @@
 .wave i {
   width: 2px;
   background: var(--status-failed);
-  border-radius: var(--r-xs);
+  border-radius: var(--r-capsule);
 }

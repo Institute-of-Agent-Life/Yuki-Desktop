@@ -28,10 +28,14 @@ async function pixels(page: Page, clip: { x: number; y: number; width: number; h
   }, shot.toString('base64'))
 }
 
-test('a tinted button is rimmed with its own colour, brighter than its fill', async ({ page }) => {
+// Revised (controls are glass): a tinted button is the Dock's glass with the accent laid through
+// it, rimmed by the glass's own rim (glass.ts), not a colour of its own: the top edge brighter than
+// the fill.
+test('a tinted button is tinted glass, its rim brighter than its fill', async ({ page }) => {
   await page.goto('http://127.0.0.1:4178/components.html')
   const button = page.getByRole('button', { name: '開啟對話框', exact: true })
   await expect(button).toBeVisible()
+  await expect(button).toHaveAttribute('data-glass', 'control')
   await page.mouse.move(2, 2)
   await page.waitForTimeout(300)
   const box = (await button.boundingBox())!
@@ -39,37 +43,12 @@ test('a tinted button is rimmed with its own colour, brighter than its fill', as
   const at = (x: number, y: number) =>
     image.data.slice((y * image.width + x) * 4, (y * image.width + x) * 4 + 3)
   const light = ([r, g, b]: number[]) => 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
-  // The top edge just inside the corner's curve, and the plain fill beside the label.
-  const edge = at(Math.round(image.width / 2), 1),
+  // The top edge's outermost device pixel at the middle, and the plain fill beside the label.
+  const edge = at(Math.round(image.width / 2), 0),
     fill = at(8, Math.round(image.height / 2))
   evidence.tinted = { edge, fill }
-  // 3: brighter than the fill, and lit in its own colour: no neutral white in the light.
+  expect(fill[2]! - fill[0]!).toBeGreaterThan(30)
   expect(light(edge)).toBeGreaterThan(light(fill))
-  const colours = await button.evaluate((element) => {
-    // Each colour of the rim's light read back as RGB (image data is not premultiplied); clear
-    // stops carry no light.
-    const context = new OffscreenCanvas(1, 1).getContext('2d')!
-    return (
-      getComputedStyle(element, '::before').backgroundImage.match(
-        /(?:rgba?|oklch|color)\([^()]*\)/g,
-      ) ?? []
-    )
-      .map((colour) => {
-        context.clearRect(0, 0, 1, 1)
-        context.fillStyle = colour
-        context.fillRect(0, 0, 1, 1)
-        const [r, g, b, a] = context.getImageData(0, 0, 1, 1).data
-        return {
-          colour,
-          rgb: [r!, g!, b!],
-          a: a!,
-        }
-      })
-      .filter(({ a }) => a > 0)
-  })
-  evidence.rimColours = colours
-  expect(colours.length).toBeGreaterThan(0)
-  for (const { colour, rgb } of colours) expect(rgb[2]! - rgb[0]!, colour).toBeGreaterThan(30)
 })
 
 test('the conversation frosts and fades into its top edge as it scrolls under it', async ({

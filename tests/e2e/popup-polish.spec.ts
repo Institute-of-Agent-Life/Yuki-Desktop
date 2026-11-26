@@ -240,7 +240,7 @@ test('a sheet that grew out of a button is lit along its own corners once it has
     edge: edge!,
   }
   evidence.grownSheet = light
-  expect(light.radius).toBe('20px')
+  expect(light.radius).toBe('26px')
   // The Dock's rim at the top's outermost pixel (dock.ts): 52 levels.
   expect(light.edge).toBeGreaterThan(40)
 })

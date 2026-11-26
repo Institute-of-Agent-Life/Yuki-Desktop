@@ -8,7 +8,7 @@ import { ApiError } from './api/client'
  * Pictures of the person's own behind the conversation (docs/reports/2026-11-23-liquid-glass
  * §12). Each is kept under the SHA-256 of its bytes, so the same picture is kept once: the
  * original as it was, the smaller WebP copy the page shows, blurred copies of it, and its
- * brightness table. Chromium decodes and scales pictures in the renderer (as for avatars); this
+ * average colour. Chromium decodes and scales pictures in the renderer (as for avatars); this
  * side keeps the files and serves them to the page under app://desktop/__backgrounds/.
  */
 const id = /^[0-9a-f]{64}$/
@@ -33,13 +33,7 @@ export class Backgrounds {
   async store(original: Uint8Array, copy: Uint8Array, table: BackdropTable) {
     const kind = format(original)
     if (!kind || format(copy) !== 'webp') throw new ApiError('unsupported_image')
-    if (
-      table.grid !== 32 ||
-      table.cells.length !== 32 * 32 ||
-      !table.cells.every((cell) => cell.length === 3 && cell.every((v) => v >= 0 && v <= 1)) ||
-      !/^#[0-9a-f]{6}$/.test(table.average)
-    )
-      throw new ApiError('validation_error')
+    if (!/^#[0-9a-f]{6}$/.test(table.average)) throw new ApiError('validation_error')
     const name = createHash('sha256').update(original).digest('hex')
     await mkdir(this.root, { recursive: true })
     await writeFile(join(this.root, `${name}.${extensions[kind]}`), original)
@@ -76,38 +70,51 @@ export class Backgrounds {
   }
 
   /**
-   * A preference's custom backdrop changed by `given`: a picture given is set if it is kept and
-   * removed otherwise, one not given stays; the other parts are taken where allowed.
+   * The pictures of one's own a preference may keep, from those `given`: each names a kept
+   * picture (its dark one too, or none), once; its other parts are taken where allowed.
    */
-  async accept(given: Partial<CustomBackdrop>, current: CustomBackdrop): Promise<CustomBackdrop> {
-    const number = (value: unknown, max: number, fallback: number) =>
+  async accept(given: unknown[]): Promise<CustomBackdrop[]> {
+    const number = (value: unknown, max: number) =>
       typeof value === 'number' && Number.isFinite(value)
         ? Math.max(0, Math.min(max, Math.round(value)))
-        : fallback
-    const picture = async (theme: 'light' | 'dark') => {
-      const name = theme in given ? given[theme] : current[theme]
-      return (await this.kept(name)) ? { [theme]: name! } : {}
+        : 0
+    const accepted: CustomBackdrop[] = []
+    for (const entry of given as Partial<CustomBackdrop>[]) {
+      if (
+        !(await this.kept(entry?.light)) ||
+        accepted.some((picture) => picture.light === entry.light)
+      )
+        continue
+      accepted.push({
+        light: entry.light!,
+        ...((await this.kept(entry.dark)) ? { dark: entry.dark! } : {}),
+        fit: backdropFits.includes(entry.fit!) ? entry.fit! : 'fill',
+        blur: number(entry.blur, 20),
+        dim: number(entry.dim, 60),
+      })
     }
-    return {
-      ...(await picture('light')),
-      ...(await picture('dark')),
-      fit: backdropFits.includes(given.fit!) ? given.fit! : current.fit,
-      blur: number(given.blur, 20, current.blur),
-      dim: number(given.dim, 60, current.dim),
-    }
+    return accepted
   }
 
-  /** Removes every file but the pictures `backdrop` names, and only their blur in use. */
-  async keep(backdrop: CustomBackdrop) {
-    const names = [backdrop.light, backdrop.dark].filter(Boolean) as string[]
-    const files = await readdir(this.root).catch(() => [] as string[])
+  /** Remove the files released by this edit. An import still awaiting selection owns its files. */
+  async removeUnused(previous: CustomBackdrop[], current: CustomBackdrop[]) {
+    const references = (pictures: CustomBackdrop[]) => {
+      const refs = new Set<string>()
+      for (const picture of pictures)
+        for (const name of [picture.light, picture.dark]) {
+          if (!name) continue
+          refs.add(name)
+          if (picture.blur) refs.add(`${name}-blur${picture.blur}`)
+        }
+      return refs
+    }
+    const kept = references(current)
+    const removed = references(previous).difference(kept)
+    if (!removed.size) return
+    const files = await readdir(this.root)
     await Promise.all(
       files
-        .filter((file) => {
-          const match = /^([0-9a-f]{64})(?:-blur(\d+))?\./.exec(file)
-          if (!match || !names.includes(match[1]!)) return true
-          return match[2] !== undefined && Number(match[2]) !== backdrop.blur
-        })
+        .filter((file) => removed.has(file.split('.')[0]!))
         .map((file) => rm(join(this.root, file), { force: true })),
     )
   }

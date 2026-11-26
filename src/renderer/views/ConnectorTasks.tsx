@@ -269,6 +269,7 @@ export function ConnectorTasks({
         role="tabpanel"
         hidden={activity !== 'native'}
         aria-label={t('connector:tasks.native')}
+        data-frost-children
       >
         <div className={activityStyles.toolbar}>
           <h3>{t('connector:tasks.heading')}</h3>
@@ -566,6 +567,7 @@ export function ConnectorTasks({
         role="tabpanel"
         hidden={activity !== 'terminals'}
         aria-label={t('connector:tasks.terminals')}
+        data-frost-children
       >
         {state.deviceId && <ConnectorTerminals connection={connection} deviceId={state.deviceId} />}
       </section>

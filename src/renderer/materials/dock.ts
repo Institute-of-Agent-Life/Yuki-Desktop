@@ -36,19 +36,10 @@ export const dockLift = 100
 
 /**
  * The glass's colour in a filter: Y (a colour matrix), then tone(Y) − g·Y + lift as a table on it,
- * then added to g·C (dropping the lift). Turning between appearances (appearance.ts), the tone and
- * gain are `toward` of the way from `from`'s to `theme`'s.
+ * then added to g·C (dropping the lift).
  */
-export function dockFilter(
-  theme: 'light' | 'dark',
-  tint: number,
-  from: 'light' | 'dark' = theme,
-  toward = 1,
-) {
-  const start = dockTone(from, tint),
-    end = dockTone(theme, tint)
-  const gain = start.gain + (end.gain - start.gain) * toward,
-    tone = (y: number) => start.tone(y) + (end.tone(y) - start.tone(y)) * toward
+export function dockFilter(theme: 'light' | 'dark', tint: number) {
+  const { tone, gain } = dockTone(theme, tint)
   return {
     luma: [0, 1, 2]
       .map(() => `${weights.join(' ')} 0 0`)
@@ -95,6 +86,12 @@ export function dockToneLayer(theme: 'light' | 'dark', tint: number) {
  * rim fades to nothing at 4.5pt. Top and bottom: dark brightens as a screen (+76 over black at the
  * outermost point, less over brighter), light adds +65; the sides darken, mixing 36% (dark) or
  * 26% (light) toward black.
+ *
+ * Drawn thinner than the Dock's own, on purpose (the owner found it thick, above all on small
+ * controls): the bright outer band is `band` pt (one device pixel; the Dock's is a point), and the
+ * tail within it is pressed to `tail` of its depth (about 0.45 on a pane, 0.15 on a control of
+ * 28pt or less, where it is all but gone). The angle law and the outermost point's amounts stay the
+ * Dock's. The send button keeps the Dock's own width (glass.ts).
  */
 type Rim = readonly (readonly [number, number])[][]
 const rims: Record<'light' | 'dark', Rim> = {
@@ -188,8 +185,9 @@ const rims: Record<'light' | 'dark', Rim> = {
   ],
 }
 /** The rim's mix toward black and its added levels, by the outward normal's angle from the
- * vertical (radians, 0 to π/2) and the depth (pt). */
-export function dockRim(theme: 'light' | 'dark', angle: number, d: number) {
+ * vertical (radians, 0 to π/2) and the depth (pt), for a band `band` pt wide and a tail pressed to
+ * `tail` of the Dock's depth (1 and 1: the Dock's own). */
+export function dockRim(theme: 'light' | 'dark', angle: number, depth: number, band = 1, tail = 1) {
   const table = rims[theme],
     row = Math.min(6, Math.max(0, (angle * 180) / Math.PI / 15))
   const at = (column: number) => {
@@ -200,9 +198,10 @@ export function dockRim(theme: 'light' | 'dark', angle: number, d: number) {
       (k) => table[low]![column]![k]! * (1 - t) + table[high]![column]![k]! * t,
     ) as [number, number]
   }
-  // Depth to the tables' columns: the first point is the outermost entry, then 1.5 to 3.5pt one
-  // column a point, fading to nothing by 4.5pt.
-  if (d < 1) return { mix: at(0)[0], add: at(0)[1] }
+  // Depth to the tables' columns: the band is the outermost entry, then (on the Dock's own scale,
+  // past its first point) 1.5 to 3.5pt one column a point, fading to nothing by 4.5pt.
+  if (depth < band) return { mix: at(0)[0], add: at(0)[1] }
+  const d = 1 + (depth - band) / tail
   if (d >= 4.5) return { mix: 0, add: 0 }
   const column = d < 1.5 ? 2 * (d - 1) : d - 0.5
   const low = Math.min(3, Math.floor(column)),

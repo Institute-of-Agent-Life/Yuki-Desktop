@@ -1,4 +1,3 @@
-import { useTabMotion } from '../motion/tab'
 import { usePress } from '../motion/hooks'
 import { useState } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -64,12 +63,6 @@ export function About({
   const avatarSupported =
     info.status === 'success' && info.data.capabilities.includes('character_avatar')
   const [tab, setTab] = useState<'me' | 'self' | 'arrangements' | 'capabilities'>('me')
-  const panelMotion = useTabMotion<HTMLDivElement>(tab, [
-    'me',
-    'self',
-    'arrangements',
-    'capabilities',
-  ])
   const [editing, setEditing] = useState(false)
   const avatarPress = usePress<HTMLButtonElement>()
   const [avatarEditing, setAvatarEditing] = useState(false)
@@ -247,7 +240,6 @@ export function About({
             </div>
           ))}
         <div
-          ref={panelMotion}
           role="tabpanel"
           aria-label={t(`about:tab.${tab}`)}
           className={styles.panel}

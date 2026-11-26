@@ -31,3 +31,10 @@
   font-size: 13px;
   line-height: 20px;
 }
+
+/* Over a picture of one's own each part of an activity (its heading with its action, a note, a
+   group of rows, a form) is a block of frost (materials.css), as on every other page. */
+:global(:root[data-backdrop='custom']:not([data-opaque='true'])) .page [role='tabpanel'] > * {
+  margin: 0 0 12px;
+  padding: 12px;
+}

@@ -1,7 +1,7 @@
 .work {
   max-width: 560px;
   border: var(--line) solid transparent;
-  border-radius: var(--r-panel);
+  border-radius: var(--r-container-m);
   padding: 12px 14px 10px;
   margin: 8px 0;
 }
@@ -34,7 +34,7 @@
 .question {
   margin-top: 12px;
   padding: 12px;
-  border-radius: var(--r-group);
+  border-radius: var(--r-container-s);
   background: var(--accent-subtle);
   line-height: 22px;
 }
@@ -72,7 +72,7 @@
   width: 100%;
   padding: 8px;
   text-align: left;
-  border-radius: var(--r-group);
+  border-radius: var(--r-container-s);
 }
 .fileText {
   min-width: 0;

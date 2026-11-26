@@ -24,10 +24,13 @@ import { closeUps, enlarge, pixels, type Pixels } from '../fixtures/edges'
  *      and blue (so it keeps the colour within), within 5 levels at the outermost device pixel:
  *      the top and bottom brighten, dark as a screen (a 0.33, c +76: over the dark page 66 over
  *      the face, over mid grey only 39), light by +65 nearly alone (a 0.04); a side mixes toward
- *      black, 36% dark (c −3.5) or 26% light (c −13); 2.25pt in at the top the tail (dark a
- *      0.05, c 11; light c 10.5) within 2.5; 7pt in more than 2.5 from the face (a sheet's shadow
- *      nearby shades the page a little); over blue inside an orange outside, the top rim is not
- *      blue;
+ *      black, 36% dark (c −3.5) or 26% light (c −13); 7pt in more than 2.5 from the face (a
+ *      sheet's shadow nearby shades the page a little); over blue inside an orange outside, the
+ *      top rim is not blue;
+ *   4a. the rim is as thick as the Dock's own rather than thinner (dock.ts): the bright band is
+ *      more than the outermost device pixel (the next one, 0.5pt in at 2x, keeps half of its lift
+ *      or more), or the tail within still adds more than 2.5 levels 2.25pt in (the Dock's adds
+ *      about 11 there) on a pane, or 1.25pt in on a control of 28pt;
  *   5. colours are parted: over a grey grid the 99th percentile of chroma in the band exceeds 4;
  *   6. a line bent across the band steps and breaks: the band's finest detail over a grid (99th
  *      percentile of each pixel's distance from its 3×3 mean) exceeds 2.6 levels on a pane, 9.5 on
@@ -107,14 +110,22 @@ const tone = {
   dark: (y: number) => 11 + 0.919 * y - 0.000992 * y * y,
 } as const
 
-async function scene(page: Page, theme: 'light' | 'dark', background: string, scale: number) {
-  await page.setViewportSize({ width: 800, height: 520 })
-  await page.goto(
-    `http://127.0.0.1:4178/glass-edges.html?scene=set&theme=${theme}&bg=${background}&scale=${scale}`,
-  )
-  await expect(page.locator('html[data-ready]')).toBeAttached()
-  await page.mouse.move(-10, -10)
-  await page.waitForTimeout(600)
+async function scene(
+  page: Page,
+  theme: 'light' | 'dark',
+  background: string,
+  scale: number,
+  load = true,
+) {
+  if (load) {
+    await page.setViewportSize({ width: 800, height: 520 })
+    await page.goto(
+      `http://127.0.0.1:4178/glass-edges.html?scene=set&theme=${theme}&bg=${background}&scale=${scale}`,
+    )
+    await expect(page.locator('html[data-ready]')).toBeAttached()
+    await page.mouse.move(-10, -10)
+    await page.waitForTimeout(600)
+  }
   const glass: Glass[] = await page.locator('[data-name]').evaluateAll((nodes) =>
     nodes.map((node) => {
       const { x, y, width, height } = node.getBoundingClientRect()
@@ -192,8 +203,8 @@ test.describe('the edges of the glass', () => {
       // 4: over the dark page and mid grey, the rim against the face, in levels: what the law
       // gives, (1 − a)·face + c, less the face.
       const law = {
-        dark: { top: [0.33, 76], side: [0.36, -3.5], tail: [0.05, 11.25] },
-        light: { top: [0.04, 65], side: [0.26, -13], tail: [0, 10.5] },
+        dark: { top: [0.33, 76], side: [0.36, -3.5] },
+        light: { top: [0.04, 65], side: [0.26, -13] },
       }[theme]
       const over = (face: number, [a, c]: number[]) => (1 - a!) * face + c! - face
       for (const background of ['dark', 'gray'] as const) {
@@ -206,7 +217,8 @@ test.describe('the edges of the glass', () => {
             top: at(x + width / 2, y + 0.25),
             bottom: at(x + width / 2, y + height - 0.25),
             side: at(x + 0.25, y + height / 2),
-            tail: at(x + width / 2, y + 2.25),
+            next: at(x + width / 2, y + 0.75),
+            tail: at(x + width / 2, y + (height <= 28 ? 1.25 : 2.25)),
             past: at(x + width / 2, y + 7),
           }
           found[`rim ${background} ${name}`] = { face, ...rim }
@@ -214,10 +226,11 @@ test.describe('the edges of the glass', () => {
           expect.soft(rim.top, `${where}: the top`).toBeCloseTo(over(face, law.top), -1)
           expect.soft(rim.bottom, `${where}: the bottom`).toBeCloseTo(over(face, law.top), -1)
           expect.soft(rim.side, `${where}: a side`).toBeCloseTo(over(face, law.side), -1)
-          // (Against 7pt in, as a sheet's shadow nearby shades the folder's face a little.)
+          // 4a. (Against 7pt in, as a sheet's shadow nearby shades the folder's face a little.)
+          expect.soft(rim.next, `${where}: one device pixel`).toBeLessThan(0.5 * rim.top)
           expect
-            .soft(rim.tail - rim.past, `${where}: the top's tail`)
-            .toBeCloseTo(over(face, law.tail), -0.7)
+            .soft(Math.abs(rim.tail - rim.past), `${where}: the top's tail`)
+            .toBeLessThanOrEqual(2.5)
           expect.soft(Math.abs(rim.past), `${where}: past the rim`).toBeLessThanOrEqual(2.5)
         }
       }
@@ -230,6 +243,42 @@ test.describe('the edges of the glass', () => {
       found.colour = rim
       expect.soft(rim[2]! - rim[0]!, `${theme}: a blue rim`).toBeGreaterThan(0)
       evidence[`dock-${theme}`] = found
+    })
+
+  /*
+   * Light catches a rim where the pointer is near: on top of the Dock's rim, a gentle lift of the
+   * outermost pixels, 4–12 levels with the pointer just off the edge, fading out within about
+   * 120px. Fails when nothing is lifted, when it is a spotlight (more than 12), when the face is
+   * lit as well as the rim, or when the pointer far away leaves it lit.
+   */
+  for (const theme of ['dark', 'light'] as const)
+    test(`${theme}: light catches the rim near the pointer, and leaves it far away`, async ({
+      page,
+    }) => {
+      const at = async () => {
+        await page.waitForTimeout(250)
+        const { glass, image } = await scene(page, theme, 'gray', 2, false)
+        const { x, y, width, height } = glass.composer!
+        const face = luminance(image, x + width / 2, y + height / 2)
+        return {
+          rim: luminance(image, x + width / 2, y + 0.25) - face,
+          face,
+        }
+      }
+      await scene(page, theme, 'gray', 2)
+      const far = await at()
+      const box = (await page.locator('[data-name="composer"]').boundingBox())!
+      await page.mouse.move(box.x + box.width / 2, box.y - 6)
+      const near = await at()
+      await page.mouse.move(box.x + box.width / 2, box.y - 400 > 0 ? box.y - 400 : 515)
+      const away = await at()
+      evidence[`pointer-${theme}`] = { far, near, away }
+      expect.soft(near.rim - far.rim, 'the rim is lifted').toBeGreaterThanOrEqual(4)
+      expect.soft(near.rim - far.rim, 'gently').toBeLessThanOrEqual(12)
+      expect.soft(Math.abs(near.face - far.face), 'the face is not').toBeLessThanOrEqual(1)
+      expect
+        .soft(Math.abs(away.rim - far.rim), 'far away it is the plain law')
+        .toBeLessThanOrEqual(1)
     })
 
   test("the band mirrors what lies just inside, to the Dock's depth, and parts no colours", async ({
@@ -295,9 +344,9 @@ test.describe('the edges of the glass', () => {
       for (const name of [...panes.filter((name) => name !== 'sheet'), 'segment']) {
         const { x, y, width, height, radius } = glass[name]!
         const band: number[] = []
-        // Within the band, past the rim (whose edge is sharp, as the Dock's): from 2pt in to 13pt
-        // (a held control's: to 0.45 of its radius).
-        const [shallowest, deepest] = name === 'segment' ? [2, 0.45 * radius] : [2, 13]
+        // Within the band, past the rim and its tail (gone by 2.25pt: dock.ts): from 2.5pt in to
+        // 13pt (a held control's: from 2pt to 0.45 of its radius).
+        const [shallowest, deepest] = name === 'segment' ? [2, 0.45 * radius] : [2.5, 13]
         for (let i = Math.floor(y * 2); i < (y + height) * 2; i++)
           for (let j = Math.floor(x * 2); j < (x + width) * 2; j++) {
             const px = (j + 0.5) / 2 - x - width / 2,
@@ -431,10 +480,7 @@ test('glass edges in the real app', async () => {
     const lineart = join(test.info().outputPath(), 'lineart.png')
     await writeFile(lineart, await picture(page, 'lineart'))
     await answerWith(app, lineart)
-    await page
-      .getByRole('radiogroup', { name: '對話背景', exact: true })
-      .getByRole('radio', { name: '自訂圖片', exact: true })
-      .click()
+    await page.getByRole('button', { name: '加入圖片…', exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'custom')
     await page.getByRole('button', { name: '返回', exact: true }).click()
     await chat('lineart')

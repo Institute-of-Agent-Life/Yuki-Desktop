@@ -7,8 +7,8 @@ import { expect, type Page } from '@playwright/test'
  * with the bubbles' text hidden is then compared with that, pixel by pixel, wherever a bubble is.
  *
  * `tint: 'fitted'` (a picture of one's own) takes each bubble's tint from what it shows (the best
- * straight line from the blurred backdrop, given the Dock's colour of the appearance the bubble
- * has taken, to it, per channel: materials/dock.ts), for a window where something else also fades
+ * straight line from the blurred backdrop, given the Dock's colour of the theme, to it, per
+ * channel: materials/dock.ts), for a window where something else also fades
  * a bubble (the conversation's edges): what is left is then only whether the bubble shows the
  * backdrop blurred by `radius`, and in its place.
  */
@@ -79,10 +79,7 @@ export async function frost(
             height: rect.height,
             radius: parseFloat(getComputedStyle(surface).borderTopLeftRadius),
             tint,
-            appearance:
-              surface.parentElement!.dataset.appearance ??
-              document.documentElement.dataset.theme ??
-              'light',
+            theme: document.documentElement.dataset.theme ?? 'light',
           }
         })
         .filter(
@@ -136,12 +133,12 @@ export async function frost(
   )
   return page.evaluate(
     async ({ shown, backdrop, bubbles, radius, tint, glassTint }) => {
-      // The Dock's colour of an appearance (materials/dock.ts), for one sRGB colour in levels.
+      // The Dock's colour of a theme (materials/dock.ts), for one sRGB colour in levels.
       const toward = Math.min(1, Math.max(0, (glassTint - 0.49) / 0.51))
-      const dock = (appearance: string, r: number, g: number, b: number) => {
+      const dock = (theme: string, r: number, g: number, b: number) => {
         const y = 0.2126 * r + 0.7152 * g + 0.0722 * b
         const [shade, gain] =
-          appearance === 'dark'
+          theme === 'dark'
             ? [(1 - toward) * (11 + 0.919 * y - 0.000992 * y * y) + toward * (34 + 0.32 * y), 1.08]
             : [48.4 + 0.695 * y, 1.2]
         return [r, g, b].map((c) => shade! + gain! * (c - y))
@@ -201,7 +198,7 @@ export async function frost(
           source.set(
             k,
             tint === 'fitted'
-              ? dock(bubble.appearance, blurred[k]!, blurred[k + 1]!, blurred[k + 2]!)
+              ? dock(bubble.theme, blurred[k]!, blurred[k + 1]!, blurred[k + 2]!)
               : [blurred[k]!, blurred[k + 1]!, blurred[k + 2]!],
           )
         for (let c = 0; c < 3; c++) {
@@ -253,3 +250,16 @@ export async function frost(
     { shown, backdrop, bubbles, radius, tint, glassTint },
   )
 }
+
+/**
+ * Whether glass shows what lies under it here: not without transparency (CI's macOS reduces it),
+ * and content's frost not without GPU compositing (CI's Linux), where they are fills of the theme.
+ */
+export const throughGlass = (page: Page) =>
+  page.evaluate(() => {
+    const root = document.documentElement.dataset
+    return {
+      glass: root.opaque !== 'true',
+      content: root.opaque !== 'true' && root.gpuCompositing !== 'false',
+    }
+  })

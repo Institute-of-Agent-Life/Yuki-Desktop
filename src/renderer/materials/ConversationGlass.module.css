@@ -17,7 +17,7 @@
   position: absolute;
   inset: 0;
   /* At rest the radius alone shapes the pane; only an entering drop is clipped to its contour. */
-  border-radius: var(--glass-radius, var(--r-panel));
+  border-radius: var(--glass-radius, var(--r-container-s));
   pointer-events: none;
   background-color: var(--bg-content);
   background-image:
@@ -34,53 +34,33 @@
   padding: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
   clip-path: inset(
     0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px) round
-      var(--glass-radius, var(--r-panel))
+      var(--glass-radius, var(--r-container-s))
   );
 }
 .surface:global([data-liquid])::before {
   inset: 0 var(--glass-bleed-inline, 0px) var(--glass-bleed-tail, 0px);
 }
 /* Over a picture of one's own the bubbles show the picture blurred once, with its dim and the
-   Dock's colour (materials/backdrop.ts): the light appearance's copy, and over it the dark one's,
-   shown as the bubble turns dark over a dark part of the picture (materials/appearance.ts) and
-   faded in and out over 200ms. */
+   Dock's colour of the theme (materials/backdrop.ts), which carries the glass's colour itself. */
 :global([data-backdrop='custom']) .root {
-  /* The picture's copy carries the dim and the glass's colour itself (materials/backdrop.ts);
-     over it lies the little wash of its appearance that content's frost has (materials.css). */
-  --bubble-material: var(--frost-wash, transparent);
+  --bubble-material: transparent;
 }
-:global([data-backdrop='custom']) .surface,
-:global([data-backdrop='custom']) .surface::after {
+:global([data-backdrop='custom']) .surface {
   background-color: var(--backdrop-fill, var(--bg-content));
   background-image:
     linear-gradient(var(--glass-tint, var(--glass-neutral-tint)) 0 0),
-    var(--backdrop-frost-light, none);
+    var(--backdrop-picture-frost, none);
   background-position: center;
   background-size: auto, var(--backdrop-frost-size, var(--backdrop-size));
   background-repeat: var(--backdrop-repeat);
   background-attachment: fixed;
 }
-:global([data-backdrop='custom']) .surface::after {
-  --glass-neutral-tint: rgb(0 0 0 / 0.18);
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background-image:
-    linear-gradient(var(--glass-tint, var(--glass-neutral-tint)) 0 0),
-    var(--backdrop-frost-dark, none);
-  opacity: 0;
-  transition: opacity 200ms var(--ease-standard);
-}
-:global([data-backdrop='custom']) [data-appearance='dark'] > .surface::after {
-  opacity: 1;
+:global(article[data-offscreen]) .surface {
+  background-attachment: scroll;
 }
 /* Without transparency, or without GPU compositing, they are solid. */
 :global(:is([data-opaque='true'], [data-gpu-compositing='false'])) .surface {
   background: var(--glass-solid, var(--bg-elevated));
-}
-:global(:is([data-opaque='true'], [data-gpu-compositing='false'])) .surface::after {
-  display: none;
 }
 @media (forced-colors: active) {
   .surface {

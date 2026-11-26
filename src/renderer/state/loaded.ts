@@ -102,6 +102,7 @@ export function loadedItems(
     )
       works.set(work.work_id, work)
   }
+  const desktopChat = t('conversation:desktopChat')
   const addMessage = (conversationId: string, event: PublicEvent) => {
     for (const attachment of event.attachments) addFile(attachment, event.created_at)
     const id = `message/${conversationId}/${event.event_id}`
@@ -111,7 +112,7 @@ export function loadedItems(
       title: parseMessage(event.content).text || t('conversation:attachmentMessage'),
       detail:
         entries.get(conversationId)?.display_name ||
-        (event.platform === 'app' ? t('conversation:desktopChat') : event.platform.toUpperCase()),
+        (event.platform === 'app' ? desktopChat : event.platform.toUpperCase()),
       at: timestamp(event.created_at),
       conversationId,
       event,
@@ -168,7 +169,7 @@ export function loadedItems(
       detail:
         work.source.display_name ||
         (work.source.platform === 'app'
-          ? t('conversation:desktopChat')
+          ? desktopChat
           : (work.source.platform?.toUpperCase() ?? t('conversation:originalEntry'))),
       at: timestamp(work.updated_at),
       work,

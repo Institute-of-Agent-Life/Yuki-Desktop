@@ -1,5 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { BootInfo, PreferencesPatch } from '../shared/desktop'
+import {
+  chosenBackdrop,
+  type BootInfo,
+  type CustomBackdrop,
+  type PreferencesPatch,
+} from '../shared/desktop'
 import { Banner } from './components/Controls'
 import styles from './App.module.css'
 import { useCommands } from './state/commands'
@@ -21,7 +26,7 @@ import { RoleSwitcher } from './components/RoleSwitcher'
 import { ApplicationMenu } from './components/ApplicationMenu'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from './i18n'
-import { backdropVariables, followBackdrop } from './materials/backdrop'
+import { backdropVariables, followBackdrop, keepBackdrop } from './materials/backdrop'
 import { dockToneLayer } from './materials/dock'
 
 export function App({ boot }: { boot: BootInfo }) {
@@ -168,8 +173,17 @@ export function App({ boot }: { boot: BootInfo }) {
       }),
     [],
   )
-  const save = async (patch: PreferencesPatch) =>
-    setPreferences(await window.yuki.preferences(patch))
+  const saved = useRef(Promise.resolve(boot.preferences))
+  const save = async (
+    change: PreferencesPatch | ((current: BootInfo['preferences']) => PreferencesPatch),
+  ) => {
+    const previous = saved.current
+    const next = previous.then((current) =>
+      window.yuki.preferences(typeof change === 'function' ? change(current) : change),
+    )
+    saved.current = next.catch(() => previous)
+    setPreferences(await next)
+  }
   useLayoutEffect(() => {
     const root = document.documentElement
     root.dataset.theme =
@@ -178,11 +192,10 @@ export function App({ boot }: { boot: BootInfo }) {
       preferences.highContrast || appearance.highContrast || cssAccessibility.contrast,
     )
     root.dataset.motion = preferences.reducedMotion ? 'reduced' : 'normal'
-    root.dataset.backdrop = preferences.backdrop
+    const custom = chosenBackdrop(preferences)
+    root.dataset.backdrop = custom ? 'custom' : preferences.backdrop
     const theme = root.dataset.theme as 'light' | 'dark'
-    for (const [name, value] of Object.entries(
-      preferences.backdrop === 'custom' ? backdropVariables(preferences.customBackdrop, theme) : {},
-    ))
+    for (const [name, value] of Object.entries(custom ? backdropVariables(custom, theme) : {}))
       root.style.setProperty(name, value)
     const opaque =
       cssAccessibility.opaque ||
@@ -207,14 +220,11 @@ export function App({ boot }: { boot: BootInfo }) {
   )
   // A picture of one's own is the window's backdrop: its glass follows what lies under it, on every
   // page (materials/backdrop.ts). Followed again only when the picture's settings change.
-  const customBackdrop = JSON.stringify(preferences.customBackdrop)
-  useEffect(
-    () =>
-      preferences.backdrop === 'custom'
-        ? followBackdrop(JSON.parse(customBackdrop) as typeof preferences.customBackdrop)
-        : undefined,
-    [preferences.backdrop, customBackdrop],
-  )
+  const customBackdrop = JSON.stringify(chosenBackdrop(preferences) ?? null)
+  useEffect(() => {
+    const custom = JSON.parse(customBackdrop) as CustomBackdrop | null
+    return custom ? followBackdrop(custom) : undefined
+  }, [customBackdrop])
   const adding = () =>
     requestNavigation(() => {
       setPairLink(null)
@@ -375,16 +385,7 @@ export function App({ boot }: { boot: BootInfo }) {
                       connection={item}
                       platform={boot.platform}
                       preferences={preferences}
-                      onBackground={(id) => {
-                        // The picture shown now is the one replaced: dark's own, or the shared one.
-                        const dark =
-                          document.documentElement.dataset.theme === 'dark' &&
-                          preferences.customBackdrop.dark
-                        void save({
-                          backdrop: 'custom',
-                          customBackdrop: { [dark ? 'dark' : 'light']: id },
-                        })
-                      }}
+                      onBackground={(id) => void save((current) => keepBackdrop(current, id))}
                       roleSwitcher={(trigger) => (
                         <RoleSwitcher
                           trigger={trigger}

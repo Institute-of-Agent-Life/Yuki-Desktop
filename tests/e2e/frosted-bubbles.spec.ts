@@ -70,6 +70,8 @@ for (const scale of [1, 2])
           ['wheel', () => page.mouse.wheel(0, -137)],
           ['a screen', () => log.evaluate((log) => (log.scrollTop -= 413))],
         ]
+        if (backdrop === 'lens')
+          moves.push(['jump to the first screen', () => log.evaluate((log) => (log.scrollTop = 0))])
         for (const [where, move] of moves) {
           await move()
           const result = await frost(page, backdrop === 'plain' ? 0 : 2)

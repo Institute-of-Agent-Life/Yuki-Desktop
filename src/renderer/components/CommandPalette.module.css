@@ -7,7 +7,7 @@
   max-height: calc(100dvh - 152px);
   padding: 0;
   border: 0;
-  border-radius: var(--r-sheet);
+  border-radius: var(--r-container-l);
   background: var(--mat-sheet-glass);
   backdrop-filter: var(--glass-sheet);
   color: var(--text-primary);
@@ -58,7 +58,10 @@
 .item {
   display: flex;
   align-items: center;
-  width: 100%;
+  /* A capsule inset into the palette, concentric with its corner (26 less 8). */
+  width: calc(100% - 16px);
+  margin: 0 8px;
+  border-radius: var(--r-capsule);
   height: 36px;
   min-height: 36px;
   padding: 0 16px;
@@ -69,6 +72,10 @@
   color: var(--text-primary);
   cursor: pointer;
   font: 13px/20px var(--font-ui);
+}
+/* Skip layout and paint for offscreen groups of rows, including the row buttons themselves. */
+.batch {
+  content-visibility: auto;
 }
 .item[aria-selected='true'] {
   background: var(--fill-selected);
@@ -119,7 +126,7 @@
 }
 .error {
   padding: 8px 16px;
-  color: color-mix(in srgb, var(--status-failed) var(--ink-mix), var(--ink-base));
+  color: var(--status-failed);
   font: 12px/18px var(--font-ui);
 }
 @media (max-height: 599px) {
